@@ -245,7 +245,7 @@ def get_c_definitions(root_rust_source_file: Path) -> dict[str, str]:
 
 
 def update_rust_definition(
-    root_rust_source_file: Path,
+    rust_source_file: Path,
     identifier: str,
     new_definition: str,
 ) -> None:
@@ -258,7 +258,7 @@ def update_rust_definition(
         json.dump(new_definition_json, temp_file)
         temp_file.flush()
 
-        args = [merge_rust_path, root_rust_source_file, temp_file.name]
+        args = [merge_rust_path, rust_source_file, temp_file.name]
         logging.debug(f"Running merge_rust with args: {args}")
 
         result = subprocess.run(

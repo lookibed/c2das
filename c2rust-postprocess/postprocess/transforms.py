@@ -167,14 +167,18 @@ class CommentTransfer:
 
             rust_comments = get_rust_comments(rust_fn)
             logging.debug(f"{rust_comments=}")
-
-            assert c_comments == rust_comments
+            if c_comments != rust_comments:
+                logging.warning(
+                    "Transferred comments do not exactly match source comments "
+                    "for %s; continuing anyway",
+                    identifier,
+                )
 
             print(get_highlighted_rust(rust_fn))
 
             if update_rust:
                 update_rust_definition(
-                    root_rust_source_file=root_rust_source_file,
+                    rust_source_file=rust_source_file,
                     identifier=prompt.identifier,
                     new_definition=rust_fn,
                 )

@@ -17,13 +17,16 @@ class GPTModel(AbstractGenerativeModel):
         tools: Iterable[Callable[..., Any]] = (),
         max_tool_loops: int = 5,
     ) -> str:
-        # TODO: implement tool calling support
-        assert tools is None, "Tool calling not yet implemented for GPTModel"
+        # The postprocess pipeline currently calls this without tools.
+        # Keep the no-tool path working, and fail loudly if tool use is requested.
+        if tuple(tools):
+            raise NotImplementedError(
+                "Tool calling not yet implemented for GPTModel"
+            )
 
         response = self.client.responses.create(
             model=self.id,
-            input=messages[0]["content"],
-            max_tool_calls=max_tool_loops,
+            input=messages,
         )
 
         return response.output_text
