@@ -18,7 +18,8 @@ class GPTModel(AbstractGenerativeModel):
         max_tool_loops: int = 5,
     ) -> str:
         # TODO: implement tool calling support
-        assert tools is None, "Tool calling not yet implemented for GPTModel"
+        tools = tuple(() if tools is None else tools)
+        assert not tools, "Tool calling not yet implemented for GPTModel"
 
         response = self.client.responses.create(
             model=self.id,

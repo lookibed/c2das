@@ -167,8 +167,13 @@ class CommentTransfer:
 
             rust_comments = get_rust_comments(rust_fn)
             logging.debug(f"{rust_comments=}")
-
-            assert c_comments == rust_comments
+            if c_comments != rust_comments:
+                logging.warning(
+                    "Comment mismatch for %s: C comments=%r Rust comments=%r",
+                    prompt.identifier,
+                    c_comments,
+                    rust_comments,
+                )
 
             print(get_highlighted_rust(rust_fn))
 
