@@ -270,6 +270,48 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c58ec36aac5066d5ca17df51b3e70279f5670a72102f5752cb7e7c856adfc70"
 
 [[package]]
+name = "c2dascript-ast-builder"
+version = "0.1.0"
+dependencies = [
+ "das_ast",
+]
+
+[[package]]
+name = "c2dascript-transpile"
+version = "0.1.0"
+dependencies = [
+ "c2dascript-ast-builder",
+ "c2rust-ast-exporter",
+ "c2rust-ast-printer",
+ "c2rust-bitfields",
+ "c2rust-rust-tools",
+ "colored 2.0.0",
+ "das_ast",
+ "dtoa",
+ "failure",
+ "fern",
+ "handlebars",
+ "indexmap",
+ "itertools 0.10.5",
+ "log",
+ "log-reroute",
+ "pathdiff",
+ "proc-macro2",
+ "regex",
+ "serde",
+ "serde_bencode",
+ "serde_bytes",
+ "serde_derive",
+ "serde_json",
+ "smallvec",
+ "strum",
+ "strum_macros",
+ "syn 2.0.106",
+ "tempfile",
+ "which",
+]
+
+[[package]]
 name = "c2rust"
 version = "0.22.1"
 dependencies = [
@@ -968,6 +1010,10 @@ dependencies = [
  "vcpkg",
  "winapi",
 ]
+
+[[package]]
+name = "das_ast"
+version = "0.1.0"
 
 [[package]]
 name = "datafrog"

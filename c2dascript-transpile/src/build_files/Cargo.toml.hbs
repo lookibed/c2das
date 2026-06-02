@@ -1,0 +1,62 @@
+{{#if is_workspace~}}
+[workspace]
+members = [
+{{#each workspace_members}}    "{{{this}}}",
+{{/each~}}
+]
+{{~/if}}
+
+{{#if is_crate~}}
+[package]
+name = "{{crate_name}}"
+authors = ["C2Rust"]
+version = "0.0.0"
+publish = false
+edition = "{{edition}}"
+autobins = false
+
+{{#if is_library~}}
+[lib]
+name = "{{crate_rust_name}}"
+path = "{{lib_rs_file}}"
+crate-type = [{{{crate_types}}}]
+{{~else~}}
+[[bin]]
+name = "{{crate_rust_name}}"
+path = "{{lib_rs_file}}"
+{{~/if}}
+
+{{#each binaries}}
+[[bin]]
+path = "{{path}}"
+name = "{{name}}"
+{{/each}}
+[dependencies]
+{{#each dependencies}}
+{{#if this.path}}
+{{this.name}} = { version = "{{this.version}}", path = "{{this.path}}" }
+{{else}}
+{{this.name}} = "{{this.version}}"
+{{/if}}
+{{/each}}
+
+{{#if cross_checks~}}
+[dependencies.c2rust-xcheck-plugin]
+version = "*"
+
+[dependencies.c2rust-xcheck-derive]
+version = "*"
+
+[dependencies.c2rust-xcheck-runtime]
+version = "*"
+features = ["libc-hash", "fixed-length-array-hash"]
+
+[dependencies.c2rust-xcheck-backend-{{cross_check_backend}}]
+version = "*"
+{{~/if}}
+{{~/if}}
+
+{{#if strip_debuginfo_release~}}
+[profile.release]
+strip = "debuginfo"
+{{~/if}}

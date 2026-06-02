@@ -1,0 +1,40 @@
+[package]
+name = "c2dascript-transpile"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+description = "C to daScript transpiler implementation"
+
+[dependencies]
+das_ast = { path = "../das_ast" }
+c2dascript-ast-builder = { path = "../c2dascript-ast-builder" }
+c2rust-ast-exporter = { path = "../c2rust-ast-exporter" }
+c2rust-ast-printer = { path = "../c2rust-ast-printer" }
+c2rust-bitfields = { path = "../c2rust-bitfields" }
+c2rust-rust-tools = { path = "../c2rust-rust-tools" }
+colored = "2.0"
+dtoa = "1.0"
+failure = "0.1.5"
+fern = { version = "0.6", features = ["colored"] }
+handlebars = "4.2"
+indexmap = { version = "1.0.1", features = ["serde-1"] }
+itertools = "0.10"
+log = "0.4"
+log-reroute = "0.1"
+pathdiff = "0.2"
+proc-macro2 = "1.0"
+regex = "1"
+serde = { version = "1.0", features = ["rc"] }
+serde_bencode = "0.2"
+serde_bytes = "0.11"
+serde_derive = "1.0.80"
+serde_json = "1.0"
+smallvec = "1.0"
+strum = "0.24"
+strum_macros = "0.24"
+syn = { version = "2.0", features = ["full", "extra-traits", "parsing", "printing"]}
+tempfile = "3.5.0"
+which = "4.4.0"
+
+[features]
+llvm-static = ["c2rust-ast-exporter/llvm-static"]

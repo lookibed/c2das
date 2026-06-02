@@ -1,0 +1,6 @@
+[package]
+name = "das_ast"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+description = "daScript AST type definitions, analogous to syn for Rust"

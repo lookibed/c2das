@@ -1,0 +1,9 @@
+[package]
+name = "c2dascript-ast-builder"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+description = "daScript AST builder"
+
+[dependencies]
+das_ast = { path = "../das_ast" }

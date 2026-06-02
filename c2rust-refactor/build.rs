@@ -5,7 +5,13 @@ use std::path::Path;
 use std::process::Command;
 
 fn process_ast(mode: &str, dest: &Path) {
-    let mut p = Command::new("gen/process_ast.py")
+    let python = if Command::new("python3").arg("--version").output().is_ok() {
+        "python3"
+    } else {
+        "python"
+    };
+    let mut p = Command::new(python)
+        .arg("gen/process_ast.py")
         .arg(mode)
         .arg(dest)
         .spawn()
