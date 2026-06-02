@@ -701,6 +701,15 @@ impl TypedAstContext {
         }
     }
 
+    /// Unwraps a constant expression, if there is one.
+    pub fn unwrap_constant_expr(&self, expr_id: CExprId) -> CExprId {
+        if let CExprKind::ConstantExpr(_, subexpr, _) = self[expr_id].kind {
+            subexpr
+        } else {
+            expr_id
+        }
+    }
+
     /// Unwraps the underlying expression beneath any casts.
     pub fn unwrap_cast_expr(&self, mut expr_id: CExprId) -> CExprId {
         while let CExprKind::Paren(_, subexpr)
@@ -1200,6 +1209,20 @@ impl TypedAstContext {
                             let parent_id = self.parents[&decl_id];
                             if wanted.insert(parent_id) {
                                 to_walk.push(parent_id);
+                            }
+                        }
+
+                        // `__attribute__((cleanup(func)))` references its cleanup
+                        // function through the attribute payload, not via a
+                        // DeclRef the traversal would otherwise see, so mark it
+                        // here.
+                        if let CDeclKind::Variable { ref attrs, .. } = self.c_decls[&decl_id].kind {
+                            for attr in attrs {
+                                if let Attribute::Cleanup(fn_id) = attr {
+                                    if wanted.insert(*fn_id) {
+                                        to_walk.push(*fn_id);
+                                    }
+                                }
                             }
                         }
                     }
@@ -2859,6 +2882,8 @@ pub enum Attribute {
     Alias(String),
     /// __attribute__((always_inline, __always_inline__))
     AlwaysInline,
+    /// __attribute__((cleanup(func), __cleanup__(func)))
+    Cleanup(CDeclId),
     /// __attribute__((cold, __cold__))
     Cold,
     /// Clang `__counted_by` / `__sized_by` (`_or_null`) bounds attribute on a
