@@ -40,7 +40,16 @@ $tests = @(
     @{n="t01_typedef_simple"; e=42},
     @{n="t02_typedef_ptr"; e=10},
     @{n="t03_typedef_struct"; e=12},
-    @{n="c01_complex"; e=25}
+    @{n="c01_complex"; e=25},
+    @{n="c01_const_int"; e=42},
+    @{n="c02_const_ptr"; e=42},
+    @{n="c03_ptr_to_const"; e=99},
+    @{n="c05_const_struct_ptr"; e=25},
+    @{n="c06_const_chain"; e=10},
+    @{n="c07_const_assign"; e=10},
+    @{n="c08_const_static"; e=100},
+    @{n="c09_const_multi"; e=12},
+    @{n="c10_const_mixed"; e=42}
 )
 
 Write-Host "=============================="

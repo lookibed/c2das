@@ -1,6 +1,5 @@
 use std::fmt;
-use crate::DaExpr;
-use crate::DaType;
+use crate::{DaExpr, DaType, DaTypeKind};
 
 /// daScript statement. Analogous to [`syn::Stmt`].
 #[derive(Clone, Debug)]
@@ -163,7 +162,7 @@ impl fmt::Display for DaFunction {
         }
         let params_str: Vec<String> = self.params.iter().map(|p| format!("{}", p).trim().to_string()).collect();
         write!(f, "def {}({})", self.name, params_str.join("; "))?;
-        if self.ret_type != DaType::Void {
+        if !matches!(self.ret_type.kind, DaTypeKind::Void) {
             write!(f, " : {}", self.ret_type)?;
         }
         if let Some(body) = &self.body {
@@ -206,7 +205,7 @@ impl fmt::Display for DaStructure {
 
 impl fmt::Display for DaEnumeration {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.base_type != DaType::Int {
+        if !matches!(self.base_type.kind, DaTypeKind::Int) {
             writeln!(f, "enum {} : {} {{", self.name, self.base_type)?;
         } else {
             writeln!(f, "enum {} {{", self.name)?;

@@ -15,7 +15,7 @@ use crate::with_stmts::WithStmts;
 use crate::TranspilerConfig;
 use crate::ExternCrate;
 
-use das_ast::{DaExpr, DaStmt, DaDecl, DaBlock, DaType, DaVariable, DaModule,
+use das_ast::{DaExpr, DaStmt, DaDecl, DaBlock, DaType, DaTypeKind, DaVariable, DaModule,
               DaField, DaEnumVariant, DaStructure, DaEnumeration, DaAlias};
 
 mod literals;
@@ -119,7 +119,7 @@ impl<'c> Translation<'c> {
                                     let das_fields = fields.as_ref().map(|fids| {
                                         fids.iter().filter_map(|fid| {
                                             if let CDeclKind::Field { ref name, typ, .. } = self.ast_context[*fid].kind {
-                                                let ft = self.convert_type(typ.ctype).ok()?;
+                                                let ft = self.convert_type(typ.clone()).ok()?;
                                                 Some(DaField { name: if name.is_empty() { "_unnamed".into() } else { name.clone() }, field_type: ft, default: None })
                                             } else { None }
                                         }).collect::<Vec<_>>()
@@ -142,7 +142,7 @@ impl<'c> Translation<'c> {
                                             das_variants.push(DaEnumVariant { name: name.clone(), value: das_val });
                                         }
                                     }
-                                    return Ok(DaDecl::Enumeration(DaEnumeration { name: name.clone(), base_type: DaType::Int, variants: das_variants }));
+                                    return Ok(DaDecl::Enumeration(DaEnumeration { name: name.clone(), base_type: DaType::int(), variants: das_variants }));
                                 }
                                 _ => {}
                             }
@@ -151,9 +151,9 @@ impl<'c> Translation<'c> {
                     }
                     _ => {}
                 }
-                let inner = self.convert_type(typ.ctype);
+                let inner = self.convert_type(typ.clone());
                 match inner {
-                    Ok(dt) if dt != DaType::Auto => {
+                    Ok(dt) if !matches!(dt.kind, DaTypeKind::Auto) => {
                         Ok(DaDecl::Alias(DaAlias { name: name.clone(), aliased_type: dt }))
                     }
                     _ => Err(TranslationError::generic("type alias not yet implemented")),
@@ -197,13 +197,13 @@ impl<'c> Translation<'c> {
             CTypeKind::Function(ret, _, _, _, _) => ret,
             _ => return Err(TranslationError::generic("not a function type")),
         };
-        let ret_type = self.convert_type(ret_type.ctype)?;
+        let ret_type = self.convert_type(ret_type)?;
 
         // Convert parameters — add `var` for pointer types (daScript needs mutable params for write access)
         let mut params = vec![];
         for param_id in parameters {
             if let CDeclKind::Variable { ref ident, typ, .. } = self.ast_context[*param_id].kind {
-                let das_ty = self.convert_type(typ.ctype)?;
+                let das_ty = self.convert_type(typ.clone())?;
                 let is_ptr = self.is_pointer_type(typ.ctype);
                 if is_ptr {
                     params.push(mk().param_mut(ident.clone(), das_ty, None));
@@ -238,7 +238,7 @@ impl<'c> Translation<'c> {
         init: Option<CExprId>,
         is_static: bool,
     ) -> TranslationResult<DaDecl> {
-        let das_type = self.convert_type(typ.ctype)?;
+        let das_type = self.convert_type(typ)?;
         let init = init
             .map(|e| self.convert_expr(ctx, e, None))
             .transpose()?
@@ -287,7 +287,7 @@ impl<'c> Translation<'c> {
         if let Some(field_ids) = fields {
             for &fid in field_ids {
                 if let CDeclKind::Field { ref name, typ, .. } = self.ast_context[fid].kind {
-                    let ft = self.convert_type(typ.ctype)?;
+                    let ft = self.convert_type(typ.clone())?;
                     das_fields.push(DaField {
                         name: if name.is_empty() { "_unnamed".into() } else { name.clone() },
                         field_type: ft,
@@ -314,15 +314,15 @@ impl<'c> Translation<'c> {
             .clone();
         let base = match integral_type {
             Some(qt) => {
-                let dt = self.convert_type(qt.ctype)?;
+                let dt = self.convert_type(qt)?;
                 // daScript enum base must be integer type
-                match dt {
-                    DaType::Int | DaType::UInt | DaType::Int8 | DaType::UInt8
-                    | DaType::Int16 | DaType::UInt16 | DaType::Int64 | DaType::UInt64 => dt,
-                    _ => DaType::Int,
+                match dt.kind {
+                    DaTypeKind::Int | DaTypeKind::UInt | DaTypeKind::Int8 | DaTypeKind::UInt8
+                    | DaTypeKind::Int16 | DaTypeKind::UInt16 | DaTypeKind::Int64 | DaTypeKind::UInt64 => dt,
+                    _ => DaType::int(),
                 }
             }
-            None => DaType::Int,
+            None => DaType::int(),
         };
         let mut das_variants = vec![];
         for &vid in variants {
@@ -438,7 +438,7 @@ impl<'c> Translation<'c> {
                 // var _dwN = true
                 let set_first = DaStmt::Var {
                     name: first_var.clone(),
-                    var_type: DaType::Bool,
+                    var_type: DaType::bool(),
                     init: Some(DaExpr::ConstBool(true)),
                 };
 
@@ -643,7 +643,7 @@ impl<'c> Translation<'c> {
 
             ExplicitCast(ty, expr, _cast_kind, _, _) => {
                 let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
-                let target_type = self.convert_type(ty.ctype)?;
+                let target_type = self.convert_type(ty.clone())?;
                 Ok(WithStmts::new_val(DaExpr::Cast {
                     kind: das_ast::CastKind::Cast,
                     expr: Box::new(inner.val),
@@ -717,14 +717,23 @@ impl<'c> Translation<'c> {
         }
     }
 
-    pub fn convert_type(&self, typ: CTypeId) -> TranslationResult<DaType> {
-        // Check for Typedef before resolving (walk through Elaborated/Paren)
+    pub fn convert_type(&self, qual: CQualTypeId) -> TranslationResult<DaType> {
+        // Convert inner type and apply qualifiers
+        let mut dt = self.convert_type_inner(qual.ctype)?;
+        if qual.qualifiers.is_const {
+            dt.is_const = true;
+        }
+        Ok(dt)
+    }
+
+    /// Core type conversion without outer qualifiers.
+    fn convert_type_inner(&self, typ: CTypeId) -> TranslationResult<DaType> {
         let mut cur = typ;
         loop {
             match &self.ast_context[cur].kind {
                 CTypeKind::Typedef(decl_id) => {
                     if let CDeclKind::Typedef { name, .. } = &self.ast_context[*decl_id].kind {
-                        return Ok(DaType::Named(name.clone()));
+                        return Ok(DaType::named(&name));
                     }
                     break;
                 }
@@ -736,36 +745,37 @@ impl<'c> Translation<'c> {
         let resolved = self.ast_context.resolve_type(typ);
         use CTypeKind::*;
         match resolved.kind {
-            Void => Ok(DaType::Void),
-            Bool => Ok(DaType::Bool),
-            Int | Short | UShort | Int128 => Ok(DaType::Int),
-            SChar | Char => Ok(DaType::Int8),
-            UChar => Ok(DaType::UInt8),
-            UInt | UInt128 => Ok(DaType::UInt),
-            Long | LongLong => Ok(DaType::Int64),
-            ULong | ULongLong => Ok(DaType::UInt64),
-            Float => Ok(DaType::Float),
-            Double | LongDouble => Ok(DaType::Double),
+            Void => Ok(DaType::void()),
+            Bool => Ok(DaType::bool()),
+            Int | Short | UShort | Int128 => Ok(DaType::int()),
+            SChar | Char => Ok(DaType::int8()),
+            UChar => Ok(DaType::uint8()),
+            UInt | UInt128 => Ok(DaType::uint()),
+            Long | LongLong => Ok(DaType::int64()),
+            ULong | ULongLong => Ok(DaType::uint64()),
+            Float => Ok(DaType::float()),
+            Double | LongDouble => Ok(DaType::double()),
             Pointer(inner) => {
-                let inner_ty = self.convert_type(inner.ctype)?;
-                Ok(DaType::Pointer(Box::new(inner_ty)))
+                // inner is CQualTypeId — pass full qual so const propagates to pointee
+                let inner_ty = self.convert_type(inner)?;
+                Ok(DaType::pointer(inner_ty))
             }
             ConstantArray(inner, _) => {
-                let inner_ty = self.convert_type(inner)?;
-                Ok(DaType::Array(Box::new(inner_ty)))
+                let inner_ty = self.convert_type_raw(inner)?;
+                Ok(DaType::array(inner_ty))
             }
             IncompleteArray(inner) | VariableArray(inner, _) => {
-                let inner_ty = self.convert_type(inner)?;
-                Ok(DaType::Array(Box::new(inner_ty)))
+                let inner_ty = self.convert_type_raw(inner)?;
+                Ok(DaType::array(inner_ty))
             }
             Function(ret, _, _, _, _) => {
                 // Function pointer type
-                Ok(DaType::Named("function".into()))
+                Ok(DaType::named("function"))
             }
             Struct(decl_id) | Union(decl_id) | Enum(decl_id) => {
                 let decl = &self.ast_context[decl_id];
                 if let Some(name) = decl.kind.get_name() {
-                    Ok(DaType::Named(name.clone()))
+                    Ok(DaType::named(&name))
                 } else {
                     // Anonymous struct/union/enum — check prenamed typedef
                     let typedef_name = self.ast_context.prenamed_decls.iter()
@@ -776,19 +786,18 @@ impl<'c> Translation<'c> {
                             } else { None }
                         });
                     match typedef_name {
-                        Some(n) => Ok(DaType::Named(n)),
-                        None => Ok(DaType::Auto),
+                        Some(n) => Ok(DaType::named(&n)),
+                        None => Ok(DaType::auto()),
                     }
                 }
             }
-
-            Elaborated(inner) => self.convert_type(inner),
-            Decayed(inner) => self.convert_type(inner),
-            Attributed(inner, _) => self.convert_type(inner.ctype),
-            TypeOf(inner) => self.convert_type(inner),
-            Paren(inner) => self.convert_type(inner),
-            _ => Ok(DaType::Auto),
+            _ => Ok(DaType::auto()),
         }
+    }
+
+    /// Convert a bare type ID without qualifiers.
+    pub fn convert_type_raw(&self, typ: CTypeId) -> TranslationResult<DaType> {
+        self.convert_type(CQualTypeId::new(typ))
     }
 
     pub fn is_pointer_type(&self, typ: CTypeId) -> bool {

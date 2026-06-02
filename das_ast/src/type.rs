@@ -1,8 +1,8 @@
 use std::fmt;
 
-/// daScript type representation, analogous to [`syn::Type`].
+/// Base type kind — analogous to daScript's `enum Type` in `debug_info.h`.
 #[derive(Clone, Debug, PartialEq)]
-pub enum DaType {
+pub enum DaTypeKind {
     Void,
     Bool,
     Int,
@@ -16,7 +16,7 @@ pub enum DaType {
     Float,
     Double,
     String_,
-    /// Pointer type: `T?`
+    /// Pointer type: inner type with its own qualifiers
     Pointer(Box<DaType>),
     /// Dynamic array: `array<T>`
     Array(Box<DaType>),
@@ -28,27 +28,83 @@ pub enum DaType {
     Auto,
 }
 
+/// Type declaration — wraps a [`DaTypeKind`] with qualifier flags.
+/// Analogous to daScript's `TypeDecl` in `ast_typedecl.h`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DaType {
+    pub kind: DaTypeKind,
+    pub is_const: bool,
+    pub is_ref: bool,
+    pub is_temporary: bool,
+}
+
+impl DaType {
+    pub fn new(kind: DaTypeKind) -> Self {
+        DaType { kind, is_const: false, is_ref: false, is_temporary: false }
+    }
+
+    pub fn const_(mut self) -> Self {
+        self.is_const = true;
+        self
+    }
+
+    pub fn ref_(mut self) -> Self {
+        self.is_ref = true;
+        self
+    }
+
+    /// Shortcut: `DaType::int()` → `DaType { kind: Int, const: false, ref: false }`
+    pub fn int() -> Self { DaType::new(DaTypeKind::Int) }
+    pub fn uint() -> Self { DaType::new(DaTypeKind::UInt) }
+    pub fn int8() -> Self { DaType::new(DaTypeKind::Int8) }
+    pub fn uint8() -> Self { DaType::new(DaTypeKind::UInt8) }
+    pub fn int16() -> Self { DaType::new(DaTypeKind::Int16) }
+    pub fn uint16() -> Self { DaType::new(DaTypeKind::UInt16) }
+    pub fn int64() -> Self { DaType::new(DaTypeKind::Int64) }
+    pub fn uint64() -> Self { DaType::new(DaTypeKind::UInt64) }
+    pub fn float() -> Self { DaType::new(DaTypeKind::Float) }
+    pub fn double() -> Self { DaType::new(DaTypeKind::Double) }
+    pub fn bool() -> Self { DaType::new(DaTypeKind::Bool) }
+    pub fn void() -> Self { DaType::new(DaTypeKind::Void) }
+    pub fn string() -> Self { DaType::new(DaTypeKind::String_) }
+    pub fn auto() -> Self { DaType::new(DaTypeKind::Auto) }
+    pub fn named(name: &str) -> Self { DaType::new(DaTypeKind::Named(name.to_string())) }
+    pub fn pointer(inner: DaType) -> Self { DaType::new(DaTypeKind::Pointer(Box::new(inner))) }
+    pub fn array(inner: DaType) -> Self { DaType::new(DaTypeKind::Array(Box::new(inner))) }
+    pub fn fixed_array(inner: DaType, n: usize) -> Self {
+        DaType::new(DaTypeKind::FixedArray(Box::new(inner), n))
+    }
+}
+
 impl fmt::Display for DaType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            DaType::Void => write!(f, "void"),
-            DaType::Bool => write!(f, "bool"),
-            DaType::Int => write!(f, "int"),
-            DaType::Int8 => write!(f, "int8"),
-            DaType::Int16 => write!(f, "int16"),
-            DaType::Int64 => write!(f, "int64"),
-            DaType::UInt => write!(f, "uint"),
-            DaType::UInt8 => write!(f, "uint8"),
-            DaType::UInt16 => write!(f, "uint16"),
-            DaType::UInt64 => write!(f, "uint64"),
-            DaType::Float => write!(f, "float"),
-            DaType::Double => write!(f, "double"),
-            DaType::String_ => write!(f, "string"),
-            DaType::Pointer(inner) => write!(f, "{}?", inner),
-            DaType::Array(inner) => write!(f, "array<{}>", inner),
-            DaType::FixedArray(inner, n) => write!(f, "fixed_array<{}, {}>", inner, n),
-            DaType::Named(name) => write!(f, "{}", name),
-            DaType::Auto => write!(f, "auto"),
+        match &self.kind {
+            DaTypeKind::Void => write!(f, "void"),
+            DaTypeKind::Bool => write!(f, "bool"),
+            DaTypeKind::Int => write!(f, "int"),
+            DaTypeKind::Int8 => write!(f, "int8"),
+            DaTypeKind::Int16 => write!(f, "int16"),
+            DaTypeKind::Int64 => write!(f, "int64"),
+            DaTypeKind::UInt => write!(f, "uint"),
+            DaTypeKind::UInt8 => write!(f, "uint8"),
+            DaTypeKind::UInt16 => write!(f, "uint16"),
+            DaTypeKind::UInt64 => write!(f, "uint64"),
+            DaTypeKind::Float => write!(f, "float"),
+            DaTypeKind::Double => write!(f, "double"),
+            DaTypeKind::String_ => write!(f, "string"),
+            DaTypeKind::Pointer(inner) => write!(f, "{}?", inner),
+            DaTypeKind::Array(inner) => write!(f, "array<{}>", inner),
+            DaTypeKind::FixedArray(inner, n) => write!(f, "fixed_array<{}, {}>", inner, n),
+            DaTypeKind::Named(name) => write!(f, "{}", name),
+            DaTypeKind::Auto => write!(f, "auto"),
+        };
+        // Qualifiers after the type
+        if self.is_ref {
+            write!(f, "&")?;
         }
+        if self.is_const {
+            write!(f, " const")?;
+        }
+        Ok(())
     }
 }

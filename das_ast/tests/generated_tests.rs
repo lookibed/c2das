@@ -27,10 +27,10 @@ fn test_00_const() {
         decls: vec![DaDecl::Function(DaFunction {
             name: "add".into(),
             params: vec![
-                DaStmt::Param { name: "a".into(), param_type: DaType::Int, default: None, is_mutable: false },
-                DaStmt::Param { name: "b".into(), param_type: DaType::Int, default: None, is_mutable: false },
+                DaStmt::Param { name: "a".into(), param_type: DaType::int(), default: None, is_mutable: false },
+                DaStmt::Param { name: "b".into(), param_type: DaType::int(), default: None, is_mutable: false },
             ],
-            ret_type: DaType::Int,
+            ret_type: DaType::int(),
             body: Some(DaExpr::Block(DaBlock {
                 stmts: vec![
                     DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Op2 {

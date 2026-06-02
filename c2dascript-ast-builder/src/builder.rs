@@ -172,15 +172,15 @@ impl DaBuilder {
         DaModule { decls, ..DaModule::new() }
     }
 
-    // ── types ──
-    pub fn ty_int(self) -> DaType { DaType::Int }
-    pub fn ty_uint(self) -> DaType { DaType::UInt }
-    pub fn ty_float(self) -> DaType { DaType::Float }
-    pub fn ty_double(self) -> DaType { DaType::Double }
-    pub fn ty_bool(self) -> DaType { DaType::Bool }
-    pub fn ty_void(self) -> DaType { DaType::Void }
-    pub fn ty_string(self) -> DaType { DaType::String_ }
-    pub fn ty_named<N: Make<String>>(self, name: N) -> DaType { DaType::Named(name.make(&self)) }
-    pub fn ty_pointer(self, inner: DaType) -> DaType { DaType::Pointer(Box::new(inner)) }
-    pub fn ty_array(self, inner: DaType) -> DaType { DaType::Array(Box::new(inner)) }
+    // ── type helpers (return DaType) ──
+    pub fn ty_int(self) -> DaType { DaType::int() }
+    pub fn ty_uint(self) -> DaType { DaType::uint() }
+    pub fn ty_float(self) -> DaType { DaType::float() }
+    pub fn ty_double(self) -> DaType { DaType::double() }
+    pub fn ty_bool(self) -> DaType { DaType::bool() }
+    pub fn ty_void(self) -> DaType { DaType::void() }
+    pub fn ty_string(self) -> DaType { DaType::string() }
+    pub fn ty_named<N: Make<String>>(self, name: N) -> DaType { DaType::named(&name.make(&self)) }
+    pub fn ty_pointer(self, inner: DaType) -> DaType { DaType::pointer(inner) }
+    pub fn ty_array(self, inner: DaType) -> DaType { DaType::array(inner) }
 }
