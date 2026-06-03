@@ -16,7 +16,7 @@ struct s {
     a_c : int8
     a_e : e
 }
-def entry2(sz : uint const; buf : int? const) {
+def entry2(sz : uint const; var buf : int?) {
     var x : myint
     var p : myintp
     p = unsafe(addr(x))
@@ -24,9 +24,9 @@ def entry2(sz : uint const; buf : int? const) {
     if (sz > 0) {
         *buf = x
     }
-    var q1 : int const? const
+    var q1 : int const?
     var q2 : int const?
-    var q3 : int? const
+    var q3 : int?
     var q4 : int?
     var f : function?
     var fs : array<function?> = [0, 0]

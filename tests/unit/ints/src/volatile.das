@@ -19,7 +19,7 @@ def entry3(buffer_size : uint const; var buffer : int?) {
         *p += 4
         buffer[3] = *p
         var c : int8 = 10
-        c *= 9.9
+        c *= double(9.9)
         buffer[4] = c
         var src : array<int8> = "test"
         var s : some_struct

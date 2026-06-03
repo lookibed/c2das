@@ -24,7 +24,7 @@ def identity(var i : int) : int {
 def get_identity() : void? {
     return identity
 }
-def entry(sz : uint const; buffer : int? const) {
+def entry(sz : uint const; var buffer : int?) {
     unsafe {
         var f : function? = get_identity()
         buffer[0] = f(10)

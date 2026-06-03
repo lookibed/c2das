@@ -31,12 +31,12 @@ def test_switch(var x : int) : int {
     return 0
 }
 def returns_longdouble() : double {
-    return 0.0
+    return double(0.0)
 }
 def returns_int() : int {
     return 1
 }
 def long_doubles() {
-    var ld : double = 0.5
+    var ld : double = double(0.5)
     var ld2 : double = returns_longdouble() + cast<double>(returns_int())
 }

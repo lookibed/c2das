@@ -435,7 +435,7 @@ def _mm_setr_ps(var _z : float; var _y : float; var _x : float; var _w : float) 
     return [__z, __y, __x, __w]
 }
 def _mm_setzero_ps() : __m128 {
-    return [0.0, 0.0, 0.0, 0.0]
+    return [double(0.0), double(0.0), double(0.0), double(0.0)]
 }
 def _mm_store_ss(var _p : float?; var _a : __m128) {
     struct __mm_store_ss_struct {
@@ -651,7 +651,7 @@ def _mm_setr_pd(var _w : double; var _x : double) : __m128d {
     return [__w, __x]
 }
 def _mm_setzero_pd() : __m128d {
-    return [0.0, 0.0]
+    return [double(0.0), double(0.0)]
 }
 def _mm_move_sd(var _a : __m128d; var _b : __m128d) : __m128d {
     __a[0] = __b[0]
@@ -1070,10 +1070,10 @@ def _mm256_set1_epi64x(var _q : int64) : __m256i {
     return _mm256_set_epi64x(__q, __q, __q, __q)
 }
 def _mm256_setzero_pd() : __m256d {
-    return [0.0, 0.0, 0.0, 0.0]
+    return [double(0.0), double(0.0), double(0.0), double(0.0)]
 }
 def _mm256_setzero_ps() : __m256 {
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    return [double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0)]
 }
 def _mm256_setzero_si256() : __m256i {
     return cast<__m256i>([0, 0, 0, 0])
@@ -1222,10 +1222,10 @@ def _mm512_setzero_si512() : __m512i {
     return cast<__m512i>([0, 0, 0, 0, 0, 0, 0, 0])
 }
 def _mm512_setzero_ps() : __m512 {
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    return [double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0)]
 }
 def _mm512_setzero_pd() : __m512d {
-    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    return [double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0), double(0.0)]
 }
 def _mm512_set1_ps(var _w : float) : __m512 {
     return [__w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w]
@@ -1875,13 +1875,13 @@ def _mm512_cvtsh_h(var _a : __m512h) : auto {
     return __a[0]
 }
 def _mm_setzero_ph() : __m128h {
-    return [cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0)]
+    return [cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0))]
 }
 def _mm256_setzero_ph() : __m256h {
-    return [cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0)]
+    return [cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0))]
 }
 def _mm512_setzero_ph() : __m512h {
-    return [cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0)]
+    return [cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0)), cast<auto>(double(0.0))]
 }
 def _mm512_set1_ph(var _h : auto) : __m512h {
     return cast<__m512h>([__h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h])
@@ -1962,7 +1962,7 @@ def _mm512_abs_ph(var _A : __m512h) : __m512h {
     return cast<__m512h>(_mm512_and_epi32(_mm512_set1_epi32(2147450879), cast<__m512i>(__A)))
 }
 def _mm512_conj_pch(var _A : __m512h) : __m512h {
-    return cast<__m512h>(_mm512_xor_ps(cast<__m512>(__A), _mm512_set1_ps(-0.0)))
+    return cast<__m512h>(_mm512_xor_ps(cast<__m512>(__A), _mm512_set1_ps(-double(0.0))))
 }
 def _mm_add_sh(var _A : __m128h; var _B : __m128h) : __m128h {
     __A[0] += __B[0]
@@ -2124,10 +2124,10 @@ def _mm_abs_ph(var _A : __m128h) : __m128h {
     return cast<__m128h>(_mm_and_epi32(_mm_set1_epi32(2147450879), cast<__m128i>(__A)))
 }
 def _mm256_conj_pch(var _A : __m256h) : __m256h {
-    return cast<__m256h>(_mm256_xor_ps(cast<__m256>(__A), _mm256_set1_ps(-0.0)))
+    return cast<__m256h>(_mm256_xor_ps(cast<__m256>(__A), _mm256_set1_ps(-double(0.0))))
 }
 def _mm_conj_pch(var _A : __m128h) : __m128h {
-    return cast<__m128h>(_mm_xor_ps(cast<__m128>(__A), _mm_set1_ps(-0.0)))
+    return cast<__m128h>(_mm_xor_ps(cast<__m128>(__A), _mm_set1_ps(-double(0.0))))
 }
 def _mm512_cvtpbh_ps(var _A : __m256bh) : __m512 {
     return _mm512_castsi512_ps(cast<__m512i>(_mm512_slli_epi32(cast<__m512i>(_mm512_cvtepi16_epi32(cast<__m256i>(__A))), 16)))
@@ -2246,36 +2246,36 @@ def zero_init_all() {
     var f : __m256i
 }
 def call_all() : ShuffleVectors {
-    var a : __m128 = _mm_setr_ps(cast<float>(7.8), cast<float>(5.6), cast<float>(3.4), cast<float>(1.2))
-    var b : __m128d = _mm_set1_pd(4.13)
-    var d : __m256 = _mm256_set1_ps(cast<float>(45.2))
-    var e : __m256d = _mm256_set_pd(1.1, 2.2, 3.3, 4.4)
+    var a : __m128 = _mm_setr_ps(cast<float>(double(7.8)), cast<float>(double(5.6)), cast<float>(double(3.4)), cast<float>(double(1.2)))
+    var b : __m128d = _mm_set1_pd(double(4.13))
+    var d : __m256 = _mm256_set1_ps(cast<float>(double(45.2)))
+    var e : __m256d = _mm256_set_pd(double(1.1), double(2.2), double(3.3), double(4.4))
     var f : __m128i = _mm_set1_epi8(123)
     var g : __m256i = _mm256_set_epi32(14, 18, 22, 33, -11, -3, 8, 300)
-    var h : __m256d = _mm256_set_pd(5.5, 6.6, 7.7, 8.8)
+    var h : __m256d = _mm256_set_pd(double(5.5), double(6.6), double(7.7), double(8.8))
     return sv
 }
 def vector_init_lists() : VectorInitLists {
-    var il : VectorInitLists = [[1.2999999523162842, 2.299999952316284, 3.4000000953674316, 4.400000095367432], [2.200000047683716, 4.400000095367432, 5.599999904632568, 4.300000190734863, 6.699999809265137, 6.599999904632568, 5.5, 8.800000190734863], [2.2, 4.4], [2.2, 3.3, 4.4, 5.5], [45, 32], [12, 34, 56, 78]]
+    var il : VectorInitLists = [[double(1.2999999523162842), double(2.299999952316284), double(3.4000000953674316), double(4.400000095367432)], [double(2.200000047683716), double(4.400000095367432), double(5.599999904632568), double(4.300000190734863), double(6.699999809265137), double(6.599999904632568), double(5.5), double(8.800000190734863)], [double(2.2), double(4.4)], [double(2.2), double(3.3), double(4.4), double(5.5)], [45, 32], [12, 34, 56, 78]]
     return il
 }
 def vector_init_lists_used() : VectorInitLists {
-    var a : __m128 = [1.2999999523162842, 2.299999952316284, 3.4000000953674316, 4.400000095367432]
-    var b : __m256 = [2.200000047683716, 4.400000095367432, 5.599999904632568, 4.300000190734863, 6.699999809265137, 6.599999904632568, 5.5, 8.800000190734863]
-    var c : __m128d = [2.2, 4.4]
-    var d : __m256d = [2.2, 3.3, 4.4, 5.5]
+    var a : __m128 = [double(1.2999999523162842), double(2.299999952316284), double(3.4000000953674316), double(4.400000095367432)]
+    var b : __m256 = [double(2.200000047683716), double(4.400000095367432), double(5.599999904632568), double(4.300000190734863), double(6.699999809265137), double(6.599999904632568), double(5.5), double(8.800000190734863)]
+    var c : __m128d = [double(2.2), double(4.4)]
+    var d : __m256d = [double(2.2), double(3.3), double(4.4), double(5.5)]
     var e : __m128i = [45, 32]
     var f : __m256i = [12, 34, 56, 78]
     var il : VectorInitLists = [a, b, c, d, e, f]
     return il
 }
-var static_m128 : __m128 = [1.2999999523162842, 2.299999952316284, 3.4000000953674316, 4.400000095367432]
+var static_m128 : __m128 = [double(1.2999999523162842), double(2.299999952316284), double(3.4000000953674316), double(4.400000095367432)]
 
-var static_m256 : __m256 = [2.200000047683716, 4.400000095367432, 5.599999904632568, 4.300000190734863, 6.699999809265137, 6.599999904632568, 5.5, 8.800000190734863]
+var static_m256 : __m256 = [double(2.200000047683716), double(4.400000095367432), double(5.599999904632568), double(4.300000190734863), double(6.699999809265137), double(6.599999904632568), double(5.5), double(8.800000190734863)]
 
-var static_m128d : __m128d = [2.2, 4.4]
+var static_m128d : __m128d = [double(2.2), double(4.4)]
 
-var static_m256d : __m256d = [2.2, 3.3, 4.4, 5.5]
+var static_m256d : __m256d = [double(2.2), double(3.3), double(4.4), double(5.5)]
 
 var static_m128i : __m128i = [45, 32]
 

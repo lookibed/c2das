@@ -6,7 +6,7 @@ enum e {
     C = -10
     D = -9
 }
-def entry3(sz : uint const; buffer : int? const) {
+def entry3(sz : uint const; var buffer : int?) {
     unsafe {
         buffer[0] = A
         buffer[1] = B

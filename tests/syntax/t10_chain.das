@@ -1,20 +1,20 @@
 options gen2
 
-def max(var a : int; var b : int) : int {
+def max(a : int; b : int) : int {
     if (a > b) {
         return a
     } else {
         return b
     }
 }
-def min(var a : int; var b : int) : int {
+def min(a : int; b : int) : int {
     if (a < b) {
         return a
     } else {
         return b
     }
 }
-def clamp(var v : int; var lo : int; var hi : int) : int {
+def clamp(v : int; lo : int; hi : int) : int {
     var r : int = v
     if (r < lo) {
         r = lo

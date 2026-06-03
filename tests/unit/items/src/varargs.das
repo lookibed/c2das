@@ -12,7 +12,7 @@ struct vastruct {
 }
 def call_printf() {
     printf(unsafe(addr("%d, %f
-"[0])), 10, 1.5)
+"[0])), 10, double(1.5))
 }
 def my_vprintf(var format : int8 const?; var ap : __va_list_tag?) {
     vprintf(format, ap)

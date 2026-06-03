@@ -102,7 +102,9 @@ impl fmt::Display for DaType {
         if self.is_ref {
             write!(f, "&")?;
         }
-        if self.is_const {
+        // For non-pointer types, write const qualifier. Pointer const-ness is handled
+        // by `var`/non-`var` on the binding (daScript doesn't support `? const` syntax).
+        if self.is_const && !matches!(self.kind, DaTypeKind::Pointer(_)) {
             write!(f, " const")?;
         }
         Ok(())

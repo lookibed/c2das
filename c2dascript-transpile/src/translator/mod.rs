@@ -206,6 +206,7 @@ impl<'c> Translation<'c> {
             if let CDeclKind::Variable { ref ident, typ, .. } = self.ast_context[*param_id].kind {
                 let das_ty = self.convert_type(typ.clone())?;
                 let is_const = typ.qualifiers.is_const;
+                let is_ptr = self.is_pointer_type(typ.ctype);
                 // Sanitize param name: __ prefix → _ prefix, empty → _argN
                 let pname = if ident.is_empty() || ident == "__" {
                     unnamed_idx += 1;
@@ -215,8 +216,10 @@ impl<'c> Translation<'c> {
                 } else {
                     ident.clone()
                 };
-                // c2rust mod.rs:2633: non-const params get mut, const params stay immutable
-                if !is_const {
+                // c2rust mod.rs:2633: non-const params get mut, const params stay immutable.
+                // However, daScript non-var pointer params are const&, making *p write illegal.
+                // Always use var for pointer types regardless of outer const.
+                if is_ptr || !is_const {
                     params.push(mk().param_mut(pname, das_ty, None));
                 } else {
                     params.push(mk().param(pname, das_ty, None));
