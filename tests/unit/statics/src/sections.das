@@ -34,7 +34,7 @@ def _uint32_identity(var _x : __uint32_t) : __uint32_t {
 def _uint64_identity(var _x : __uint64_t) : __uint64_t {
     return __x
 }
-var params : array<Foo> = [[1, 0, 1.3], [1, 0, 1.2]]
+var params : array<Foo> = [[1, 0, cast<float>(1.3)], [1, 0, cast<float>(1.2)]]
 
 var dont_section_a : int = 0
 
@@ -64,7 +64,7 @@ var section_me4 : uint = 1 + 1
 
 var section_me5 : uint = 1 + 1
 
-var section_foo_b_field : Foo = [1, -1, 1.2]
+var section_foo_b_field : Foo = [1, -1, cast<float>(1.2)]
 
 var section_num_params : uint const = 4 / 4
 

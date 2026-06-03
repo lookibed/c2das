@@ -33,15 +33,15 @@ def cast_stuff() {
     cast<void>(intp)
     var x7 : int64 = cast<int64>(10)
     var x8 : float = cast<float>(10)
-    var x9 : int = cast<int>(10)
+    var x9 : int = cast<int>(double(10.0))
     var x10 : bool = cast<bool>(10)
-    var x11 : bool = cast<bool>(10.5)
+    var x11 : bool = cast<bool>(double(10.5))
     var x12 : bool = cast<void?>(0)
-    var x13 : double = cast<double>(10.5)
+    var x13 : double = cast<double>(double(10.5))
     var const_i : int const = -1
     var x14 : int? = cast<int?>(unsafe(addr(const_i)))
     var b : bool = 1
-    var x15 : float = b
+    var x15 : float = cast<float>(b)
     var x16 : void? = cast<void?>(b)
     var x : int? = unsafe(addr([0]))
 }

@@ -657,6 +657,16 @@ impl<'c> Translation<'c> {
                         )))
                     ))));
                 }
+                // int↔float casts — generate explicit cast (mirrors c2rust convert_cast)
+                if matches!(cast_kind, CastKind::IntegralToFloating | CastKind::FloatingToIntegral | CastKind::FloatingCast) {
+                    let inner = self.convert_expr(ctx, *expr, None)?;
+                    let target_type = self.convert_type(ty.clone())?;
+                    return Ok(WithStmts::new_val(DaExpr::Cast {
+                        kind: das_ast::CastKind::Cast,
+                        expr: Box::new(inner.val),
+                        to: target_type,
+                    }).merge_unsafe(inner.is_unsafe));
+                }
                 self.convert_expr(ctx, *expr, Some(*ty))
             }
 

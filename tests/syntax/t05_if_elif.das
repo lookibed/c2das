@@ -1,6 +1,6 @@
 options gen2
 
-def classify(x : int) : int {
+def classify(var x : int) : int {
     if (x > 0) {
         return 1
     } else {

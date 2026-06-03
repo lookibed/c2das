@@ -7,9 +7,9 @@ def cast2float(var a : double) : float {
     return cast<float>(a)
 }
 def cast2uint(var a : double) : uint {
-    return cast<float>(a)
+    return cast<uint>(cast<float>(a))
 }
-var ld1 : double const = 1
+var ld1 : double const = cast<double>(1.0)
 
-var ld2 : double const = ld1 + 2
+var ld2 : double const = ld1 + cast<double>(2.0)
 

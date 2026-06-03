@@ -93,7 +93,7 @@ def size_of_mixed_bitfields() : size_t {
     return 4
 }
 def zeroed_mixed_bitfields() : mixed_bitfields {
-    var mb : mixed_bitfields = [0, 0]
+    var mb : mixed_bitfields = [0, 0.0]
     return mb
 }
 def size_of_from_csmith() : size_t {

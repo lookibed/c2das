@@ -184,8 +184,17 @@ impl DaExpr {
         match self {
             ConstInt(n) => write!(f, "{}", n),
             ConstUInt(n) => write!(f, "{}u", n),
-            ConstFloat(n) => write!(f, "{}", n),
-            ConstDouble(n) => write!(f, "{}", n),
+            ConstFloat(n) => {
+                let s = format!("{}", n);
+                if s.contains('.') || s.contains('e') || s.contains('E') { write!(f, "{}", s) }
+                else { write!(f, "{}.0", s) }
+            }
+            ConstDouble(n) => {
+                let s = format!("{}", n);
+                let lit = if s.contains('.') || s.contains('e') || s.contains('E') { s }
+                          else { format!("{}.0", s) };
+                write!(f, "double({})", lit)
+            },
             ConstBool(b) => write!(f, "{}", b),
             ConstString(s) => write!(f, "\"{}\"", s),
             ConstNull => write!(f, "null"),

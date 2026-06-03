@@ -4,7 +4,7 @@ struct Point {
     x : int
     y : int
 }
-def area(x1 : int; y1 : int; x2 : int; y2 : int) : int {
+def area(var x1 : int; var y1 : int; var x2 : int; var y2 : int) : int {
     var p1 : Point
     var p2 : Point
     p1.x = x1

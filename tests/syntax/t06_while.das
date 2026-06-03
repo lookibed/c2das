@@ -1,6 +1,6 @@
 options gen2
 
-def sum_to(n : int) : int {
+def sum_to(var n : int) : int {
     var i : int = 0
     var s : int = 0
     while (i <= n) {

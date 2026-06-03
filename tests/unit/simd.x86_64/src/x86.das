@@ -383,14 +383,14 @@ def _mm_cvtt_ps2pi(var _a : __m128) : __m64 {
     return _mm_cvttps_pi32(__a)
 }
 def _mm_cvtsi32_ss(var _a : __m128; var _b : int) : __m128 {
-    __a[0] = __b
+    __a[0] = cast<float>(__b)
     return __a
 }
 def _mm_cvt_si2ss(var _a : __m128; var _b : int) : __m128 {
     return _mm_cvtsi32_ss(__a, __b)
 }
 def _mm_cvtsi64_ss(var _a : __m128; var _b : int64) : __m128 {
-    __a[0] = __b
+    __a[0] = cast<float>(__b)
     return __a
 }
 def _mm_cvt_pi2ps(var _a : __m128; var _b : __m64) : __m128 {
@@ -403,7 +403,7 @@ def _mm_load_ss(var _p : float const?) : __m128 {
     struct __mm_load_ss_struct {
     __u : float
 }    var __u : float = cast<__mm_load_ss_struct const?>(__p).__u
-    return [__u, 0, 0, 0]
+    return [__u, cast<float>(0), cast<float>(0), cast<float>(0)]
 }
 def _mm_load1_ps(var _p : float const?) : __m128 {
     struct __mm_load1_ps_struct {
@@ -420,7 +420,7 @@ def _mm_loadu_ps(var _p : float const?) : __m128 {
 }    return cast<__loadu_ps const?>(__p).__v
 }
 def _mm_set_ss(var _w : float) : __m128 {
-    return [__w, 0, 0, 0]
+    return [__w, cast<float>(0), cast<float>(0), cast<float>(0)]
 }
 def _mm_set1_ps(var _w : float) : __m128 {
     return [__w, __w, __w, __w]
@@ -435,7 +435,7 @@ def _mm_setr_ps(var _z : float; var _y : float; var _x : float; var _w : float) 
     return [__z, __y, __x, __w]
 }
 def _mm_setzero_ps() : __m128 {
-    return [0, 0, 0, 0]
+    return [0.0, 0.0, 0.0, 0.0]
 }
 def _mm_store_ss(var _p : float?; var _a : __m128) {
     struct __mm_store_ss_struct {
@@ -575,11 +575,11 @@ def _mm_cmpnge_sd(var _a : __m128d; var _b : __m128d) : __m128d {
     return [__c[0], __a[1]]
 }
 def _mm_cvtsi32_sd(var _a : __m128d; var _b : int) : __m128d {
-    __a[0] = __b
+    __a[0] = cast<double>(__b)
     return __a
 }
 def _mm_cvtss_sd(var _a : __m128d; var _b : __m128) : __m128d {
-    __a[0] = __b[0]
+    __a[0] = cast<double>(__b[0])
     return __a
 }
 def _mm_cvtsd_f64(var _a : __m128d) : double {
@@ -621,7 +621,7 @@ def _mm_load_sd(var _dp : double const?) : __m128d {
     struct __mm_load_sd_struct {
     __u : double
 }    var __u : double = cast<__mm_load_sd_struct const?>(__dp).__u
-    return [__u, 0]
+    return [__u, cast<double>(0)]
 }
 def _mm_loadh_pd(var _a : __m128d; var _dp : double const?) : __m128d {
     struct __mm_loadh_pd_struct {
@@ -636,7 +636,7 @@ def _mm_loadl_pd(var _a : __m128d; var _dp : double const?) : __m128d {
     return [__u, __a[1]]
 }
 def _mm_set_sd(var _w : double) : __m128d {
-    return [__w, 0]
+    return [__w, cast<double>(0)]
 }
 def _mm_set1_pd(var _w : double) : __m128d {
     return [__w, __w]
@@ -651,7 +651,7 @@ def _mm_setr_pd(var _w : double; var _x : double) : __m128d {
     return [__w, __x]
 }
 def _mm_setzero_pd() : __m128d {
-    return [0, 0]
+    return [0.0, 0.0]
 }
 def _mm_move_sd(var _a : __m128d; var _b : __m128d) : __m128d {
     __a[0] = __b[0]
@@ -750,7 +750,7 @@ def _mm_cmplt_epi32(var _a : __m128i; var _b : __m128i) : __m128i {
     return _mm_cmpgt_epi32(__b, __a)
 }
 def _mm_cvtsi64_sd(var _a : __m128d; var _b : int64) : __m128d {
-    __a[0] = __b
+    __a[0] = cast<double>(__b)
     return __a
 }
 def _mm_cvtsi32_si128(var _a : int) : __m128i {
@@ -1070,10 +1070,10 @@ def _mm256_set1_epi64x(var _q : int64) : __m256i {
     return _mm256_set_epi64x(__q, __q, __q, __q)
 }
 def _mm256_setzero_pd() : __m256d {
-    return [0, 0, 0, 0]
+    return [0.0, 0.0, 0.0, 0.0]
 }
 def _mm256_setzero_ps() : __m256 {
-    return [0, 0, 0, 0, 0, 0, 0, 0]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 }
 def _mm256_setzero_si256() : __m256i {
     return cast<__m256i>([0, 0, 0, 0])
@@ -1222,10 +1222,10 @@ def _mm512_setzero_si512() : __m512i {
     return cast<__m512i>([0, 0, 0, 0, 0, 0, 0, 0])
 }
 def _mm512_setzero_ps() : __m512 {
-    return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 }
 def _mm512_setzero_pd() : __m512d {
-    return [0, 0, 0, 0, 0, 0, 0, 0]
+    return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 }
 def _mm512_set1_ps(var _w : float) : __m512 {
     return [__w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w, __w]
@@ -1491,19 +1491,19 @@ def _mm512_mask_cvtpslo_pd(var _W : __m512d; var _U : __mmask8; var _A : __m512)
     return cast<__m512d>(_mm512_mask_cvtps_pd(__W, __U, _mm512_castps512_ps256(__A)))
 }
 def _mm_cvtu32_sd(var _A : __m128d; var _B : uint) : __m128d {
-    __A[0] = __B
+    __A[0] = cast<double>(__B)
     return __A
 }
 def _mm_cvtu64_sd(var _A : __m128d; var _B : uint64) : __m128d {
-    __A[0] = __B
+    __A[0] = cast<double>(__B)
     return __A
 }
 def _mm_cvtu32_ss(var _A : __m128; var _B : uint) : __m128 {
-    __A[0] = __B
+    __A[0] = cast<float>(__B)
     return __A
 }
 def _mm_cvtu64_ss(var _A : __m128; var _B : uint64) : __m128 {
-    __A[0] = __B
+    __A[0] = cast<float>(__B)
     return __A
 }
 def _mm512_set_epi8(var _e63 : int8; var _e62 : int8; var _e61 : int8; var _e60 : int8; var _e59 : int8; var _e58 : int8; var _e57 : int8; var _e56 : int8; var _e55 : int8; var _e54 : int8; var _e53 : int8; var _e52 : int8; var _e51 : int8; var _e50 : int8; var _e49 : int8; var _e48 : int8; var _e47 : int8; var _e46 : int8; var _e45 : int8; var _e44 : int8; var _e43 : int8; var _e42 : int8; var _e41 : int8; var _e40 : int8; var _e39 : int8; var _e38 : int8; var _e37 : int8; var _e36 : int8; var _e35 : int8; var _e34 : int8; var _e33 : int8; var _e32 : int8; var _e31 : int8; var _e30 : int8; var _e29 : int8; var _e28 : int8; var _e27 : int8; var _e26 : int8; var _e25 : int8; var _e24 : int8; var _e23 : int8; var _e22 : int8; var _e21 : int8; var _e20 : int8; var _e19 : int8; var _e18 : int8; var _e17 : int8; var _e16 : int8; var _e15 : int8; var _e14 : int8; var _e13 : int8; var _e12 : int8; var _e11 : int8; var _e10 : int8; var _e9 : int8; var _e8 : int8; var _e7 : int8; var _e6 : int8; var _e5 : int8; var _e4 : int8; var _e3 : int8; var _e2 : int8; var _e1 : int8; var _e0 : int8) : __m512i {
@@ -1875,13 +1875,13 @@ def _mm512_cvtsh_h(var _a : __m512h) : auto {
     return __a[0]
 }
 def _mm_setzero_ph() : __m128h {
-    return [0, 0, 0, 0, 0, 0, 0, 0]
+    return [cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0)]
 }
 def _mm256_setzero_ph() : __m256h {
-    return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    return [cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0)]
 }
 def _mm512_setzero_ph() : __m512h {
-    return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    return [cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0), cast<auto>(0.0)]
 }
 def _mm512_set1_ph(var _h : auto) : __m512h {
     return cast<__m512h>([__h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h, __h])
@@ -1962,7 +1962,7 @@ def _mm512_abs_ph(var _A : __m512h) : __m512h {
     return cast<__m512h>(_mm512_and_epi32(_mm512_set1_epi32(2147450879), cast<__m512i>(__A)))
 }
 def _mm512_conj_pch(var _A : __m512h) : __m512h {
-    return cast<__m512h>(_mm512_xor_ps(cast<__m512>(__A), _mm512_set1_ps(-0)))
+    return cast<__m512h>(_mm512_xor_ps(cast<__m512>(__A), _mm512_set1_ps(-0.0)))
 }
 def _mm_add_sh(var _A : __m128h; var _B : __m128h) : __m128h {
     __A[0] += __B[0]
@@ -1984,7 +1984,7 @@ def _mm_load_sh(var _dp : void const?) : __m128h {
     struct __mm_load_sh_struct {
     __u : auto
 }    var __u : auto = cast<__mm_load_sh_struct const?>(__dp).__u
-    return [__u, 0, 0, 0, 0, 0, 0, 0]
+    return [__u, cast<auto>(0), cast<auto>(0), cast<auto>(0), cast<auto>(0), cast<auto>(0), cast<auto>(0), cast<auto>(0)]
 }
 def _mm512_load_ph(var _p : void const?) : __m512h {
     return *cast<__m512h const?>(__p)
@@ -2051,19 +2051,19 @@ def _mm_cvtsi128_si16(var _a : __m128i) : int {
     return __b[0]
 }
 def _mm_cvtu32_sh(var _A : __m128h; var _B : uint) : __m128h {
-    __A[0] = __B
+    __A[0] = cast<auto>(__B)
     return __A
 }
 def _mm_cvtu64_sh(var _A : __m128h; var _B : uint64) : __m128h {
-    __A[0] = __B
+    __A[0] = cast<auto>(__B)
     return __A
 }
 def _mm_cvti32_sh(var _A : __m128h; var _B : int) : __m128h {
-    __A[0] = __B
+    __A[0] = cast<auto>(__B)
     return __A
 }
 def _mm_cvti64_sh(var _A : __m128h; var _B : int64) : __m128h {
-    __A[0] = __B
+    __A[0] = cast<auto>(__B)
     return __A
 }
 def _mm_cvtsh_h(var _a : __m128h) : auto {
@@ -2073,7 +2073,7 @@ def _mm256_cvtsh_h(var _a : __m256h) : auto {
     return __a[0]
 }
 def _mm_set_sh(var _h : auto) : __m128h {
-    return [__h, 0, 0, 0, 0, 0, 0, 0]
+    return [__h, cast<auto>(0), cast<auto>(0), cast<auto>(0), cast<auto>(0), cast<auto>(0), cast<auto>(0), cast<auto>(0)]
 }
 def _mm_set1_ph(var _h : auto) : __m128h {
     return cast<__m128h>([__h, __h, __h, __h, __h, __h, __h, __h])
@@ -2124,10 +2124,10 @@ def _mm_abs_ph(var _A : __m128h) : __m128h {
     return cast<__m128h>(_mm_and_epi32(_mm_set1_epi32(2147450879), cast<__m128i>(__A)))
 }
 def _mm256_conj_pch(var _A : __m256h) : __m256h {
-    return cast<__m256h>(_mm256_xor_ps(cast<__m256>(__A), _mm256_set1_ps(-0)))
+    return cast<__m256h>(_mm256_xor_ps(cast<__m256>(__A), _mm256_set1_ps(-0.0)))
 }
 def _mm_conj_pch(var _A : __m128h) : __m128h {
-    return cast<__m128h>(_mm_xor_ps(cast<__m128>(__A), _mm_set1_ps(-0)))
+    return cast<__m128h>(_mm_xor_ps(cast<__m128>(__A), _mm_set1_ps(-0.0)))
 }
 def _mm512_cvtpbh_ps(var _A : __m256bh) : __m512 {
     return _mm512_castsi512_ps(cast<__m512i>(_mm512_slli_epi32(cast<__m512i>(_mm512_cvtepi16_epi32(cast<__m256i>(__A))), 16)))
@@ -2139,7 +2139,7 @@ def _mm512_mask_cvtpbh_ps(var _S : __m512; var _U : __mmask16; var _A : __m256bh
     return _mm512_castsi512_ps(cast<__m512i>(_mm512_mask_slli_epi32(cast<__m512i>(__S), cast<__mmask16>(__U), cast<__m512i>(_mm512_cvtepi16_epi32(cast<__m256i>(__A))), 16)))
 }
 def _mm_cvtness_sbh(var _A : float) : auto {
-    var __V : __v4sf = [__A, 0, 0, 0]
+    var __V : __v4sf = [__A, cast<float>(0), cast<float>(0), cast<float>(0)]
     return cast<auto>(__R[0])
 }
 def _mm_cvtpbh_ps(var _A : __m128bh) : __m128 {
@@ -2246,9 +2246,9 @@ def zero_init_all() {
     var f : __m256i
 }
 def call_all() : ShuffleVectors {
-    var a : __m128 = _mm_setr_ps(7.8, 5.6, 3.4, 1.2)
+    var a : __m128 = _mm_setr_ps(cast<float>(7.8), cast<float>(5.6), cast<float>(3.4), cast<float>(1.2))
     var b : __m128d = _mm_set1_pd(4.13)
-    var d : __m256 = _mm256_set1_ps(45.2)
+    var d : __m256 = _mm256_set1_ps(cast<float>(45.2))
     var e : __m256d = _mm256_set_pd(1.1, 2.2, 3.3, 4.4)
     var f : __m128i = _mm_set1_epi8(123)
     var g : __m256i = _mm256_set_epi32(14, 18, 22, 33, -11, -3, 8, 300)
