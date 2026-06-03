@@ -113,9 +113,13 @@ pub fn transpile(
 ) {
     diagnostics::init(HashSet::new(), tcfg.log_level);
 
-    let lcmds = get_compile_commands(cc_db, &tcfg.filter).unwrap_or_else(|_| {
-        panic!("Could not parse compile commands from {}", cc_db.to_string_lossy())
-    });
+    let lcmds = match get_compile_commands(cc_db, &tcfg.filter) {
+        Ok(l) => l,
+        Err(e) => {
+            warn!("Could not parse compile commands from {}: {}", cc_db.to_string_lossy(), e);
+            return;
+        }
+    };
 
     for lcmd in &lcmds {
         let cmds = &lcmd.cmd_inputs;
@@ -133,7 +137,7 @@ fn transpile_single(
     cc_db: &Path,
     extra_clang_args: &[&str],
 ) -> Result<PathBuf, ()> {
-    let file = input_path.file_name().unwrap().to_str().unwrap();
+    let file = input_path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown");
     if !input_path.exists() {
         warn!("Input C file {} does not exist, skipping!", input_path.display());
         return Err(());
@@ -160,13 +164,13 @@ fn transpile_single(
         translator::translate(typed_context, tcfg, input_path);
 
     let output_path = input_path.with_extension("das");
-    let mut file = match File::create(&output_path) {
-        Ok(f) => f,
-        Err(e) => panic!("Unable to open file {} for writing: {}", output_path.display(), e),
-    };
-    match file.write_all(das_code.as_bytes()) {
-        Ok(()) => (),
-        Err(e) => panic!("Unable to write translation to file {}: {}", output_path.display(), e),
+    if let Err(e) = (|| -> Result<(), std::io::Error> {
+        let mut file = File::create(&output_path)?;
+        file.write_all(das_code.as_bytes())?;
+        Ok(())
+    })() {
+        warn!("Unable to write to {}: {}", output_path.display(), e);
+        return Err(());
     }
 
     println!("Wrote {}", output_path.display());

@@ -1121,17 +1121,11 @@ impl TypedAstContext {
             let is_wanted = match decl.kind {
                 Function {
                     body: Some(_),
-                    is_global: true,
-                    is_inline,
-                    is_inline_externally_visible,
                     ..
-                    // Depending on the C specification and dialect, an inlined function
-                    // may be externally visible. We rely on clang to determine visibility.
-                } if !is_inline || is_inline_externally_visible => true,
-                Function {
-                    body: Some(_),
-                    ..
-                } if want_unused_functions => true,
+                    // For daScript: any function with a body is a root.
+                    // The c2rust is_global/inline filtering was for Rust module visibility.
+                } => true,
+
                 Variable {
                     is_defn: true,
                     is_externally_visible: true,
