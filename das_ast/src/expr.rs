@@ -274,8 +274,20 @@ impl DaExpr {
             DerefExplicit(expr) => write!(f, "deref({})", expr),
 
             Unsafe(expr) => {
-                write!(f, "unsafe({})", expr)
-            }
+                match &**expr {
+                    DaExpr::Block(b) => {
+                        // Block form: unsafe { stmts }
+                        writeln!(f, "unsafe {{")?;
+                        for stmt in &b.stmts {
+                            write_indent(f, indent + 1)?;
+                            stmt.fmt_with_indent(f, indent + 1)?;
+                        }
+                        write_indent(f, indent)?;
+                        write!(f, "}}")
+                    }
+                    e => write!(f, "unsafe({})", e),
+                }
+            },
 
             MakeStruct { type_name, fields } => {
                 let fields_str: Vec<String> = fields

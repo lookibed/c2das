@@ -18,7 +18,7 @@ pub fn convert_function_body(
 ) -> TranslationResult<Vec<StmtOrDecl>> {
     // For now, just convert the compound statement directly
     let stmts = translator.convert_stmt(body_id)?;
-    Ok(stmts.into_iter().map(StmtOrDecl::Stmt).collect())
+    Ok(stmts.val.into_iter().map(StmtOrDecl::Stmt).collect())
 }
 
 /// Simple representation: either a statement or a declaration

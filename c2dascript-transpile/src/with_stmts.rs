@@ -1,4 +1,5 @@
 /// Wraps a daScript expression with possible preceding statements.
+/// Mirrors c2rust's WithStmts pattern for unsafe tracking.
 #[derive(Clone, Debug)]
 pub struct WithStmts<T> {
     pub stmts: Vec<das_ast::DaStmt>,
@@ -38,5 +39,28 @@ impl<T> WithStmts<T> {
     where T: Clone + Into<das_ast::DaExpr>
     {
         self.val.clone().into()
+    }
+
+    /// Mark this expression/statement as containing unsafe operations.
+    pub fn set_unsafe(mut self) -> Self {
+        self.is_unsafe = true;
+        self
+    }
+
+    /// OR-combine the unsafe flag from another source.
+    pub fn merge_unsafe(mut self, is_unsafe: bool) -> Self {
+        self.is_unsafe = self.is_unsafe || is_unsafe;
+        self
+    }
+
+    /// Discard the unsafe flag (used when parent context is already unsafe).
+    pub fn discard_unsafe(mut self) -> Self {
+        self.is_unsafe = false;
+        self
+    }
+
+    /// Query whether this expression/statement contains unsafe operations.
+    pub fn is_unsafe(&self) -> bool {
+        self.is_unsafe
     }
 }

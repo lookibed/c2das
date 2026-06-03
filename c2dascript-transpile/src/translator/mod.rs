@@ -213,10 +213,18 @@ impl<'c> Translation<'c> {
             }
         }
 
-        // Convert body
+        // Convert body — wrap unsafe statements inside unsafe { } block
         let body_das = if let Some(body_id) = body {
-            let stmts = self.convert_stmt(body_id)?;
-            Some(DaExpr::Block(DaBlock { stmts }))
+            let body_ws = self.convert_stmt(body_id)?;
+            let body_stmts = body_ws.val;
+            Some(if body_ws.is_unsafe {
+                // unsafe { } must be INSIDE the function body block, not replace it
+                DaExpr::Block(DaBlock {
+                    stmts: vec![DaStmt::Expr(DaExpr::Unsafe(Box::new(DaExpr::Block(DaBlock { stmts: body_stmts }))))],
+                })
+            } else {
+                DaExpr::Block(DaBlock { stmts: body_stmts })
+            })
         } else {
             None
         };
@@ -242,7 +250,23 @@ impl<'c> Translation<'c> {
         let init = init
             .map(|e| self.convert_expr(ctx, e, None))
             .transpose()?
-            .map(|ws| ws.val);
+            .map(|ws| {
+                if is_static && ws.is_unsafe {
+                    DaExpr::Unsafe(Box::new(ws.val))
+                } else {
+                    ws.val
+                }
+            });
+        // If no explicit init and C type is ConstantArray, zero-init to correct size
+        let init = init.or_else(|| {
+            let resolved = self.ast_context.resolve_type(typ.ctype);
+            if let CTypeKind::ConstantArray(_inner, size) = &resolved.kind {
+                if *size > 0 {
+                    return Some(DaExpr::MakeArray(vec![DaExpr::ConstInt(0); *size]));
+                }
+            }
+            None
+        });
         Ok(DaDecl::Variable(DaVariable {
             name: name.to_string(),
             var_type: das_type,
@@ -356,25 +380,29 @@ impl<'c> Translation<'c> {
         format!("label {}", label_num)
     }
 
-    pub fn convert_stmt(&self, stmt_id: CStmtId) -> TranslationResult<Vec<DaStmt>> {
+    pub fn convert_stmt(&self, stmt_id: CStmtId) -> TranslationResult<WithStmts<Vec<DaStmt>>> {
         let stmt = &self.ast_context[stmt_id];
         match &stmt.kind {
-            CStmtKind::Compound(ref stmts) => {
+            CStmtKind::Compound(ref children) => {
                 let mut result = vec![];
-                for &s in stmts {
-                    result.extend(self.convert_stmt(s)?);
+                let mut is_unsafe = false;
+                for &s in children {
+                    let sub = self.convert_stmt(s)?;
+                    is_unsafe |= sub.is_unsafe;
+                    result.extend(sub.val);
                 }
-                Ok(result)
+                Ok(WithStmts { stmts: vec![], val: result, is_unsafe })
             }
             CStmtKind::Expr(expr_id) => {
-                let val = self.convert_expr(ExprContext { used: false, is_const: false }, *expr_id, None)?;
-                Ok(vec![mk().expr_stmt(val.val)])
+                let v = self.convert_expr(ExprContext { used: false, is_const: false }, *expr_id, None)?;
+                Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(v.val)], is_unsafe: v.is_unsafe })
             }
             CStmtKind::Return(expr_id) => {
                 let val = expr_id
                     .map(|e| self.convert_expr(ExprContext { used: true, is_const: false }, e, None))
                     .transpose()?;
-                Ok(vec![mk().expr_stmt(DaExpr::Return(val.map(|ws| Box::new(ws.val))))])
+                let is_unsafe = val.as_ref().map(|v| v.is_unsafe).unwrap_or(false);
+                Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(DaExpr::Return(val.map(|ws| Box::new(ws.val))))], is_unsafe })
             }
             CStmtKind::Decls(ref decls) => {
                 let mut result = vec![];
@@ -383,67 +411,56 @@ impl<'c> Translation<'c> {
                         result.push(DaStmt::Decl(das_decl));
                     }
                 }
-                Ok(result)
+                Ok(WithStmts { stmts: vec![], val: result, is_unsafe: false })
             }
             CStmtKind::If { scrutinee, true_variant, false_variant } => {
                 let ctx_used = ExprContext { used: true, is_const: false };
                 let cond = self.convert_expr(ctx_used, *scrutinee, None)?;
-                let then_stmts = self.convert_stmt(*true_variant)?;
-                let then_expr = DaExpr::Block(DaBlock { stmts: then_stmts });
+                let then_ws = self.convert_stmt(*true_variant)?;
+                let then_expr = DaExpr::Block(DaBlock { stmts: then_ws.val });
                 let elifs = vec![];
-                let else_expr = match false_variant {
+                let (else_expr, else_unsafe) = match false_variant {
                     Some(fv) => {
-                        let else_stmts = self.convert_stmt(*fv)?;
-                        Some(Box::new(DaExpr::Block(DaBlock { stmts: else_stmts })))
+                        let else_ws = self.convert_stmt(*fv)?;
+                        (Some(Box::new(DaExpr::Block(DaBlock { stmts: else_ws.val }))), else_ws.is_unsafe)
                     }
-                    None => None,
+                    None => (None, false),
                 };
-                Ok(vec![mk().expr_stmt(DaExpr::IfThenElse {
+                Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(DaExpr::IfThenElse {
                     cond: Box::new(cond.val),
                     then: Box::new(then_expr),
                     elifs,
                     else_: else_expr,
-                })])
+                })], is_unsafe: cond.is_unsafe || then_ws.is_unsafe || else_unsafe })
             }
             CStmtKind::While { condition, body } => {
                 let ctx_used = ExprContext { used: true, is_const: false };
                 let cond = self.convert_expr(ctx_used, *condition, None)?;
-                let body_stmts = self.convert_stmt(*body)?;
-                let body_expr = DaExpr::Block(DaBlock { stmts: body_stmts });
-                Ok(vec![mk().expr_stmt(DaExpr::While(
+                let body_ws = self.convert_stmt(*body)?;
+                let body_expr = DaExpr::Block(DaBlock { stmts: body_ws.val });
+                Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(DaExpr::While(
                     Box::new(cond.val), Box::new(body_expr)
-                ))])
+                ))], is_unsafe: cond.is_unsafe || body_ws.is_unsafe })
             }
             CStmtKind::DoWhile { body, condition } => {
-                // daScript has no do-while; emulate with:
-                //   var _dw_N = true
-                //   while (_dw_N || (cond != 0)) { _dw_N = false; body }
-                // Handles `continue` correctly (goes to while condition check).
-                // _dw_N counter ensures uniqueness even with nested do-while.
-                // Use a simple hash of the statement's source location for uniqueness.
                 let first_var = format!("_dw_{}", stmt_id.0);
-
                 let ctx_used = ExprContext { used: true, is_const: false };
-                let body_stmts = self.convert_stmt(*body)?;
+                let body_ws = self.convert_stmt(*body)?;
                 let cond = self.convert_expr(ctx_used, *condition, None)?;
 
                 let mut loop_stmts = vec![];
-                // _dwN = false
                 loop_stmts.push(DaStmt::Expr(DaExpr::Assign(
                     Box::new(DaExpr::Var(first_var.clone())),
                     Box::new(DaExpr::ConstBool(false)),
                 )));
-                loop_stmts.extend(body_stmts);
+                loop_stmts.extend(body_ws.val);
 
-                // var _dwN = true
                 let set_first = DaStmt::Var {
                     name: first_var.clone(),
                     var_type: DaType::bool(),
                     init: Some(DaExpr::ConstBool(true)),
                 };
 
-                // _dwN || cond  — cond must be bool (comparison result).
-                // If cond is literal 0, replace with false.
                 let cond_val = match &cond.val {
                     DaExpr::ConstInt(0) => DaExpr::ConstBool(false),
                     _ => cond.val,
@@ -453,37 +470,39 @@ impl<'c> Translation<'c> {
                     left: Box::new(DaExpr::Var(first_var)),
                     right: Box::new(cond_val),
                 };
-                Ok(vec![
+                Ok(WithStmts { stmts: vec![], val: vec![
                     set_first,
                     mk().expr_stmt(DaExpr::While(
                         Box::new(cond_or_first),
                         Box::new(DaExpr::Block(DaBlock { stmts: loop_stmts })),
                     )),
-                ])
+                ], is_unsafe: body_ws.is_unsafe || cond.is_unsafe })
             }
             CStmtKind::ForLoop { init, condition, increment, body } => {
                 let ctx_used = ExprContext { used: true, is_const: false };
                 let mut result = vec![];
+                let mut is_unsafe = false;
 
-                // init
                 if let Some(init_id) = init {
-                    result.extend(self.convert_stmt(*init_id)?);
+                    let init_ws = self.convert_stmt(*init_id)?;
+                    is_unsafe |= init_ws.is_unsafe;
+                    result.extend(init_ws.val);
                 }
 
-                // body = while(cond) { body; inc }
-                let body_stmts = self.convert_stmt(*body)?;
-                let mut loop_body = body_stmts;
+                let body_ws = self.convert_stmt(*body)?;
+                is_unsafe |= body_ws.is_unsafe;
+                let mut loop_body = body_ws.val;
 
-                // increment at end of loop body
                 if let Some(inc_id) = increment {
                     let inc = self.convert_expr(ctx_used, *inc_id, None)?;
+                    is_unsafe |= inc.is_unsafe;
                     loop_body.push(DaStmt::Expr(inc.val));
                 }
 
-                // condition
                 let cond_expr = match condition {
                     Some(cond_id) => {
                         let cond = self.convert_expr(ctx_used, *cond_id, None)?;
+                        is_unsafe |= cond.is_unsafe;
                         cond.val
                     }
                     None => DaExpr::ConstBool(true),
@@ -493,55 +512,36 @@ impl<'c> Translation<'c> {
                     Box::new(cond_expr),
                     Box::new(DaExpr::Block(DaBlock { stmts: loop_body })),
                 )));
-                Ok(result)
+                Ok(WithStmts { stmts: vec![], val: result, is_unsafe })
             }
             CStmtKind::Switch { scrutinee, body } => {
-                // daScript has no switch; convert to if/elif/else chain
-                
                 let ctx_u = ExprContext { used: true, is_const: false };
                 let cond = self.convert_expr(ctx_u, *scrutinee, None)?;
-                let cases = self.collect_switch_cases(*body)?;
-                // Build if/elif/else from collected cases
+                let (cases, cases_unsafe) = self.collect_switch_cases(*body)?;
                 let if_chain = self.build_switch_chain(&cond.val, &cases);
-                Ok(vec![mk().expr_stmt(if_chain)])
+                Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(if_chain)], is_unsafe: cond.is_unsafe || cases_unsafe })
             }
             CStmtKind::Case(_, _, _) | CStmtKind::Default(_) => {
-                // These are handled inside collect_switch_cases
-                Ok(vec![])
+                Ok(WithStmts { stmts: vec![], val: vec![], is_unsafe: false })
             }
             CStmtKind::Goto(label_id) => {
                 let ln = self.label_name(label_id);
-                Ok(vec![mk().expr_stmt(DaExpr::Goto(ln))])
+                Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(DaExpr::Goto(ln))], is_unsafe: false })
             }
             CStmtKind::Label(sub_stmt) => {
-                // The label's own ID is stmt_id (the LabelStmt node), not sub_stmt
                 let ln = self.label_name(&stmt_id);
+                let sub = self.convert_stmt(*sub_stmt)?;
                 let mut stmts = vec![mk().expr_stmt(DaExpr::Label(ln))];
-                let sub = self.convert_stmt(*sub_stmt)?;
-                stmts.extend(sub);
-                Ok(stmts)
-            }
-            CStmtKind::Label(sub_stmt) => {
-                let label_key = CStmtId(sub_stmt.0);
-                let name = self.ast_context.label_names.get(&label_key)
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("_l{}", sub_stmt.0));
-                let mut h = 0u64;
-                for b in name.bytes() { h = h.wrapping_mul(31).wrapping_add(b as u64); }
-                let label_num = (h % 100000) as i64;
-                // Emit label before the substatement
-                let mut stmts = vec![mk().expr_stmt(DaExpr::Label(format!("label {}", label_num)))];
-                let sub = self.convert_stmt(*sub_stmt)?;
-                stmts.extend(sub);
-                Ok(stmts)
+                stmts.extend(sub.val);
+                Ok(WithStmts { stmts: vec![], val: stmts, is_unsafe: sub.is_unsafe })
             }
             CStmtKind::Break => {
-                Ok(vec![mk().expr_stmt(DaExpr::Break)])
+                Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(DaExpr::Break)], is_unsafe: false })
             }
             CStmtKind::Continue => {
-                Ok(vec![mk().expr_stmt(DaExpr::Continue)])
+                Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(DaExpr::Continue)], is_unsafe: false })
             }
-            CStmtKind::Empty => Ok(vec![]),
+            CStmtKind::Empty => Ok(WithStmts { stmts: vec![], val: vec![], is_unsafe: false }),
             CStmtKind::BadStmt => Err(TranslationError::generic("bad statement")),
             _ => Err(TranslationError::generic("unsupported statement kind")),
         }
@@ -565,20 +565,22 @@ impl<'c> Translation<'c> {
             Binary(ty, op, lhs, rhs, _, _) => {
                 let lhs_val = self.convert_expr(ctx, *lhs, Some(*ty))?;
                 let rhs_val = self.convert_expr(ctx, *rhs, Some(*ty))?;
+                let child_unsafe = lhs_val.is_unsafe || rhs_val.is_unsafe;
+                let is_ptr_arith = self.is_pointer_type(ty.ctype);
                 use CBinOp::*;
                 match op {
                     Assign => {
                         Ok(WithStmts::new_val(DaExpr::Assign(
                             Box::new(lhs_val.val), Box::new(rhs_val.val)
-                        )))
+                        )).merge_unsafe(child_unsafe))
                     }
-                    AssignAdd => Ok(WithStmts::new_val(mk().binary_op("+=", lhs_val.val, rhs_val.val))),
-                    AssignSubtract => Ok(WithStmts::new_val(mk().binary_op("-=", lhs_val.val, rhs_val.val))),
-                    AssignMultiply => Ok(WithStmts::new_val(mk().binary_op("*=", lhs_val.val, rhs_val.val))),
-                    AssignDivide => Ok(WithStmts::new_val(mk().binary_op("/=", lhs_val.val, rhs_val.val))),
+                    AssignAdd => Ok(WithStmts::new_val(mk().binary_op("+=", lhs_val.val, rhs_val.val)).merge_unsafe(child_unsafe || is_ptr_arith)),
+                    AssignSubtract => Ok(WithStmts::new_val(mk().binary_op("-=", lhs_val.val, rhs_val.val)).merge_unsafe(child_unsafe || is_ptr_arith)),
+                    AssignMultiply => Ok(WithStmts::new_val(mk().binary_op("*=", lhs_val.val, rhs_val.val)).merge_unsafe(child_unsafe)),
+                    AssignDivide => Ok(WithStmts::new_val(mk().binary_op("/=", lhs_val.val, rhs_val.val)).merge_unsafe(child_unsafe)),
                     _ => {
                         let das_op = convert_binop(*op);
-                        Ok(WithStmts::new_val(mk().binary_op(das_op, lhs_val.val, rhs_val.val)))
+                        Ok(WithStmts::new_val(mk().binary_op(das_op, lhs_val.val, rhs_val.val)).merge_unsafe(child_unsafe || is_ptr_arith))
                     }
                 }
             }
@@ -586,9 +588,11 @@ impl<'c> Translation<'c> {
             ArraySubscript(ty, arr, idx, _lrvalue) => {
                 let arr_val = self.convert_expr(ctx, *arr, Some(*ty))?;
                 let idx_val = self.convert_expr(ctx, *idx, None)?;
+                let arr_type = self.ast_context[*arr].kind.get_type();
+                let is_ptr = arr_type.map(|ty| self.is_pointer_type(ty)).unwrap_or(false);
                 Ok(WithStmts::new_val(DaExpr::Index(
                     Box::new(arr_val.val), Box::new(idx_val.val),
-                )))
+                )).merge_unsafe(arr_val.is_unsafe || idx_val.is_unsafe || is_ptr))
             }
 
             Member(ty, expr, field_id, member_kind, _lrvalue) => {
@@ -597,15 +601,14 @@ impl<'c> Translation<'c> {
                     CDeclKind::Field { name, .. } => name.clone(),
                     _ => return Err(TranslationError::generic("Member access to non-field")),
                 };
-                // daScript auto-deref on . for pointers — p->x → p.x
                 let das_expr = match member_kind {
                     MemberKind::Arrow => DaExpr::Field(Box::new(obj.val), field_name),
                     MemberKind::Dot => DaExpr::Field(Box::new(obj.val), field_name),
                 };
-                Ok(WithStmts::new_val(das_expr))
+                Ok(WithStmts::new_val(das_expr).merge_unsafe(obj.is_unsafe))
             }
 
-            DeclRef(ty, decl_id, _lrvalue) => {
+            DeclRef(_ty, decl_id, _lrvalue) => {
                 let decl = &self.ast_context[*decl_id];
                 let name = decl.kind.get_name()
                     .ok_or_else(|| TranslationError::generic("unnamed DeclRef"))?;
@@ -614,20 +617,20 @@ impl<'c> Translation<'c> {
 
             Call(_ty, func_expr, args) => {
                 let func = self.convert_expr(ctx, *func_expr, None)?;
+                let mut is_unsafe = func.is_unsafe;
                 let mut das_args = vec![];
                 for &arg in args {
                     let a = self.convert_expr(ctx, arg, None)?;
+                    is_unsafe |= a.is_unsafe;
                     das_args.push(a.val);
                 }
-                Ok(WithStmts::new_val(mk().call_expr(func.val, das_args)))
+                Ok(WithStmts::new_val(mk().call_expr(func.val, das_args)).merge_unsafe(is_unsafe))
             }
 
             ImplicitCast(ty, expr, cast_kind, _, _) => {
-                // NullToPointer: (int*)0 → null
                 if matches!(cast_kind, CastKind::NullToPointer) {
                     return Ok(WithStmts::new_val(DaExpr::ConstNull));
                 }
-                // Array-to-pointer decay: arr → addr(arr[0])
                 if matches!(cast_kind, CastKind::ArrayToPointerDecay) {
                     let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                     let idx = mk().int_lit(0);
@@ -637,7 +640,6 @@ impl<'c> Translation<'c> {
                         )))
                     ))));
                 }
-                // Most implicit casts are transparent in daScript
                 self.convert_expr(ctx, *expr, Some(*ty))
             }
 
@@ -648,21 +650,21 @@ impl<'c> Translation<'c> {
                     kind: das_ast::CastKind::Cast,
                     expr: Box::new(inner.val),
                     to: target_type,
-                }))
+                }).merge_unsafe(inner.is_unsafe))
             }
 
             ImplicitValueInit(_ty) => {
-                // Uninitialized value / zero init
                 Ok(WithStmts::new_val(DaExpr::ConstInt(0)))
             }
             InitList(ty, ref init_ids, _union_field, _syntactic) => {
-                // Initializer list: { a, b, c } — convert each element
+                let mut is_unsafe = false;
                 let mut items = vec![];
                 for &eid in init_ids {
                     let item = self.convert_expr(ctx, eid, Some(*ty))?;
+                    is_unsafe |= item.is_unsafe;
                     items.push(item.val);
                 }
-                Ok(WithStmts::new_val(DaExpr::MakeArray(items)))
+                Ok(WithStmts::new_val(DaExpr::MakeArray(items)).merge_unsafe(is_unsafe))
             }
             UnaryType(_ty, kind, _opt_expr, _arg_ty) => {
                 match kind {
@@ -695,17 +697,16 @@ impl<'c> Translation<'c> {
                             "unary op not yet supported in daScript"
                         ));
                     }
-                    CUnOp::Extension => return Ok(WithStmts::new_val(inner.val)),
+                    CUnOp::Extension => return Ok(WithStmts::new_val(inner.val).merge_unsafe(inner.is_unsafe)),
                     CUnOp::AddressOf => {
-                        // addr() requires unsafe block in daScript
                         let addr_expr = DaExpr::Addr(Box::new(inner.val));
                         return Ok(WithStmts::new_val(DaExpr::Unsafe(Box::new(addr_expr))));
                     }
                     CUnOp::Deref => {
-                        return Ok(WithStmts::new_val(DaExpr::Deref(Box::new(inner.val))));
+                        return Ok(WithStmts::new_val(DaExpr::Deref(Box::new(inner.val))).merge_unsafe(inner.is_unsafe));
                     }
                 };
-                Ok(WithStmts::new_val(mk().unary_op(das_op, inner.val)))
+                Ok(WithStmts::new_val(mk().unary_op(das_op, inner.val)).merge_unsafe(inner.is_unsafe))
             }
 
             ConstantExpr(ty, child, _value) => {
@@ -828,7 +829,8 @@ impl<'c> Translation<'c> {
     }
 
     /// Walk a switch body compound statement, extracting Case/Default branches.
-    fn collect_switch_cases(&self, body_id: CStmtId) -> TranslationResult<Vec<SwitchCase>> {
+    /// Returns (cases, is_unsafe).
+    fn collect_switch_cases(&self, body_id: CStmtId) -> TranslationResult<(Vec<SwitchCase>, bool)> {
         // First pass: collect raw cases with their values and body substatements
         struct RawCase { values: Vec<CExprId>, body_sub: CStmtId }
         let mut raw: Vec<RawCase> = vec![];
@@ -861,66 +863,71 @@ impl<'c> Translation<'c> {
         // Second pass: merge fallthrough cases (consecutive cases where the first has empty body)
         let mut cases: Vec<SwitchCase> = vec![];
         let mut pending_values: Vec<DaExpr> = vec![];
+        let mut is_unsafe = false;
 
         for rc in &raw {
             // Convert values
             let mut vals: Vec<DaExpr> = vec![];
             for &ev in &rc.values {
                 let val = self.convert_expr(ExprContext { used: true, is_const: false }, ev, None)?;
+                is_unsafe |= val.is_unsafe;
                 vals.push(val.val);
             }
 
             // Check body
             let mut body_stmts = vec![];
-            self.collect_case_body(rc.body_sub, &mut body_stmts)?;
+            let body_unsafe = self.collect_case_body(rc.body_sub, &mut body_stmts)?;
+            is_unsafe |= body_unsafe;
 
             if body_stmts.is_empty() && !vals.is_empty() {
-                // Fallthrough — collect values, no body yet
                 pending_values.extend(vals);
             } else {
-                // Has body — merge pending values with current values
                 let mut merged_vals = std::mem::take(&mut pending_values);
                 merged_vals.extend(vals);
                 cases.push(SwitchCase { values: merged_vals, stmts: body_stmts });
             }
         }
-        // Flush any remaining pending values as a default
         if !pending_values.is_empty() {
             cases.push(SwitchCase { values: pending_values, stmts: vec![] });
         }
-        Ok(cases)
+        Ok((cases, is_unsafe))
     }
 
     /// Recursively collect case body statements, skipping breaks.
-    fn collect_case_body(&self, stmt_id: CStmtId, stmts: &mut Vec<DaStmt>) -> TranslationResult<()> {
+    /// Returns `true` if any statement in the body contains unsafe operations.
+    fn collect_case_body(&self, stmt_id: CStmtId, stmts: &mut Vec<DaStmt>) -> TranslationResult<bool> {
+        let mut is_unsafe = false;
         match &self.ast_context[stmt_id].kind {
             CStmtKind::Compound(ref children) => {
                 for &sid in children {
-                    self.collect_case_body(sid, stmts)?;
+                    is_unsafe |= self.collect_case_body(sid, stmts)?;
                 }
             }
             CStmtKind::Break => { /* skip */ }
             CStmtKind::Return(expr) => {
                 let val = expr.map(|e| self.convert_expr(ExprContext { used: true, is_const: false }, e, None)).transpose()?;
+                is_unsafe |= val.as_ref().map(|v| v.is_unsafe).unwrap_or(false);
                 stmts.push(mk().expr_stmt(DaExpr::Return(val.map(|ws| Box::new(ws.val)))));
             }
             CStmtKind::Expr(expr_id) => {
                 let v = self.convert_expr(ExprContext { used: false, is_const: false }, *expr_id, None)?;
+                is_unsafe |= v.is_unsafe;
                 stmts.push(mk().expr_stmt(v.val));
             }
             CStmtKind::If { scrutinee, true_variant, false_variant } => {
                 let cond = self.convert_expr(ExprContext { used: true, is_const: false }, *scrutinee, None)?;
                 let mut then_stmts = vec![];
-                self.collect_case_body(*true_variant, &mut then_stmts)?;
+                let then_unsafe = self.collect_case_body(*true_variant, &mut then_stmts)?;
                 let then_expr = DaExpr::Block(DaBlock { stmts: then_stmts });
-                let else_expr = match false_variant {
+                let (else_expr, else_unsafe) = match false_variant {
                     Some(fv) => {
                         let mut else_stmts = vec![];
-                        self.collect_case_body(*fv, &mut else_stmts)?;
-                        Some(Box::new(DaExpr::Block(DaBlock { stmts: else_stmts })))
+                        let eu = self.collect_case_body(*fv, &mut else_stmts)?;
+                        (Some(Box::new(DaExpr::Block(DaBlock { stmts: else_stmts }))), eu)
                     }
-                    None => None,
+                    None => (None, false),
                 };
+                is_unsafe |= cond.is_unsafe || then_unsafe || else_unsafe;
                 stmts.push(mk().expr_stmt(DaExpr::IfThenElse {
                     cond: Box::new(cond.val), then: Box::new(then_expr), elifs: vec![], else_: else_expr,
                 }));
@@ -928,19 +935,22 @@ impl<'c> Translation<'c> {
             CStmtKind::While { condition, body } => {
                 let cond = self.convert_expr(ExprContext { used: true, is_const: false }, *condition, None)?;
                 let mut body_stmts = vec![];
-                self.collect_case_body(*body, &mut body_stmts)?;
+                let body_unsafe = self.collect_case_body(*body, &mut body_stmts)?;
+                is_unsafe |= cond.is_unsafe || body_unsafe;
                 stmts.push(mk().expr_stmt(DaExpr::While(Box::new(cond.val), Box::new(DaExpr::Block(DaBlock { stmts: body_stmts })))));
             }
             CStmtKind::Label(_) | CStmtKind::Goto(_) => {
                 let sub = self.convert_stmt(stmt_id)?;
-                stmts.extend(sub);
+                is_unsafe |= sub.is_unsafe;
+                stmts.extend(sub.val);
             }
             _ => {
                 let sub = self.convert_stmt(stmt_id)?;
-                stmts.extend(sub);
+                is_unsafe |= sub.is_unsafe;
+                stmts.extend(sub.val);
             }
         }
-        Ok(())
+        Ok(is_unsafe)
     }
 
     /// Build if/elif/else chain from collected switch cases.
