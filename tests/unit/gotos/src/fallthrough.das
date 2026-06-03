@@ -1,6 +1,6 @@
 options gen2
 
-def fallthrough_2(x : int) : int {
+def fallthrough_2(var x : int) : int {
     if (x == 0) {
         x += 1
     } else {
@@ -8,7 +8,7 @@ def fallthrough_2(x : int) : int {
     }
     return x
 }
-def fallthrough_3(x : int) : int {
+def fallthrough_3(var x : int) : int {
     if (x == 0) {
         x += 1
     } elif (x == 1) {
@@ -18,7 +18,7 @@ def fallthrough_3(x : int) : int {
     }
     return x
 }
-def fallthrough_without_default(x : int) : int {
+def fallthrough_without_default(var x : int) : int {
     if (x == 0) {
         x += 1
     } elif (x == 1) {
@@ -28,7 +28,7 @@ def fallthrough_without_default(x : int) : int {
     }
     return x
 }
-def fallthrough_with_early_return(x : int) : int {
+def fallthrough_with_early_return(var x : int) : int {
     if (x == 0) {
         x += 1
     } elif (x == 1) {

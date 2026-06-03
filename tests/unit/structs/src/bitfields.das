@@ -63,7 +63,7 @@ def zeroed_three_byte_date() : three_byte_date {
 def size_of_three_byte_date() : size_t {
     return 4
 }
-def compare_three_byte_date(var tbd : three_byte_date const?; d : uchar; m : uchar; y : ushort) : uint8 {
+def compare_three_byte_date(var tbd : three_byte_date const?; var d : uchar; var m : uchar; var y : ushort) : uint8 {
     if (tbd.day != d) {
         return 1
     }
@@ -75,7 +75,7 @@ def compare_three_byte_date(var tbd : three_byte_date const?; d : uchar; m : uch
     }
     return 0
 }
-def write_three_byte_date(var tbd : three_byte_date?; d : uchar; m : uchar; y : ushort) {
+def write_three_byte_date(var tbd : three_byte_date?; var d : uchar; var m : uchar; var y : ushort) {
     tbd.day = d
     tbd.month = m
     tbd.year = y

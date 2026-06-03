@@ -1,6 +1,6 @@
 options gen2
 
-def irreducible(x : int) : int {
+def irreducible(var x : int) : int {
     label 3397:
     if (x < 6) {
         x += 1

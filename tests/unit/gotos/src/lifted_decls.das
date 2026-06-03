@@ -1,6 +1,6 @@
 options gen2
 
-def foo(a : int) {
+def foo(var a : int) {
     unsafe {
         if (a == 1) {
             var buf : array<int8> = [0, 0, 0]

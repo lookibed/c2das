@@ -5,7 +5,7 @@ def swap(var a : int?; var b : int?) {
     *a = *b
     *b = t
 }
-def quickSort(var arr : int?; low : int; high : int) {
+def quickSort(var arr : int?; var low : int; var high : int) {
     if (low < high) {
         var i : int = partition(arr, low, high)
         quickSort(arr, low, i - 1)

@@ -1,9 +1,9 @@
 options gen2
 
-def id(i : int) : int {
+def id(var i : int) : int {
     return i
 }
-def add(var p : int?; i : int; r : int) : int {
+def add(var p : int?; var i : int; var r : int) : int {
     *p += i
     return r
 }

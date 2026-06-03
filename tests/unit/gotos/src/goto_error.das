@@ -1,6 +1,6 @@
 options gen2
 
-def goto_error_a(x : int) : int {
+def goto_error_a(var x : int) : int {
     if (x >= 10) {
         if (x == 20) {
             x += 1
@@ -18,7 +18,7 @@ def goto_error_a(x : int) : int {
     label 84904:
     return x - 3
 }
-def goto_error_b(x : int) : int {
+def goto_error_b(var x : int) : int {
     if (x >= 10) {
         x += 2
         if (x == 20) {
@@ -36,7 +36,7 @@ def goto_error_b(x : int) : int {
     label 84904:
     return x - 3
 }
-def goto_error_but_its_all_gotos(x : int) : int {
+def goto_error_but_its_all_gotos(var x : int) : int {
     if (x >= 10) {
         goto label 66
     } else {
@@ -63,7 +63,7 @@ def goto_error_but_its_all_gotos(x : int) : int {
     label 84904:
     return x - 3
 }
-def goto_errors(x : int) : int {
+def goto_errors(var x : int) : int {
     if (x >= 10) {
         x += 1
         if (x == 20) {
@@ -86,7 +86,7 @@ def goto_errors(x : int) : int {
     label 82338:
     return x - 4
 }
-def goto_success(x : int) : int {
+def goto_success(var x : int) : int {
     if (x >= 10) {
         x += 1
         if (x != 20) {

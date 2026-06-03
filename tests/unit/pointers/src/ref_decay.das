@@ -41,9 +41,9 @@ def bitcast(var a : void?) {
 }
 def foobar(var a : uint?) {
 }
-def address_cast(a : uint64) {
+def address_cast(var a : uint64) {
 }
-def cmp_ref(a : int; var b : int??) : int {
+def cmp_ref(var a : int; var b : int??) : int {
     return unsafe(addr(a)) != *b
 }
 def takesPtr(var p : uint8 const?) {

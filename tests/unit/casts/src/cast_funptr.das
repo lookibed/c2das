@@ -18,13 +18,13 @@ def _uint32_identity(var _x : __uint32_t) : __uint32_t {
 def _uint64_identity(var _x : __uint64_t) : __uint64_t {
     return __x
 }
-def identity(i : int) : int {
+def identity(var i : int) : int {
     return i
 }
 def get_identity() : void? {
     return identity
 }
-def entry(sz : uint const; var buffer : int? const) {
+def entry(sz : uint const; buffer : int? const) {
     unsafe {
         var f : function? = get_identity()
         buffer[0] = f(10)

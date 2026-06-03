@@ -5,7 +5,7 @@ struct s {
 }
 struct forward {
 }
-def forward(buffer_size : uint const; var buffer : int? const) {
+def forward(buffer_size : uint const; buffer : int? const) {
     unsafe {
         if (buffer_size < 1) {
             return

@@ -1,6 +1,6 @@
 options gen2
 
-def entry(n : uint; var buf : int?) {
+def entry(var n : uint; var buf : int?) {
     unsafe {
         if (n < 10) {
             return

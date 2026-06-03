@@ -7,7 +7,7 @@ struct fn_ptrs {
     fn1 : function?
     fn2 : function?
 }
-def test_fn_macro(x : int) : int {
+def test_fn_macro(var x : int) : int {
     return x * x
 }
 def reference_define() : int {
@@ -22,7 +22,7 @@ var fns : fn_ptrs const = [cast<void?>(0), null, null]
 
 var p : fn_ptrs? = unsafe(addr(fns))
 
-def test_switch(x : int) : int {
+def test_switch(var x : int) : int {
     if (x == 1) {
         return 10
     } elif (x == 2) {

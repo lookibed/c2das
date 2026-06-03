@@ -1889,7 +1889,7 @@ def _mm512_set1_ph(var _h : auto) : __m512h {
 def _mm512_set_ph(var _h1 : auto; var _h2 : auto; var _h3 : auto; var _h4 : auto; var _h5 : auto; var _h6 : auto; var _h7 : auto; var _h8 : auto; var _h9 : auto; var _h10 : auto; var _h11 : auto; var _h12 : auto; var _h13 : auto; var _h14 : auto; var _h15 : auto; var _h16 : auto; var _h17 : auto; var _h18 : auto; var _h19 : auto; var _h20 : auto; var _h21 : auto; var _h22 : auto; var _h23 : auto; var _h24 : auto; var _h25 : auto; var _h26 : auto; var _h27 : auto; var _h28 : auto; var _h29 : auto; var _h30 : auto; var _h31 : auto; var _h32 : auto) : __m512h {
     return cast<__m512h>([__h32, __h31, __h30, __h29, __h28, __h27, __h26, __h25, __h24, __h23, __h22, __h21, __h20, __h19, __h18, __h17, __h16, __h15, __h14, __h13, __h12, __h11, __h10, __h9, __h8, __h7, __h6, __h5, __h4, __h3, __h2, __h1])
 }
-def _mm512_set1_pch(h : auto) : __m512h {
+def _mm512_set1_pch(var h : auto) : __m512h {
     return cast<__m512h>(_mm512_set1_ps(cast<float>(h)))
 }
 def _mm_castph_ps(var _a : __m128h) : __m128 {
@@ -2084,10 +2084,10 @@ def _mm256_set1_ph(var _h : auto) : __m256h {
 def _mm_set_ph(var _h1 : auto; var _h2 : auto; var _h3 : auto; var _h4 : auto; var _h5 : auto; var _h6 : auto; var _h7 : auto; var _h8 : auto) : __m128h {
     return cast<__m128h>([__h8, __h7, __h6, __h5, __h4, __h3, __h2, __h1])
 }
-def _mm256_set1_pch(h : auto) : __m256h {
+def _mm256_set1_pch(var h : auto) : __m256h {
     return cast<__m256h>(_mm256_set1_ps(cast<float>(h)))
 }
-def _mm_set1_pch(h : auto) : __m128h {
+def _mm_set1_pch(var h : auto) : __m128h {
     return cast<__m128h>(_mm_set1_ps(cast<float>(h)))
 }
 def _mm256_set_ph(var _h1 : auto; var _h2 : auto; var _h3 : auto; var _h4 : auto; var _h5 : auto; var _h6 : auto; var _h7 : auto; var _h8 : auto; var _h9 : auto; var _h10 : auto; var _h11 : auto; var _h12 : auto; var _h13 : auto; var _h14 : auto; var _h15 : auto; var _h16 : auto) : __m256h {
@@ -2199,40 +2199,40 @@ def _storebe_i64(var _P : void?; var _D : int64) {
     __v : uint64
 }    cast<__storeu_i64?>(__P).__v = 0
 }
-def _tile_loadd(var dst : __tile1024i?; var base : void const?; stride : uint64) {
+def _tile_loadd(var dst : __tile1024i?; var base : void const?; var stride : uint64) {
     dst.tile = _tile_loadd_internal(dst.row, dst.col, base, stride)
 }
-def _tile_stream_loadd(var dst : __tile1024i?; var base : void const?; stride : uint64) {
+def _tile_stream_loadd(var dst : __tile1024i?; var base : void const?; var stride : uint64) {
     dst.tile = _tile_loaddt1_internal(dst.row, dst.col, base, stride)
 }
-def _tile_dpbssd(var dst : __tile1024i?; src0 : __tile1024i; src1 : __tile1024i) {
+def _tile_dpbssd(var dst : __tile1024i?; var src0 : __tile1024i; var src1 : __tile1024i) {
     dst.tile = _tile_dpbssd_internal(src0.row, src1.col, src0.col, dst.tile, src0.tile, src1.tile)
 }
-def _tile_dpbsud(var dst : __tile1024i?; src0 : __tile1024i; src1 : __tile1024i) {
+def _tile_dpbsud(var dst : __tile1024i?; var src0 : __tile1024i; var src1 : __tile1024i) {
     dst.tile = _tile_dpbsud_internal(src0.row, src1.col, src0.col, dst.tile, src0.tile, src1.tile)
 }
-def _tile_dpbusd(var dst : __tile1024i?; src0 : __tile1024i; src1 : __tile1024i) {
+def _tile_dpbusd(var dst : __tile1024i?; var src0 : __tile1024i; var src1 : __tile1024i) {
     dst.tile = _tile_dpbusd_internal(src0.row, src1.col, src0.col, dst.tile, src0.tile, src1.tile)
 }
-def _tile_dpbuud(var dst : __tile1024i?; src0 : __tile1024i; src1 : __tile1024i) {
+def _tile_dpbuud(var dst : __tile1024i?; var src0 : __tile1024i; var src1 : __tile1024i) {
     dst.tile = _tile_dpbuud_internal(src0.row, src1.col, src0.col, dst.tile, src0.tile, src1.tile)
 }
-def _tile_stored(var base : void?; stride : uint64; src : __tile1024i) {
+def _tile_stored(var base : void?; var stride : uint64; var src : __tile1024i) {
     _tile_stored_internal(src.row, src.col, base, stride, src.tile)
 }
-def _tile_dpbf16ps(var dst : __tile1024i?; src0 : __tile1024i; src1 : __tile1024i) {
+def _tile_dpbf16ps(var dst : __tile1024i?; var src0 : __tile1024i; var src1 : __tile1024i) {
     dst.tile = _tile_dpbf16ps_internal(src0.row, src1.col, src0.col, dst.tile, src0.tile, src1.tile)
 }
-def _tile_dpfp16ps(var dst : __tile1024i?; src0 : __tile1024i; src1 : __tile1024i) {
+def _tile_dpfp16ps(var dst : __tile1024i?; var src0 : __tile1024i; var src1 : __tile1024i) {
     dst.tile = _tile_dpfp16ps_internal(src0.row, src1.col, src0.col, dst.tile, src0.tile, src1.tile)
 }
-def _tile_cmmimfp16ps(var dst : __tile1024i?; src0 : __tile1024i; src1 : __tile1024i) {
+def _tile_cmmimfp16ps(var dst : __tile1024i?; var src0 : __tile1024i; var src1 : __tile1024i) {
     dst.tile = _tile_cmmimfp16ps_internal(src0.row, src1.col, src0.col, dst.tile, src0.tile, src1.tile)
 }
-def _tile_cmmrlfp16ps(var dst : __tile1024i?; src0 : __tile1024i; src1 : __tile1024i) {
+def _tile_cmmrlfp16ps(var dst : __tile1024i?; var src0 : __tile1024i; var src1 : __tile1024i) {
     dst.tile = _tile_cmmrlfp16ps_internal(src0.row, src1.col, src0.col, dst.tile, src0.tile, src1.tile)
 }
-def unpack_128_2x128(data : __m128i; var data_lo : __m128i?; var data_hi : __m128i?) {
+def unpack_128_2x128(var data : __m128i; var data_lo : __m128i?; var data_hi : __m128i?) {
     *data_lo = _mm_unpacklo_epi8(data, _mm_setzero_si128())
     *data_hi = _mm_unpackhi_epi8(data, _mm_setzero_si128())
 }

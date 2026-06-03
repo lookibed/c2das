@@ -1,6 +1,6 @@
 options gen2
 
-def sum(var arr : int const?; n : int) : int {
+def sum(var arr : int const?; var n : int) : int {
     unsafe {
         var s : int = 0
         var i : int = 0

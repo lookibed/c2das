@@ -1,5 +1,5 @@
 options gen2
 
-def add(left : uint; right : uint) : uint {
+def add(var left : uint; var right : uint) : uint {
     return left + right
 }

@@ -5,7 +5,7 @@ enum E_enum {
     E_variant2 = 2
 }
 typedef char_to_int = function
-def other_c_to_i(c : int8) : int {
+def other_c_to_i(var c : int8) : int {
     var null_var : int? = null
     return cast<int>(c)
 }
@@ -15,7 +15,7 @@ def use_enum() : E_enum {
     var x : int = E_variant1
     return cast<E_enum>(2)
 }
-def c_to_i(c : int8) : int {
+def c_to_i(var c : int8) : int {
     return cast<int>(c)
 }
 def modules() {

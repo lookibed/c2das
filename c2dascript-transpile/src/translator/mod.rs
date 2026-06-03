@@ -199,13 +199,13 @@ impl<'c> Translation<'c> {
         };
         let ret_type = self.convert_type(ret_type)?;
 
-        // Convert parameters — sanitize __ names, add var for pointer types
+        // Convert parameters — non-const C params → var (mutable) in daScript
         let mut params = vec![];
         let mut unnamed_idx = 0u32;
         for param_id in parameters {
             if let CDeclKind::Variable { ref ident, typ, .. } = self.ast_context[*param_id].kind {
                 let das_ty = self.convert_type(typ.clone())?;
-                let is_ptr = self.is_pointer_type(typ.ctype);
+                let is_const = typ.qualifiers.is_const;
                 // Sanitize param name: __ prefix → _ prefix, empty → _argN
                 let pname = if ident.is_empty() || ident == "__" {
                     unnamed_idx += 1;
@@ -215,7 +215,8 @@ impl<'c> Translation<'c> {
                 } else {
                     ident.clone()
                 };
-                if is_ptr || ident.starts_with("__") {
+                // c2rust mod.rs:2633: non-const params get mut, const params stay immutable
+                if !is_const {
                     params.push(mk().param_mut(pname, das_ty, None));
                 } else {
                     params.push(mk().param(pname, das_ty, None));

@@ -4,7 +4,7 @@ def constant_arguments(x : int const) : int {
     var y : int const = x + 2
     return y
 }
-def constant_pointer(var x : int? const) {
+def constant_pointer(x : int? const) {
     *x += 1
 }
 def pointer_to_constant(var x : int const?) : int {

@@ -1,6 +1,6 @@
 options gen2
 
-def entry4(i : int) : int {
+def entry4(var i : int) : int {
     if (i == 0) {
         return 0
     } else {

@@ -1,5 +1,5 @@
 options gen2
 
-def sub(left : uint; right : uint) : uint {
+def sub(var left : uint; var right : uint) : uint {
     return left - right
 }

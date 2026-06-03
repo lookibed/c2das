@@ -16,7 +16,7 @@ struct s {
     a_c : int8
     a_e : e
 }
-def entry2(sz : uint const; var buf : int? const) {
+def entry2(sz : uint const; buf : int? const) {
     var x : myint
     var p : myintp
     p = unsafe(addr(x))

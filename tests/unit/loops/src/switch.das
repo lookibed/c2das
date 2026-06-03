@@ -1,6 +1,6 @@
 options gen2
 
-def switch_val(val : int) : int {
+def switch_val(var val : int) : int {
     if (val == 1) {
         return 2
     } elif (val == 2) {

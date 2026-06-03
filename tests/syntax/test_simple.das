@@ -1,6 +1,6 @@
 options gen2
 
-def add(a : int; b : int) : int {
+def add(var a : int; var b : int) : int {
     return a + b
 }
 [export]

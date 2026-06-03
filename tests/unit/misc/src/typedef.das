@@ -7,7 +7,7 @@ typedef indirectly_const_ptr = const_int_ptr const
 typedef my_fn = function
 typedef shadowed = int64
 typedef shadowed = int
-def identity(x : int) : int {
+def identity(var x : int) : int {
     return x
 }
 def entry() : int {

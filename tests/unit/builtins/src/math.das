@@ -1,20 +1,20 @@
 options gen2
 
-def ffs(a : int) : int {
+def ffs(var a : int) : int {
     return 0
 }
-def ffsl(a : int64) : int {
+def ffsl(var a : int64) : int {
     return 0
 }
-def ffsll(a : int64) : int {
+def ffsll(var a : int64) : int {
     return 0
 }
-def isfinite(a : double) : int {
+def isfinite(var a : double) : int {
     return 0
 }
-def isnan(a : double) : int {
+def isnan(var a : double) : int {
     return 0
 }
-def isinf_sign(a : double) : int {
+def isinf_sign(var a : double) : int {
     return 0
 }

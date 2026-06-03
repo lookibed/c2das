@@ -30,7 +30,7 @@ def check_some_ints() : bool {
         return unsafe(addr(SOME_INTS[0]))[0] == 2 && unsafe(addr(SOME_INTS[0]))[1] == 0 && unsafe(addr(SOME_INTS[0]))[2] == 1 && unsafe(addr(SOME_INTS[0]))[3] == 8
     }
 }
-def new_sized_array(n : size_t) : sized_array? {
+def new_sized_array(var n : size_t) : sized_array? {
     var sz : size_t const = 4 + n * 4
     var res : sized_array? = malloc(sz)
     res.n = n

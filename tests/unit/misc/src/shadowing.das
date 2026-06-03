@@ -1,5 +1,5 @@
 options gen2
 
-def twice(i : int) : int {
+def twice(var i : int) : int {
     return i * 2
 }

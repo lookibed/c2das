@@ -1,6 +1,6 @@
 options gen2
 
-def early_returns(a : int) : int {
+def early_returns(var a : int) : int {
     if (a == 2) {
         return 2
     }

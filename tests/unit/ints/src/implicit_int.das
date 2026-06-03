@@ -1,7 +1,7 @@
 options gen2
 
 typedef my_fn = function
-def identity(x : int) : int {
+def identity(var x : int) : int {
     return x
 }
 def implicit_int() {
