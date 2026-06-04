@@ -1,5 +1,6 @@
 options gen2
 
+typedef size_t = uint64
 struct int_pair_s {
     x : int
     y : int

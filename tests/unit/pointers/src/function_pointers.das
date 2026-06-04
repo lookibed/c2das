@@ -3,10 +3,10 @@ options gen2
 struct __va_list_tag {
     gp_offset : uint
     fp_offset : uint
-    overflow_arg_area : void?
-    reg_save_area : void?
+    overflow_arg_area : uint64
+    reg_save_area : uint64
 }
-typedef va_list = __builtin_va_list
+typedef va_list = array<__va_list_tag>
 typedef char_to_int = function
 typedef char_to_int_fp = function?
 typedef va_char_to_int_fp = function?

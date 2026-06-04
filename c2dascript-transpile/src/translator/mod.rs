@@ -151,13 +151,15 @@ impl<'c> Translation<'c> {
                     }
                     _ => {}
                 }
-                let inner = self.convert_type(typ.clone());
-                match inner {
-                    Ok(dt) if !matches!(dt.kind, DaTypeKind::Auto) => {
-                        Ok(DaDecl::Alias(DaAlias { name: name.clone(), aliased_type: dt }))
-                    }
-                    _ => Err(TranslationError::generic("type alias not yet implemented")),
-                }
+                // Resolve through typedef chain to get base type
+                let resolved_id = self.ast_context.resolve_type_id(typ.ctype);
+                let inner = self.convert_type_inner(resolved_id).unwrap_or_else(|_| DaType::auto());
+                let final_type = if matches!(inner.kind, DaTypeKind::Auto) {
+                    DaType::uint64()
+                } else {
+                    inner
+                };
+                Ok(DaDecl::Alias(DaAlias { name: name.clone(), aliased_type: final_type }))
             }
             Struct { name: None, fields, .. } => {
                 // Anonymous struct — skip, will be handled by its typedef
@@ -327,7 +329,11 @@ impl<'c> Translation<'c> {
         if let Some(field_ids) = fields {
             for &fid in field_ids {
                 if let CDeclKind::Field { ref name, typ, .. } = self.ast_context[fid].kind {
-                    let ft = self.convert_type(typ.clone())?;
+                    let mut ft = self.convert_type(typ.clone()).unwrap_or(DaType::auto());
+                    // daScript requires explicit field types; auto is not valid
+                    if matches!(ft.kind, DaTypeKind::Auto) {
+                        ft = DaType::int64();
+                    }
                     das_fields.push(DaField {
                         name: if name.is_empty() { "_unnamed".into() } else { name.clone() },
                         field_type: ft,
@@ -651,6 +657,10 @@ impl<'c> Translation<'c> {
                 if matches!(cast_kind, CastKind::NullToPointer) {
                     return Ok(WithStmts::new_val(DaExpr::ConstNull));
                 }
+                // ToVoid, ConstCast, NoOp — transparent in daScript
+                if matches!(cast_kind, CastKind::ToVoid | CastKind::ConstCast | CastKind::NoOp) {
+                    return self.convert_expr(ctx, *expr, Some(*ty));
+                }
                 if matches!(cast_kind, CastKind::ArrayToPointerDecay) {
                     let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                     let idx = mk().int_lit(0);
@@ -659,6 +669,17 @@ impl<'c> Translation<'c> {
                             Box::new(inner.val), Box::new(idx),
                         )))
                     ))));
+                }
+                // pointer ↔ integer / bitwise casts → reinterpret
+                if matches!(cast_kind, CastKind::PointerToIntegral | CastKind::IntegralToPointer
+                    | CastKind::BitCast) {
+                    let inner = self.convert_expr(ctx, *expr, None)?;
+                    let target_type = self.convert_type(ty.clone())?;
+                    return Ok(WithStmts::new_val(DaExpr::Cast {
+                        kind: das_ast::CastKind::Reinterpret,
+                        expr: Box::new(inner.val),
+                        to: target_type,
+                    }).merge_unsafe(inner.is_unsafe));
                 }
                 // int↔float casts — generate explicit cast (mirrors c2rust convert_cast)
                 if matches!(cast_kind, CastKind::IntegralToFloating | CastKind::FloatingToIntegral | CastKind::FloatingCast) {
@@ -673,11 +694,22 @@ impl<'c> Translation<'c> {
                 self.convert_expr(ctx, *expr, Some(*ty))
             }
 
-            ExplicitCast(ty, expr, _cast_kind, _, _) => {
+            ExplicitCast(ty, expr, cast_kind, _, _) => {
                 let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                 let target_type = self.convert_type(ty.clone())?;
+                // ToVoid and ConstCast are no-ops in daScript too
+                if matches!(cast_kind, CastKind::ToVoid | CastKind::ConstCast) {
+                    return Ok(WithStmts::new_val(inner.val).merge_unsafe(inner.is_unsafe));
+                }
+                // Pointer/integer/bitwise casts use reinterpret<T>(x) in daScript
+                let kind = if matches!(cast_kind, CastKind::BitCast 
+                    | CastKind::IntegralToPointer | CastKind::PointerToIntegral) {
+                    das_ast::CastKind::Reinterpret
+                } else {
+                    das_ast::CastKind::Cast
+                };
                 Ok(WithStmts::new_val(DaExpr::Cast {
-                    kind: das_ast::CastKind::Cast,
+                    kind,
                     expr: Box::new(inner.val),
                     to: target_type,
                 }).merge_unsafe(inner.is_unsafe))
@@ -739,6 +771,67 @@ impl<'c> Translation<'c> {
                 Ok(WithStmts::new_val(mk().unary_op(das_op, inner.val)).merge_unsafe(inner.is_unsafe))
             }
 
+            // GNU statement expression ({ stmts; expr }) → convert as daScript block
+            Statements(_ty, stmt_id) => {
+                let stmts = self.convert_stmt(*stmt_id)?.val;
+                Ok(WithStmts::new_val(DaExpr::Block(DaBlock { stmts })))
+            }
+            // offsetof → return 0 (daScript has no ABI-visible layout)
+            OffsetOf(ty, _kind) => {
+                let target = self.convert_type(ty.clone())?;
+                Ok(WithStmts::new_val(DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(DaExpr::ConstInt(0)),
+                    to: target,
+                }))
+            }
+            // va_arg → not supported
+            VAArg(_ty, _expr) => {
+                Err(TranslationError::generic("va_arg not supported in daScript"))
+            }
+            // C11 atomic expressions → not supported
+            Atomic { .. } => {
+                Err(TranslationError::generic("C11 atomics not supported in daScript"))
+            }
+            // Unsupported vector operations
+            ShuffleVector(_, _) | ConvertVector(_, _) => {
+                Err(TranslationError::generic("vector operations not supported"))
+            }
+            // GNU choose expression
+            Choose(_, _, _, _, _) => {
+                Err(TranslationError::generic("GNU choose expression not supported"))
+            }
+            // Designated initializer expression (already expanded in C AST)
+            DesignatedInitExpr(_, _, _) => {
+                Err(TranslationError::generic("designated init expr not supported"))
+            }
+            // Ternary conditional — cond ? then : else
+            Conditional(_ty, cond, then, else_) => {
+                let cond_e = self.convert_expr(ctx, *cond, None)?;
+                let then_e = self.convert_expr(ctx, *then, None)?;
+                let else_e = self.convert_expr(ctx, *else_, None)?;
+                Ok(WithStmts::new_val(DaExpr::IfThenElse {
+                    cond: Box::new(cond_e.val),
+                    then: Box::new(then_e.val),
+                    elifs: vec![],
+                    else_: Some(Box::new(else_e.val)),
+                }).merge_unsafe(cond_e.is_unsafe || then_e.is_unsafe || else_e.is_unsafe))
+            }
+            // GNU binary conditional — a ?: b (a if truthy else b)
+            BinaryConditional(_ty, cond, else_) => {
+                let cond_e = self.convert_expr(ctx, *cond, None)?;
+                let else_e = self.convert_expr(ctx, *else_, None)?;
+                Ok(WithStmts::new_val(DaExpr::IfThenElse {
+                    cond: Box::new(cond_e.val.clone()),
+                    then: Box::new(cond_e.val),
+                    elifs: vec![],
+                    else_: Some(Box::new(else_e.val)),
+                }).merge_unsafe(cond_e.is_unsafe || else_e.is_unsafe))
+            }
+            // Bad expression — skip
+            BadExpr => {
+                Err(TranslationError::generic("bad/invalid expression"))
+            }
             ConstantExpr(ty, child, _value) => {
                 self.convert_expr(ctx, *child, Some(*ty))
             }
@@ -828,6 +921,28 @@ impl<'c> Translation<'c> {
             // Unreachable → 0 (daScript has no unreachable!)
             "__builtin_unreachable" => DaExpr::ConstInt(0),
 
+            // __sync_* atomics → 0 (daScript atomic ops not implemented)
+            "__sync_synchronize" | "__sync_val_compare_and_swap"
+            | "__sync_bool_compare_and_swap" | "__sync_lock_test_and_set"
+            | "__sync_lock_release" | "__sync_fetch_and_add"
+            | "__sync_fetch_and_sub" | "__sync_fetch_and_or"
+            | "__sync_fetch_and_and" | "__sync_fetch_and_xor"
+            | "__sync_fetch_and_nand" | "__sync_add_and_fetch"
+            | "__sync_sub_and_fetch" | "__sync_or_and_fetch"
+            | "__sync_and_and_fetch" | "__sync_xor_and_fetch"
+            | "__sync_nand_and_fetch"
+            | "__atomic_load" | "__atomic_store" | "__atomic_exchange"
+            | "__atomic_compare_exchange" | "__atomic_fetch_add"
+            | "__atomic_fetch_sub" | "__atomic_fetch_or"
+            | "__atomic_fetch_and" | "__atomic_fetch_xor"
+            | "__atomic_add_fetch" | "__atomic_sub_fetch"
+            | "__atomic_or_fetch" | "__atomic_and_fetch"
+            | "__atomic_xor_fetch" | "__atomic_test_and_set"
+            | "__atomic_clear" | "__atomic_thread_fence"
+            | "__atomic_signal_fence" | "__atomic_load_n"
+            | "__atomic_store_n" | "__atomic_exchange_n"
+            | "__atomic_compare_exchange_n" | "__atomic_is_lock_free" => DaExpr::ConstInt(0),
+
             // Unknown builtin → error (same as c2rust pattern)
             _ => {
                 return Err(TranslationError::generic(
@@ -878,7 +993,11 @@ impl<'c> Translation<'c> {
             Float => Ok(DaType::float()),
             Double | LongDouble => Ok(DaType::double()),
             Pointer(inner) => {
-                // inner is CQualTypeId — pass full qual so const propagates to pointee
+                // void* → use uint64 as opaque raw pointer (daScript has no void?)
+                let inner_resolved = self.ast_context.resolve_type(inner.ctype);
+                if matches!(inner_resolved.kind, CTypeKind::Void) {
+                    return Ok(DaType::uint64());
+                }
                 let inner_ty = self.convert_type(inner)?;
                 Ok(DaType::pointer(inner_ty))
             }
@@ -1210,6 +1329,7 @@ pub fn translate(
 
     // Pass 1: export all type declarations (struct, enum, union, typedef)
     let mut decls: Vec<DaDecl> = vec![];
+    let mut exported_names: std::collections::HashSet<String> = std::collections::HashSet::new();
     for (&decl_id, decl) in t.ast_context.iter_decls() {
         use CDeclKind::*;
         let needs_export = match decl.kind {
@@ -1220,6 +1340,12 @@ pub fn translate(
             _ => false,
         };
         if needs_export {
+            // Skip duplicate typedefs (daScript rejects them)
+            if let Typedef { ref name, .. } = decl.kind {
+                if !exported_names.insert(name.clone()) {
+                    continue; // already exported
+                }
+            }
             match t.convert_decl(ExprContext { used: true, is_const: false }, decl_id) {
                 Ok(das_decl) => decls.push(das_decl),
                 Err(e) => {

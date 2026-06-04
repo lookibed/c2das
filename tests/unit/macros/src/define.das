@@ -1,9 +1,10 @@
 options gen2
 
-typedef uint64_t = __uint64_t
-typedef U64 = uint64_t
+typedef size_t = uint64
+typedef uint64_t = uint64
+typedef U64 = uint64
 struct fn_ptrs {
-    v : void?
+    v : uint64
     fn1 : function?
     fn2 : function?
 }
@@ -18,10 +19,14 @@ def reference_define() : int {
     }
     return x
 }
-var fns : fn_ptrs const = [cast<void?>(0), null, null]
+var fns : fn_ptrs const = [cast<uint64>(0), null, null]
 
 var p : fn_ptrs? = unsafe(addr(fns))
 
+def test_zstd() : U64 {
+    4
+    return cast<int>(if (4 == 4) 30 else 31)
+}
 def test_switch(var x : int) : int {
     if (x == 1) {
         return 10

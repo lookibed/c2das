@@ -24,7 +24,7 @@ def entry3(buffer_size : uint const; var buffer : int?) {
         var src : array<int8> = "test"
         var s : some_struct
         mutate_buffer(unsafe(addr(s.buffer[0])), unsafe(addr(src[0])), 4)
-        cast<void>(unsafe(addr(s.buffer[0])))
+        unsafe(addr(s.buffer[0]))
         buffer[5] = unsafe(addr(s.buffer[0]))[0]
         buffer[6] = unsafe(addr(s.buffer[0]))[1]
         buffer[7] = unsafe(addr(s.buffer[0]))[2]

@@ -5,7 +5,7 @@ def foo() : ulp {
     return null
 }
 def simple(var x : int const??; var y : int??) : int {
-    return *x == *y
+    return *x == reinterpret<int const?>(*y)
 }
 def entry(buffer_size : uint const; var buffer : int?) {
     unsafe {

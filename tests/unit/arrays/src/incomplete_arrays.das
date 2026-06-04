@@ -1,6 +1,7 @@
 options gen2
 
-typedef uint32_t = __uint32_t
+typedef size_t = uint64
+typedef uint32_t = uint64
 struct sized_array {
     n : size_t
     elts : array<uint>
@@ -32,18 +33,18 @@ def check_some_ints() : bool {
 }
 def new_sized_array(var n : size_t) : sized_array? {
     var sz : size_t const = 4 + n * 4
-    var res : sized_array? = malloc(sz)
+    var res : sized_array? = reinterpret<sized_array?>(malloc(sz))
     res.n = n
     return res
 }
 def entry2(buffer_size : uint const; var buffer : int?) {
     unsafe {
         var arr : array<int> = [1, 2, 3]
-        var p_arr : array<int>? = unsafe(addr(arr))
+        var p_arr : array<int>? = reinterpret<array<int>?>(unsafe(addr(arr)))
         var x : int = unsafe(addr(*p_arr[0]))[0]
         buffer[0] = x
         var carr : array<int> const = [1, 2, 3]
-        var p_carr : array<int> const? = unsafe(addr(carr))
+        var p_carr : array<int> const? = reinterpret<array<int> const?>(unsafe(addr(carr)))
         var cx : int = unsafe(addr(*p_carr[0]))[0]
         buffer[1] = cx
     }

@@ -1,5 +1,7 @@
 options gen2
 
+typedef size_t = uint64
+typedef uintptr_t = uint64
 struct Foo {
     a : uint
     b : int
@@ -42,7 +44,7 @@ var dont_section_b : int = -1
 
 var dont_section_c : int? = unsafe(addr(dont_section_a))
 
-var dont_section_d : int? = unsafe(addr(dont_section_d))
+var dont_section_d : int? = reinterpret<int?>(unsafe(addr(dont_section_d)))
 
 var dont_section_foo : Foo
 
@@ -50,13 +52,13 @@ var dont_section_me : uint = 1 + 1
 
 var bar : Bar
 
-var int_to_pointer : void? = -1
+var int_to_pointer : uint64 = reinterpret<uint64>(-1)
 
-var null_to_ptr_ty : uintptr_t = cast<uintptr_t>(cast<void?>(0))
+var null_to_ptr_ty : uintptr_t = reinterpret<uintptr_t>(cast<uint64>(0))
 
 var section_me : uint = -1
 
-var section_me2 : int = cast<void?>(0)
+var section_me2 : int = reinterpret<int>(cast<uint64>(0))
 
 var section_me3 : uint = 1 + 2
 
@@ -68,26 +70,28 @@ var section_foo_b_field : Foo = [1, -1, cast<float>(double(1.2))]
 
 var section_num_params : uint const = 4 / 4
 
+var if_expr : size_t const = if (4 == 4) 30 else 31
+
 var s : stat = [unsafe(addr(bar.bar))]
 
-var s2 : stat2 = [unsafe(addr(bar.bar))]
+var s2 : stat2 = [reinterpret<int?>(unsafe(addr(bar.bar)))]
 
-var int_to_fn_ptr : function? = -1
+var int_to_fn_ptr : function? = reinterpret<function?>(-1)
 
-var int_to_fn_ptr2 : function? = -1
+var int_to_fn_ptr2 : function? = reinterpret<function?>(-1)
 
-var int_to_fn_ptr3 : void_fn_ptr = -1
+var int_to_fn_ptr3 : void_fn_ptr = reinterpret<void_fn_ptr>(-1)
 
 def fn_scoped_static_init() : size_t {
     var fn_scoped_extern : size_t
-    var sectioned_scoped_init : size_t = unsafe(addr(section_me))
+    var sectioned_scoped_init : size_t = reinterpret<size_t>(unsafe(addr(section_me)))
     var not_sectioned : uint = 1
     section_me -= fn_scoped_extern
     return sectioned_scoped_init
 }
 var fn_scoped_extern : size_t = 1
 
-var sectioned_array : array<size_t> = [cast<size_t>(unsafe(addr(cast<Foo?>(0).a)))]
+var sectioned_array : array<size_t> = [reinterpret<size_t>(unsafe(addr(cast<Foo?>(0).a)))]
 
 def use_sectioned_array() {
     var f : size_t = unsafe(addr(sectioned_array[0]))[0]

@@ -11,7 +11,7 @@ struct my_union_flipped {
 struct empty_union {
 }
 struct union_with_anon_struct {
-    _unnamed : auto
+    _unnamed : int64
 }
 struct packed_union {
     as_int : int

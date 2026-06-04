@@ -1,5 +1,6 @@
 options gen2
 
+typedef size_t = uint64
 def _bswap_16(var _bsx : __uint16_t) : __uint16_t {
     return cast<__uint16_t>(__bsx >> 8 & 255 | __bsx & 255 << 8)
 }
@@ -21,13 +22,13 @@ def _uint64_identity(var _x : __uint64_t) : __uint64_t {
 def identity(var i : int) : int {
     return i
 }
-def get_identity() : void? {
-    return identity
+def get_identity() : uint64 {
+    return reinterpret<uint64>(identity)
 }
 def entry(sz : uint const; var buffer : int?) {
     unsafe {
-        var f : function? = get_identity()
+        var f : function? = reinterpret<function?>(get_identity())
         buffer[0] = f(10)
-        buffer[1] = cast<size_t>(f)
+        buffer[1] = reinterpret<size_t>(f)
     }
 }

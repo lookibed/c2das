@@ -1,7 +1,8 @@
 options gen2
 
+typedef size_t = uint64
 typedef ushort = int
-typedef uint32_t = __uint32_t
+typedef uint32_t = uint64
 typedef uchar = uint8
 struct three_byte_date {
     day : uint8

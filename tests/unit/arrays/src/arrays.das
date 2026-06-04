@@ -1,5 +1,6 @@
 options gen2
 
+typedef wchar_t = uint64
 def _bswap_16(var _bsx : __uint16_t) : __uint16_t {
     return cast<__uint16_t>(__bsx >> 8 & 255 | __bsx & 255 << 8)
 }

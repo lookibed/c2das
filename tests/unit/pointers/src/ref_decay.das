@@ -3,7 +3,7 @@ options gen2
 struct ThreeFields {
     a : int?
     b : int const?
-    c : void?
+    c : uint64
 }
 struct OneInt {
     i : int
@@ -34,10 +34,10 @@ def f(var a : int?; var b : int const?) {
 }
 def bar(var a : int const?) {
     var arr : array<int> = [1, 2, 3]
-    var p_arr : array<int>? = unsafe(addr(arr))
+    var p_arr : array<int>? = reinterpret<array<int>?>(unsafe(addr(arr)))
     f(unsafe(addr(unsafe(addr(arr[0]))[0])), a)
 }
-def bitcast(var a : void?) {
+def bitcast(var a : uint64) {
 }
 def foobar(var a : uint?) {
 }
@@ -54,15 +54,15 @@ def calls_all() {
         var j : int const = 2
         f(unsafe(addr(i)), unsafe(addr(i)))
         bar(unsafe(addr(j)))
-        foobar(unsafe(addr(i)))
-        bitcast(unsafe(addr(i)))
+        foobar(reinterpret<uint?>(unsafe(addr(i))))
+        bitcast(reinterpret<uint64>(unsafe(addr(i))))
         var k : int? = unsafe(addr(i))
-        var m : void? = unsafe(addr(i))
-        var tf : ThreeFields = [unsafe(addr(i)), unsafe(addr(i)), unsafe(addr(i))]
+        var m : uint64 = reinterpret<uint64>(unsafe(addr(i)))
+        var tf : ThreeFields = [unsafe(addr(i)), unsafe(addr(i)), reinterpret<uint64>(unsafe(addr(i)))]
         var l : array<int> = [0, 0]
-        sscanf(k, unsafe(addr("%u,%u"[0])), unsafe(addr(unsafe(addr(l[0]))[0])), unsafe(addr(unsafe(addr(l[0]))[1])))
+        sscanf(reinterpret<int8 const?>(k), unsafe(addr("%u,%u"[0])), unsafe(addr(unsafe(addr(l[0]))[0])), unsafe(addr(unsafe(addr(l[0]))[1])))
         var ul : uint64 = 0
-        address_cast(cast<uint64>(unsafe(addr(ul))))
+        address_cast(reinterpret<uint64>(unsafe(addr(ul))))
         var oi : OneInt?
         var n : int? = unsafe(addr(oi.i))
         if (unsafe(addr(i)) == k) {
@@ -73,6 +73,6 @@ def calls_all() {
         var q : int? = unsafe(addr(o)) + 0
         q = unsafe(addr(o)) - 0
         var r : Page?
-        takesPtr(unsafe(addr(r.idx[0]))[0])
+        takesPtr(reinterpret<uint8 const?>(unsafe(addr(r.idx[0]))[0]))
     }
 }

@@ -22,26 +22,26 @@ def cast_stuff() {
     var inta : array<int> = [0]
     var intp : int? = null
     var cintp : int const? = null
-    var x1 : int8? = cast<int8?>(intp)
+    var x1 : int8? = reinterpret<int8?>(intp)
     var x2 : int? = cast<int?>(intp)
-    var f : function? = cast<function?>(cast_stuff)
-    var g : function? = cast<function?>(unsafe(addr(cast_stuff)))
+    var f : function? = reinterpret<function?>(cast_stuff)
+    var g : function? = reinterpret<function?>(unsafe(addr(cast_stuff)))
     var x3 : int? = cast<int?>(unsafe(addr(inta[0])))
     var x4 : int? = cast<int?>(0)
-    var x5 : int? = cast<int?>(1)
-    var x6 : int = cast<int>(intp)
-    cast<void>(intp)
+    var x5 : int? = reinterpret<int?>(1)
+    var x6 : int = reinterpret<int>(intp)
+    intp
     var x7 : int64 = cast<int64>(10)
     var x8 : float = cast<float>(10)
     var x9 : int = cast<int>(double(10.0))
     var x10 : bool = cast<bool>(10)
     var x11 : bool = cast<bool>(double(10.5))
-    var x12 : bool = cast<void?>(0)
+    var x12 : bool = cast<uint64>(0)
     var x13 : double = cast<double>(double(10.5))
     var const_i : int const = -1
     var x14 : int? = cast<int?>(unsafe(addr(const_i)))
     var b : bool = 1
     var x15 : float = cast<float>(b)
-    var x16 : void? = cast<void?>(b)
+    var x16 : uint64 = reinterpret<uint64>(b)
     var x : int? = unsafe(addr([0]))
 }

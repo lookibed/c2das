@@ -2,11 +2,10 @@ options gen2
 
 typedef my_int = int
 typedef int_ptr = my_int?
-typedef const_int_ptr = int_ptr const
-typedef indirectly_const_ptr = const_int_ptr const
+typedef const_int_ptr = my_int?
+typedef indirectly_const_ptr = my_int?
 typedef my_fn = function
 typedef shadowed = int64
-typedef shadowed = int
 def identity(var x : int) : int {
     return x
 }

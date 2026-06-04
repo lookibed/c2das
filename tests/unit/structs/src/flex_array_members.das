@@ -1,5 +1,6 @@
 options gen2
 
+typedef size_t = uint64
 struct gnu_flex {
     x : int
     flex : array<int>
