@@ -18,8 +18,17 @@ use crate::ExternCrate;
 use das_ast::{DaExpr, DaStmt, DaDecl, DaBlock, DaType, DaTypeKind, DaVariable, DaModule,
               DaField, DaEnumVariant, DaStructure, DaEnumeration, DaAlias};
 
+mod atomics;
+mod builtins;
+mod comments;
+mod enums;
+mod functions;
 mod literals;
+mod macros;
 mod named_references;
+mod operators;
+mod pointers;
+mod structs_unions;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
 
