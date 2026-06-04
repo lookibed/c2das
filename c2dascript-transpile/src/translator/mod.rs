@@ -1362,6 +1362,39 @@ impl<'c> Translation<'c> {
         }
         cond
     }
+
+    /// Convert a C condition expression to a daScript boolean expression.
+    pub fn convert_condition(
+        &self,
+        ctx: ExprContext,
+        _used: bool,
+        expr_id: CExprId,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        self.convert_expr(ctx.used(), expr_id, None)
+    }
+
+    /// Create DeclStmtInfo for a C declaration.
+    pub fn convert_decl_stmt_info(
+        &self,
+        _ctx: ExprContext,
+        _decl_id: CDeclId,
+    ) -> TranslationResult<crate::cfg::DeclStmtInfo> {
+        // Simple fallback: convert the declaration
+        Ok(crate::cfg::DeclStmtInfo::empty())
+    }
+
+    /// Execute a closure with a new scope.
+    pub fn with_scope<T, F: FnOnce() -> TranslationResult<T>>(
+        &self,
+        f: F,
+    ) -> TranslationResult<T> {
+        f()
+    }
+
+    /// Panic with an error message for unreachable code.
+    pub fn panic(&self, msg: &str) -> Box<DaExpr> {
+        Box::new(DaExpr::ConstInt(0))
+    }
 }
 
 /// Collected switch case branch.

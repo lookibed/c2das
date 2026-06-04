@@ -101,6 +101,10 @@ impl<T> WithStmts<T> {
         self
     }
 
+    pub fn into_stmts_and_val(self) -> (Vec<DaStmt>, T) {
+        (self.stmts, self.val)
+    }
+
     pub fn stmts(&self) -> &[DaStmt] {
         &self.stmts
     }
@@ -126,6 +130,17 @@ impl<T> WithStmts<T> {
 
     pub fn is_pure(&self) -> bool {
         self.stmts.is_empty()
+    }
+
+    pub fn with_stmts_opt<U>(opt: Option<WithStmts<U>>) -> WithStmts<Option<U>> {
+        match opt {
+            None => WithStmts::new_val(None),
+            Some(x) => WithStmts {
+                val: Some(x.val),
+                stmts: x.stmts,
+                is_unsafe: x.is_unsafe,
+            },
+        }
     }
 }
 
@@ -160,17 +175,6 @@ impl WithStmts<DaExpr> {
             Some(self.val)
         } else {
             None
-        }
-    }
-
-    pub fn with_stmts_opt<T>(opt: Option<WithStmts<T>>) -> WithStmts<Option<T>> {
-        match opt {
-            None => WithStmts::new_val(None),
-            Some(x) => WithStmts {
-                val: Some(x.val),
-                stmts: x.stmts,
-                is_unsafe: x.is_unsafe,
-            },
         }
     }
 }
