@@ -19,27 +19,85 @@ use das_ast::{DaExpr, DaStmt, DaDecl, DaBlock, DaType, DaTypeKind, DaVariable, D
               DaField, DaEnumVariant, DaStructure, DaEnumeration, DaAlias};
 
 mod literals;
+mod named_references;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct Import {
+    decl_id: CDeclId,
+    ident_name: String,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub enum DecayRef {
+    Yes,
+    #[default]
+    Default,
+    No,
+}
+
+impl DecayRef {
+    pub fn is_yes(&self) -> bool {
+        match self {
+            DecayRef::Yes => true,
+            DecayRef::Default => true,
+            DecayRef::No => false,
+        }
+    }
+
+    pub fn is_no(&self) -> bool {
+        !self.is_yes()
+    }
+
+    pub fn set_default_to_no(&mut self) {
+        if *self == DecayRef::Default {
+            *self = DecayRef::No;
+        }
+    }
+}
+
+impl From<bool> for DecayRef {
+    fn from(b: bool) -> Self {
+        match b {
+            true => DecayRef::Yes,
+            false => DecayRef::No,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct FuncContext {
     name: Option<String>,
+    /// Name of the va_list argument for variadic functions
+    va_list_arg_name: Option<String>,
 }
 
 impl FuncContext {
     pub fn new() -> Self { Self::default() }
     pub fn enter_new(&mut self, fn_name: &str) {
-        *self = Self { name: Some(fn_name.to_string()) };
+        *self = Self {
+            name: Some(fn_name.to_string()),
+            ..Default::default()
+        };
     }
     pub fn get_name(&self) -> &str { self.name.as_deref().unwrap_or("<unknown>") }
+    pub fn get_va_list_arg_name(&self) -> &str {
+        self.va_list_arg_name.as_deref().expect("va_list_arg_name not set")
+    }
 }
 
 /// Options that impact an expression and all of its subexpressions.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct ExprContext {
     pub used: bool,
     pub is_const: bool,
+    pub is_static: bool,
+    pub decay_ref: DecayRef,
+    pub is_bitfield_write: bool,
+    pub needs_address: bool,
+    pub ternary_needs_parens: bool,
+    pub expanding_macro: Option<CDeclId>,
 }
 
 impl ExprContext {
@@ -47,7 +105,28 @@ impl ExprContext {
     pub fn unused(self) -> Self { ExprContext { used: false, ..self } }
     pub fn is_used(&self) -> bool { self.used }
     pub fn is_unused(&self) -> bool { !self.used }
+    pub fn decay_ref(self) -> Self { ExprContext { decay_ref: DecayRef::Yes, ..self } }
     pub fn const_(self) -> Self { ExprContext { is_const: true, ..self } }
+    pub fn not_const(self) -> Self { ExprContext { is_const: false, ..self } }
+    pub fn not_static(self) -> Self { ExprContext { is_static: false, ..self } }
+    pub fn static_(self) -> Self { ExprContext { is_static: true, ..self } }
+    pub fn is_bitfield_write(&self) -> bool { self.is_bitfield_write }
+    pub fn set_bitfield_write(self, is_bitfield_write: bool) -> Self {
+        ExprContext { is_bitfield_write, ..self }
+    }
+    pub fn needs_address(&self) -> bool { self.needs_address }
+    pub fn set_needs_address(self, needs_address: bool) -> Self {
+        ExprContext { needs_address, ..self }
+    }
+    pub fn expanding_macro(&self, mac: &CDeclId) -> bool {
+        match self.expanding_macro {
+            Some(expanding) => expanding == *mac,
+            None => false,
+        }
+    }
+    pub fn set_expanding_macro(self, mac: CDeclId) -> Self {
+        ExprContext { expanding_macro: Some(mac), ..self }
+    }
 }
 
 pub struct Translation<'c> {
@@ -416,12 +495,12 @@ impl<'c> Translation<'c> {
                 Ok(WithStmts { stmts: vec![], val: result, is_unsafe })
             }
             CStmtKind::Expr(expr_id) => {
-                let v = self.convert_expr(ExprContext { used: false, is_const: false }, *expr_id, None)?;
+                let v = self.convert_expr(ExprContext { used: false, is_const: false, ..Default::default() }, *expr_id, None)?;
                 Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(v.val)], is_unsafe: v.is_unsafe })
             }
             CStmtKind::Return(expr_id) => {
                 let val = expr_id
-                    .map(|e| self.convert_expr(ExprContext { used: true, is_const: false }, e, None))
+                    .map(|e| self.convert_expr(ExprContext { used: true, is_const: false, ..Default::default() }, e, None))
                     .transpose()?;
                 let is_unsafe = val.as_ref().map(|v| v.is_unsafe).unwrap_or(false);
                 Ok(WithStmts { stmts: vec![], val: vec![mk().expr_stmt(DaExpr::Return(val.map(|ws| Box::new(ws.val))))], is_unsafe })
@@ -429,14 +508,14 @@ impl<'c> Translation<'c> {
             CStmtKind::Decls(ref decls) => {
                 let mut result = vec![];
                 for &d in decls {
-                    if let Ok(das_decl) = self.convert_decl(ExprContext { used: true, is_const: false }, d) {
+                    if let Ok(das_decl) = self.convert_decl(ExprContext { used: true, is_const: false, ..Default::default() }, d) {
                         result.push(DaStmt::Decl(das_decl));
                     }
                 }
                 Ok(WithStmts { stmts: vec![], val: result, is_unsafe: false })
             }
             CStmtKind::If { scrutinee, true_variant, false_variant } => {
-                let ctx_used = ExprContext { used: true, is_const: false };
+                let ctx_used = ExprContext { used: true, is_const: false, ..Default::default() };
                 let cond = self.convert_expr(ctx_used, *scrutinee, None)?;
                 let then_ws = self.convert_stmt(*true_variant)?;
                 let then_expr = DaExpr::Block(DaBlock { stmts: then_ws.val });
@@ -456,7 +535,7 @@ impl<'c> Translation<'c> {
                 })], is_unsafe: cond.is_unsafe || then_ws.is_unsafe || else_unsafe })
             }
             CStmtKind::While { condition, body } => {
-                let ctx_used = ExprContext { used: true, is_const: false };
+                let ctx_used = ExprContext { used: true, is_const: false, ..Default::default() };
                 let cond = self.convert_expr(ctx_used, *condition, None)?;
                 let body_ws = self.convert_stmt(*body)?;
                 let body_expr = DaExpr::Block(DaBlock { stmts: body_ws.val });
@@ -466,7 +545,7 @@ impl<'c> Translation<'c> {
             }
             CStmtKind::DoWhile { body, condition } => {
                 let first_var = format!("_dw_{}", stmt_id.0);
-                let ctx_used = ExprContext { used: true, is_const: false };
+                let ctx_used = ExprContext { used: true, is_const: false, ..Default::default() };
                 let body_ws = self.convert_stmt(*body)?;
                 let cond = self.convert_expr(ctx_used, *condition, None)?;
 
@@ -501,7 +580,7 @@ impl<'c> Translation<'c> {
                 ], is_unsafe: body_ws.is_unsafe || cond.is_unsafe })
             }
             CStmtKind::ForLoop { init, condition, increment, body } => {
-                let ctx_used = ExprContext { used: true, is_const: false };
+                let ctx_used = ExprContext { used: true, is_const: false, ..Default::default() };
                 let mut result = vec![];
                 let mut is_unsafe = false;
 
@@ -537,7 +616,7 @@ impl<'c> Translation<'c> {
                 Ok(WithStmts { stmts: vec![], val: result, is_unsafe })
             }
             CStmtKind::Switch { scrutinee, body } => {
-                let ctx_u = ExprContext { used: true, is_const: false };
+                let ctx_u = ExprContext { used: true, is_const: false, ..Default::default() };
                 let cond = self.convert_expr(ctx_u, *scrutinee, None)?;
                 let (cases, cases_unsafe) = self.collect_switch_cases(*body)?;
                 let if_chain = self.build_switch_chain(&cond.val, &cases);
@@ -1109,7 +1188,7 @@ impl<'c> Translation<'c> {
             // Convert values
             let mut vals: Vec<DaExpr> = vec![];
             for &ev in &rc.values {
-                let val = self.convert_expr(ExprContext { used: true, is_const: false }, ev, None)?;
+                let val = self.convert_expr(ExprContext { used: true, is_const: false, ..Default::default() }, ev, None)?;
                 is_unsafe |= val.is_unsafe;
                 vals.push(val.val);
             }
@@ -1145,17 +1224,17 @@ impl<'c> Translation<'c> {
             }
             CStmtKind::Break => { /* skip */ }
             CStmtKind::Return(expr) => {
-                let val = expr.map(|e| self.convert_expr(ExprContext { used: true, is_const: false }, e, None)).transpose()?;
+                let val = expr.map(|e| self.convert_expr(ExprContext { used: true, is_const: false, ..Default::default() }, e, None)).transpose()?;
                 is_unsafe |= val.as_ref().map(|v| v.is_unsafe).unwrap_or(false);
                 stmts.push(mk().expr_stmt(DaExpr::Return(val.map(|ws| Box::new(ws.val)))));
             }
             CStmtKind::Expr(expr_id) => {
-                let v = self.convert_expr(ExprContext { used: false, is_const: false }, *expr_id, None)?;
+                let v = self.convert_expr(ExprContext { used: false, is_const: false, ..Default::default() }, *expr_id, None)?;
                 is_unsafe |= v.is_unsafe;
                 stmts.push(mk().expr_stmt(v.val));
             }
             CStmtKind::If { scrutinee, true_variant, false_variant } => {
-                let cond = self.convert_expr(ExprContext { used: true, is_const: false }, *scrutinee, None)?;
+                let cond = self.convert_expr(ExprContext { used: true, is_const: false, ..Default::default() }, *scrutinee, None)?;
                 let mut then_stmts = vec![];
                 let then_unsafe = self.collect_case_body(*true_variant, &mut then_stmts)?;
                 let then_expr = DaExpr::Block(DaBlock { stmts: then_stmts });
@@ -1173,7 +1252,7 @@ impl<'c> Translation<'c> {
                 }));
             }
             CStmtKind::While { condition, body } => {
-                let cond = self.convert_expr(ExprContext { used: true, is_const: false }, *condition, None)?;
+                let cond = self.convert_expr(ExprContext { used: true, is_const: false, ..Default::default() }, *condition, None)?;
                 let mut body_stmts = vec![];
                 let body_unsafe = self.collect_case_body(*body, &mut body_stmts)?;
                 is_unsafe |= cond.is_unsafe || body_unsafe;
@@ -1346,7 +1425,7 @@ pub fn translate(
                     continue; // already exported
                 }
             }
-            match t.convert_decl(ExprContext { used: true, is_const: false }, decl_id) {
+            match t.convert_decl(ExprContext { used: true, is_const: false, ..Default::default() }, decl_id) {
                 Ok(das_decl) => decls.push(das_decl),
                 Err(e) => {
                     let name = decl.kind.get_name().cloned().unwrap_or_else(|| "?".to_string());
@@ -1367,7 +1446,7 @@ pub fn translate(
             _ => false,  // types already exported in pass 1; fn decls without body skipped
         };
         if !needs_export { continue; }
-        match t.convert_decl(ExprContext { used: true, is_const: false }, top_id) {
+        match t.convert_decl(ExprContext { used: true, is_const: false, ..Default::default() }, top_id) {
             Ok(das_decl) => decls.push(das_decl),
             Err(e) => {
                 let decl = &t.ast_context[top_id];
