@@ -1,0 +1,108 @@
+---
+source: c2dascript-transpile/tests/snapshots.rs
+expression: cat tests/snapshots/generics.das
+---
+options gen2
+
+def c2da_min_int(a : int; b : int) : int {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int(a : int; b : int) : int {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint(a : uint; b : uint) : uint {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint(a : uint; b : uint) : uint {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_int64(a : int64; b : int64) : int64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int64(a : int64; b : int64) : int64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_clip_uint(v : int) : uint {
+    if (v < 0) {
+        return 0x0
+    }
+    if (v > 255) {
+        return 0xff
+    }
+    return uint(v)
+}
+def c2da_bool_to_uint(v : bool) : uint {
+    if (v) {
+        return 0x1
+    } else {
+        return 0x0
+    }
+}
+def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
+}
+struct s {
+    x : int
+}
+struct t {
+    y : int
+}
+[export]
+def foo() {
+    var x : int = 42 + 1
+    var y : double = double(double(42.0) + double(1.0))
+    var z : float = float(double(42.0) + double(1.0))
+    var n : int = 0
+    n
+    var m : int = 0
+    n = m
+    n
+    var s : s
+    var p1 : s? = unsafe(unsafe(reinterpret<s?>(unsafe(addr(s)))))
+    var p2 : s const? = unsafe(unsafe(reinterpret<s const?>(unsafe(addr(s)))))
+    var t1 : t? = unsafe(unsafe(reinterpret<t?>(p1)))
+    var t2 : t const? = unsafe(unsafe(reinterpret<t const?>(p2)))
+    var cx : int const = int(n)
+    var ut_y : int = int(cx)
+}
+
+[export] def main() : int {
+    return 0
+}

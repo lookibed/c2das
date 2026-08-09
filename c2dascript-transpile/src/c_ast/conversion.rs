@@ -164,6 +164,7 @@ fn parse_cast_kind(kind: &str) -> CastKind {
         "VectorSplat" => CastKind::VectorSplat,
         "AtomicToNonAtomic" => CastKind::AtomicToNonAtomic,
         "NonAtomicToAtomic" => CastKind::NonAtomicToAtomic,
+        "Dependent" => CastKind::Dependent,
         k => panic!("Unsupported implicit cast: {}", k),
     }
 }
@@ -986,6 +987,11 @@ impl ConversionContext {
                     let atomic_ty = CTypeKind::Atomic(qty_new);
                     self.add_type(new_id, not_located(atomic_ty));
                     self.processed_nodes.insert(new_id, OTHER_TYPE);
+                }
+
+                TypeTag::TagTypeUnknown if expected_ty & TYPE != 0 => {
+                    self.add_type(new_id, not_located(CTypeKind::Void));
+                    self.processed_nodes.insert(new_id, TYPE);
                 }
 
                 TypeTag::TagAutoType if expected_ty & TYPE != 0 => {

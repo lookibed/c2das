@@ -2,6 +2,7 @@ use crate::c_ast::*;
 use crate::diagnostics::{TranslationError, TranslationResult};
 use crate::with_stmts::WithStmts;
 use das_ast::{DaExpr, DaStmt};
+use std::ops::Index;
 
 use super::{ExprContext, Translation};
 
@@ -60,10 +61,15 @@ impl<'c> Translation<'c> {
         ctx: ExprContext,
         reference: CExprId,
     ) -> TranslationResult<WithStmts<NamedReference<DaExpr>>> {
-        self.name_reference(ctx, reference, true)
-            .map(|ws| ws.map(|named_ref| named_ref.map_rvalue(|rvalue| rvalue.expect(
+        self.name_reference(ctx, reference, true).map(|ws| {
+            ws.map(|named_ref| {
+                named_ref.map_rvalue(|rvalue| {
+                    rvalue.expect(
                 "When called with uses_read=true, name_reference should always return an rvalue"
-            ))))
+            )
+                })
+            })
+        })
     }
 
     fn read(&self, _reference_ty: CQualTypeId, write: DaExpr) -> TranslationResult<DaExpr> {
@@ -99,7 +105,7 @@ impl<'c> Translation<'c> {
                 let ptr_name = self.renamer.borrow_mut().fresh();
                 let compute_ref = DaStmt::Let {
                     name: ptr_name.clone(),
-                    init: reference,
+                    init: Some(reference),
                 };
                 let write = DaExpr::Deref(Box::new(DaExpr::Var(ptr_name)));
                 Ok(WithStmts::new(

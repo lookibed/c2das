@@ -1,0 +1,506 @@
+---
+source: c2dascript-transpile/tests/snapshots.rs
+expression: cat tests/snapshots/loops.das
+---
+options gen2
+
+def c2da_min_int(a : int; b : int) : int {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int(a : int; b : int) : int {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint(a : uint; b : uint) : uint {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint(a : uint; b : uint) : uint {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_int64(a : int64; b : int64) : int64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int64(a : int64; b : int64) : int64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_clip_uint(v : int) : uint {
+    if (v < 0) {
+        return 0x0
+    }
+    if (v > 255) {
+        return 0xff
+    }
+    return uint(v)
+}
+def c2da_bool_to_uint(v : bool) : uint {
+    if (v) {
+        return 0x1
+    } else {
+        return 0x0
+    }
+}
+def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
+}
+[export]
+def while_loop(var x : int) : int {
+    while (uint64(x) != uint64(0)) {
+        x = x + 1
+        x
+    }
+    return x
+}
+[export]
+def for_loop(var x_0 : int) : int {
+    var i : int = 0
+    while (i < 10) {
+        x_0 = x_0 + 1
+        x_0
+        i = i + 1
+    }
+    return x_0
+}
+[export]
+def infinite_loop(var x_1 : int) {
+    while (true) {
+        x_1 = x_1 + 1
+        x_1
+    }
+}
+[export]
+def goto_loop(var x_2 : int) : int {
+    label 27652:
+    x_2 = x_2 + 1
+    x_2
+    if (uint64(x_2) != uint64(0)) {
+        goto label 27652
+    }
+    return x_2
+}
+[export]
+def do_while_loop(var x_3 : int) : int {
+    var _dw_113 : bool = true
+    while (_dw_113 || x_3) {
+        _dw_113 = false
+        x_3 = x_3 + 1
+        x_3
+    }
+    return x_3
+}
+[export]
+def break_while(var x_4 : int) : int {
+    while (uint64(x_4) != uint64(0)) {
+        if (uint64(x_4) != uint64(0)) {
+            x_4 = x_4 + 1
+            x_4
+            if (uint64(x_4) != uint64(0)) {
+                break
+            }
+        }
+        x_4 = x_4 + 2
+        x_4
+    }
+    return x_4
+}
+[export]
+def continue_while(var x_5 : int) : int {
+    while (uint64(x_5) != uint64(0)) {
+        if (uint64(x_5) != uint64(0)) {
+            x_5 = x_5 + 1
+            x_5
+            if (uint64(x_5) != uint64(0)) {
+                continue
+            }
+        }
+        x_5 = x_5 + 2
+        x_5
+    }
+    return x_5
+}
+[export]
+def trivial_nested_while(var x_6 : int) {
+    while (uint64(x_6) != uint64(0)) {
+        while (uint64(x_6) != uint64(0)) {
+            while (uint64(x_6) != uint64(0)) {
+                x_6 = x_6 + 1
+                x_6
+            }
+        }
+    }
+}
+[export]
+def nested_while(var x_7 : int) {
+    while (uint64(x_7) != uint64(0)) {
+        while (uint64(x_7) != uint64(0)) {
+            while (uint64(x_7) != uint64(0)) {
+                x_7 = x_7 + 1
+                x_7
+            }
+            x_7 = x_7 + 2
+            x_7
+        }
+        x_7 = x_7 + 3
+        x_7
+    }
+}
+[export]
+def nested_for(var x_8 : int) {
+    var i_0 : int = 0
+    while (int(i_0) < 5) {
+        var j : int = 0
+        while (int(j) < 5) {
+            x_8 = x_8 + 1
+            x_8
+            j = j + 1
+        }
+        i_0 = i_0 + 1
+    }
+}
+[export]
+def exit_nested_loops(var x_9 : int) : int {
+    while (uint64(x_9) != uint64(0)) {
+        while (uint64(x_9) != uint64(0)) {
+            if (uint64(x_9) != uint64(0)) {
+                goto label 59611
+            }
+            x_9 = x_9 + 1
+            x_9
+        }
+    }
+    label 59611:
+    return x_9
+}
+[export]
+def continue_nested_loops(var x_10 : int) : int {
+    label 15029:
+    while (uint64(x_10) != uint64(0)) {
+        while (uint64(x_10) != uint64(0)) {
+            if (uint64(x_10) != uint64(0)) {
+                goto label 15029
+            }
+            x_10 = x_10 + 1
+            x_10
+        }
+        x_10 = x_10 + 2
+        x_10
+    }
+    return x_10
+}
+[export]
+def break_and_continue_nested_loops(var x_11 : int) : int {
+    label 15029:
+    while (uint64(x_11) != uint64(0)) {
+        while (uint64(x_11) != uint64(0)) {
+            if (uint64(x_11) != uint64(0)) {
+                goto label 59611
+            }
+            if (uint64(x_11) != uint64(0)) {
+                goto label 15029
+            }
+            x_11 = x_11 + 1
+            x_11
+        }
+        x_11 = x_11 + 2
+        x_11
+    }
+    label 59611:
+    return x_11
+}
+[export]
+def for_loop_single_continue(var x_12 : int) : int {
+    var i_1 : int = 0
+    while (int(i_1) < 10) {
+        if (uint64(x_12) != uint64(0)) {
+            if (uint64(x_12) != uint64(0)) {
+                continue
+            }
+        }
+        x_12 = x_12 + 1
+        x_12
+        i_1 = i_1 + 1
+    }
+    return x_12
+}
+[export]
+def for_loop_multi_continue(var x_13 : int) : int {
+    var i_2 : int = 0
+    while (int(i_2) < 10) {
+        if (uint64(x_13) != uint64(0)) {
+            if (uint64(x_13) != uint64(0)) {
+                continue
+            }
+        }
+        x_13 = x_13 + 1
+        x_13
+        if (uint64(x_13) != uint64(0)) {
+            if (uint64(x_13) != uint64(0)) {
+                continue
+            }
+        }
+        x_13 = x_13 + 2
+        x_13
+        i_2 = i_2 + 1
+    }
+    return x_13
+}
+[export]
+def do_loop_single_continue(var x_14 : int) : int {
+    var _dw_400 : bool = true
+    while (_dw_400 || x_14) {
+        _dw_400 = false
+        if (uint64(x_14) != uint64(0)) {
+            if (uint64(x_14) != uint64(0)) {
+                continue
+            }
+        }
+        x_14 = x_14 + 1
+        x_14
+    }
+    return x_14
+}
+[export]
+def do_loop_multi_continue(var x_15 : int) : int {
+    var _dw_422 : bool = true
+    while (_dw_422 || x_15) {
+        _dw_422 = false
+        if (uint64(x_15) != uint64(0)) {
+            if (uint64(x_15) != uint64(0)) {
+                continue
+            }
+        }
+        x_15 = x_15 + 1
+        x_15
+        if (uint64(x_15) != uint64(0)) {
+            if (uint64(x_15) != uint64(0)) {
+                continue
+            }
+        }
+        x_15 = x_15 + 2
+        x_15
+    }
+    return x_15
+}
+[export]
+def explicit_loop_multi_exit(var x_16 : int) : int {
+    while (true) {
+        if (x_16 == 1) {
+            x_16 = x_16 + 1
+            x_16
+        } elif (x_16 == 2) {
+            x_16 = x_16 + 2
+            x_16
+        } else {
+            x_16 = x_16 + 6
+            x_16
+        }
+    }
+    label 10414:
+    x_16 = x_16 + 4
+    x_16
+    return x_16
+}
+[export]
+def implicit_loop_multi_exit(var x_17 : int) : int {
+    label 96446:
+    if (x_17 == 1) {
+        x_17 = x_17 + 1
+        x_17
+    } elif (x_17 == 2) {
+        x_17 = x_17 + 2
+        x_17
+    } else {
+        x_17 = x_17 + 6
+        x_17
+    }
+    x_17 = x_17 + 4
+    x_17
+    return x_17
+}
+[export]
+def loop_returns(var x_18 : int) : int {
+    while (uint64(x_18) != uint64(0)) {
+        x_18 = x_18 + 1
+        x_18
+        if (uint64(x_18) != uint64(0)) {
+            x_18 = x_18 + 2
+            x_18
+            return x_18
+        }
+        x_18 = x_18 + 3
+        x_18
+        if (uint64(x_18) != uint64(0)) {
+            x_18 = x_18 + 4
+            x_18
+            return x_18
+        }
+    }
+    return x_18
+}
+[export]
+def loop_gotos(var x_19 : int) : int {
+    while (uint64(x_19) != uint64(0)) {
+        x_19 = x_19 + 1
+        x_19
+        if (uint64(x_19) != uint64(0)) {
+            x_19 = x_19 + 2
+            x_19
+            goto label 27582
+        }
+        x_19 = x_19 + 3
+        x_19
+        if (uint64(x_19) != uint64(0)) {
+            x_19 = x_19 + 4
+            x_19
+            goto label 27582
+        }
+        x_19 = x_19 + 5
+        x_19
+    }
+    return x_19
+    label 27582:
+    return -x_19
+}
+[export]
+def loop_early_return(var x_20 : int) : int {
+    while (uint64(x_20) != uint64(0)) {
+        x_20 = x_20 + 1
+        x_20
+        if (uint64(x_20) != uint64(0)) {
+            x_20 = x_20 + 2
+            x_20
+            return x_20
+        }
+    }
+    return -x_20
+}
+[export]
+def if_else_loops(var x_21 : int) {
+    if (uint64(x_21) != uint64(0)) {
+        while (uint64(x_21) != uint64(0)) {
+            x_21 = x_21 + 1
+            x_21
+        }
+    } else {
+        while (uint64(x_21) != uint64(0)) {
+            x_21 = x_21 + 2
+            x_21
+        }
+    }
+}
+[export]
+def goto_loops(var x_22 : int) : int {
+    label 65:
+    if (uint64(x_22) != uint64(0)) {
+        goto label 66
+    } else {
+        goto label 67
+    }
+    label 66:
+    x_22 = x_22 + 1
+    x_22
+    if (uint64(x_22) != uint64(0)) {
+        goto label 66
+    } else {
+        goto label 68
+    }
+    label 67:
+    x_22 = x_22 + 2
+    x_22
+    if (uint64(x_22) != uint64(0)) {
+        goto label 67
+    } else {
+        goto label 68
+    }
+    label 68:
+    return x_22
+}
+[export]
+def goto_into_loops(var x_23 : int) {
+    label 65:
+    if (uint64(x_23) != uint64(0)) {
+        goto label 66
+    } else {
+        goto label 67
+    }
+    while (uint64(x_23) != uint64(0)) {
+        label 66:
+        x_23 = x_23 + 1
+        x_23
+    }
+    goto label 68
+    while (uint64(x_23) != uint64(0)) {
+        label 67:
+        x_23 = x_23 + 2
+        x_23
+    }
+    goto label 68
+    label 68:
+    return
+}
+[export]
+def goto_separate_loops(var x_24 : int) {
+    label 65:
+    if (uint64(x_24) != uint64(0)) {
+        goto label 66
+    } else {
+        goto label 67
+    }
+    label 66:
+    var _dw_782 : bool = true
+    while (_dw_782 || x_24) {
+        _dw_782 = false
+        x_24 = x_24 + 1
+        x_24
+    }
+    goto label 68
+    label 67:
+    var _dw_774 : bool = true
+    while (_dw_774 || x_24) {
+        _dw_774 = false
+        x_24 = x_24 + 2
+        x_24
+    }
+    goto label 68
+    label 68:
+    return
+}
+
+[export] def main() : int {
+    return 0
+}

@@ -1,0 +1,11 @@
+[
+  {
+    "directory": "/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/repro-plmpeg-bugs",
+    "arguments": [
+      "clang",
+      "-c",
+      "/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/repro-plmpeg-bugs/repro_for_array.c"
+    ],
+    "file": "/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/repro-plmpeg-bugs/repro_for_array.c"
+  }
+]

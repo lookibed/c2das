@@ -1,0 +1,2188 @@
+error[30341]: no matching functions or generics: get_cross_platform_name()
+D:/Backups/�2daslang/daScript/modules/dasOpenGL/.das_module:14:30
+    if (das_is_dll_build() && get_cross_platform_name() == "emscripten") {
+
+                              ^^^^^^^^^^^^^^^^^^^^^^^
+get_cross_platform_name()
+while compiling: initialize(project_path: string const): void
+there are no good matching candidates out of 0 total functions with the same name
+
+
+error[30133]: can't cast int const to HeapHeader?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:280:31
+    var header : HeapHeader? = cast<HeapHeader?>(0)
+                               ^^^^
+error[30915]: can only copy compatible type; uint64 aka size_t const& -const = int const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:281:19
+    aligned_header = 4 + int(int(uint64(0x7))) & int(~unsafe(reinterpret<size_t>(0x7)))
+                   ^
+not the same type
+
+error[30952]: can't write to a constant value, uint64 aka size_t const& -const = uint64 const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:282:17
+    aligned_size = unsafe(reinterpret<size_t>(size)) + unsafe(reinterpret<size_t>(0x7)) & ~unsafe(reinterpret<size_t>(0x7))
+                 ^
+error[30952]: can't write to a constant value, uint64 aka size_t const& -const = uint64 const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:283:10
+    total = unsafe(reinterpret<size_t>(aligned_header)) + unsafe(reinterpret<size_t>(aligned_size))
+          ^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:306:23
+    var dst : uint8? = cast<uint8?>(0)
+                       ^^^^
+error[30133]: can't cast int const to uint8 const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:307:29
+    var src : uint8 const? = cast<uint8 const?>(0)
+                             ^^^^
+error[30133]: can't cast int const to HeapHeader const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:308:39
+    var header_0 : HeapHeader const? = cast<HeapHeader const?>(0)
+                                       ^^^^
+error[30915]: can only copy compatible type; uint64 aka size_t const& -const = int const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:313:21
+    aligned_header_0 = 4 + int(int(uint64(0x7))) & int(~unsafe(reinterpret<size_t>(0x7)))
+                     ^
+not the same type
+
+error[30915]: can only copy compatible type; uint8?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:317:12
+        dst = result_0
+            ^
+not the same type
+
+error[30915]: can only copy compatible type; uint8 const?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:318:12
+        src = ptr_0
+            ^
+not the same type
+
+error[30915]: can only copy compatible type; HeapHeader const?& -const = uint8 const? -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:319:17
+        header_0 = unsafe(src - unsafe(reinterpret<size_t>(aligned_header_0)))
+                 ^
+not the same type
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:328:8
+        break
+        ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:344:8
+        break
+        ^^^^^
+error[30310]: function does not return a value
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:348:4
+def memset(var dest : uint64; var value : int; var count_0 : size_t) : uint64 {
+    ^^^^^^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:349:25
+    var bytes : uint8? = cast<uint8?>(0)
+                         ^^^^
+error[30915]: can only copy compatible type; uint8?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:351:10
+    bytes = dest
+          ^
+not the same type
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:353:4
+    break
+    ^^^^^
+error[30310]: function does not return a value
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:356:4
+def memcpy(var dest_0 : uint64; var src_0 : uint64; var count_1 : size_t) : uint64 {
+    ^^^^^^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:357:23
+    var out : uint8? = cast<uint8?>(0)
+                       ^^^^
+error[30133]: can't cast int const to uint8 const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:358:30
+    var in_0 : uint8 const? = cast<uint8 const?>(0)
+                              ^^^^
+error[30915]: can only copy compatible type; uint8?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:360:8
+    out = dest_0
+        ^
+not the same type
+
+error[30915]: can only copy compatible type; uint8 const?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:361:9
+    in_0 = src_0
+         ^
+not the same type
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:363:4
+    break
+    ^^^^^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:367:25
+    var out_0 : uint8? = cast<uint8?>(0)
+                         ^^^^
+error[30133]: can't cast int const to uint8 const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:368:30
+    var in_1 : uint8 const? = cast<uint8 const?>(0)
+                              ^^^^
+error[30915]: can only copy compatible type; uint8?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:370:10
+    out_0 = dest_1
+          ^
+not the same type
+
+error[30915]: can only copy compatible type; uint8 const?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:371:9
+    in_1 = src_1
+         ^
+not the same type
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:376:8
+        break
+        ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:378:8
+        break
+        ^^^^^
+error[30310]: function does not return a value
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:382:4
+def memcmp(var lhs : uint64; var rhs : uint64; var count_3 : size_t) : int {
+    ^^^^^^
+error[30133]: can't cast int const to uint8 const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:383:30
+    var left : uint8 const? = cast<uint8 const?>(0)
+                              ^^^^
+error[30133]: can't cast int const to uint8 const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:384:31
+    var right : uint8 const? = cast<uint8 const?>(0)
+                               ^^^^
+error[30915]: can only copy compatible type; uint8 const?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:386:9
+    left = lhs
+         ^
+not the same type
+
+error[30915]: can only copy compatible type; uint8 const?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:387:10
+    right = rhs
+          ^
+not the same type
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:389:4
+    break
+    ^^^^^
+error[30133]: can't cast int const to plm_buffer_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:403:33
+    var buffer : plm_buffer_t? = cast<plm_buffer_t?>(0)
+                                 ^^^^
+error[30133]: can't cast int const to plm_buffer_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:409:31
+    var self : plm_buffer_t? = cast<plm_buffer_t?>(0)
+                               ^^^^
+error[30341]: no matching functions or generics: malloc(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:410:18
+    self = unsafe(malloc(4))
+                  ^^^^^^
+malloc(int const)
+while compiling: plm_buffer_create_with_memory(bytes_1: uint8? -const; length_0: uint64 aka size_t -const; free_when_done_0: int -const): plm_buffer_t?
+candidates:
+	$::malloc(size: uint64 const): void? // builtin
+		invalid argument 'size' (0). expecting 'uint64 const', passing 'int const'
+	malloc(size: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:276:4
+		invalid argument 'size' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+	calloc(count: uint64 aka size_t -const; size_1: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:334:4
+		name is similar, typo?
+		invalid argument 'count' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+		missing argument size_1
+
+
+error[30133]: can't cast int const to plm_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:423:26
+    var self_0 : plm_t? = cast<plm_t?>(0)
+                          ^^^^
+error[30341]: no matching functions or generics: malloc(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:424:20
+    self_0 = unsafe(malloc(4))
+                    ^^^^^^
+malloc(int const)
+while compiling: plm_create_with_buffer(buffer_0: plm_buffer_t? -const; destroy_when_done: int -const): plm_t?
+candidates:
+	$::malloc(size: uint64 const): void? // builtin
+		invalid argument 'size' (0). expecting 'uint64 const', passing 'int const'
+	malloc(size: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:276:4
+		invalid argument 'size' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+	calloc(count: uint64 aka size_t -const; size_1: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:334:4
+		name is similar, typo?
+		invalid argument 'count' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+		missing argument size_1
+
+
+error[30838]: can't locate variable 'plm_read_video_packet'
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:445:66
+                plm_buffer_set_load_callback(self_1.video_buffer, plm_read_video_packet, unsafe(unsafe(reinterpret<uint64>(self_1))))
+                                                                  ^^^^^^^^^^^^^^^^^^^^^
+error[30838]: can't locate variable 'plm_read_audio_packet'
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:455:66
+                plm_buffer_set_load_callback(self_1.audio_buffer, plm_read_audio_packet, unsafe(unsafe(reinterpret<uint64>(self_1))))
+                                                                  ^^^^^^^^^^^^^^^^^^^^^
+error[30133]: can't cast int const to plm_audio_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:465:32
+    var self_2 : plm_audio_t? = cast<plm_audio_t?>(0)
+                                ^^^^
+error[30341]: no matching functions or generics: malloc(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:466:20
+    self_2 = unsafe(malloc(4))
+                    ^^^^^^
+malloc(int const)
+while compiling: plm_audio_create_with_buffer(buffer_1: plm_buffer_t? -const; destroy_when_done_0: int -const): plm_audio_t?
+candidates:
+	$::malloc(size: uint64 const): void? // builtin
+		invalid argument 'size' (0). expecting 'uint64 const', passing 'int const'
+	malloc(size: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:276:4
+		invalid argument 'size' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+	calloc(count: uint64 aka size_t -const; size_1: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:334:4
+		name is similar, typo?
+		invalid argument 'count' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+		missing argument size_1
+
+
+error[30915]: can only copy compatible type; int& -const = bool const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:498:19
+            hasCRC = uint64(plm_buffer_read(self_3.buffer, 1)) == uint64(0)
+                   ^
+not the same type
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:521:45
+                                self_3.bound = uint(plm_buffer_read(self_3.buffer, 2) + 1) << uint(2)
+                                             ^
+not the same type
+
+error[30341]: no matching functions or generics: _::!(uint64 const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:566:16
+            if (!uint64(count_4) != uint64(0)) {
+                ^
+_::!(uint64 const)
+while compiling: plm_buffer_read(self_4: plm_buffer_t? -const; count_4: int -const): int const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint64 const'
+
+
+error[30805]: casting to undefined type auto
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:593:18
+            self_5.load_callback(self_5, self_5.load_callback_user_data)
+                  ^
+error[30310]: function does not return a value
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:624:4
+def plm_audio_find_frame_sync(var self_7 : plm_audio_t?) : int {
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:626:4
+    break
+    ^^^^^
+error[30341]: no matching functions or generics: _::!(uint64 const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:636:12
+        if (!uint64(plm_buffer_has(self_8, unsafe(reinterpret<size_t>(8)))) != uint64(0) && int(unsafe(unsafe(unsafe(reinterpret<uint8?>(self_8.bytes)))[uint(unsafe(reinterpret<size_t>(self_8.bit_index)) >> unsafe(reinterpret<size_t>(3)))])) == int(v)) {
+            ^
+_::!(uint64 const)
+while compiling: plm_buffer_skip_bytes(self_8: plm_buffer_t? -const; v: uint8 -const): int const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint64 const'
+
+
+error[30133]: can't cast int const to plm_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:654:27
+    var self_10 : plm_t? = cast<plm_t?>(0)
+                           ^^^^
+error[30915]: can only copy compatible type; plm_t?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:656:12
+    self_10 = user
+            ^
+not the same type
+
+error[30133]: can't cast int const to plm_packet_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:662:33
+    var packet : plm_packet_t? = cast<plm_packet_t?>(0)
+                                 ^^^^
+error[30341]: no matching functions or generics: _::!(uint64 aka size_t&)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:718:20
+                if (!unsafe(reinterpret<size_t>(new_size)) - unsafe(reinterpret<size_t>(self_15.length)) < unsafe(reinterpret<size_t>(length_1))) {
+                    ^
+_::!(uint64 aka size_t&)
+while compiling: plm_buffer_write(self_15: plm_buffer_t? -const; bytes_2: uint8? -const; length_1: uint64 aka size_t -const): uint64 aka size_t const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint64 aka size_t&'
+
+
+error[30133]: can't cast int const to plm_buffer_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:938:34
+    var self_25 : plm_buffer_t? = cast<plm_buffer_t?>(0)
+                                  ^^^^
+error[30341]: no matching functions or generics: malloc(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:939:21
+    self_25 = unsafe(malloc(4))
+                     ^^^^^^
+malloc(int const)
+while compiling: plm_buffer_create_with_capacity(capacity: uint64 aka size_t -const): plm_buffer_t?
+candidates:
+	$::malloc(size: uint64 const): void? // builtin
+		invalid argument 'size' (0). expecting 'uint64 const', passing 'int const'
+	malloc(size: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:276:4
+		invalid argument 'size' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+	calloc(count: uint64 aka size_t -const; size_1: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:334:4
+		name is similar, typo?
+		invalid argument 'count' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+		missing argument size_1
+
+
+error[30133]: can't cast int const to plm_video_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:960:33
+    var self_27 : plm_video_t? = cast<plm_video_t?>(0)
+                                 ^^^^
+error[30341]: no matching functions or generics: malloc(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:961:21
+    self_27 = unsafe(malloc(4))
+                     ^^^^^^
+malloc(int const)
+while compiling: plm_video_create_with_buffer(buffer_3: plm_buffer_t? -const; destroy_when_done_1: int -const): plm_video_t?
+candidates:
+	$::malloc(size: uint64 const): void? // builtin
+		invalid argument 'size' (0). expecting 'uint64 const', passing 'int const'
+	malloc(size: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:276:4
+		invalid argument 'size' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+	calloc(count: uint64 aka size_t -const; size_1: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:334:4
+		name is similar, typo?
+		invalid argument 'count' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+		missing argument size_1
+
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1005:16
+                break
+                ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1009:20
+                    break
+                    ^^^^^
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1012:37
+                    self_28.mb_width = uint(int(self_28.width) + 15) >> uint(4)
+                                     ^
+not the same type
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1013:38
+                    self_28.mb_height = uint(int(self_28.height) + 15) >> uint(4)
+                                      ^
+not the same type
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1015:39
+                    self_28.luma_width = uint(int(self_28.mb_width)) << uint(4)
+                                       ^
+not the same type
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1016:40
+                    self_28.luma_height = uint(int(self_28.mb_height)) << uint(4)
+                                        ^
+not the same type
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1017:41
+                    self_28.chroma_width = uint(int(self_28.mb_width)) << uint(3)
+                                         ^
+not the same type
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1018:42
+                    self_28.chroma_height = uint(int(self_28.mb_height)) << uint(3)
+                                          ^
+not the same type
+
+error[30133]: can't cast int const to plm_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1066:27
+    var self_30 : plm_t? = cast<plm_t?>(0)
+                           ^^^^
+error[30915]: can only copy compatible type; plm_t?& -const = uint64& -const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1068:12
+    self_30 = user_1
+            ^
+not the same type
+
+error[30133]: can't cast int const to plm_demux_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1084:33
+    var self_32 : plm_demux_t? = cast<plm_demux_t?>(0)
+                                 ^^^^
+error[30341]: no matching functions or generics: malloc(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1085:21
+    self_32 = unsafe(malloc(4))
+                     ^^^^^^
+malloc(int const)
+while compiling: plm_demux_create(buffer_5: plm_buffer_t? -const; destroy_when_done_2: int -const): plm_demux_t?
+candidates:
+	$::malloc(size: uint64 const): void? // builtin
+		invalid argument 'size' (0). expecting 'uint64 const', passing 'int const'
+	malloc(size: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:276:4
+		invalid argument 'size' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+	calloc(count: uint64 aka size_t -const; size_1: uint64 aka size_t -const): uint64 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:334:4
+		name is similar, typo?
+		invalid argument 'count' (0). expecting 'uint64 aka size_t -const', passing 'int const'
+		missing argument size_1
+
+
+error[30310]: function does not return a value
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1194:4
+def plm_demux_probe(var self_42 : plm_demux_t?; var probesize_0 : size_t) : int {
+    ^^^^^^^^^^^^^^^
+error[30133]: can't cast int const to array<int>
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1197:37
+    var audio_streams : array<int> = cast<array<int>>(0)
+                                     ^^^^
+error[30341]: no matching functions or generics: _::!(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1208:12
+        if (!int(self_42.start_code) != -1 && plm_buffer_tell(self_42.buffer) - unsafe(reinterpret<size_t>(previous_pos)) < unsafe(reinterpret<size_t>(probesize_0))) {
+            ^
+_::!(int const)
+while compiling: plm_demux_probe(self_42: plm_demux_t? -const; probesize_0: uint64 aka size_t -const): int const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1220:4
+    break
+    ^^^^^
+error[30341]: no matching functions or generics: uint64(function<void>?&)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1225:8
+    if (uint64(self_43.tell_callback) != uint64(0)) {
+        ^^^^^^
+uint64(function<void>?&)
+while compiling: plm_buffer_tell(self_43: plm_buffer_t? -const): uint64 aka size_t const
+candidates:
+	$::uint16: uint16 const // builtin
+		name is similar, typo?
+	$::uint64: uint64 const // builtin
+	$::uint16(arg0: float const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'float const', passing 'function<void>?&'
+	$::uint16(arg0: double const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'double const', passing 'function<void>?&'
+	$::uint16(arg0: int const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'int const', passing 'function<void>?&'
+	$::uint16(arg0: uint const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'uint const', passing 'function<void>?&'
+	$::uint16(arg0: bitfield const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'bitfield const', passing 'function<void>?&'
+	$::uint16(arg0: bitfield8:uint8<> const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'bitfield8:uint8<> const', passing 'function<void>?&'
+	$::uint16(arg0: bitfield16:uint16<> const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'bitfield16:uint16<> const', passing 'function<void>?&'
+	$::uint16(arg0: bitfield64:uint64<> const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'bitfield64:uint64<> const', passing 'function<void>?&'
+	$::uint16(arg0: int8 const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'int8 const', passing 'function<void>?&'
+	$::uint16(arg0: uint8 const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'uint8 const', passing 'function<void>?&'
+	$::uint16(arg0: int16 const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'int16 const', passing 'function<void>?&'
+	$::uint16(arg0: uint16 const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'uint16 const', passing 'function<void>?&'
+	$::uint16(arg0: int64 const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'int64 const', passing 'function<void>?&'
+	$::uint16(arg0: uint64 const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'arg0' (0). expecting 'uint64 const', passing 'function<void>?&'
+	$::uint64(arg0: float const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'float const', passing 'function<void>?&'
+	$::uint64(arg0: double const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'double const', passing 'function<void>?&'
+	$::uint64(arg0: int const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'int const', passing 'function<void>?&'
+	$::uint64(arg0: uint const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'uint const', passing 'function<void>?&'
+	$::uint64(arg0: bitfield const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'bitfield const', passing 'function<void>?&'
+	$::uint64(arg0: bitfield8:uint8<> const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'bitfield8:uint8<> const', passing 'function<void>?&'
+	$::uint64(arg0: bitfield16:uint16<> const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'bitfield16:uint16<> const', passing 'function<void>?&'
+	$::uint64(arg0: bitfield64:uint64<> const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'bitfield64:uint64<> const', passing 'function<void>?&'
+	$::uint64(arg0: int8 const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'int8 const', passing 'function<void>?&'
+	$::uint64(arg0: uint8 const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'uint8 const', passing 'function<void>?&'
+	$::uint64(arg0: int16 const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'int16 const', passing 'function<void>?&'
+	$::uint64(arg0: uint16 const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'uint16 const', passing 'function<void>?&'
+	$::uint64(arg0: int64 const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'int64 const', passing 'function<void>?&'
+	$::uint64(arg0: uint64 const): uint64 const // builtin
+		invalid argument 'arg0' (0). expecting 'uint64 const', passing 'function<void>?&'
+	$::uint16(src: unspecified enumeration const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint64(src: unspecified enumeration const): uint64 const // builtin
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint16(src: unspecified enumeration const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint64(src: unspecified enumeration const): uint64 const // builtin
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint16(src: unspecified enumeration const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint64(src: unspecified enumeration const): uint64 const // builtin
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint16(src: unspecified enumeration const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint64(src: unspecified enumeration const): uint64 const // builtin
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint16(src: unspecified enumeration const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint64(src: unspecified enumeration const): uint64 const // builtin
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint16(src: unspecified enumeration const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint64(src: unspecified enumeration const): uint64 const // builtin
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint16(src: unspecified enumeration const): uint16 const // builtin
+		name is similar, typo?
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+	$::uint64(src: unspecified enumeration const): uint64 const // builtin
+		invalid argument 'src' (0). expecting 'unspecified enumeration const', passing 'function<void>?&'
+
+
+error[30805]: casting to undefined type auto
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1226:29
+        c2da_fresh8 = self_43.tell_callback(self_43, self_43.load_callback_user_data) + (unsafe(reinterpret<size_t>(self_43.bit_index)) >> unsafe(reinterpret<size_t>(3))) - unsafe(reinterpret<size_t>(self_43.length))
+                             ^
+error[30805]: casting to undefined type auto
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1244:15
+        self_45.seek_callback(self_45, pos_0, self_45.load_callback_user_data)
+               ^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1452:8
+        break
+        ^^^^^
+error[30133]: can't cast int const to plm_packet_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1469:35
+    var packet_1 : plm_packet_t? = cast<plm_packet_t?>(0)
+                                   ^^^^
+error[30341]: no matching functions or generics: _::!(double const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1485:20
+                if (!double(self_69.start_time) == double(-1)) {
+                    ^
+_::!(double const)
+while compiling: plm_demux_get_start_time(self_69: plm_demux_t? -const; type_2: int -const): double const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'double const'
+
+
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1572:33
+    var frame_0 : plm_frame_t? = cast<plm_frame_t?>(0)
+                                 ^^^^
+error[30133]: can't cast int const to plm_samples_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1573:35
+    var samples : plm_samples_t? = cast<plm_samples_t?>(0)
+                                   ^^^^
+error[30915]: can only copy compatible type; int& -const = bool const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1577:21
+        decode_video = self_80.video_decode_callback != null && uint64(self_80.video_packet_type) != uint64(0)
+                     ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = bool const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1578:21
+        decode_audio = self_80.audio_decode_callback != null && uint64(self_80.audio_packet_type) != uint64(0)
+                     ^
+not the same type
+
+error[30805]: casting to undefined type auto
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1592:31
+                        self_80.video_decode_callback(self_80, frame_0, self_80.video_decode_callback_user_data)
+                               ^
+error[30805]: casting to undefined type auto
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1601:31
+                        self_80.audio_decode_callback(self_80, samples, self_80.audio_decode_callback_user_data)
+                               ^
+error[30341]: no matching functions or generics: _::!(uint64 const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1607:20
+                if (!uint64(did_decode) != uint64(0)) {
+                    ^
+_::!(uint64 const)
+while compiling: plm_decode(self_80: plm_t? -const; tick: double -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint64 const'
+
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1667:12
+    sblimit = uint(int(tab3)) & uint(63)
+            ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1668:9
+    tab3 = uint(tab3) >> uint(6)
+         ^
+not the same type
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1671:8
+        break
+        ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1673:8
+        break
+        ^^^^^
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1712:94
+    t02 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[0])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[31])[0]))[uint(ss)]))) * double(0.5006030201911926)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1712:200
+    t02 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[0])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[31])[0]))[uint(ss)]))) * double(0.5006030201911926)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[0][0])[uint(ss)] - addr(reinterpret<array<int>?> s[31][0])[uint(ss)]) * float(0.5006030201911926lf)
+	double(float(addr(reinterpret<array<int>?> s[0][0])[uint(ss)] - addr(reinterpret<array<int>?> s[31][0])[uint(ss)])) * 0.5006030201911926lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1714:94
+    t04 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[1])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[30])[0]))[uint(ss)]))) * double(0.5054709315299988)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1714:200
+    t04 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[1])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[30])[0]))[uint(ss)]))) * double(0.5054709315299988)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[1][0])[uint(ss)] - addr(reinterpret<array<int>?> s[30][0])[uint(ss)]) * float(0.5054709315299988lf)
+	double(float(addr(reinterpret<array<int>?> s[1][0])[uint(ss)] - addr(reinterpret<array<int>?> s[30][0])[uint(ss)])) * 0.5054709315299988lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1716:94
+    t06 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[2])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[29])[0]))[uint(ss)]))) * double(0.5154473185539246)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1716:200
+    t06 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[2])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[29])[0]))[uint(ss)]))) * double(0.5154473185539246)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[2][0])[uint(ss)] - addr(reinterpret<array<int>?> s[29][0])[uint(ss)]) * float(0.5154473185539246lf)
+	double(float(addr(reinterpret<array<int>?> s[2][0])[uint(ss)] - addr(reinterpret<array<int>?> s[29][0])[uint(ss)])) * 0.5154473185539246lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1718:94
+    t08 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[3])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[28])[0]))[uint(ss)]))) * double(0.5310425758361816)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1718:200
+    t08 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[3])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[28])[0]))[uint(ss)]))) * double(0.5310425758361816)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[3][0])[uint(ss)] - addr(reinterpret<array<int>?> s[28][0])[uint(ss)]) * float(0.5310425758361816lf)
+	double(float(addr(reinterpret<array<int>?> s[3][0])[uint(ss)] - addr(reinterpret<array<int>?> s[28][0])[uint(ss)])) * 0.5310425758361816lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1720:94
+    t10 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[4])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[27])[0]))[uint(ss)]))) * double(0.5531039237976074)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1720:200
+    t10 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[4])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[27])[0]))[uint(ss)]))) * double(0.5531039237976074)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[4][0])[uint(ss)] - addr(reinterpret<array<int>?> s[27][0])[uint(ss)]) * float(0.5531039237976074lf)
+	double(float(addr(reinterpret<array<int>?> s[4][0])[uint(ss)] - addr(reinterpret<array<int>?> s[27][0])[uint(ss)])) * 0.5531039237976074lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1722:94
+    t12 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[5])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[26])[0]))[uint(ss)]))) * double(0.5829349756240845)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1722:200
+    t12 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[5])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[26])[0]))[uint(ss)]))) * double(0.5829349756240845)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[5][0])[uint(ss)] - addr(reinterpret<array<int>?> s[26][0])[uint(ss)]) * float(0.5829349756240845lf)
+	double(float(addr(reinterpret<array<int>?> s[5][0])[uint(ss)] - addr(reinterpret<array<int>?> s[26][0])[uint(ss)])) * 0.5829349756240845lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1724:94
+    t14 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[6])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[25])[0]))[uint(ss)]))) * double(0.6225041151046753)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1724:200
+    t14 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[6])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[25])[0]))[uint(ss)]))) * double(0.6225041151046753)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[6][0])[uint(ss)] - addr(reinterpret<array<int>?> s[25][0])[uint(ss)]) * float(0.6225041151046753lf)
+	double(float(addr(reinterpret<array<int>?> s[6][0])[uint(ss)] - addr(reinterpret<array<int>?> s[25][0])[uint(ss)])) * 0.6225041151046753lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1726:94
+    t16 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[7])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[24])[0]))[uint(ss)]))) * double(0.6748083233833313)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1726:200
+    t16 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[7])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[24])[0]))[uint(ss)]))) * double(0.6748083233833313)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[7][0])[uint(ss)] - addr(reinterpret<array<int>?> s[24][0])[uint(ss)]) * float(0.6748083233833313lf)
+	double(float(addr(reinterpret<array<int>?> s[7][0])[uint(ss)] - addr(reinterpret<array<int>?> s[24][0])[uint(ss)])) * 0.6748083233833313lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1728:94
+    t18 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[8])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[23])[0]))[uint(ss)]))) * double(0.744536280632019)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1728:200
+    t18 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[8])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[23])[0]))[uint(ss)]))) * double(0.744536280632019)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[8][0])[uint(ss)] - addr(reinterpret<array<int>?> s[23][0])[uint(ss)]) * float(0.744536280632019lf)
+	double(float(addr(reinterpret<array<int>?> s[8][0])[uint(ss)] - addr(reinterpret<array<int>?> s[23][0])[uint(ss)])) * 0.744536280632019lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1730:94
+    t20 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[9])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[22])[0]))[uint(ss)]))) * double(0.839349627494812)
+                                                                                              ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1730:200
+    t20 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[9])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[22])[0]))[uint(ss)]))) * double(0.839349627494812)
+                                                                                                                                                                                                        ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[9][0])[uint(ss)] - addr(reinterpret<array<int>?> s[22][0])[uint(ss)]) * float(0.839349627494812lf)
+	double(float(addr(reinterpret<array<int>?> s[9][0])[uint(ss)] - addr(reinterpret<array<int>?> s[22][0])[uint(ss)])) * 0.839349627494812lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1732:95
+    t22 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[10])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[21])[0]))[uint(ss)]))) * double(0.9725682139396667)
+                                                                                               ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1732:201
+    t22 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[10])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[21])[0]))[uint(ss)]))) * double(0.9725682139396667)
+                                                                                                                                                                                                         ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[10][0])[uint(ss)] - addr(reinterpret<array<int>?> s[21][0])[uint(ss)]) * float(0.9725682139396667lf)
+	double(float(addr(reinterpret<array<int>?> s[10][0])[uint(ss)] - addr(reinterpret<array<int>?> s[21][0])[uint(ss)])) * 0.9725682139396667lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1734:95
+    t24 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[11])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[20])[0]))[uint(ss)]))) * double(1.1694399118423462)
+                                                                                               ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1734:201
+    t24 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[11])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[20])[0]))[uint(ss)]))) * double(1.1694399118423462)
+                                                                                                                                                                                                         ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[11][0])[uint(ss)] - addr(reinterpret<array<int>?> s[20][0])[uint(ss)]) * float(1.1694399118423462lf)
+	double(float(addr(reinterpret<array<int>?> s[11][0])[uint(ss)] - addr(reinterpret<array<int>?> s[20][0])[uint(ss)])) * 1.1694399118423462lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1736:95
+    t26 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[12])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[19])[0]))[uint(ss)]))) * double(1.4841645956039429)
+                                                                                               ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1736:201
+    t26 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[12])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[19])[0]))[uint(ss)]))) * double(1.4841645956039429)
+                                                                                                                                                                                                         ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[12][0])[uint(ss)] - addr(reinterpret<array<int>?> s[19][0])[uint(ss)]) * float(1.4841645956039429lf)
+	double(float(addr(reinterpret<array<int>?> s[12][0])[uint(ss)] - addr(reinterpret<array<int>?> s[19][0])[uint(ss)])) * 1.4841645956039429lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1738:95
+    t28 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[13])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[18])[0]))[uint(ss)]))) * double(2.0577809810638428)
+                                                                                               ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1738:201
+    t28 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[13])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[18])[0]))[uint(ss)]))) * double(2.0577809810638428)
+                                                                                                                                                                                                         ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[13][0])[uint(ss)] - addr(reinterpret<array<int>?> s[18][0])[uint(ss)]) * float(2.0577809810638428lf)
+	double(float(addr(reinterpret<array<int>?> s[13][0])[uint(ss)] - addr(reinterpret<array<int>?> s[18][0])[uint(ss)])) * 2.0577809810638428lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1740:95
+    t30 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[14])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[17])[0]))[uint(ss)]))) * double(3.4076085090637207)
+                                                                                               ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1740:201
+    t30 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[14])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[17])[0]))[uint(ss)]))) * double(3.4076085090637207)
+                                                                                                                                                                                                         ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[14][0])[uint(ss)] - addr(reinterpret<array<int>?> s[17][0])[uint(ss)]) * float(3.4076085090637207lf)
+	double(float(addr(reinterpret<array<int>?> s[14][0])[uint(ss)] - addr(reinterpret<array<int>?> s[17][0])[uint(ss)])) * 3.4076085090637207lf
+
+error[31023]: index of the pointer must be inside the 'unsafe' block
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1742:95
+    t32 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[15])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[16])[0]))[uint(ss)]))) * double(10.190008163452148)
+                                                                                               ^
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1742:201
+    t32 = float(unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[15])[0]))[uint(ss)] - unsafe(unsafe(addr(unsafe(unsafe(unsafe(reinterpret<array<int>?>(s)))[16])[0]))[uint(ss)]))) * double(10.190008163452148)
+                                                                                                                                                                                                         ^
+	try one of the following
+	float(addr(reinterpret<array<int>?> s[15][0])[uint(ss)] - addr(reinterpret<array<int>?> s[16][0])[uint(ss)]) * float(10.190008163452148lf)
+	double(float(addr(reinterpret<array<int>?> s[15][0])[uint(ss)] - addr(reinterpret<array<int>?> s[16][0])[uint(ss)])) * 10.190008163452148lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1744:36
+    t31 = (float(t01) - float(t31)) * double(0.5024192929267883)
+                                    ^
+	try one of the following
+	(float(t01) - float(t31)) * float(0.5024192929267883lf)
+	double((float(t01) - float(t31))) * 0.5024192929267883lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1746:36
+    t29 = (float(t03) - float(t29)) * double(0.522498607635498)
+                                    ^
+	try one of the following
+	(float(t03) - float(t29)) * float(0.522498607635498lf)
+	double((float(t03) - float(t29))) * 0.522498607635498lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1748:36
+    t27 = (float(t05) - float(t27)) * double(0.5669440627098083)
+                                    ^
+	try one of the following
+	(float(t05) - float(t27)) * float(0.5669440627098083lf)
+	double((float(t05) - float(t27))) * 0.5669440627098083lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1750:36
+    t25 = (float(t07) - float(t25)) * double(0.6468217968940735)
+                                    ^
+	try one of the following
+	(float(t07) - float(t25)) * float(0.6468217968940735lf)
+	double((float(t07) - float(t25))) * 0.6468217968940735lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1752:36
+    t23 = (float(t09) - float(t23)) * double(0.7881546020507813)
+                                    ^
+	try one of the following
+	(float(t09) - float(t23)) * float(0.7881546020507812lf)
+	double((float(t09) - float(t23))) * 0.7881546020507812lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1754:36
+    t21 = (float(t11) - float(t21)) * double(1.0606776475906372)
+                                    ^
+	try one of the following
+	(float(t11) - float(t21)) * float(1.0606776475906372lf)
+	double((float(t11) - float(t21))) * 1.0606776475906372lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1756:36
+    t19 = (float(t13) - float(t19)) * double(1.722447156906128)
+                                    ^
+	try one of the following
+	(float(t13) - float(t19)) * float(1.722447156906128lf)
+	double((float(t13) - float(t19))) * 1.722447156906128lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1758:36
+    t17 = (float(t15) - float(t17)) * double(5.10114860534668)
+                                    ^
+	try one of the following
+	(float(t15) - float(t17)) * float(5.10114860534668lf)
+	double((float(t15) - float(t17))) * 5.10114860534668lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1760:36
+    t13 = (float(t33) - float(t13)) * double(0.509795606136322)
+                                    ^
+	try one of the following
+	(float(t33) - float(t13)) * float(0.509795606136322lf)
+	double((float(t33) - float(t13))) * 0.509795606136322lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1762:36
+    t01 = (float(t01) - float(t11)) * double(0.601344883441925)
+                                    ^
+	try one of the following
+	(float(t01) - float(t11)) * float(0.601344883441925lf)
+	double((float(t01) - float(t11))) * 0.601344883441925lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1764:36
+    t09 = (float(t03) - float(t09)) * double(0.8999761939048767)
+                                    ^
+	try one of the following
+	(float(t03) - float(t09)) * float(0.8999761939048767lf)
+	double((float(t03) - float(t09))) * 0.8999761939048767lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1766:36
+    t07 = (float(t05) - float(t07)) * double(2.562915563583374)
+                                    ^
+	try one of the following
+	(float(t05) - float(t07)) * float(2.562915563583374lf)
+	double((float(t05) - float(t07))) * 2.562915563583374lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1768:36
+    t15 = (float(t15) - float(t03)) * double(0.5411961078643799)
+                                    ^
+	try one of the following
+	(float(t15) - float(t03)) * float(0.5411961078643799lf)
+	double((float(t15) - float(t03))) * 0.5411961078643799lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1770:36
+    t11 = (float(t33) - float(t11)) * double(1.3065630197525024)
+                                    ^
+	try one of the following
+	(float(t33) - float(t11)) * float(1.3065630197525024lf)
+	double((float(t33) - float(t11))) * 1.3065630197525024lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1772:36
+    t05 = (float(t05) - float(t03)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t05) - float(t03)) * float(0.7071067690849304lf)
+	double((float(t05) - float(t03))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1774:36
+    t15 = (float(t15) - float(t11)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t15) - float(t11)) * float(0.7071067690849304lf)
+	double((float(t15) - float(t11))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1777:36
+    t13 = (float(t13) - float(t07)) * double(0.5411961078643799)
+                                    ^
+	try one of the following
+	(float(t13) - float(t07)) * float(0.5411961078643799lf)
+	double((float(t13) - float(t07))) * 0.5411961078643799lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1779:36
+    t09 = (float(t01) - float(t09)) * double(1.3065630197525024)
+                                    ^
+	try one of the following
+	(float(t01) - float(t09)) * float(1.3065630197525024lf)
+	double((float(t01) - float(t09))) * 1.3065630197525024lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1781:36
+    t07 = (float(t11) - float(t07)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t11) - float(t07)) * float(0.7071067690849304lf)
+	double((float(t11) - float(t07))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1783:36
+    t13 = (float(t13) - float(t09)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t13) - float(t09)) * float(0.7071067690849304lf)
+	double((float(t13) - float(t09))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1789:36
+    t31 = (float(t31) - float(t17)) * double(0.509795606136322)
+                                    ^
+	try one of the following
+	(float(t31) - float(t17)) * float(0.509795606136322lf)
+	double((float(t31) - float(t17))) * 0.509795606136322lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1791:36
+    t29 = (float(t29) - float(t19)) * double(0.601344883441925)
+                                    ^
+	try one of the following
+	(float(t29) - float(t19)) * float(0.601344883441925lf)
+	double((float(t29) - float(t19))) * 0.601344883441925lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1793:36
+    t21 = (float(t27) - float(t21)) * double(0.8999761939048767)
+                                    ^
+	try one of the following
+	(float(t27) - float(t21)) * float(0.8999761939048767lf)
+	double((float(t27) - float(t21))) * 0.8999761939048767lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1795:36
+    t23 = (float(t25) - float(t23)) * double(2.562915563583374)
+                                    ^
+	try one of the following
+	(float(t25) - float(t23)) * float(2.562915563583374lf)
+	double((float(t25) - float(t23))) * 2.562915563583374lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1797:36
+    t09 = (float(t09) - float(t27)) * double(0.5411961078643799)
+                                    ^
+	try one of the following
+	(float(t09) - float(t27)) * float(0.5411961078643799lf)
+	double((float(t09) - float(t27))) * 0.5411961078643799lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1799:36
+    t19 = (float(t17) - float(t19)) * double(1.3065630197525024)
+                                    ^
+	try one of the following
+	(float(t17) - float(t19)) * float(1.3065630197525024lf)
+	double((float(t17) - float(t19))) * 1.3065630197525024lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1801:36
+    t27 = (float(t25) - float(t27)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t25) - float(t27)) * float(0.7071067690849304lf)
+	double((float(t25) - float(t27))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1803:36
+    t19 = (float(t09) - float(t19)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t09) - float(t19)) * float(0.7071067690849304lf)
+	double((float(t09) - float(t19))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1806:36
+    t31 = (float(t31) - float(t23)) * double(0.5411961078643799)
+                                    ^
+	try one of the following
+	(float(t31) - float(t23)) * float(0.5411961078643799lf)
+	double((float(t31) - float(t23))) * 0.5411961078643799lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1808:36
+    t21 = (float(t29) - float(t21)) * double(1.3065630197525024)
+                                    ^
+	try one of the following
+	(float(t29) - float(t21)) * float(1.3065630197525024lf)
+	double((float(t29) - float(t21))) * 1.3065630197525024lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1810:36
+    t23 = (float(t09) - float(t23)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t09) - float(t23)) * float(0.7071067690849304lf)
+	double((float(t09) - float(t23))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1812:36
+    t31 = (float(t31) - float(t21)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t31) - float(t21)) * float(0.7071067690849304lf)
+	double((float(t31) - float(t21))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1825:36
+    t02 = (float(t02) - float(t32)) * double(0.5024192929267883)
+                                    ^
+	try one of the following
+	(float(t02) - float(t32)) * float(0.5024192929267883lf)
+	double((float(t02) - float(t32))) * 0.5024192929267883lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1827:36
+    t04 = (float(t04) - float(t30)) * double(0.522498607635498)
+                                    ^
+	try one of the following
+	(float(t04) - float(t30)) * float(0.522498607635498lf)
+	double((float(t04) - float(t30))) * 0.522498607635498lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1829:36
+    t28 = (float(t06) - float(t28)) * double(0.5669440627098083)
+                                    ^
+	try one of the following
+	(float(t06) - float(t28)) * float(0.5669440627098083lf)
+	double((float(t06) - float(t28))) * 0.5669440627098083lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1831:36
+    t08 = (float(t08) - float(t26)) * double(0.6468217968940735)
+                                    ^
+	try one of the following
+	(float(t08) - float(t26)) * float(0.6468217968940735lf)
+	double((float(t08) - float(t26))) * 0.6468217968940735lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1833:36
+    t10 = (float(t10) - float(t24)) * double(0.7881546020507813)
+                                    ^
+	try one of the following
+	(float(t10) - float(t24)) * float(0.7881546020507812lf)
+	double((float(t10) - float(t24))) * 0.7881546020507812lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1835:36
+    t22 = (float(t12) - float(t22)) * double(1.0606776475906372)
+                                    ^
+	try one of the following
+	(float(t12) - float(t22)) * float(1.0606776475906372lf)
+	double((float(t12) - float(t22))) * 1.0606776475906372lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1837:36
+    t20 = (float(t14) - float(t20)) * double(1.722447156906128)
+                                    ^
+	try one of the following
+	(float(t14) - float(t20)) * float(1.722447156906128lf)
+	double((float(t14) - float(t20))) * 1.722447156906128lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1839:36
+    t16 = (float(t16) - float(t18)) * double(5.10114860534668)
+                                    ^
+	try one of the following
+	(float(t16) - float(t18)) * float(5.10114860534668lf)
+	double((float(t16) - float(t18))) * 5.10114860534668lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1841:36
+    t14 = (float(t21) - float(t14)) * double(0.509795606136322)
+                                    ^
+	try one of the following
+	(float(t21) - float(t14)) * float(0.509795606136322lf)
+	double((float(t21) - float(t14))) * 0.509795606136322lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1843:36
+    t32 = (float(t32) - float(t12)) * double(0.601344883441925)
+                                    ^
+	try one of the following
+	(float(t32) - float(t12)) * float(0.601344883441925lf)
+	double((float(t32) - float(t12))) * 0.601344883441925lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1845:36
+    t24 = (float(t30) - float(t24)) * double(0.8999761939048767)
+                                    ^
+	try one of the following
+	(float(t30) - float(t24)) * float(0.8999761939048767lf)
+	double((float(t30) - float(t24))) * 0.8999761939048767lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1847:36
+    t26 = (float(t06) - float(t26)) * double(2.562915563583374)
+                                    ^
+	try one of the following
+	(float(t06) - float(t26)) * float(2.562915563583374lf)
+	double((float(t06) - float(t26))) * 2.562915563583374lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1849:36
+    t18 = (float(t18) - float(t30)) * double(0.5411961078643799)
+                                    ^
+	try one of the following
+	(float(t18) - float(t30)) * float(0.5411961078643799lf)
+	double((float(t18) - float(t30))) * 0.5411961078643799lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1851:36
+    t12 = (float(t21) - float(t12)) * double(1.3065630197525024)
+                                    ^
+	try one of the following
+	(float(t21) - float(t12)) * float(1.3065630197525024lf)
+	double((float(t21) - float(t12))) * 1.3065630197525024lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1853:36
+    t30 = (float(t06) - float(t30)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t06) - float(t30)) * float(0.7071067690849304lf)
+	double((float(t06) - float(t30))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1855:36
+    t12 = (float(t18) - float(t12)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t18) - float(t12)) * float(0.7071067690849304lf)
+	double((float(t18) - float(t12))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1858:36
+    t26 = (float(t14) - float(t26)) * double(0.5411961078643799)
+                                    ^
+	try one of the following
+	(float(t14) - float(t26)) * float(0.5411961078643799lf)
+	double((float(t14) - float(t26))) * 0.5411961078643799lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1860:36
+    t24 = (float(t32) - float(t24)) * double(1.3065630197525024)
+                                    ^
+	try one of the following
+	(float(t32) - float(t24)) * float(1.3065630197525024lf)
+	double((float(t32) - float(t24))) * 1.3065630197525024lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1862:36
+    t14 = (float(t18) - float(t14)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t18) - float(t14)) * float(0.7071067690849304lf)
+	double((float(t18) - float(t14))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1864:36
+    t24 = (float(t26) - float(t24)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t26) - float(t24)) * float(0.7071067690849304lf)
+	double((float(t26) - float(t24))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1870:36
+    t02 = (float(t02) - float(t16)) * double(0.509795606136322)
+                                    ^
+	try one of the following
+	(float(t02) - float(t16)) * float(0.509795606136322lf)
+	double((float(t02) - float(t16))) * 0.509795606136322lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1872:36
+    t04 = (float(t04) - float(t20)) * double(0.601344883441925)
+                                    ^
+	try one of the following
+	(float(t04) - float(t20)) * float(0.601344883441925lf)
+	double((float(t04) - float(t20))) * 0.601344883441925lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1874:36
+    t22 = (float(t28) - float(t22)) * double(0.8999761939048767)
+                                    ^
+	try one of the following
+	(float(t28) - float(t22)) * float(0.8999761939048767lf)
+	double((float(t28) - float(t22))) * 0.8999761939048767lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1876:36
+    t10 = (float(t08) - float(t10)) * double(2.562915563583374)
+                                    ^
+	try one of the following
+	(float(t08) - float(t10)) * float(2.562915563583374lf)
+	double((float(t08) - float(t10))) * 2.562915563583374lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1878:36
+    t14 = (float(t14) - float(t28)) * double(0.5411961078643799)
+                                    ^
+	try one of the following
+	(float(t14) - float(t28)) * float(0.5411961078643799lf)
+	double((float(t14) - float(t28))) * 0.5411961078643799lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1880:36
+    t20 = (float(t16) - float(t20)) * double(1.3065630197525024)
+                                    ^
+	try one of the following
+	(float(t16) - float(t20)) * float(1.3065630197525024lf)
+	double((float(t16) - float(t20))) * 1.3065630197525024lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1882:36
+    t28 = (float(t08) - float(t28)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t08) - float(t28)) * float(0.7071067690849304lf)
+	double((float(t08) - float(t28))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1884:36
+    t20 = (float(t14) - float(t20)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t14) - float(t20)) * float(0.7071067690849304lf)
+	double((float(t14) - float(t20))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1887:36
+    t02 = (float(t02) - float(t10)) * double(0.5411961078643799)
+                                    ^
+	try one of the following
+	(float(t02) - float(t10)) * float(0.5411961078643799lf)
+	double((float(t02) - float(t10))) * 0.5411961078643799lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1889:36
+    t22 = (float(t04) - float(t22)) * double(1.3065630197525024)
+                                    ^
+	try one of the following
+	(float(t04) - float(t22)) * float(1.3065630197525024lf)
+	double((float(t04) - float(t22))) * 1.3065630197525024lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1891:36
+    t10 = (float(t14) - float(t10)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t14) - float(t10)) * float(0.7071067690849304lf)
+	double((float(t14) - float(t10))) * 0.7071067690849304lf
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. float * double is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1893:36
+    t02 = (float(t02) - float(t22)) * double(0.7071067690849304)
+                                    ^
+	try one of the following
+	(float(t02) - float(t22)) * float(0.7071067690849304lf)
+	double((float(t02) - float(t22))) * 0.7071067690849304lf
+
+error[30133]: can't cast int const to plm_quantizer_spec_t const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1988:42
+    var q : plm_quantizer_spec_t const? = cast<plm_quantizer_spec_t const?>(0)
+                                          ^^^^
+error[30133]: can't cast int const to int?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1990:24
+    var sample : int? = cast<int?>(0)
+                        ^^^^
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2008:20
+            shift_0 = uint(int(sf_0) / 3) | uint(0)
+                    ^
+not the same type
+
+error[30406]: numeric operator '+' type mismatch. both sides have to be of the same type. int + uint is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2009:86
+            sf_0 = unsafe(unsafe(addr(PLM_AUDIO_SCALEFACTOR_BASE[0]))[int(sf_0) % 3]) + (uint(1 << int(shift_0)) >> uint(1)) >> int(shift_0)
+                                                                                      ^
+	try one of the following
+	addr(PLM_AUDIO_SCALEFACTOR_BASE[0])[(int(sf_0) % 3)] + int((uint(1 << int(shift_0)) >> 0x1))
+	uint(addr(PLM_AUDIO_SCALEFACTOR_BASE[0])[(int(sf_0) % 3)]) + (uint(1 << int(shift_0)) >> 0x1)
+
+error[30406]: numeric operator '-' type mismatch. both sides have to be of the same type. uint - int is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2024:46
+        adj = (uint(int(adj) + 1) >> uint(1)) - 1
+                                              ^
+	try one of the following
+	(uint(int(adj) + 1) >> 0x1) - uint(1)
+	int((uint(int(adj) + 1) >> 0x1)) - 1
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. int * uint is not defined (+1 more on this line)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2026:77
+        unsafe(unsafe(unsafe(reinterpret<int?>(sample)))[0]) = uint(int(val) * (uint(int(sf_0)) >> uint(12)) + (uint(int(val) * (uint(int(sf_0)) & uint(4095)) + 2048) >> uint(12))) >> uint(12)
+                                                                             ^
+	try one of the following
+	int(val) * int((uint(int(sf_0)) >> 0xc))
+	uint(int(val)) * (uint(int(sf_0)) >> 0xc)
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. int * uint is not defined (+1 more on this line)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2028:77
+        unsafe(unsafe(unsafe(reinterpret<int?>(sample)))[1]) = uint(int(val) * (uint(int(sf_0)) >> uint(12)) + (uint(int(val) * (uint(int(sf_0)) & uint(4095)) + 2048) >> uint(12))) >> uint(12)
+                                                                             ^
+	try one of the following
+	int(val) * int((uint(int(sf_0)) >> 0xc))
+	uint(int(val)) * (uint(int(sf_0)) >> 0xc)
+
+error[30406]: numeric operator '*' type mismatch. both sides have to be of the same type. int * uint is not defined (+1 more on this line)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2030:77
+        unsafe(unsafe(unsafe(reinterpret<int?>(sample)))[2]) = uint(int(val) * (uint(int(sf_0)) >> uint(12)) + (uint(int(val) * (uint(int(sf_0)) & uint(4095)) + 2048) >> uint(12))) >> uint(12)
+                                                                             ^
+	try one of the following
+	int(val) * int((uint(int(sf_0)) >> 0xc))
+	uint(int(val)) * (uint(int(sf_0)) >> 0xc)
+
+error[30341]: no matching functions or generics: plm_buffer_read(plm_buffer_t?&, uint const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2041:124
+    qtab = int(unsafe(unsafe(addr(unsafe(unsafe(addr(PLM_AUDIO_QUANT_LUT_STEP_4[0]))[uint(int(tab4)) & uint(15)])[0]))[uint(plm_buffer_read(self_85.buffer, uint(int(tab4)) >> uint(4)))]))
+                                                                                                                            ^^^^^^^^^^^^^^^
+plm_buffer_read(plm_buffer_t?&, uint const)
+while compiling: plm_audio_read_allocation(self_85: plm_audio_t? -const; sb_7: int -const; tab3_0: int -const): plm_quantizer_spec_t const?
+candidates:
+	plm_buffer_read(self_4: plm_buffer_t? -const; count_4: int -const): int const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:554:4
+		invalid argument 'count_4' (1). expecting 'int -const', passing 'uint const'
+	plm_buffer_tell(self_43: plm_buffer_t? -const): uint64 aka size_t const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1223:4
+		name is similar, typo?
+	plm_buffer_seek(self_45: plm_buffer_t? -const; pos_0: uint64 aka size_t -const): void at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1241:4
+		name is similar, typo?
+		invalid argument 'pos_0' (1). expecting 'uint64 aka size_t -const', passing 'uint const'
+
+
+error[30133]: can't cast int const to plm_quantizer_spec_t const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2042:53
+    var c2da_fresh24 : plm_quantizer_spec_t const? = cast<plm_quantizer_spec_t const?>(0)
+                                                     ^^^^
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2066:33
+    var frame_1 : plm_frame_t? = cast<plm_frame_t?>(0)
+                                 ^^^^
+error[30341]: no matching functions or generics: _::!(plm_frame_t?& -const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2099:20
+                if (!frame_1 == null) {
+                    ^
+_::!(plm_frame_t?& -const)
+while compiling: plm_video_decode(self_87: plm_video_t? -const): plm_frame_t?
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'plm_frame_t?& -const'
+
+
+error[30218]: pointer arithmetics only allows +, -, +=, -=, ++, --; not!
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2099:20
+                if (!frame_1 == null) {
+                    ^
+error[30341]: no matching functions or generics: _::!(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2148:16
+            if (!int(self_88.start_code) == int(PLM_START_EXTENSION) || int(self_88.start_code) == int(PLM_START_USER_DATA)) {
+                ^
+_::!(int const)
+while compiling: plm_video_decode_picture(self_88: plm_video_t? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30341]: no matching functions or generics: _::!(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2153:16
+            if (!int(self_88.start_code) >= int(PLM_START_SLICE_FIRST) && int(self_88.start_code) <= int(PLM_START_SLICE_LAST)) {
+                ^
+_::!(int const)
+while compiling: plm_video_decode_picture(self_88: plm_video_t? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30341]: no matching functions or generics: plm_video_decode_slice(plm_video_t?& -const, uint const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2156:12
+            plm_video_decode_slice(self_88, uint(int(self_88.start_code)) & uint(255))
+            ^^^^^^^^^^^^^^^^^^^^^^
+plm_video_decode_slice(plm_video_t?& -const, uint const)
+while compiling: plm_video_decode_picture(self_88: plm_video_t? -const): void
+candidates:
+	plm_video_decode_slice(self_89: plm_video_t? -const; slice: int -const): void at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2176:4
+		invalid argument 'slice' (1). expecting 'int -const', passing 'uint const'
+	plm_video_decode_block(self_92: plm_video_t? -const; block_1: int -const): void at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2306:4
+		name is similar, typo?
+		invalid argument 'block_1' (1). expecting 'int -const', passing 'uint const'
+
+
+error[30341]: no matching functions or generics: _::!(uint64 const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2188:12
+        if (!uint64(plm_buffer_read(self_89.buffer, 1)) != uint64(0)) {
+            ^
+_::!(uint64 const)
+while compiling: plm_video_decode_slice(self_89: plm_video_t? -const; slice: int -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint64 const'
+
+
+error[30341]: no matching functions or generics: _::!(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2195:12
+        if (!int(self_89.macroblock_address) < int(self_89.mb_size) - 1 && uint64(plm_buffer_peek_non_zero(self_89.buffer, 23)) != uint64(0)) {
+            ^
+_::!(int const)
+while compiling: plm_video_decode_slice(self_89: plm_video_t? -const; slice: int -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30343]: incompatible return type; int const = bool const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2209:8
+        return uint64(int(val_0)) != uint64(0)
+        ^^^^^^
+not the same type
+
+error[30133]: can't cast int const to plm_vlc_t const?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2216:37
+    var table_0 : plm_vlc_t const? = cast<plm_vlc_t const?>(0)
+                                     ^^^^
+error[30341]: no matching functions or generics: plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2219:12
+    t = int(plm_buffer_read_vlc(self_91.buffer, unsafe(addr(PLM_VIDEO_MACROBLOCK_ADDRESS_INCREMENT[0]))))
+            ^^^^^^^^^^^^^^^^^^^
+plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+while compiling: plm_video_decode_macroblock(self_91: plm_video_t? -const): void
+
+candidate function:
+	plm_buffer_read_vlc(self_94: plm_buffer_t? -const; table_2: plm_vlc_t const? -const): int16 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2511:4
+		invalid argument 'table_2' (1). expecting 'plm_vlc_t const? -const', passing 'plm_vlc_t const? const'
+		pointer types can only add constness
+
+
+error[30341]: no matching functions or generics: _::!(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2221:12
+        if (!int(t) == 34) {
+            ^
+_::!(int const)
+while compiling: plm_video_decode_macroblock(self_91: plm_video_t? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30341]: no matching functions or generics: plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2224:16
+        t = int(plm_buffer_read_vlc(self_91.buffer, unsafe(addr(PLM_VIDEO_MACROBLOCK_ADDRESS_INCREMENT[0]))))
+                ^^^^^^^^^^^^^^^^^^^
+plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+while compiling: plm_video_decode_macroblock(self_91: plm_video_t? -const): void
+
+candidate function:
+	plm_buffer_read_vlc(self_94: plm_buffer_t? -const; table_2: plm_vlc_t const? -const): int16 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2511:4
+		invalid argument 'table_2' (1). expecting 'plm_vlc_t const? -const', passing 'plm_vlc_t const? const'
+		pointer types can only add constness
+
+
+error[30341]: no matching functions or generics: _::!(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2227:12
+        if (!int(t) == 35) {
+            ^
+_::!(int const)
+while compiling: plm_video_decode_macroblock(self_91: plm_video_t? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30341]: no matching functions or generics: plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2231:16
+        t = int(plm_buffer_read_vlc(self_91.buffer, unsafe(addr(PLM_VIDEO_MACROBLOCK_ADDRESS_INCREMENT[0]))))
+                ^^^^^^^^^^^^^^^^^^^
+plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+while compiling: plm_video_decode_macroblock(self_91: plm_video_t? -const): void
+
+candidate function:
+	plm_buffer_read_vlc(self_94: plm_buffer_t? -const; table_2: plm_vlc_t const? -const): int16 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2511:4
+		invalid argument 'table_2' (1). expecting 'plm_vlc_t const? -const', passing 'plm_vlc_t const? const'
+		pointer types can only add constness
+
+
+error[30341]: no matching functions or generics: _::!(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2250:16
+            if (!int(increment) > 1) {
+                ^
+_::!(int const)
+while compiling: plm_video_decode_macroblock(self_91: plm_video_t? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2271:33
+        self_91.macroblock_intra = uint(int(self_91.macroblock_type)) & uint(1)
+                                 ^
+not the same type
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2272:38
+        self_91.motion_forward.is_set = uint(int(self_91.macroblock_type)) & uint(8)
+                                      ^
+not the same type
+
+error[30915]: can only copy compatible type; int& = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2273:39
+        self_91.motion_backward.is_set = uint(int(self_91.macroblock_type)) & uint(4)
+                                       ^
+not the same type
+
+error[30341]: no matching functions or generics: plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2297:31
+            c2da_fresh26 = int(plm_buffer_read_vlc(self_91.buffer, unsafe(addr(PLM_VIDEO_CODE_BLOCK_PATTERN[0]))))
+                               ^^^^^^^^^^^^^^^^^^^
+plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+while compiling: plm_video_decode_macroblock(self_91: plm_video_t? -const): void
+
+candidate function:
+	plm_buffer_read_vlc(self_94: plm_buffer_t? -const; table_2: plm_vlc_t const? -const): int16 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2511:4
+		invalid argument 'table_2' (1). expecting 'plm_vlc_t const? -const', passing 'plm_vlc_t const? const'
+		pointer types can only add constness
+
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2302:8
+        break
+        ^^^^^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2308:32
+    var quant_matrix : uint8? = cast<uint8?>(0)
+                                ^^^^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2317:23
+    var d_0 : uint8? = cast<uint8?>(0)
+                       ^^^^
+error[30133]: can't cast int const to int?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2320:21
+    var s_0 : int? = cast<int?>(0)
+                     ^^^^
+error[30341]: no matching functions or generics: _::!(uint64 const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2362:12
+        if (!uint64(1) != uint64(0)) {
+            ^
+_::!(uint64 const)
+while compiling: plm_video_decode_block(self_92: plm_video_t? -const; block_1: int -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint64 const'
+
+
+error[30341]: no matching functions or generics: plm_buffer_read_vlc_uint(plm_buffer_t?&, plm_vlc_uint_t const? const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2366:16
+        coeff = plm_buffer_read_vlc_uint(self_92.buffer, unsafe(addr(PLM_VIDEO_DCT_COEFF[0])))
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+plm_buffer_read_vlc_uint(plm_buffer_t?&, plm_vlc_uint_t const? const)
+while compiling: plm_video_decode_block(self_92: plm_video_t? -const; block_1: int -const): void
+
+candidate function:
+	plm_buffer_read_vlc_uint(self_93: plm_buffer_t? -const; table_1: plm_vlc_uint_t const? -const): uint16 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2507:4
+		invalid argument 'table_1' (1). expecting 'plm_vlc_uint_t const? -const', passing 'plm_vlc_uint_t const? const'
+		pointer types can only add constness
+
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2382:20
+                run = uint(int(coeff)) >> uint(8)
+                    ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2383:22
+                level = uint(int(coeff)) & uint(255)
+                      ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2405:22
+                level = uint(int(level) * int(self_92.quantizer_scale) * int(unsafe(unsafe(unsafe(reinterpret<uint8?>(quant_matrix)))[uint(de_zig_zagged)]))) >> uint(4)
+                      ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2427:11
+        di = uint(int(self_92.mb_row) * int(self_92.luma_width) + int(self_92.mb_col)) << uint(4)
+           ^
+not the same type
+
+error[30406]: numeric operator '+' type mismatch. both sides have to be of the same type. int + uint is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2432:20
+            di = di + (uint(int(self_92.luma_width)) << uint(3))
+                    ^
+	try one of the following
+	di + int((uint(int(self_92.luma_width)) << 0x3))
+	uint(di) + (uint(int(self_92.luma_width)) << 0x3)
+
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2435:36
+        var c2da_fresh30 : uint8? = cast<uint8?>(0)
+                                    ^^^^
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2443:11
+        di = (uint(int(self_92.mb_row) * int(self_92.luma_width)) << uint(2)) + (uint(int(self_92.mb_col)) << uint(3))
+           ^
+not the same type
+
+error[30341]: no matching functions or generics: plm_clamp(uint const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2449:26
+            clamped = int(plm_clamp(uint(unsafe(unsafe(unsafe(reinterpret<int?>(s_0)))[0]) + 128) >> uint(8)))
+                          ^^^^^^^^^
+plm_clamp(uint const)
+while compiling: plm_video_decode_block(self_92: plm_video_t? -const; block_1: int -const): void
+
+candidate function:
+	plm_clamp(n_0: int -const): uint8 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2472:4
+		invalid argument 'n_0' (0). expecting 'int -const', passing 'uint const'
+
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2452:12
+            break
+            ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2457:12
+            break
+            ^^^^^
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2460:16
+        value_2 = uint(unsafe(unsafe(unsafe(reinterpret<int?>(s_0)))[0]) + 128) >> uint(8)
+                ^
+not the same type
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2463:8
+        break
+        ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2468:8
+        break
+        ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2500:4
+    break
+    ^^^^^
+error[30341]: no matching functions or generics: plm_buffer_read_vlc(plm_buffer_t?& -const, plm_vlc_uint_t const?& -const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2508:18
+    return uint16(plm_buffer_read_vlc(self_93, table_1))
+                  ^^^^^^^^^^^^^^^^^^^
+plm_buffer_read_vlc(plm_buffer_t?& -const, plm_vlc_uint_t const?& -const)
+while compiling: plm_buffer_read_vlc_uint(self_93: plm_buffer_t? -const; table_1: plm_vlc_uint_t const? -const): uint16 const
+
+candidate function:
+	plm_buffer_read_vlc(self_94: plm_buffer_t? -const; table_2: plm_vlc_t const? -const): int16 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2511:4
+		invalid argument 'table_2' (1). expecting 'plm_vlc_t const? -const', passing 'plm_vlc_uint_t const?& -const'
+
+
+error[30341]: no matching functions or generics: _::!(int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2516:12
+        if (!int(state.index) > 0) {
+            ^
+_::!(int const)
+while compiling: plm_buffer_read_vlc(self_94: plm_buffer_t? -const; table_2: plm_vlc_t const? -const): int16 const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2539:13
+        fw_h = uint(fw_h) << uint(1)
+             ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2540:13
+        fw_v = uint(fw_v) << uint(1)
+             ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2546:17
+            bw_h = uint(bw_h) << uint(1)
+                 ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2547:17
+            bw_v = uint(bw_v) << uint(1)
+                 ^
+not the same type
+
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2564:29
+    var d_1 : plm_frame_t? = cast<plm_frame_t?>(0)
+                             ^^^^
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2584:7
+    hp = uint(int(motion_h_0)) >> uint(1)
+       ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = uint const
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2585:7
+    vp = uint(int(motion_v_0)) >> uint(1)
+       ^
+not the same type
+
+error[30406]: numeric operator '==' type mismatch. both sides have to be of the same type. uint == int is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2586:46
+    odd_h = (uint(int(motion_h_0)) & uint(1)) == 1
+                                              ^^
+	try one of the following
+	(uint(int(motion_h_0)) & 0x1) == uint(1)
+	int((uint(int(motion_h_0)) & 0x1)) == 1
+
+error[30406]: numeric operator '==' type mismatch. both sides have to be of the same type. uint == int is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2587:46
+    odd_v = (uint(int(motion_v_0)) & uint(1)) == 1
+                                              ^^
+	try one of the following
+	(uint(int(motion_v_0)) & 0x1) == uint(1)
+	int((uint(int(motion_v_0)) & 0x1)) == 1
+
+error[30406]: numeric operator '|' type mismatch. both sides have to be of the same type. uint | int is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2594:72
+        uint(int(interpolate)) << uint(2) | uint(int(odd_h)) << uint(1) | int(odd_v)
+                                                                        ^
+	try one of the following
+	((uint(int(interpolate)) << 0x2) | (uint(int(odd_h)) << 0x1)) | uint(int(odd_v))
+	int(((uint(int(interpolate)) << 0x2) | (uint(int(odd_h)) << 0x1))) | int(odd_v)
+
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2597:8
+        break
+        ^^^^^
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2602:29
+    var d_3 : plm_frame_t? = cast<plm_frame_t?>(0)
+                             ^^^^
+error[30341]: no matching functions or generics: plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2635:17
+    m_code = int(plm_buffer_read_vlc(self_100.buffer, unsafe(addr(PLM_VIDEO_MOTION[0]))))
+                 ^^^^^^^^^^^^^^^^^^^
+plm_buffer_read_vlc(plm_buffer_t?&, plm_vlc_t const? const)
+while compiling: plm_video_decode_motion_vector(self_100: plm_video_t? -const; r_size_1: int -const; motion: int -const): int const
+
+candidate function:
+	plm_buffer_read_vlc(self_94: plm_buffer_t? -const; table_2: plm_vlc_t const? -const): int16 const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2511:4
+		invalid argument 'table_2' (1). expecting 'plm_vlc_t const? -const', passing 'plm_vlc_t const? const'
+		pointer types can only add constness
+
+
+error[30406]: numeric operator '-' type mismatch. both sides have to be of the same type. uint - int is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2647:53
+    if (int(motion) > (uint(int(fscale)) << uint(4)) - 1) {
+                                                     ^
+	try one of the following
+	(uint(int(fscale)) << 0x4) - uint(1)
+	int((uint(int(fscale)) << 0x4)) - 1
+
+error[30406]: numeric operator '-' type mismatch. both sides have to be of the same type. int - uint is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2648:24
+        motion = motion - (uint(int(fscale)) << uint(5))
+                        ^
+	try one of the following
+	motion - int((uint(int(fscale)) << 0x5))
+	uint(motion) - (uint(int(fscale)) << 0x5)
+
+error[30406]: numeric operator '+' type mismatch. both sides have to be of the same type. int + uint is not defined
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2650:24
+        motion = motion + (uint(int(fscale)) << uint(5))
+                        ^
+	try one of the following
+	motion + int((uint(int(fscale)) << 0x5))
+	uint(motion) + (uint(int(fscale)) << 0x5)
+
+error[30344]: global variable 'PLM_VIDEO_MACROBLOCK_TYPE' initialization type mismatch; array<plm_vlc_t const?> -const = array<void?>
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2656:58
+var PLM_VIDEO_MACROBLOCK_TYPE : array<plm_vlc_t const?> = [null, unsafe(addr(PLM_VIDEO_MACROBLOCK_TYPE_INTRA[0])), unsafe(addr(PLM_VIDEO_MACROBLOCK_TYPE_PREDICTIVE[0])), unsafe(addr(PLM_VIDEO_MACROBLOCK_TYPE_B[0]))]
+                                                          ^
+not the same type
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2695:33
+    var frame_2 : plm_frame_t? = cast<plm_frame_t?>(0)
+                                 ^^^^
+error[30133]: can't cast int const to plm_samples_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2712:37
+    var samples_0 : plm_samples_t? = cast<plm_samples_t?>(0)
+                                     ^^^^
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2729:33
+    var frame_3 : plm_frame_t? = cast<plm_frame_t?>(0)
+                                 ^^^^
+error[30133]: can't cast int const to plm_packet_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2731:35
+    var packet_2 : plm_packet_t? = cast<plm_packet_t?>(0)
+                                   ^^^^
+error[30805]: casting to undefined type auto
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2737:20
+            self_105.video_decode_callback(self_105, frame_3, self_105.video_decode_callback_user_data)
+                    ^
+error[30341]: no matching functions or generics: _::!(plm_packet_t?& -const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2747:20
+                if (!packet_2 != null) {
+                    ^
+_::!(plm_packet_t?& -const)
+while compiling: plm_seek(self_105: plm_t? -const; time: double -const; seek_exact: int -const): int const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'plm_packet_t?& -const'
+
+
+error[30218]: pointer arithmetics only allows +, -, +=, -=, ++, --; not!
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2747:20
+                if (!packet_2 != null) {
+                    ^
+error[30133]: can't cast int const to plm_packet_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2775:35
+    var packet_3 : plm_packet_t? = cast<plm_packet_t?>(0)
+                                   ^^^^
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2777:33
+    var frame_4 : plm_frame_t? = cast<plm_frame_t?>(0)
+                                 ^^^^
+error[30341]: no matching functions or generics: _::!(plm_frame_t?& -const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2803:24
+                    if (!frame_4 != null && double(frame_4.time) < double(time_1)) {
+                        ^
+_::!(plm_frame_t?& -const)
+while compiling: plm_seek_frame(self_107: plm_t? -const; time_1: double -const; seek_exact_0: int -const): plm_frame_t?
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'plm_frame_t?& -const'
+
+
+error[30218]: pointer arithmetics only allows +, -, +=, -=, ++, --; not!
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2803:24
+                    if (!frame_4 != null && double(frame_4.time) < double(time_1)) {
+                        ^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2839:8
+        break
+        ^^^^^
+error[30133]: can't cast int const to plm_buffer_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2850:35
+    var self_110 : plm_buffer_t? = cast<plm_buffer_t?>(0)
+                                   ^^^^
+error[30133]: can't cast int const to plm_buffer_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2862:35
+    var self_111 : plm_buffer_t? = cast<plm_buffer_t?>(0)
+                                   ^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2891:4
+    break
+    ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2903:4
+    break
+    ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2915:4
+    break
+    ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2927:4
+    break
+    ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2939:4
+    break
+    ^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2951:4
+    break
+    ^^^^^
+error[30310]: function does not return a value
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2992:4
+def fold_bytes(var bytes_3 : uint8 const?; var length_3 : int) : uint {
+    ^^^^^^^^^^
+error[30128]: 'break' without a loop
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:2997:4
+    break
+    ^^^^^
+error[30133]: can't cast int const to plm_buffer_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3001:35
+    var buffer_6 : plm_buffer_t? = cast<plm_buffer_t?>(0)
+                                   ^^^^
+error[30133]: can't cast int const to plm_video_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3002:31
+    var video : plm_video_t? = cast<plm_video_t?>(0)
+                               ^^^^
+error[30133]: can't cast int const to plm_video_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3020:33
+    var video_0 : plm_video_t? = cast<plm_video_t?>(0)
+                                 ^^^^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3022:23
+    var rgb : uint8? = cast<uint8?>(0)
+                       ^^^^
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3024:34
+    var frame_11 : plm_frame_t? = cast<plm_frame_t?>(0)
+                                  ^^^^
+error[30341]: no matching functions or generics: _::!(uint64 const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3050:24
+                    if (!uint64(1) != uint64(0)) {
+                        ^
+_::!(uint64 const)
+while compiling: decode_summary(bytes_5: uint8? -const; length_5: uint64 aka size_t -const; frame_limit: int -const; summary: DecodeSummary? -const): int const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint64 const'
+
+
+error[30133]: can't cast int const to plm_video_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3089:33
+    var video_1 : plm_video_t? = cast<plm_video_t?>(0)
+                                 ^^^^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3090:25
+    var rgb_0 : uint8? = cast<uint8?>(0)
+                         ^^^^
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3095:34
+    var frame_12 : plm_frame_t? = cast<plm_frame_t?>(0)
+                                  ^^^^
+error[30341]: no matching functions or generics: decode_summary(uint8 const? const, uint64 aka size_t&, int& -const, DecodeSummary -const?)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3159:15
+    if (uint64(decode_summary(unsafe(addr(sample_mpg_bytes[0])), unsafe(reinterpret<size_t>(sample_mpg_len)), frame_limit_0, unsafe(addr(summary_0)))) == uint64(0)) {
+               ^^^^^^^^^^^^^^
+decode_summary(uint8 const? const, uint64 aka size_t&, int& -const, DecodeSummary -const?)
+while compiling: plmpeg_decode_hash(frame_limit_0: int -const): int const
+
+candidate function:
+	decode_summary(bytes_5: uint8? -const; length_5: uint64 aka size_t -const; frame_limit: int -const; summary: DecodeSummary? -const): int const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3019:4
+		invalid argument 'bytes_5' (0). expecting 'uint8? -const', passing 'uint8 const? const'
+		pointer types can only add constness
+
+
+error[30341]: no matching functions or generics: decode_summary(uint8 const? const, uint64 aka size_t&, int const, DecodeSummary -const?)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3169:15
+    if (uint64(decode_summary(unsafe(addr(sample_mpg_bytes[0])), unsafe(reinterpret<size_t>(sample_mpg_len)), 1, unsafe(addr(summary_1)))) == uint64(0)) {
+               ^^^^^^^^^^^^^^
+decode_summary(uint8 const? const, uint64 aka size_t&, int const, DecodeSummary -const?)
+while compiling: plmpeg_probe_width: int const
+
+candidate function:
+	decode_summary(bytes_5: uint8? -const; length_5: uint64 aka size_t -const; frame_limit: int -const; summary: DecodeSummary? -const): int const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3019:4
+		invalid argument 'bytes_5' (0). expecting 'uint8? -const', passing 'uint8 const? const'
+		pointer types can only add constness
+
+
+error[30341]: no matching functions or generics: decode_summary(uint8 const? const, uint64 aka size_t&, int const, DecodeSummary -const?)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3179:15
+    if (uint64(decode_summary(unsafe(addr(sample_mpg_bytes[0])), unsafe(reinterpret<size_t>(sample_mpg_len)), 1, unsafe(addr(summary_2)))) == uint64(0)) {
+               ^^^^^^^^^^^^^^
+decode_summary(uint8 const? const, uint64 aka size_t&, int const, DecodeSummary -const?)
+while compiling: plmpeg_probe_height: int const
+
+candidate function:
+	decode_summary(bytes_5: uint8? -const; length_5: uint64 aka size_t -const; frame_limit: int -const; summary: DecodeSummary? -const): int const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3019:4
+		invalid argument 'bytes_5' (0). expecting 'uint8? -const', passing 'uint8 const? const'
+		pointer types can only add constness
+
+
+error[30341]: no matching functions or generics: decode_summary(uint8 const? const, uint64 aka size_t&, int& -const, DecodeSummary -const?)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3189:15
+    if (uint64(decode_summary(unsafe(addr(sample_mpg_bytes[0])), unsafe(reinterpret<size_t>(sample_mpg_len)), frame_limit_1, unsafe(addr(summary_3)))) == uint64(0)) {
+               ^^^^^^^^^^^^^^
+decode_summary(uint8 const? const, uint64 aka size_t&, int& -const, DecodeSummary -const?)
+while compiling: plmpeg_probe_frame_count(frame_limit_1: int -const): int const
+
+candidate function:
+	decode_summary(bytes_5: uint8? -const; length_5: uint64 aka size_t -const; frame_limit: int -const; summary: DecodeSummary? -const): int const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3019:4
+		invalid argument 'bytes_5' (0). expecting 'uint8? -const', passing 'uint8 const? const'
+		pointer types can only add constness
+
+
+error[30341]: no matching functions or generics: decode_summary(uint8 const? const, uint64 aka size_t&, int const, DecodeSummary -const?)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3199:15
+    if (uint64(decode_summary(unsafe(addr(sample_mpg_bytes[0])), unsafe(reinterpret<size_t>(sample_mpg_len)), 1, unsafe(addr(summary_4)))) == uint64(0)) {
+               ^^^^^^^^^^^^^^
+decode_summary(uint8 const? const, uint64 aka size_t&, int const, DecodeSummary -const?)
+while compiling: plmpeg_probe_first_frame_hash: int const
+
+candidate function:
+	decode_summary(bytes_5: uint8? -const; length_5: uint64 aka size_t -const; frame_limit: int -const; summary: DecodeSummary? -const): int const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3019:4
+		invalid argument 'bytes_5' (0). expecting 'uint8? -const', passing 'uint8 const? const'
+		pointer types can only add constness
+
+
+error[30341]: no matching functions or generics: decode_summary(uint8 const? const, uint64 aka size_t&, int& -const, DecodeSummary -const?)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3209:15
+    if (uint64(decode_summary(unsafe(addr(sample_mpg_bytes[0])), unsafe(reinterpret<size_t>(sample_mpg_len)), frame_limit_2, unsafe(addr(summary_5)))) == uint64(0)) {
+               ^^^^^^^^^^^^^^
+decode_summary(uint8 const? const, uint64 aka size_t&, int& -const, DecodeSummary -const?)
+while compiling: plmpeg_probe_last_frame_hash(frame_limit_2: int -const): int const
+
+candidate function:
+	decode_summary(bytes_5: uint8? -const; length_5: uint64 aka size_t -const; frame_limit: int -const; summary: DecodeSummary? -const): int const at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3019:4
+		invalid argument 'bytes_5' (0). expecting 'uint8? -const', passing 'uint8 const? const'
+		pointer types can only add constness
+
+
+error[30133]: can't cast int const to plm_buffer_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3217:35
+    var buffer_7 : plm_buffer_t? = cast<plm_buffer_t?>(0)
+                                   ^^^^
+error[30341]: no matching functions or generics: plm_buffer_create_with_memory(uint8 const? const, uint64 aka size_t&, int const)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3222:56
+    buffer_7 = unsafe(unsafe(reinterpret<plm_buffer_t?>(plm_buffer_create_with_memory(unsafe(addr(sample_mpg_bytes[0])), unsafe(reinterpret<size_t>(sample_mpg_len)), 0))))
+                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+plm_buffer_create_with_memory(uint8 const? const, uint64 aka size_t&, int const)
+while compiling: plmpeg_probe_sequence_start_code: int const
+
+candidate function:
+	plm_buffer_create_with_memory(bytes_1: uint8? -const; length_0: uint64 aka size_t -const; free_when_done_0: int -const): plm_buffer_t? at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:408:4
+		invalid argument 'bytes_1' (0). expecting 'uint8? -const', passing 'uint8 const? const'
+		pointer types can only add constness
+
+
+error[30133]: can't cast int const to plm_video_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3233:33
+    var video_2 : plm_video_t? = cast<plm_video_t?>(0)
+                                 ^^^^
+error[30341]: no matching functions or generics: create_decoder(uint8 const? const, uint64 aka size_t&)
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3238:54
+    video_2 = unsafe(unsafe(reinterpret<plm_video_t?>(create_decoder(unsafe(addr(sample_mpg_bytes[0])), unsafe(reinterpret<size_t>(sample_mpg_len))))))
+                                                      ^^^^^^^^^^^^^^
+create_decoder(uint8 const? const, uint64 aka size_t&)
+while compiling: plmpeg_probe_video_has_header: int const
+
+candidate function:
+	create_decoder(bytes_4: uint8? -const; length_4: uint64 aka size_t -const): plm_video_t? at D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3000:4
+		invalid argument 'bytes_4' (0). expecting 'uint8? -const', passing 'uint8 const? const'
+		pointer types can only add constness
+
+
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3275:25
+    var rgb_1 : uint8? = cast<uint8?>(0)
+                         ^^^^
+error[30133]: can't cast int const to uint8?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3316:25
+    var rgb_2 : uint8? = cast<uint8?>(0)
+                         ^^^^
+error[30133]: can't cast int const to plm_frame_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3354:34
+    var frame_13 : plm_frame_t? = cast<plm_frame_t?>(0)
+                                  ^^^^
+error[30133]: can't cast int const to plm_video_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3384:33
+    var video_3 : plm_video_t? = cast<plm_video_t?>(0)
+                                 ^^^^
+error[30133]: can't cast int const to plm_video_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3403:33
+    var video_4 : plm_video_t? = cast<plm_video_t?>(0)
+                                 ^^^^
+error[30133]: can't cast int const to plm_video_t?
+D:\Backups\�2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:3422:33
+    var video_5 : plm_video_t? = cast<plm_video_t?>(0)
+                                 ^^^^

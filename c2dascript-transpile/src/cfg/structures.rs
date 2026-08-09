@@ -172,13 +172,19 @@ pub struct Spanned<T> {
     pub node: T,
 }
 
+impl<T: Default> Default for Spanned<T> {
+    fn default() -> Self {
+        Self { node: T::default() }
+    }
+}
+
 pub type StructuredAST<E, P, L, S> = Spanned<StructuredASTKind<E, P, L, S>>;
 
 fn dummy_spanned<T>(inner: T) -> Spanned<T> {
     Spanned { node: inner }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum StructuredASTKind<E, P, L, S> {
     Empty,
     Singleton(S),
@@ -339,9 +345,7 @@ fn process_cfg(
 
         let mut structure_ast = match structure {
             Simple {
-                body,
-                terminator,
-                ..
+                body, terminator, ..
             } => {
                 let mut body_ast: S = S::empty();
                 for s in body.clone() {
@@ -353,7 +357,11 @@ fn process_cfg(
 
                     match slbl {
                         Nested(nested) => process_cfg(
-                            nested, cfg_info, &next_entries, loop_context, break_targets,
+                            nested,
+                            cfg_info,
+                            &next_entries,
+                            loop_context,
+                            break_targets,
                         ),
                         ExitTo(target) => {
                             let mut new_ast = if cfg_info.checked_entries.contains(target) {
@@ -365,12 +373,14 @@ fn process_cfg(
                             let is_back_edge = loop_context.current_loop_entries.contains(target);
 
                             let exit = if is_back_edge {
-                                let loop_label = cfg_info.entry_to_loop.get(target)
-                                    .expect("target in current_loop_entries but not in entry_to_loop");
+                                let loop_label = cfg_info.entry_to_loop.get(target).expect(
+                                    "target in current_loop_entries but not in entry_to_loop",
+                                );
 
                                 if loop_context.innermost_loop_exits.contains(loop_label) {
-                                    let break_label = loop_context.innermost_loop.as_ref()
-                                        .expect("innermost_loop_exits set but innermost_loop is None");
+                                    let break_label = loop_context.innermost_loop.as_ref().expect(
+                                        "innermost_loop_exits set but innermost_loop is None",
+                                    );
                                     Some((ExitStyle::Break, break_label.clone()))
                                 } else if !next_entries.contains(loop_label) {
                                     Some((ExitStyle::Continue, loop_label.clone()))
@@ -425,7 +435,8 @@ fn process_cfg(
                     innermost_loop_exits: next_entries.clone(),
                 };
 
-                let body = process_cfg(body, cfg_info, entries, &inner_loop_context, break_targets)?;
+                let body =
+                    process_cfg(body, cfg_info, entries, &inner_loop_context, break_targets)?;
                 S::mk_loop(Some(label.clone()), body)
             }
 
@@ -478,8 +489,13 @@ fn process_cfg(
                     &empty
                 };
 
-                let branch_ast =
-                    process_cfg(branch, cfg_info, branch_next_entries, loop_context, break_targets)?;
+                let branch_ast = process_cfg(
+                    branch,
+                    cfg_info,
+                    branch_next_entries,
+                    loop_context,
+                    break_targets,
+                )?;
 
                 if break_targets.contains(entry) {
                     structure_ast = S::mk_block(entry.clone(), structure_ast);
@@ -517,10 +533,7 @@ struct StructureState {
 }
 
 impl StructureState {
-    pub fn to_stmt(
-        &self,
-        ast: StructuredAST<DaExpr, DaExpr, Label, DaStmt>,
-    ) -> (Vec<DaStmt>, ()) {
+    pub fn to_stmt(&self, ast: StructuredAST<DaExpr, DaExpr, Label, DaStmt>) -> (Vec<DaStmt>, ()) {
         use crate::cfg::structures::StructuredASTKind::*;
 
         let stmt = match ast.node {
@@ -556,40 +569,33 @@ impl StructureState {
             }
 
             Match(cond, cases) => {
-                // Convert to if/elif/else chain
-                let mut if_chain: Option<DaExpr> = None;
-                for (val, body_ast) in cases {
-                    let (body_stmts, _) = self.to_stmt(body_ast);
-                    let body_block = DaExpr::Block(DaBlock { stmts: body_stmts });
-                    let case_cond = DaExpr::Op2 {
+                let mut cases_iter = cases.into_iter();
+                let if_expr = if let Some((first_val, first_body_ast)) = cases_iter.next() {
+                    let (first_stmts, _) = self.to_stmt(first_body_ast);
+                    let first_cond = DaExpr::Op2 {
                         op: "==",
                         left: Box::new(cond.clone()),
-                        right: Box::new(val),
+                        right: Box::new(first_val),
                     };
-                    if_chain = Some(match if_chain {
-                        None => DaExpr::IfThenElse {
-                            cond: Box::new(case_cond),
-                            then: Box::new(body_block),
-                            elifs: vec![],
-                            else_: None,
-                        },
-                        Some(prev) => {
-                            // Nest into else branch
-                            DaExpr::IfThenElse {
-                                cond: Box::new(prev),
-                                then: Box::new(DaExpr::Block(DaBlock { stmts: vec![] })),
-                                elifs: vec![],
-                                else_: Some(Box::new(DaExpr::IfThenElse {
-                                    cond: Box::new(case_cond),
-                                    then: Box::new(body_block),
-                                    elifs: vec![],
-                                    else_: None,
-                                })),
-                            }
-                        }
-                    });
-                }
-                let if_expr = if_chain.unwrap_or(DaExpr::Block(DaBlock { stmts: vec![] }));
+                    let mut elifs = vec![];
+                    for (val, body_ast) in cases_iter {
+                        let (body_stmts, _) = self.to_stmt(body_ast);
+                        let case_cond = DaExpr::Op2 {
+                            op: "==",
+                            left: Box::new(cond.clone()),
+                            right: Box::new(val),
+                        };
+                        elifs.push((case_cond, DaExpr::Block(DaBlock { stmts: body_stmts })));
+                    }
+                    DaExpr::IfThenElse {
+                        cond: Box::new(first_cond),
+                        then: Box::new(DaExpr::Block(DaBlock { stmts: first_stmts })),
+                        elifs,
+                        else_: None,
+                    }
+                } else {
+                    DaExpr::Block(DaBlock { stmts: vec![] })
+                };
                 DaStmt::Expr(if_expr)
             }
 
@@ -615,25 +621,38 @@ impl StructureState {
                         else_: None,
                     },
                     (false, false) => {
-                        // Check if else is a single IfThenElse (elif chain)
-                        let else_expr = if els_stmts.len() == 1 {
-                            if let DaStmt::Expr(DaExpr::IfThenElse { .. }) = &els_stmts[0] {
-                                match &els_stmts[0] {
-                                    DaStmt::Expr(e) => Some(Box::new(e.clone())),
-                                    _ => unreachable!(),
+                        if els_stmts.len() == 1 {
+                            if let DaStmt::Expr(DaExpr::IfThenElse {
+                                cond: elif_cond,
+                                then: elif_then,
+                                elifs,
+                                else_,
+                            }) = &els_stmts[0]
+                            {
+                                let mut flat_elifs =
+                                    vec![((**elif_cond).clone(), (**elif_then).clone())];
+                                flat_elifs.extend(elifs.iter().cloned());
+                                DaExpr::IfThenElse {
+                                    cond: Box::new(cond),
+                                    then: Box::new(DaExpr::Block(DaBlock { stmts: then_stmts })),
+                                    elifs: flat_elifs,
+                                    else_: else_.clone(),
                                 }
                             } else {
-                                Some(Box::new(DaExpr::Block(DaBlock { stmts: els_stmts })))
+                                DaExpr::IfThenElse {
+                                    cond: Box::new(cond),
+                                    then: Box::new(DaExpr::Block(DaBlock { stmts: then_stmts })),
+                                    elifs: vec![],
+                                    else_: Some(Box::new(DaExpr::Block(DaBlock { stmts: els_stmts }))),
+                                }
                             }
                         } else {
-                            Some(Box::new(DaExpr::Block(DaBlock { stmts: els_stmts })))
-                        };
-
-                        DaExpr::IfThenElse {
-                            cond: Box::new(cond),
-                            then: Box::new(DaExpr::Block(DaBlock { stmts: then_stmts })),
-                            elifs: vec![],
-                            else_: else_expr,
+                            DaExpr::IfThenElse {
+                                cond: Box::new(cond),
+                                then: Box::new(DaExpr::Block(DaBlock { stmts: then_stmts })),
+                                elifs: vec![],
+                                else_: Some(Box::new(DaExpr::Block(DaBlock { stmts: els_stmts }))),
+                            }
                         }
                     }
                 };
@@ -642,7 +661,7 @@ impl StructureState {
 
             GotoTable(cases, then) => {
                 // Dispatch based on current_block value
-                let mut arms: Vec<(DaExpr, Vec<DaStmt>)> = cases
+                let arms: Vec<(DaExpr, Vec<DaStmt>)> = cases
                     .into_iter()
                     .map(|(lbl, body_ast)| {
                         let (stmts, _) = self.to_stmt(body_ast);
@@ -657,44 +676,33 @@ impl StructureState {
 
                 let (then_stmts, _) = self.to_stmt(*then);
 
-                // Build if/elif/else chain
-                let mut if_chain: Option<DaExpr> = None;
-                for (lbl_val, body_stmts) in arms {
-                    let body_block = DaExpr::Block(DaBlock { stmts: body_stmts });
-                    let case_cond = DaExpr::Op2 {
+                let default_block = DaExpr::Block(DaBlock { stmts: then_stmts });
+                let mut arms_iter = arms.into_iter();
+                let full_expr = if let Some((first_lbl_val, first_body_stmts)) = arms_iter.next() {
+                    let first_cond = DaExpr::Op2 {
                         op: "==",
                         left: Box::new(self.current_block.clone()),
-                        right: Box::new(lbl_val),
+                        right: Box::new(first_lbl_val),
                     };
-                    if_chain = Some(match if_chain {
-                        None => DaExpr::IfThenElse {
-                            cond: Box::new(case_cond),
-                            then: Box::new(body_block),
-                            elifs: vec![],
-                            else_: None,
-                        },
-                        Some(prev) => DaExpr::IfThenElse {
-                            cond: Box::new(prev),
-                            then: Box::new(DaExpr::Block(DaBlock { stmts: vec![] })),
-                            elifs: vec![],
-                            else_: Some(Box::new(DaExpr::IfThenElse {
-                                cond: Box::new(case_cond),
-                                then: Box::new(body_block),
-                                elifs: vec![],
-                                else_: None,
-                            })),
-                        },
-                    });
-                }
-                let default_block = DaExpr::Block(DaBlock { stmts: then_stmts });
-                let full_expr = match if_chain {
-                    None => default_block,
-                    Some(if_expr) => DaExpr::IfThenElse {
-                        cond: Box::new(if_expr),
-                        then: Box::new(DaExpr::Block(DaBlock { stmts: vec![] })),
-                        elifs: vec![],
+                    let mut elifs = vec![];
+                    for (lbl_val, body_stmts) in arms_iter {
+                        let cond = DaExpr::Op2 {
+                            op: "==",
+                            left: Box::new(self.current_block.clone()),
+                            right: Box::new(lbl_val),
+                        };
+                        elifs.push((cond, DaExpr::Block(DaBlock { stmts: body_stmts })));
+                    }
+                    DaExpr::IfThenElse {
+                        cond: Box::new(first_cond),
+                        then: Box::new(DaExpr::Block(DaBlock {
+                            stmts: first_body_stmts,
+                        })),
+                        elifs,
                         else_: Some(Box::new(default_block)),
-                    },
+                    }
+                } else {
+                    default_block
                 };
                 DaStmt::Expr(full_expr)
             }
@@ -707,7 +715,10 @@ impl StructureState {
                 let mut use_while = false;
                 let mut while_cond = DaExpr::ConstBool(true);
                 if let Some(DaStmt::Expr(DaExpr::IfThenElse {
-                    cond, then, else_: None, ..
+                    cond,
+                    then,
+                    else_: None,
+                    ..
                 })) = body_stmts.first()
                 {
                     if let DaExpr::Block(ref block) = **then {
@@ -746,17 +757,17 @@ impl StructureState {
 
             Block(lbl, body) => {
                 let (body_stmts, _) = self.to_stmt(*body);
-                // daScript has no labeled blocks; just emit the body
-                // Add a label comment for debugging
-                DaStmt::Expr(DaExpr::Block(DaBlock { stmts: body_stmts }))
+                let wrapped = DaExpr::While(
+                    Box::new(DaExpr::ConstBool(true)),
+                    Box::new(DaExpr::Block(DaBlock { stmts: body_stmts })),
+                );
+                DaStmt::Expr(wrapped)
             }
 
-            Exit(exit_style, lbl) => {
-                match exit_style {
-                    ExitStyle::Break => DaStmt::Expr(DaExpr::Break),
-                    ExitStyle::Continue => DaStmt::Expr(DaExpr::Continue),
-                }
-            }
+            Exit(exit_style, lbl) => match exit_style {
+                ExitStyle::Break => DaStmt::Expr(DaExpr::Break),
+                ExitStyle::Continue => DaStmt::Expr(DaExpr::Continue),
+            },
         };
 
         (vec![stmt], ())

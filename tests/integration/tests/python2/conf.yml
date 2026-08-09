@@ -20,6 +20,9 @@ transpile:
   tflags: --reorganize-definitions --disable-refactoring
   binary: python
 
+dascheck:
+  autogen: true
+
 cargo.transpile:
   autogen: true
   rustflags: "-C link-args=-Wl,-export-dynamic"

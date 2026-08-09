@@ -3,7 +3,8 @@ use std::process::Command;
 
 fn transpile_and_verify(c_name: &str) -> (i32, String) {
     let c_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent().unwrap()
+        .parent()
+        .unwrap()
         .join(format!("tests/syntax/{}.c", c_name));
     assert!(c_path.exists(), "C file not found: {:?}", c_path);
 
@@ -52,14 +53,18 @@ fn transpile_and_verify(c_name: &str) -> (i32, String) {
 fn t01_arith() {
     let (code, das) = transpile_and_verify("t01_arith");
     assert!(das.contains("return 10 + 20 - 5"));
-    if code > 0 { assert_eq!(code, 25); }
+    if code > 0 {
+        assert_eq!(code, 25);
+    }
 }
 
 #[test]
 fn t02_mul_div() {
     let (code, das) = transpile_and_verify("t02_mul_div");
     assert!(das.contains("return 7 * 6 / 2"));
-    if code > 0 { assert_eq!(code, 21); }
+    if code > 0 {
+        assert_eq!(code, 21);
+    }
 }
 
 #[test]
@@ -67,7 +72,9 @@ fn t03_cmp() {
     let (code, das) = transpile_and_verify("t03_cmp");
     assert!(das.contains("if ("));
     assert!(das.contains("a > b"));
-    if code > 0 { assert_eq!(code, 10); }
+    if code > 0 {
+        assert_eq!(code, 10);
+    }
 }
 
 #[test]
@@ -75,7 +82,9 @@ fn t04_logical() {
     let (code, das) = transpile_and_verify("t04_logical");
     assert!(das.contains("&&"));
     assert!(das.contains("b == 0"));
-    if code > 0 { assert_eq!(code, 1); }
+    if code > 0 {
+        assert_eq!(code, 1);
+    }
 }
 
 #[test]
@@ -84,7 +93,9 @@ fn t05_if_elif() {
     // either elif or nested if/else
     assert!(das.contains("x < 0") || das.contains("elif ("));
     assert!(das.contains("def classify"));
-    if code > 0 { assert_eq!(code, 0); }
+    if code > 0 {
+        assert_eq!(code, 0);
+    }
 }
 
 #[test]
@@ -92,7 +103,9 @@ fn t06_while() {
     let (code, das) = transpile_and_verify("t06_while");
     assert!(das.contains("while ("));
     assert!(das.contains("sum_to"));
-    if code > 0 { assert_eq!(code, 55); }
+    if code > 0 {
+        assert_eq!(code, 55);
+    }
 }
 
 #[test]
@@ -100,7 +113,9 @@ fn t07_for() {
     let (code, das) = transpile_and_verify("t07_for");
     assert!(das.contains("while ("));
     assert!(das.contains("i = i + 1"));
-    if code > 0 { assert_eq!(code, 55); }
+    if code > 0 {
+        assert_eq!(code, 55);
+    }
 }
 
 #[test]
@@ -108,7 +123,9 @@ fn t08_struct() {
     let (code, das) = transpile_and_verify("t08_struct");
     assert!(das.contains("struct Point"));
     assert!(das.contains("p2.x"));
-    if code > 0 { assert_eq!(code, 50); }
+    if code > 0 {
+        assert_eq!(code, 50);
+    }
 }
 
 #[test]
@@ -116,7 +133,9 @@ fn t09_enum() {
     let (code, das) = transpile_and_verify("t09_enum");
     assert!(das.contains("def color_val"));
     assert!(das.contains("return 30"));
-    if code > 0 { assert_eq!(code, 40); }
+    if code > 0 {
+        assert_eq!(code, 40);
+    }
 }
 
 #[test]
@@ -125,5 +144,7 @@ fn t10_chain() {
     assert!(das.contains("def max"));
     assert!(das.contains("def min"));
     assert!(das.contains("def clamp"));
-    if code > 0 { assert_eq!(code, 40); }
+    if code > 0 {
+        assert_eq!(code, 40);
+    }
 }

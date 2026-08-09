@@ -1,0 +1,12 @@
+[{
+  "directory": "/mnt/d/Backups/с2daslang/c2dascript/tests/production/real-archive-secret",
+  "file": "/mnt/d/Backups/с2daslang/c2dascript/tests/production/real-archive-secret/src/module.c",
+  "arguments": [
+    "clang",
+    "-DNDEBUG",
+    "-DMINIZ_NO_STDIO",
+    "-DMINIZ_NO_TIME",
+    "-c",
+    "/mnt/d/Backups/с2daslang/c2dascript/tests/production/real-archive-secret/src/module.c"
+  ]
+}]

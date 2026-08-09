@@ -6,7 +6,7 @@ pub fn reloop(
     use_c_loop_info: bool,
     use_c_multiple_info: bool,
     live_in: IndexSet<CDeclId>,
-) -> (Vec<DaStmt>, Vec<Structure<StmtOrDecl>>) {
+) -> (Vec<DaStmt>, Vec<Structure<DaStmt>>) {
     let entries = indexset![cfg.entries.clone()];
     let blocks: BasicBlocks = cfg
         .nodes
@@ -62,7 +62,7 @@ pub fn reloop(
         .flat_map(|&decl: &CDeclId| store.extract_decl(decl).unwrap())
         .collect();
 
-    let relooped = relooped_with_decls
+    let relooped: Vec<Structure<DaStmt>> = relooped_with_decls
         .into_iter()
         .map(|s| s.place_decls(&lift_me, &mut store))
         .collect();
@@ -304,11 +304,12 @@ impl RelooperState {
                 .filter(|&e| self.global_predecessors[e].len() == 1);
 
             for inlined in inlined {
-                for dominated in &self.domination_sets[inlined] {
-                    let block = follow_blocks
-                        .remove(dominated)
-                        .expect("Dominated node not in follow blocks");
-                    body_blocks.insert(dominated.clone(), block);
+                if let Some(dominated) = self.domination_sets.get(inlined) {
+                    for dominated in dominated {
+                        if let Some(block) = follow_blocks.remove(dominated) {
+                            body_blocks.insert(dominated.clone(), block);
+                        }
+                    }
                 }
             }
 
@@ -330,7 +331,10 @@ impl RelooperState {
         self.relooper(entries.clone(), body_blocks, &mut body);
         self.close_scope();
 
-        result.push(Structure::Loop { entries: entries.clone(), body });
+        result.push(Structure::Loop {
+            entries: entries.clone(),
+            body,
+        });
 
         self.relooper(follow_entries, follow_blocks, result);
     }
@@ -590,8 +594,14 @@ mod tests {
         let doms = compute_dominators(&entry, &predecessors);
         assert_eq!(doms.get(&label(1)), Some(&indexset! { label(1) }));
         assert_eq!(doms.get(&label(2)), Some(&indexset! { label(1), label(2) }));
-        assert_eq!(doms.get(&label(3)), Some(&indexset! { label(1), label(2), label(3) }));
-        assert_eq!(doms.get(&label(4)), Some(&indexset! { label(1), label(2), label(3), label(4) }));
+        assert_eq!(
+            doms.get(&label(3)),
+            Some(&indexset! { label(1), label(2), label(3) })
+        );
+        assert_eq!(
+            doms.get(&label(4)),
+            Some(&indexset! { label(1), label(2), label(3), label(4) })
+        );
     }
 
     #[test]
@@ -612,7 +622,10 @@ mod tests {
         let doms = compute_dominators(&entry, &predecessors);
         assert_eq!(doms.get(&label(1)), Some(&indexset! { label(1) }));
         assert_eq!(doms.get(&label(2)), Some(&indexset! { label(1), label(2) }));
-        assert_eq!(doms.get(&label(3)), Some(&indexset! { label(1), label(2), label(3) }));
+        assert_eq!(
+            doms.get(&label(3)),
+            Some(&indexset! { label(1), label(2), label(3) })
+        );
     }
 
     #[test]

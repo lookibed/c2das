@@ -3,7 +3,8 @@ use std::path::Path;
 /// Find all C test files from tests/unit/*/src/
 fn find_c_files() -> Vec<(String, String)> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent().unwrap()
+        .parent()
+        .unwrap()
         .join("tests/unit");
     let mut files = vec![];
     if let Ok(entries) = std::fs::read_dir(&root) {
@@ -15,7 +16,11 @@ fn find_c_files() -> Vec<(String, String)> {
                     for src_entry in src_entries.flatten() {
                         let path = src_entry.path();
                         if path.extension().map_or(false, |e| e == "c") {
-                            let name = format!("{}_{}", dir.file_name().unwrap().to_string_lossy(), path.file_stem().unwrap().to_string_lossy());
+                            let name = format!(
+                                "{}_{}",
+                                dir.file_name().unwrap().to_string_lossy(),
+                                path.file_stem().unwrap().to_string_lossy()
+                            );
                             files.push((name, path.to_string_lossy().to_string()));
                         }
                     }
@@ -30,7 +35,10 @@ fn find_c_files() -> Vec<(String, String)> {
 #[test]
 fn bulk_transpile_all_unit_tests() {
     let files = find_c_files();
-    eprintln!("\n=== Bulk transpile: {} .c files from tests/unit/ ===\n", files.len());
+    eprintln!(
+        "\n=== Bulk transpile: {} .c files from tests/unit/ ===\n",
+        files.len()
+    );
 
     let mut passed = 0u32;
     let mut failed = 0u32;
@@ -41,7 +49,8 @@ fn bulk_transpile_all_unit_tests() {
         let c_path_str = c_path.to_string_lossy();
 
         // Create temp compile_commands.json
-        let (_temp_dir, cc_path) = c2dascript_transpile::create_temp_compile_commands(&[c_path.to_path_buf()]);
+        let (_temp_dir, cc_path) =
+            c2dascript_transpile::create_temp_compile_commands(&[c_path.to_path_buf()]);
 
         let tcfg = c2dascript_transpile::TranspilerConfig {
             verbose: false,
@@ -63,9 +72,13 @@ fn bulk_transpile_all_unit_tests() {
             // Get panic message
             let msg = match result {
                 Err(e) => {
-                    if let Some(s) = e.downcast_ref::<String>() { s.clone() }
-                    else if let Some(s) = e.downcast_ref::<&str>() { s.to_string() }
-                    else { "unknown panic".to_string() }
+                    if let Some(s) = e.downcast_ref::<String>() {
+                        s.clone()
+                    } else if let Some(s) = e.downcast_ref::<&str>() {
+                        s.to_string()
+                    } else {
+                        "unknown panic".to_string()
+                    }
                 }
                 _ => "unknown".to_string(),
             };
@@ -77,7 +90,10 @@ fn bulk_transpile_all_unit_tests() {
     }
 
     let total = files.len();
-    eprintln!("\n=== Results: {} PASS, {} FAIL, {} SKIP / {} total ===", passed, failed, skip, total);
+    eprintln!(
+        "\n=== Results: {} PASS, {} FAIL, {} SKIP / {} total ===",
+        passed, failed, skip, total
+    );
     if failed > 0 || skip > 0 {
         eprintln!("--- Files to investigate ---");
         for (name, path) in &files {

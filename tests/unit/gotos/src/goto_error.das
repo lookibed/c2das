@@ -1,106 +1,229 @@
 options gen2
 
+def c2da_min_int(a : int; b : int) : int {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int(a : int; b : int) : int {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint(a : uint; b : uint) : uint {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint(a : uint; b : uint) : uint {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_int64(a : int64; b : int64) : int64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int64(a : int64; b : int64) : int64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_clip_uint(v : int) : uint {
+    if (v < 0) {
+        return 0x0
+    }
+    if (v > 255) {
+        return 0xff
+    }
+    return uint(v)
+}
+def c2da_bool_to_uint(v : bool) : uint {
+    if (v) {
+        return 0x1
+    } else {
+        return 0x0
+    }
+}
+def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
+}
+[export]
 def goto_error_a(var x : int) : int {
     if (x >= 10) {
         if (x == 20) {
-            x += 1
-            goto label 84904
+            x = x + 1
+            goto _error
+        } else {
+            x = x + 2
         }
-        x += 2
+    } elif (x == 0) {
+        x = x - 1
+        goto _error
     } else {
-        if (x == 0) {
-            x -= 1
-            goto label 84904
-        }
-        x -= 2
+        x = x - 2
     }
-    return x + 3
-    label 84904:
-    return x - 3
+    return int(x) + 3
 }
-def goto_error_b(var x : int) : int {
-    if (x >= 10) {
-        x += 2
-        if (x == 20) {
-            x += 1
-            goto label 84904
+[export]
+def goto_error_b(var x_0 : int) : int {
+    if (int(x_0) >= 10) {
+        x_0 = x_0 + 2
+        if (int(x_0) == 20) {
+            x_0 = x_0 + 1
+            goto _error
         }
     } else {
-        x -= 2
-        if (x == 0) {
-            x -= 1
-            goto label 84904
+        x_0 = x_0 - 2
+        if (uint64(int(x_0)) == uint64(0)) {
+            x_0 = x_0 - 1
+            goto _error
         }
     }
-    return x + 3
-    label 84904:
-    return x - 3
+    return int(x_0) + 3
 }
-def goto_error_but_its_all_gotos(var x : int) : int {
-    if (x >= 10) {
-        goto label 66
+[export]
+def goto_error_but_its_all_gotos(var x_1 : int) : int {
+    if (int(x_1) >= 10) {
+        goto _B
     } else {
-        goto label 67
+        goto _C
     }
-    label 66:
-    x += 2
-    if (x == 20) {
-        x += 1
-        goto label 84904
-    } else {
-        goto label 68
-    }
-    label 67:
-    x -= 2
-    if (x == 0) {
-        x -= 1
-        goto label 84904
-    } else {
-        goto label 68
-    }
-    label 68:
-    return x + 3
-    label 84904:
-    return x - 3
 }
-def goto_errors(var x : int) : int {
-    if (x >= 10) {
-        x += 1
-        if (x == 20) {
-            x += 2
-            goto label 95786
+[export]
+def goto_errors(var x_2 : int) : int {
+    if (int(x_2) >= 10) {
+        x_2 = x_2 + 1
+        if (int(x_2) == 20) {
+            x_2 = x_2 + 2
+            goto _error_a
         }
     } else {
-        x -= 1
-        if (x == 0) {
-            x -= 2
-            goto label 95787
+        x_2 = x_2 - 1
+        if (uint64(int(x_2)) == uint64(0)) {
+            x_2 = x_2 - 2
+            goto _error_b
         }
     }
-    return x + 4
-    label 95786:
-    x += 3
-    goto label 82338
-    label 95787:
-    x -= 3
-    label 82338:
-    return x - 4
+    return int(x_2) + 4
 }
-def goto_success(var x : int) : int {
-    if (x >= 10) {
-        x += 1
-        if (x != 20) {
-            goto label 12611
+[export]
+def goto_success(var x_3 : int) : int {
+    if (int(x_3) >= 10) {
+        x_3 = x_3 + 1
+        if (int(x_3) != 20) {
+            goto _success
+        } else {
+            x_3 = x_3 + 2
         }
-        x += 2
     } else {
-        x -= 1
-        if (x != 0) {
-            goto label 12611
+        x_3 = x_3 - 1
+        if (uint64(int(x_3)) != uint64(0)) {
+            goto _success
+        } else {
+            x_3 = x_3 - 2
         }
-        x -= 2
     }
-    return x - 4
-    label 12611:
-    return x + 4
+    return int(x_3) - 4
+}
+[export]
+def goto_error_over_loop(var x_4 : int) : int {
+    if (int(x_4) > 10) {
+        x_4 = x_4 + 1
+        x_4
+        if (int(x_4) == 15) {
+            goto _bad
+        } else {
+            x_4 = x_4 + 1
+            x_4
+            if (false) {
+            }
+        }
+    } else {
+        if (false) {
+        }
+    }
+}
+[export]
+def multi_goto_error_over_loop(var x_5 : int) : int {
+    if (int(x_5) > 10) {
+        x_5 = x_5 + 1
+        x_5
+        if (int(x_5) == 15) {
+            goto _bad
+        } else {
+            x_5 = x_5 + 1
+            x_5
+        }
+    }
+    if (int(x_5) > 10) {
+        x_5 = x_5 + 1
+        x_5
+        if (int(x_5) == 15) {
+            goto _also_bad
+        } else {
+            x_5 = x_5 + 1
+            x_5
+            if (false) {
+            }
+        }
+    } else {
+        if (false) {
+        }
+    }
+}
+[export]
+def goto_out_of_labeled_block(var x_6 : int) : int {
+    var c : int = int(0)
+    c = 0
+    if (c < 4) {
+        c
+        x_6 = x_6 + 1
+        x_6
+        if (int(x_6) == 5) {
+            goto _error
+        } else {
+            x_6 = x_6 + 1
+            x_6
+            if (int(x_6) == 5) {
+                goto _error
+            } else {
+                x_6 = x_6 + 1
+                x_6
+                if (false) {
+                }
+            }
+        }
+    } else {
+        return x_6
+    }
+}
+[export] def main() : int {
+    return 0
 }

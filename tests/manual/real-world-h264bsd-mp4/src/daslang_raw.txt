@@ -1,0 +1,398 @@
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:5803:4
+def ProcessResidual(var pMb_16 : mbStorage?; var residualLevel : array<int>?; var coeffMap : uint?) : uint {
+    ^^^^^^^^^^^^^^^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:6489:4
+def h264bsdValidParamSets(var pStorage_7 : storage?) : uint {
+    ^^^^^^^^^^^^^^^^^^^^^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:6495:4
+def h264bsdConceal(var pStorage_8 : storage?; var currImage_1 : image_t?; var sliceType_0 : uint) : uint {
+    ^^^^^^^^^^^^^^
+error[30838]: can't locate variable 'c_4' (+1 more on this line)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8080:294
+                        tmp_55 = uint(h264bsdMarkDecRefPic(unsafe(addr(pStorage_10.dpb[0])), unsafe(addr(unsafe(addr(pStorage_10.sliceHeader[0])).decRefPicMarking)), unsafe(addr(pStorage_10.currImage[0])), unsafe(addr(pStorage_10.sliceHeader[0])).frameNum, picOrderCnt_3, c2da_clip_uint((298 * c_4 + 409 * e + 128) >> 8), pStorage_10.currentPicId, pStorage_10.numConcealedMbs))
+                                                                                                                                                                                                                                                                                                      ^^^
+error[30838]: can't locate variable 'c_4' (+2 more on this line)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8088:227
+                        tmp_55 = uint(h264bsdMarkDecRefPic(unsafe(addr(pStorage_10.dpb[0])), null, unsafe(addr(pStorage_10.currImage[0])), unsafe(addr(pStorage_10.sliceHeader[0])).frameNum, picOrderCnt_3, c2da_clip_uint((298 * c_4 - 100 * d - 208 * e + 128) >> 8), pStorage_10.currentPicId, pStorage_10.numConcealedMbs))
+                                                                                                                                                                                                                                   ^^^
+error[30838]: can't locate variable 'c_4' (+1 more on this line)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8125:58
+                if (uint(tmp_56) >= c2da_clip_uint((298 * c_4 + 516 * d + 128) >> 8)) {
+                                                          ^^^
+error[30838]: can't locate variable 'c_5' (+1 more on this line)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8220:53
+                moreMbs = uint(c2da_clip_uint((298 * c_5 + 409 * e_0 + 128) >> 8))
+                                                     ^^^
+error[30915]: can only copy compatible type; uint64 aka size_t& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8285:12
+    rgbSize = 4 * int(uint64(width_24)) * int(uint64(height_16))
+            ^
+not the same type
+
+error[30952]: can't write to a constant value, int const& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8335:6
+    w = int(width_25)
+      ^
+error[30952]: can't write to a constant value, int const& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8336:6
+    h = int(height_17)
+      ^
+error[30341]: no matching functions or generics: _::!(int const)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8346:12
+        if (!int(y_16) < int(h)) {
+            ^
+_::!(int const)
+while compiling: h264bsdConvertToRGBA(width_25: uint -const; height_17: uint -const; data_43: uint8? -const; pOutput: uint? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30406]: numeric operator '<' type mismatch. both sides have to be of the same type. uint < int is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8354:65
+        if (uint(298 * int(c_4) + 409 * int(e) + 128) >> uint(8) < 0) {
+                                                                 ^
+	try one of the following
+	(uint(((int(c_4) * 298) + (int(e) * 409)) + 128) >> 0x8) < uint(0)
+	int((uint(((int(c_4) * 298) + (int(e) * 409)) + 128) >> 0x8)) < 0
+
+error[30838]: can't locate variable 'c_5' (+2 more on this line)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8359:36
+        r_0 = c2da_clip_uint((298 * c_5 - 100 * d_0 - 208 * e_0 + 128) >> 8)
+                                    ^^^
+error[30406]: numeric operator '<' type mismatch. both sides have to be of the same type. uint < int is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8361:80
+        if (uint(298 * int(c_4) - 100 * int(d) - 208 * int(e) + 128) >> uint(8) < 0) {
+                                                                                ^
+	try one of the following
+	(uint((((int(c_4) * 298) - (int(d) * 100)) - (int(e) * 208)) + 128) >> 0x8) < uint(0)
+	int((uint((((int(c_4) * 298) - (int(d) * 100)) - (int(e) * 208)) + 128) >> 0x8)) < 0
+
+error[30838]: can't locate variable 'c_5' (+1 more on this line)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8366:34
+        g = c2da_clip_uint((298 * c_5 + 516 * d_0 + 128) >> 8)
+                                  ^^^
+error[30406]: numeric operator '<' type mismatch. both sides have to be of the same type. uint < int is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8368:65
+        if (uint(298 * int(c_4) + 516 * int(d) + 128) >> uint(8) < 0) {
+                                                                 ^
+	try one of the following
+	(uint(((int(c_4) * 298) + (int(d) * 516)) + 128) >> 0x8) < uint(0)
+	int((uint(((int(c_4) * 298) + (int(d) * 516)) + 128) >> 0x8)) < 0
+
+error[30915]: can only copy compatible type; uint64 aka size_t& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8414:14
+    rgbSize_0 = 4 * int(uint64(width_26)) * int(uint64(height_18))
+              ^
+not the same type
+
+error[30952]: can't write to a constant value, int const& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8448:8
+    w_0 = int(width_27)
+        ^
+error[30952]: can't write to a constant value, int const& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8449:8
+    h_0 = int(height_19)
+        ^
+error[30341]: no matching functions or generics: _::!(int const)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8459:12
+        if (!int(y_17) < int(h_0)) {
+            ^
+_::!(int const)
+while compiling: h264bsdConvertToBGRA(width_27: uint -const; height_19: uint -const; data_45: uint8? -const; pOutput_0: uint? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30406]: numeric operator '<' type mismatch. both sides have to be of the same type. uint < int is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8467:67
+        if (uint(298 * int(c_5) + 409 * int(e_0) + 128) >> uint(8) < 0) {
+                                                                   ^
+	try one of the following
+	(uint(((int(c_5) * 298) + (int(e_0) * 409)) + 128) >> 0x8) < uint(0)
+	int((uint(((int(c_5) * 298) + (int(e_0) * 409)) + 128) >> 0x8)) < 0
+
+error[30406]: numeric operator '<' type mismatch. both sides have to be of the same type. uint < int is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8474:84
+        if (uint(298 * int(c_5) - 100 * int(d_0) - 208 * int(e_0) + 128) >> uint(8) < 0) {
+                                                                                    ^
+	try one of the following
+	(uint((((int(c_5) * 298) - (int(d_0) * 100)) - (int(e_0) * 208)) + 128) >> 0x8) < uint(0)
+	int((uint((((int(c_5) * 298) - (int(d_0) * 100)) - (int(e_0) * 208)) + 128) >> 0x8)) < 0
+
+error[30406]: numeric operator '<' type mismatch. both sides have to be of the same type. uint < int is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8481:67
+        if (uint(298 * int(c_5) + 516 * int(d_0) + 128) >> uint(8) < 0) {
+                                                                   ^
+	try one of the following
+	(uint(((int(c_5) * 298) + (int(d_0) * 516)) + 128) >> 0x8) < uint(0)
+	int((uint(((int(c_5) * 298) + (int(d_0) * 516)) + 128) >> 0x8)) < 0
+
+error[30915]: can only copy compatible type; uint64 aka size_t& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8527:14
+    rgbSize_1 = 4 * int(uint64(width_28)) * int(uint64(height_20))
+              ^
+not the same type
+
+error[30952]: can't write to a constant value, int const& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8555:8
+    w_1 = int(width_29)
+        ^
+error[30952]: can't write to a constant value, int const& -const = int const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8556:8
+    h_1 = int(height_21)
+        ^
+error[30341]: no matching functions or generics: _::!(int const)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8566:12
+        if (!int(y_18) < int(h_1)) {
+            ^
+_::!(int const)
+while compiling: h264bsdConvertToYCbCrA(width_29: uint -const; height_21: uint -const; data_47: uint8? -const; pOutput_1: uint? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30341]: no matching functions or generics: _::!(uint const)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8698:16
+            if (!uint(tmp_58) == uint(255)) {
+                ^
+_::!(uint const)
+while compiling: h264bsdDecodeSeiMessage(pStrmData_32: strmData_t? -const; pSeqParamSet_7: seqParamSet_t? -const; pSeiMessage: seiMessage_t? -const; numSliceGroups_2: uint -const): uint const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint const'
+
+
+error[30341]: no matching functions or generics: _::!(uint const)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:8711:20
+                if (!uint(tmp_58) == uint(255)) {
+                    ^
+_::!(uint const)
+while compiling: h264bsdDecodeSeiMessage(pStrmData_32: strmData_t? -const; pSeqParamSet_7: seqParamSet_t? -const; pSeiMessage: seiMessage_t? -const; numSliceGroups_2: uint -const): uint const
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'uint const'
+
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9156:4
+def DecodeUserDataUnregistered(var pStrmData_46 : strmData_t?; var pUserDataUnregistered : seiUserDataUnregistered_t?; var payloadSize_1 : uint) : uint {
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+error[30915]: can only copy compatible type; uint8?& -const = void?
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9369:22
+        c2da_fresh260 = unsafe(malloc(uint64(capacity)))
+                      ^
+void pointer can't be copied to a non-void pointer
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9431:4
+def mp4_h26x_write_nal(var h_8 : mp4_h26x_writer_tag?; var nal : uint8 const?; var length_1 : int; var timeStamp90kHz_next : uint) : int {
+    ^^^^^^^^^^^^^^^^^^
+error[30805]: casting to undefined type auto
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9471:33
+                    err_4 = mux_1.write_callback(mux_1.write_pos, data_48, unsafe(reinterpret<size_t>(data_bytes)), mux_1.token)
+                                 ^
+error[30805]: casting to undefined type auto
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9504:29
+                err_6 = mux_1.write_callback(mux_1.write_pos, data_48, unsafe(reinterpret<size_t>(data_bytes)), mux_1.token)
+                             ^
+error[30805]: casting to undefined type auto
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9580:21
+        err_7 = mux_3.write_callback(mux_3.write_pos, unsafe(unsafe(reinterpret<uint64>(unsafe(addr(base[0]))))), unsafe(reinterpret<size_t>(unsafe(p_2 - unsafe(addr(base[0]))))), mux_3.token)
+                     ^
+error[30805]: casting to undefined type auto
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9588:25
+            err_8 = mux_3.write_callback(mux_3.write_pos, unsafe(unsafe(reinterpret<uint64>(tr_3.pending_sample.data))), unsafe(reinterpret<size_t>(tr_3.pending_sample.bytes)), mux_3.token)
+                         ^
+error[30805]: casting to undefined type auto
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9621:17
+    err_9 = mux_4.write_callback(mux_4.write_pos, unsafe(unsafe(reinterpret<uint64>(unsafe(addr(base_0[0]))))), unsafe(reinterpret<size_t>(unsafe(p_3 - unsafe(addr(base_0[0]))))), mux_4.token)
+                 ^
+error[30915]: can only copy compatible type; track_t?& -const = uint8?
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9642:9
+    tr_4 = unsafe(mux_5.tracks.data + int(track_num_0))
+         ^
+not the same type
+
+error[30805]: casting to undefined type auto
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9948:18
+    err_10 = mux_5.write_callback(mux_5.write_pos, unsafe(unsafe(reinterpret<uint64>(unsafe(addr(base_1[0]))))), unsafe(reinterpret<size_t>(unsafe(p_4 - unsafe(addr(base_1[0]))))), mux_5.token)
+                  ^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9957:4
+def mp4e_flush_index(var mux_6 : MP4E_mux_tag?) : int {
+    ^^^^^^^^^^^^^^^^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9980:4
+def get_duration(var tr_9 : track_t const?) : uint {
+    ^^^^^^^^^^^^
+error[30915]: can only copy compatible type; sample_t const?& -const = uint8? const&
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9985:6
+    s = tr_9.smpl.data
+      ^
+not the same type
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:9990:4
+def items_count(var v : minimp4_vector_t?) : int {
+    ^^^^^^^^^^^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10000:4
+def od_size_of_size(var size_5 : int) : int {
+    ^^^^^^^^^^^^^^^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10010:4
+def ue_bits(var bs_0 : bit_reader_t?) : int {
+    ^^^^^^^
+error[30406]: numeric operator '<<' type mismatch. both sides have to be of the same type. uint << int is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10043:33
+    bs_3.cache = uint(bs_3.cache << n_4)
+                                 ^^
+	try one of the following
+	bs_3.cache << uint(n_4)
+	int(bs_3.cache) << n_4
+
+error[30406]: numeric operator '|' type mismatch. both sides have to be of the same type. int | uint is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10046:94
+        bs_3.cache = uint(bs_3.cache | uint(uint(int(uint16(uint(int(*bs_3.buf)) << uint(8))) | uint(int(*bs_3.buf)) >> uint(8))) << uint(uint(int(bs_3.cache_free_bits))))
+                                                                                              ^
+	try one of the following
+	int(uint16(uint(int(deref(bs_3.buf))) << 0x8)) | int((uint(int(deref(bs_3.buf))) >> 0x8))
+	uint(int(uint16(uint(int(deref(bs_3.buf))) << 0x8))) | (uint(int(deref(bs_3.buf))) >> 0x8)
+
+error[30915]: can only copy compatible type; track_t?& -const = uint8?
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10078:10
+    tr_10 = unsafe(mux_7.tracks.data + int(track_id))
+          ^
+not the same type
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10094:4
+def append_mem(var v_0 : minimp4_vector_t?; var mem : uint64; var bytes_5 : int) : int {
+    ^^^^^^^^^^
+error[30915]: can only copy compatible type; track_t?& -const = uint8?
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10105:10
+    tr_11 = unsafe(mux_8.tracks.data + int(track_id_0))
+          ^
+not the same type
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10121:4
+def nal_put_esc(var d_1 : uint8?; var s_0 : uint8 const?; var n_5 : int) : int {
+    ^^^^^^^^^^^
+error[30915]: can only copy compatible type; int& -const = uint const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10146:19
+    payload_type_0 = uint(int(unsafe(unsafe(unsafe(reinterpret<uint8 const?>(src_2)))[0]))) & uint(31)
+                   ^
+not the same type
+
+error[30406]: numeric operator '-' type mismatch. both sides have to be of the same type. int - uint is not defined
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10200:35
+    bs_10.shift = uint(bs_10.shift - n_6)
+                                   ^
+	try one of the following
+	bs_10.shift - int(n_6)
+	uint(bs_10.shift) - n_6
+
+error[30341]: no matching functions or generics: _::!(int const)
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10251:12
+        if (!int(bit_count) > 7) {
+            ^
+_::!(int const)
+while compiling: copy_bits(bs_12: bit_reader_t? -const; bd_1: bs_t? -const): void
+
+candidate function:
+	$::operator !(arg0: bool const): bool const // builtin
+		invalid argument 'arg0' (0). expecting 'bool const', passing 'int const'
+
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10339:4
+def change_sps_id(var bs_17 : bit_reader_t?; var bd_3 : bs_t?; var new_id : int; var old_id_1 : int?) : int {
+    ^^^^^^^^^^^^^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10356:4
+def remove_nal_escapes(var dst_1 : uint8?; var src_3 : uint8 const?; var h264_data_bytes : int) : int {
+    ^^^^^^^^^^^^^^^^^^
+error[30915]: can only copy compatible type; int& -const = uint const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10373:19
+    payload_type_1 = uint(uint(int(unsafe(unsafe(unsafe(reinterpret<uint8 const?>(nal_0)))[0]))) >> uint(1)) & uint(63)
+                   ^
+not the same type
+
+error[30915]: can only copy compatible type; int& -const = bool const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10374:13
+    is_intra = int(payload_type_1) >= 16 && int(payload_type_1) <= 21
+             ^
+not the same type
+
+error[30915]: can only copy compatible type; track_t?& -const = uint8?
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10389:10
+    tr_12 = unsafe(mux_9.tracks.data + int(track_id_1))
+          ^
+not the same type
+
+error[30915]: can only copy compatible type; uint8 const?& -const = uint64 const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10437:16
+        found_0 = memchr(unsafe(unsafe(reinterpret<uint64>(p_8))), 0, uint64(unsafe(eof_1 - p_8)))
+                ^
+not the same type
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10750:4
+def minimp4_read(var mp4_3 : MP4D_demux_tag?; var nb_0 : int; var eof_flag_2 : int?) : uint {
+    ^^^^^^^^^^^^
+error[30915]: can only copy compatible type; MP4D_track_t?& -const = MP4D_track_t? const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10780:10
+    tr_15 = unsafe(mp4_5.track + uint(ntrack))
+          ^
+can't copy constant to non-constant pointer. needs to be MP4D_track_t const?
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10850:4
+def skip_spspps(var p_11 : uint8 const?; var nbytes : int; var nskip : int) : int {
+    ^^^^^^^^^^^
+error[30915]: can only copy compatible type; MP4E_mux_tag?& -const = void?
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10867:15
+        mux_10 = unsafe(malloc(uint64(4)))
+               ^
+void pointer can't be copied to a non-void pointer
+
+error[30915]: can only copy compatible type; track_t?& -const = uint8?
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10922:10
+    tr_18 = unsafe(mux_12.tracks.data + int(track_id_2))
+          ^
+not the same type
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:10991:4
+def fold_bytes(var bytes_13 : uint8 const?; var length_2 : int) : uint {
+    ^^^^^^^^^^
+error[30915]: can only copy compatible type; MemoryInput?& -const = uint64& -const
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:11002:10
+    input = token_1
+          ^
+not the same type
+
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:11013:4
+def find_avc_track(var mp4_9 : MP4D_demux_tag const?) : int {
+    ^^^^^^^^^^^^^^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:11041:4
+def infer_length_size(var sample_2 : uint8 const?; var sample_bytes_0 : int) : int {
+    ^^^^^^^^^^^^^^^^^
+error[30310]: function does not return a value
+X:\c2dascript\tests\manual\real-world-h264bsd-mp4\src\all.das:11048:4
+def detect_track_length_size(var mp4_10 : MP4D_demux_tag const?; var track_index : int; var bytes_14 : uint8 const?; var total_bytes : int) : int {
+    ^^^^^^^^^^^^^^^^^^^^^^^^

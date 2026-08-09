@@ -10,6 +10,9 @@ transpile:
   tflags: --reorganize-definitions --disable-refactoring
   binary: lua
 
+dascheck:
+  autogen: true
+
 cargo.transpile:
   autogen: true
 

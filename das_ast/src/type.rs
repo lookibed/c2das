@@ -43,6 +43,32 @@ impl DaType {
         DaType { kind, is_const: false, is_ref: false, is_temporary: false }
     }
 
+    /// True for simple numeric/scalar types that can use function-style cast: `uint(expr)`.
+    pub fn is_numeric(&self) -> bool {
+        matches!(
+            &self.kind,
+            DaTypeKind::Void
+                | DaTypeKind::Bool
+                | DaTypeKind::Int
+                | DaTypeKind::Int8
+                | DaTypeKind::Int16
+                | DaTypeKind::Int64
+                | DaTypeKind::UInt
+                | DaTypeKind::UInt8
+                | DaTypeKind::UInt16
+                | DaTypeKind::UInt64
+                | DaTypeKind::Float
+                | DaTypeKind::Double
+        ) || matches!(&self.kind, DaTypeKind::Named(n) if matches!(
+            n.as_str(),
+            "size_t" | "int8_t" | "int16_t" | "int32_t" | "int64_t"
+                | "uint8_t" | "uint16_t" | "uint32_t" | "uint64_t"
+                | "intptr_t" | "uintptr_t" | "ptrdiff_t" | "ssize_t"
+                | "u8" | "u16" | "u32" | "i16" | "i32"
+                | "boxsize_t" | "MP4D_file_offset_t"
+        ))
+    }
+
     pub fn const_(mut self) -> Self {
         self.is_const = true;
         self

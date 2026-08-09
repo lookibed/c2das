@@ -1,0 +1,4 @@
+﻿error[30151]: syntax error, unexpected '{', expecting ')'
+D:\Backups\ё2daslang\c2dascript\tests\manual\real-world-plmpeg-stream\src\all.das:1147:182
+        if (uint64(unsafe(reinterpret<size_t>(self_104.total_size))) != uint64(0) && unsafe(reinterpret<size_t>(self_104.length)) == unsafe(reinterpret<size_t>(self_104.total_size)) {
+                                                                                                                                                                                      ^

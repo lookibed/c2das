@@ -2,11 +2,13 @@ use std::path::Path;
 
 fn run_transpile(name: &str) -> String {
     let c_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent().unwrap()
+        .parent()
+        .unwrap()
         .join(format!("tests/syntax/{}.c", name));
     assert!(c_path.exists(), "C test file not found: {:?}", c_path);
 
-    let (_temp_dir, cc_path) = c2dascript_transpile::create_temp_compile_commands(&[c_path.clone()]);
+    let (_temp_dir, cc_path) =
+        c2dascript_transpile::create_temp_compile_commands(&[c_path.clone()]);
 
     let tcfg = c2dascript_transpile::TranspilerConfig {
         verbose: false,
@@ -32,6 +34,14 @@ fn test_simple() {
     assert!(das.contains("def add"));
     assert!(das.contains("[export]"));
     assert!(das.contains("def main"));
+    assert!(
+        das.contains("if (v == true)"),
+        "runtime bool-to-uint helper must emit a backend-valid boolean condition without post-print repair"
+    );
+    assert!(
+        !das.contains("if (uint64(v) != uint64(0))"),
+        "runtime bool-to-uint helper must not route bool through integer truthiness"
+    );
 }
 
 #[test]

@@ -1,0 +1,276 @@
+options gen2
+
+var c2da_rt_heap : array<uint8>
+
+var c2da_rt_next : uint64 = 0x0
+
+var c2da_rt_alloc_addrs : array<uint64>
+
+var c2da_rt_alloc_sizes : array<uint64>
+
+var c2da_rt_alloc_live : array<bool>
+
+def c2da_rt_init_heap() {
+    if (uint64(length(c2da_rt_heap)) == uint64(0)) {
+        reserve(c2da_rt_heap, int(0x4000000))
+        resize(c2da_rt_heap, 1)
+    }
+}
+def c2da_rt_malloc(size : uint64) : uint64 {
+    c2da_rt_init_heap()
+    if (uint64(size) == uint64(0)) {
+        return 0x0
+    }
+    var start : uint64 = c2da_rt_next
+    var end : uint64 = start + size
+    if (end > 0x4000000) {
+        return 0x0
+    }
+    if (int(end) > length(c2da_rt_heap)) {
+        resize(c2da_rt_heap, int(end))
+    }
+    c2da_rt_next = end
+    var record : uint64 = uint64(length(c2da_rt_alloc_addrs))
+    resize(c2da_rt_alloc_addrs, int(record + 0x1))
+    resize(c2da_rt_alloc_sizes, int(record + 0x1))
+    resize(c2da_rt_alloc_live, int(record + 0x1))
+    c2da_rt_alloc_addrs[int(record)] = start
+    c2da_rt_alloc_sizes[int(record)] = size
+    c2da_rt_alloc_live[int(record)] = true
+    return unsafe(intptr(unsafe(addr(c2da_rt_heap[int(start)]))))
+}
+def c2da_rt_free(address : uint64) {
+    var i : uint64 = 0x0
+    while (int(i) < length(c2da_rt_alloc_addrs)) {
+        if (c2da_rt_alloc_live[int(i)] && c2da_rt_alloc_addrs[int(i)] == address) {
+            c2da_rt_alloc_live[int(i)] = false
+            return
+        }
+        i = i + 0x1
+    }
+}
+def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
+    if (uint64(address) == uint64(0)) {
+        return c2da_rt_malloc(size)
+    }
+    if (uint64(size) == uint64(0)) {
+        c2da_rt_free(address)
+        return 0x0
+    }
+    var i : uint64 = 0x0
+    var old_size : uint64 = 0x0
+    var found : bool = false
+    while (int(i) < length(c2da_rt_alloc_addrs)) {
+        if (c2da_rt_alloc_live[int(i)] && c2da_rt_alloc_addrs[int(i)] == address) {
+            old_size = c2da_rt_alloc_sizes[int(i)]
+            found = true
+        }
+        i = i + 0x1
+    }
+    if (found == false) {
+        return 0x0
+    }
+    var replacement : uint64 = c2da_rt_malloc(size)
+    if (uint64(replacement) == uint64(0)) {
+        return 0x0
+    }
+    var copy_size : uint64 = 0x0
+    if (old_size < size) {
+        copy_size = old_size
+    } else {
+        copy_size = size
+    }
+    c2da_rt_memcpy(replacement, address, copy_size)
+    c2da_rt_free(address)
+    return replacement
+}
+def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
+    var i : uint64 = 0x0
+    while (i < count) {
+        unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[int(i)]) = value
+        i = i + 0x1
+    }
+    return dst
+}
+def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
+    var total : uint64 = count * size
+    if (uint64(size) != uint64(0) && total / size != count) {
+        return 0x0
+    }
+    var address : uint64 = c2da_rt_malloc(total)
+    if (uint64(address) != uint64(0)) {
+        c2da_rt_memset(address, uint8(0x0), total)
+    }
+    return address
+}
+def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
+    var i : uint64 = 0x0
+    while (i < count) {
+        unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[int(i)]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[int(i)])
+        i = i + 0x1
+    }
+    return dst
+}
+def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
+    var i : uint64 = 0x0
+    while (i < count) {
+        if (uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(left)))[int(i)])) < uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(right)))[int(i)]))) {
+            return -1
+        }
+        if (uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(left)))[int(i)])) > uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(right)))[int(i)]))) {
+            return 1
+        }
+        i = i + 0x1
+    }
+    return 0
+}
+def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
+    if (dst < src) {
+        var i : uint64 = 0x0
+        while (i < count) {
+            unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[int(i)]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[int(i)])
+            i = i + 0x1
+        }
+    } else {
+        var i : uint64 = count
+        while (i > 0x0) {
+            i = i - 0x1
+            unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[int(i)]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[int(i)])
+        }
+    }
+    return dst
+}
+def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
+    var i : uint64 = 0x0
+    while (i < count) {
+        if (unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[int(i)]) == value) {
+            return src + i
+        }
+        i = i + 0x1
+    }
+    return 0x0
+}
+def c2da_min_int(a : int; b : int) : int {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int(a : int; b : int) : int {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint(a : uint; b : uint) : uint {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint(a : uint; b : uint) : uint {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_int64(a : int64; b : int64) : int64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int64(a : int64; b : int64) : int64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_clip_uint(v : int) : uint {
+    if (v < 0) {
+        return 0x0
+    }
+    if (v > 255) {
+        return 0xff
+    }
+    return uint(v)
+}
+def c2da_bool_to_uint(v : bool) : uint {
+    if (v == true) {
+        return 0x1
+    } else {
+        return 0x0
+    }
+}
+def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
+}
+[export]
+def accepts_void(var value : uint8?) : int {
+    var c2da_fresh0 : int = int(0)
+    if (unsafe(uint64(unsafe(unsafe(reinterpret<uint64>(value)))) != uint64(0))) {
+        c2da_fresh0 = int(1)
+    }
+    return c2da_fresh0
+}
+[export]
+def echo_void(var value_0 : uint8?) : uint8? {
+    return unsafe(unsafe(reinterpret<uint8?>(value_0)))
+}
+[export]
+def echo_byte(var value_1 : uint8?) : uint8? {
+    return unsafe(unsafe(reinterpret<uint8?>(value_1)))
+}
+[export]
+def pointer_abi_edges() : int {
+    var byte : uint8 = uint8(0)
+    var typed : uint8? = null
+    var erased : uint8? = null
+    var restored : uint8? = null
+    var nil : uint8? = null
+    byte = uint8(int(0))
+    typed = unsafe(addr(byte))
+    erased = typed
+    restored = erased
+    nil = null
+    var c2da_fresh1 : int = int(0)
+    if (unsafe(uint64(unsafe(unsafe(reinterpret<uint64>(nil)))) != uint64(0))) {
+        c2da_fresh1 = int(1)
+    }
+    if (uint64(c2da_fresh1) != uint64(0)) {
+        return int(1)
+    } else {
+        var c2da_fresh2 : int = int(0)
+        if (unsafe(unsafe(unsafe(reinterpret<uint64>(unsafe(unsafe(reinterpret<uint8?>(echo_byte(unsafe(unsafe(reinterpret<uint8?>(restored)))))))))) == unsafe(unsafe(reinterpret<uint64>(typed))))) {
+            c2da_fresh2 = int(1)
+        }
+        var c2da_fresh3 : int = int(0)
+        if (unsafe(unsafe(unsafe(reinterpret<uint64>(unsafe(unsafe(reinterpret<uint8?>(echo_void(unsafe(unsafe(reinterpret<uint8?>(typed)))))))))) == unsafe(unsafe(reinterpret<uint64>(erased))))) {
+            c2da_fresh3 = int(1)
+        }
+        var c2da_fresh4 : int = int(0)
+        if (int(accepts_void(unsafe(unsafe(reinterpret<uint8?>(erased))))) + int(c2da_fresh2) + int(c2da_fresh3) != int(3)) {
+            c2da_fresh4 = int(1)
+        }
+        return c2da_fresh4
+    }
+}

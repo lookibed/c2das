@@ -3,6 +3,9 @@ transpile:
   binary: redis-server
   xfail: true # needs support for __atomic_*
 
+dascheck:
+  autogen: true
+
 cargo.transpile:
   autogen: true
 

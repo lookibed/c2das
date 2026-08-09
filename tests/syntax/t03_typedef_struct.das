@@ -5,9 +5,11 @@ struct Point {
     y : int
 }
 [export]
-def main() : int {
+def main_0() : int {
     var p : Point
     p.x = 5
+    p.x
     p.y = 7
+    p.y
     return p.x + p.y
 }

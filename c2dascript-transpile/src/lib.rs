@@ -99,24 +99,24 @@ pub fn create_temp_compile_commands(sources: &[PathBuf]) -> (TempDir, PathBuf) {
         })
         .collect();
     let json_content = serde_json::to_string(&compile_commands).unwrap();
-    let mut file = File::create(&temp_path)
-        .expect("Failed to create temporary compile_commands.json");
+    let mut file =
+        File::create(&temp_path).expect("Failed to create temporary compile_commands.json");
     file.write_all(json_content.as_bytes())
         .expect("Failed to write to temporary compile_commands.json");
     (temp_dir, temp_path)
 }
 
-pub fn transpile(
-    tcfg: TranspilerConfig,
-    cc_db: &Path,
-    extra_clang_args: &[&str],
-) {
+pub fn transpile(tcfg: TranspilerConfig, cc_db: &Path, extra_clang_args: &[&str]) {
     diagnostics::init(HashSet::new(), tcfg.log_level);
 
     let lcmds = match get_compile_commands(cc_db, &tcfg.filter) {
         Ok(l) => l,
         Err(e) => {
-            warn!("Could not parse compile commands from {}: {}", cc_db.to_string_lossy(), e);
+            warn!(
+                "Could not parse compile commands from {}: {}",
+                cc_db.to_string_lossy(),
+                e
+            );
             return;
         }
     };
@@ -137,19 +137,32 @@ fn transpile_single(
     cc_db: &Path,
     extra_clang_args: &[&str],
 ) -> Result<PathBuf, ()> {
-    let file = input_path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown");
+    let file = input_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
     if !input_path.exists() {
-        warn!("Input C file {} does not exist, skipping!", input_path.display());
+        warn!(
+            "Input C file {} does not exist, skipping!",
+            input_path.display()
+        );
         return Err(());
     }
 
     println!("Transpiling {}", file);
 
     let untyped_context = match ast_exporter::get_untyped_ast(
-        input_path, cc_db, extra_clang_args, tcfg.debug_ast_exporter,
+        input_path,
+        cc_db,
+        extra_clang_args,
+        tcfg.debug_ast_exporter,
     ) {
         Err(e) => {
-            warn!("Error: {}. Skipping {}; is it well-formed C?", e, input_path.display());
+            warn!(
+                "Error: {}. Skipping {}; is it well-formed C?",
+                e,
+                input_path.display()
+            );
             return Err(());
         }
         Ok(cxt) => cxt,

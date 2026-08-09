@@ -1,16 +1,25 @@
-use std::fmt;
 use crate::{DaExpr, DaType, DaTypeKind};
+use std::fmt;
 
 /// daScript statement. Analogous to [`syn::Stmt`].
 #[derive(Clone, Debug)]
 pub enum DaStmt {
     /// `var name : type [= init]`
-    Var { name: String, var_type: DaType, init: Option<DaExpr> },
+    Var {
+        name: String,
+        var_type: DaType,
+        init: Option<DaExpr>,
+    },
     /// `let name [= init]` (immutable, type inferred)
     Let { name: String, init: Option<DaExpr> },
     /// `name : type [= init]` — в параметрах функции
     /// `is_mutable = true` → `var name : type`
-    Param { name: String, param_type: DaType, default: Option<DaExpr>, is_mutable: bool },
+    Param {
+        name: String,
+        param_type: DaType,
+        default: Option<DaExpr>,
+        is_mutable: bool,
+    },
     /// Expression statement (semicolon or newline terminated)
     Expr(DaExpr),
     /// Declaration (struct, enum, function, etc.)
@@ -91,9 +100,17 @@ pub struct DaEnumVariant {
 impl DaStmt {
     pub(crate) fn fmt_with_indent(&self, f: &mut fmt::Formatter, indent: usize) -> fmt::Result {
         match self {
-            DaStmt::Var { name, var_type, init } => {
+            DaStmt::Var {
+                name,
+                var_type,
+                init,
+            } => {
                 if let Some(init_expr) = init {
-                    writeln!(f, "var {} : {} = {}", name, var_type, init_expr)
+                    if let Some(init_text) = typed_initializer_text(var_type, init_expr) {
+                        writeln!(f, "var {} : {} = {}", name, var_type, init_text)
+                    } else {
+                        writeln!(f, "var {} : {} = {}", name, var_type, init_expr)
+                    }
                 } else {
                     writeln!(f, "var {} : {}", name, var_type)
                 }
@@ -105,7 +122,12 @@ impl DaStmt {
                     writeln!(f, "let {}", name)
                 }
             }
-            DaStmt::Param { name, param_type, default, is_mutable } => {
+            DaStmt::Param {
+                name,
+                param_type,
+                default,
+                is_mutable,
+            } => {
                 if *is_mutable {
                     if let Some(def) = default {
                         write!(f, "var {} : {} = {}", name, param_type, def)
@@ -160,7 +182,11 @@ impl fmt::Display for DaFunction {
         for ann in &self.annotations {
             writeln!(f, "[{}]", ann)?;
         }
-        let params_str: Vec<String> = self.params.iter().map(|p| format!("{}", p).trim().to_string()).collect();
+        let params_str: Vec<String> = self
+            .params
+            .iter()
+            .map(|p| format!("{}", p).trim().to_string())
+            .collect();
         write!(f, "def {}({})", self.name, params_str.join("; "))?;
         if !matches!(self.ret_type.kind, DaTypeKind::Void) {
             write!(f, " : {}", self.ret_type)?;
@@ -179,10 +205,45 @@ impl fmt::Display for DaVariable {
             writeln!(f, "[{}]", ann)?;
         }
         if let Some(init_expr) = &self.init {
-            writeln!(f, "var {} : {} = {}", self.name, self.var_type, init_expr)
+            if let Some(init_text) = typed_initializer_text(&self.var_type, init_expr) {
+                writeln!(f, "var {} : {} = {}", self.name, self.var_type, init_text)
+            } else {
+                writeln!(f, "var {} : {} = {}", self.name, self.var_type, init_expr)
+            }
         } else {
             writeln!(f, "var {} : {}", self.name, self.var_type)
         }
+    }
+}
+
+fn typed_initializer_text(var_type: &DaType, init_expr: &DaExpr) -> Option<String> {
+    let DaTypeKind::Array(elem_ty) = &var_type.kind else {
+        return None;
+    };
+    let DaTypeKind::Named(elem_name) = &elem_ty.kind else {
+        return None;
+    };
+    let DaExpr::MakeArray(items) = init_expr else {
+        return None;
+    };
+    let mut printed = Vec::with_capacity(items.len());
+    for item in items {
+        if is_cast_auto_zero(item) {
+            printed.push(format!("{}()", elem_name));
+        } else {
+            printed.push(format!("{}", item));
+        }
+    }
+    Some(format!("[{}]", printed.join(", ")))
+}
+
+fn is_cast_auto_zero(expr: &DaExpr) -> bool {
+    match expr {
+        DaExpr::ConstInt(0) | DaExpr::ConstUInt(0) => true,
+        DaExpr::Cast { expr, to, .. } if matches!(to.kind, DaTypeKind::Auto) => {
+            is_cast_auto_zero(expr)
+        }
+        _ => false,
     }
 }
 

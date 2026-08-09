@@ -1,0 +1,221 @@
+---
+source: c2dascript-transpile/tests/snapshots.rs
+expression: cat tests/snapshots/gotos.das
+---
+options gen2
+
+def c2da_min_int(a : int; b : int) : int {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int(a : int; b : int) : int {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint(a : uint; b : uint) : uint {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint(a : uint; b : uint) : uint {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_int64(a : int64; b : int64) : int64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int64(a : int64; b : int64) : int64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_clip_uint(v : int) : uint {
+    if (v < 0) {
+        return 0x0
+    }
+    if (v > 255) {
+        return 0xff
+    }
+    return uint(v)
+}
+def c2da_bool_to_uint(v : bool) : uint {
+    if (v) {
+        return 0x1
+    } else {
+        return 0x0
+    }
+}
+def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
+}
+[export]
+def sum(var count : int) : int {
+    goto label 97
+    label 98:
+    count = count - 1
+    count
+    goto label 100
+    label 97:
+    var x : int = 0
+    goto label 100
+    label 99:
+    return x
+    label 100:
+    if (int(count) <= 0) {
+        goto label 99
+    }
+    goto label 101
+    label 101:
+    x = x + count
+    x
+    goto label 98
+}
+[export]
+def goto_error_simple(var x_0 : int) : int {
+    if (uint64(x_0) != uint64(0)) {
+        x_0 = x_0 + 1
+        x_0
+        if (uint64(x_0) != uint64(0)) {
+            x_0 = x_0 + 2
+            x_0
+            goto label 84904
+        }
+    } else {
+        x_0 = x_0 + 3
+        x_0
+        if (uint64(x_0) != uint64(0)) {
+            x_0 = x_0 + 4
+            x_0
+            goto label 84904
+        }
+    }
+    return int(x_0) + 5
+    label 84904:
+    return int(x_0) + 6
+}
+[export]
+def goto_error_minimal(var x_1 : int) : int {
+    if (uint64(x_1) != uint64(0)) {
+        if (uint64(x_1) != uint64(0)) {
+            goto label 84904
+        }
+    } else {
+        if (uint64(x_1) != uint64(0)) {
+            goto label 84904
+        }
+    }
+    return int(x_1) + 1
+    label 84904:
+    return int(x_1) + 2
+}
+[export]
+def multi_goto_error(var x_2 : int) : int {
+    if (uint64(x_2) != uint64(0)) {
+        x_2 = x_2 + 1
+        x_2
+        if (uint64(x_2) != uint64(0)) {
+            if (uint64(x_2) != uint64(0)) {
+                goto label 97285
+            }
+        }
+        x_2 = x_2 + 2
+        x_2
+        if (uint64(x_2) != uint64(0)) {
+            goto label 56941
+        }
+    }
+    if (uint64(x_2) != uint64(0)) {
+        x_2 = x_2 + 3
+        x_2
+        if (uint64(x_2) != uint64(0)) {
+            if (uint64(x_2) != uint64(0)) {
+                goto label 97285
+            }
+        }
+        x_2 = x_2 + 4
+        x_2
+        if (uint64(x_2) != uint64(0)) {
+            goto label 56941
+        }
+    }
+    return x_2
+    label 97285:
+    return int(x_2) + 10
+    label 56941:
+    return int(x_2) + 20
+}
+[export]
+def multi_goto_error_common(var x_3 : int) : int {
+    if (uint64(x_3) != uint64(0)) {
+        x_3 = x_3 + 1
+        x_3
+        if (uint64(x_3) != uint64(0)) {
+            if (uint64(x_3) != uint64(0)) {
+                goto label 97285
+            }
+        }
+        x_3 = x_3 + 2
+        x_3
+        if (uint64(x_3) != uint64(0)) {
+            goto label 56941
+        }
+    }
+    if (uint64(x_3) != uint64(0)) {
+        x_3 = x_3 + 3
+        x_3
+        if (uint64(x_3) != uint64(0)) {
+            if (uint64(x_3) != uint64(0)) {
+                goto label 97285
+            }
+        }
+        x_3 = x_3 + 4
+        x_3
+        if (uint64(x_3) != uint64(0)) {
+            goto label 56941
+        }
+    }
+    return x_3
+    label 97285:
+    x_3 = x_3 + 5
+    x_3
+    goto label 52299
+    label 56941:
+    x_3 = x_3 + 6
+    x_3
+    label 52299:
+    return int(x_3) + 10
+}
+
+[export] def main() : int {
+    return 0
+}

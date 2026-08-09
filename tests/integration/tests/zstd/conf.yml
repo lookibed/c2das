@@ -10,6 +10,9 @@ transpile:
   cflags: -Qunused-arguments
   tflags: --reorganize-definitions --disable-refactoring
 
+dascheck:
+  autogen: true
+
 cargo.transpile:
   autogen: true
 

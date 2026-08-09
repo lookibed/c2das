@@ -8,6 +8,9 @@ transpile:
   autogen: true
   tflags: --reorganize-definitions --disable-refactoring
 
+dascheck:
+  autogen: true
+
 cargo.transpile:
   autogen: true
 

@@ -1,18 +1,104 @@
 options gen2
 
+def c2da_min_int(a : int; b : int) : int {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int(a : int; b : int) : int {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint(a : uint; b : uint) : uint {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint(a : uint; b : uint) : uint {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_int64(a : int64; b : int64) : int64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int64(a : int64; b : int64) : int64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_clip_uint(v : int) : uint {
+    if (v < 0) {
+        return 0x0
+    }
+    if (v > 255) {
+        return 0xff
+    }
+    return uint(v)
+}
+def c2da_bool_to_uint(v : bool) : uint {
+    if (v) {
+        return 0x1
+    } else {
+        return 0x0
+    }
+}
+def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
+}
 [export]
-def main() : int {
-    var i : int = 0
-    var s : int = 0
-    while (i < 5) {
-        var j : int = 0
-        var _dw_60 : bool = true
-        while (_dw_60 || j < 3) {
-            _dw_60 = false
+def main_0() : int {
+    var i : int = int(0)
+    var s : int = int(0)
+    var j : int = int(0)
+    i = 0
+    s = 0
+    while (true) {
+        if (!i < 5) {
+            if (false) {
+            }
+        }
+        j = 0
+        while (true) {
             s = s + 1
-            j = j + 1
+            j = int(j) + 1
+            if (!int(j) < 3) {
+                if (false) {
+                }
+            }
         }
         i = i + 1
     }
     return s
+}
+[export] def main() : int {
+    return 0
 }

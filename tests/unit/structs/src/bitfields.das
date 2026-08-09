@@ -1,8 +1,82 @@
 options gen2
 
+def c2da_min_int(a : int; b : int) : int {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int(a : int; b : int) : int {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint(a : uint; b : uint) : uint {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint(a : uint; b : uint) : uint {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_int64(a : int64; b : int64) : int64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_int64(a : int64; b : int64) : int64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_clip_uint(v : int) : uint {
+    if (v < 0) {
+        return 0x0
+    }
+    if (v > 255) {
+        return 0xff
+    }
+    return uint(v)
+}
+def c2da_bool_to_uint(v : bool) : uint {
+    if (v) {
+        return 0x1
+    } else {
+        return 0x0
+    }
+}
+def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
+}
 typedef size_t = uint64
 typedef ushort = int
-typedef uint32_t = uint64
+typedef uint32_t = uint
 typedef uchar = uint8
 struct three_byte_date {
     day : uint8
@@ -11,7 +85,7 @@ struct three_byte_date {
 }
 struct padded_bitfield {
     x : int64
-    _unnamed : int
+    c2da_unnamed : int
     z : uint64
 }
 struct mixed_bitfields {
@@ -24,8 +98,8 @@ struct from_csmith {
     f2 : uint
     f3 : uint const
     f4 : uint
-    f5 : uint32_t
-    _unnamed : uint
+    f5 : uint
+    c2da_unnamed : uint
     f6 : int
 }
 struct S {
@@ -39,123 +113,225 @@ struct renamer_required {
     a : int
     use : uint
 }
-def _bswap_16(var _bsx : __uint16_t) : __uint16_t {
-    return cast<__uint16_t>(__bsx >> 8 & 255 | __bsx & 255 << 8)
+[export]
+def c2da___bswap_16(var c2da___bsx : uint16) : uint16 {
+    return uint16(uint(uint(int(c2da___bsx)) >> uint(8)) & uint(255) | uint(int(uint(int(c2da___bsx)) & uint(255) << uint(8))))
 }
-def _bswap_32(var _bsx : __uint32_t) : __uint32_t {
-    return __bsx & 4278190080 >> 24 | __bsx & 16711680 >> 8 | __bsx & 65280 << 8 | __bsx & 255 << 24
+[export]
+def c2da___bswap_32(var c2da___bsx_0 : uint) : uint {
+    return uint(uint(uint(c2da___bsx_0)) & uint(0xff000000)) >> uint(uint(24)) | uint(uint(uint(c2da___bsx_0)) & uint(0xff0000)) >> uint(uint(8)) | uint(uint(uint(c2da___bsx_0)) & uint(0xff00)) << uint(uint(8)) | uint(uint(uint(c2da___bsx_0)) & uint(0xff)) << uint(uint(24))
 }
-def _bswap_64(var _bsx : __uint64_t) : __uint64_t {
-    return __bsx & -72057594037927936 >> 56 | __bsx & 71776119061217280 >> 40 | __bsx & 280375465082880 >> 24 | __bsx & 1095216660480 >> 8 | __bsx & 4278190080 << 8 | __bsx & 16711680 << 24 | __bsx & 65280 << 40 | __bsx & 255 << 56
+[export]
+def c2da___bswap_64(var c2da___bsx_1 : uint64) : uint64 {
+    return uint64(uint64(c2da___bsx_1) & uint64(0xff00000000000000uL)) >> uint64(uint64(56)) | uint64(uint64(c2da___bsx_1) & uint64(0xff000000000000uL)) >> uint64(uint64(40)) | uint64(uint64(c2da___bsx_1) & uint64(0xff0000000000uL)) >> uint64(uint64(24)) | uint64(uint64(c2da___bsx_1) & uint64(0xff00000000uL)) >> uint64(uint64(8)) | uint64(uint64(c2da___bsx_1) & uint64(0xff000000)) << uint64(uint64(8)) | uint64(uint64(c2da___bsx_1) & uint64(0xff0000)) << uint64(uint64(24)) | uint64(uint64(c2da___bsx_1) & uint64(0xff00)) << uint64(uint64(40)) | uint64(uint64(c2da___bsx_1) & uint64(0xff)) << uint64(uint64(56))
 }
-def _uint16_identity(var _x : __uint16_t) : __uint16_t {
-    return __x
+[export]
+def c2da___uint16_identity(var c2da___x : uint16) : uint16 {
+    return c2da___x
 }
-def _uint32_identity(var _x : __uint32_t) : __uint32_t {
-    return __x
+[export]
+def c2da___uint32_identity(var c2da___x_0 : uint) : uint {
+    return c2da___x_0
 }
-def _uint64_identity(var _x : __uint64_t) : __uint64_t {
-    return __x
+[export]
+def c2da___uint64_identity(var c2da___x_1 : uint64) : uint64 {
+    return c2da___x_1
 }
+[export]
 def zeroed_three_byte_date() : three_byte_date {
-    var tbd : three_byte_date = [0, 0, 0]
+    var tbd : three_byte_date = three_byte_date()
+    tbd = three_byte_date(day = uint8(0), month = uint8(0), year = 0)
     return tbd
 }
+[export]
 def size_of_three_byte_date() : size_t {
     return 4
 }
-def compare_three_byte_date(var tbd : three_byte_date const?; var d : uchar; var m : uchar; var y : ushort) : uint8 {
-    if (tbd.day != d) {
-        return 1
+[export]
+def compare_three_byte_date(var tbd_0 : three_byte_date const?; var d : uint8; var m : uint8; var y : int) : uint8 {
+    if (int(tbd_0.day) != int(d)) {
+        return uint8(1)
+    } elif (int(tbd_0.month) != int(m)) {
+        return uint8(2)
+    } elif (int(tbd_0.year) != int(y)) {
+        return uint8(3)
+    } else {
+        return uint8(0)
     }
-    if (tbd.month != m) {
-        return 2
-    }
-    if (tbd.year != y) {
-        return 3
-    }
-    return 0
 }
-def write_three_byte_date(var tbd : three_byte_date?; var d : uchar; var m : uchar; var y : ushort) {
-    tbd.day = d
-    tbd.month = m
-    tbd.year = y
+[export]
+def write_three_byte_date(var tbd_1 : three_byte_date?; var d_0 : uint8; var m_0 : uint8; var y_0 : int) {
+    tbd_1.day = uint8(d_0)
+    tbd_1.month = uint8(m_0)
+    tbd_1.year = int(y_0)
+    return
 }
+[export]
 def zeroed_padded_bitfield() : padded_bitfield {
-    var pb : padded_bitfield = [0, 0]
+    var pb : padded_bitfield = padded_bitfield()
+    pb = padded_bitfield(x = int64(0), c2da_unnamed = uint64(0))
     return pb
 }
+[export]
 def size_of_padded_bitfield() : size_t {
     return 4
 }
-var static_date : three_byte_date = [13, 12, 2018]
+[export]
+def ops_padded_bitfield(var bf : padded_bitfield?) {
+    bf.x = int64(bf.x % 2)
+    bf.x = int64(bf.x + 1)
+    bf.x = int64(bf.x * 2)
+    bf.x = int64(bf.x - 1)
+    bf.x = int64(bf.x / 2)
+    bf.x = int64(uint(bf.x) ^ uint(1))
+    bf.x = uint(bf.x) >> uint(2)
+    bf.x = uint(bf.x) << uint(1)
+    bf.x = int64(uint(bf.x) & uint(1))
+    bf.x = int64(uint(bf.x) | uint(2))
+    bf.x = bf.x + int64(1)
+    bf.x
+    bf.x = bf.x - int64(1)
+    bf.x
+    bf.x = bf.x % 2
+    bf.x = bf.x + 1
+    bf.x = bf.x * 2
+    bf.x = bf.x - 1
+    bf.x = bf.x / 2
+    bf.x = uint(bf.x) ^ uint(1)
+    bf.x = uint(bf.x) >> uint(2)
+    bf.x = uint(bf.x) << uint(1)
+    bf.x = uint(bf.x) & uint(1)
+    bf.x = uint(bf.x) | uint(2)
+    return
+}
+[export]
+def ops_padded_bitfield_init() : padded_bitfield {
+    var bf_0 : padded_bitfield = padded_bitfield()
+    bf_0 = padded_bitfield(x = int64(13), c2da_unnamed = uint64(0))
+    bf_0.x = int64(bf_0.x % 2)
+    bf_0.x = int64(bf_0.x + 1)
+    bf_0.x = int64(bf_0.x * 2)
+    bf_0.x = int64(bf_0.x - 1)
+    bf_0.x = int64(bf_0.x / 2)
+    bf_0.x = int64(uint(bf_0.x) ^ uint(1))
+    bf_0.x = uint(bf_0.x) >> uint(2)
+    bf_0.x = uint(bf_0.x) << uint(1)
+    bf_0.x = int64(uint(bf_0.x) & uint(1))
+    bf_0.x = int64(uint(bf_0.x) | uint(2))
+    bf_0.x = bf_0.x + int64(1)
+    bf_0.x
+    bf_0.x = bf_0.x - int64(1)
+    bf_0.x
+    bf_0.x = bf_0.x % 2
+    bf_0.x = bf_0.x + 1
+    bf_0.x = bf_0.x * 2
+    bf_0.x = bf_0.x - 1
+    bf_0.x = bf_0.x / 2
+    bf_0.x = uint(bf_0.x) ^ uint(1)
+    bf_0.x = uint(bf_0.x) >> uint(2)
+    bf_0.x = uint(bf_0.x) << uint(1)
+    bf_0.x = uint(bf_0.x) & uint(1)
+    bf_0.x = uint(bf_0.x) | uint(2)
+    return bf_0
+}
+var static_date : three_byte_date = three_byte_date(day = uint8(13), month = uint8(12), year = 2018)
 
+[export]
 def size_of_mixed_bitfields() : size_t {
     return 4
 }
+[export]
+def init_bitfield_array(var bfs : mixed_bitfields?; var size : size_t) : double? {
+}
+[export]
 def zeroed_mixed_bitfields() : mixed_bitfields {
-    var mb : mixed_bitfields = [0, double(0.0)]
+    var mb : mixed_bitfields = mixed_bitfields()
+    mb = mixed_bitfields(x = uint64(0), y = double(0.0))
     return mb
 }
+[export]
 def size_of_from_csmith() : size_t {
     return 4
 }
+[export]
 def init_from_csmith() : from_csmith {
-    var fc : from_csmith = [1, 2, 3, 4, 5, 6, 7]
+    var fc : from_csmith = from_csmith()
+    fc = from_csmith(f0 = 1, f1 = uint(2), f2 = uint(3), f3 = uint(4), f4 = uint(5), f5 = uint(6), c2da_unnamed = 7)
     return fc
 }
 var s : S
 
+[export]
 def get_bf_ptr() : S? {
-    return unsafe(addr(s))
+    return unsafe(unsafe(reinterpret<S?>(unsafe(addr(s)))))
 }
+[export]
 def modify_bf_ptr() {
     get_bf_ptr().a = 1
-    get_bf_ptr().a += 1
+    get_bf_ptr().a = get_bf_ptr().a + 1
+    return
 }
+[export]
 def size_of_two_eight_bits() : size_t {
     return 4
 }
+[export]
 def two_eight_bits_init() : two_eight_bits {
-    var teb : two_eight_bits = [0, 0]
+    var teb : two_eight_bits = two_eight_bits()
+    teb = two_eight_bits(a = 0, b = 0)
     return teb
 }
-var ma_results : array<uint8> = [0]
+var ma_results : array<uint8> = [uint8(0)]
 
+[export]
 def multiple_assignments() {
-    unsafe {
-        var a : uint8 = 3
-        var b : uint8 = 2
-        var tbd : three_byte_date = [0, 0, 0]
-        tbd.day = a = 4
-        unsafe(addr(ma_results[0]))[0] = tbd.day
-        unsafe(addr(ma_results[0]))[1] = a
-        tbd.month = tbd.day = b
-        unsafe(addr(ma_results[0]))[2] = tbd.day
-        unsafe(addr(ma_results[0]))[3] = tbd.month
-        tbd.month = tbd.day = tbd.month = tbd.year = 8
-        unsafe(addr(ma_results[0]))[4] = tbd.day
-        unsafe(addr(ma_results[0]))[5] = tbd.month
-        unsafe(addr(ma_results[0]))[6] = tbd.year
-        tbd.month = 9
-        a = b = tbd.month
-        unsafe(addr(ma_results[0]))[7] = a
-        unsafe(addr(ma_results[0]))[8] = b
-        b = tbd.day = tbd.month
-        unsafe(addr(ma_results[0]))[9] = b
-        unsafe(addr(ma_results[0]))[10] = tbd.day
-        a = tbd.day = 5
-        unsafe(addr(ma_results[0]))[11] = tbd.day
-        unsafe(addr(ma_results[0]))[12] = a
-        tbd.year = a = b
-        unsafe(addr(ma_results[0]))[13] = tbd.year
-        unsafe(addr(ma_results[0]))[14] = a
-        tbd.day += tbd.month += 1
-        unsafe(addr(ma_results[0]))[15] = tbd.day
-        unsafe(addr(ma_results[0]))[16] = tbd.month
-    }
+    var a : uint8 = uint8(0)
+    var b : uint8 = uint8(0)
+    var tbd_2 : three_byte_date = three_byte_date()
+    a = uint8(3)
+    b = uint8(2)
+    tbd_2 = three_byte_date(day = uint8(0), month = uint8(0), year = 0)
+    a = uint8(uint8(4))
+    tbd_2.day = a
+    unsafe(unsafe(addr(ma_results[0]))[0]) = uint8(tbd_2.day)
+    unsafe(unsafe(addr(ma_results[0]))[1]) = uint8(a)
+    tbd_2.day = uint8(b)
+    tbd_2.month = tbd_2.day
+    unsafe(unsafe(addr(ma_results[0]))[2]) = uint8(tbd_2.day)
+    unsafe(unsafe(addr(ma_results[0]))[3]) = uint8(tbd_2.month)
+    tbd_2.month = uint8(uint8(tbd_2.year = int(8)))
+    tbd_2.day = tbd_2.month
+    tbd_2.month = tbd_2.day
+    unsafe(unsafe(addr(ma_results[0]))[4]) = uint8(tbd_2.day)
+    unsafe(unsafe(addr(ma_results[0]))[5]) = uint8(tbd_2.month)
+    unsafe(unsafe(addr(ma_results[0]))[6]) = uint8(uint8(tbd_2.year))
+    tbd_2.month = uint8(uint8(9))
+    b = uint8(tbd_2.month)
+    a = b
+    unsafe(unsafe(addr(ma_results[0]))[7]) = uint8(a)
+    unsafe(unsafe(addr(ma_results[0]))[8]) = uint8(b)
+    tbd_2.day = uint8(tbd_2.month)
+    b = tbd_2.day
+    unsafe(unsafe(addr(ma_results[0]))[9]) = uint8(b)
+    unsafe(unsafe(addr(ma_results[0]))[10]) = uint8(tbd_2.day)
+    tbd_2.day = uint8(uint8(5))
+    a = tbd_2.day
+    unsafe(unsafe(addr(ma_results[0]))[11]) = uint8(tbd_2.day)
+    unsafe(unsafe(addr(ma_results[0]))[12]) = uint8(a)
+    tbd_2.year = int(int(a = uint8(b)))
+    unsafe(unsafe(addr(ma_results[0]))[13]) = uint8(uint8(tbd_2.year))
+    unsafe(unsafe(addr(ma_results[0]))[14]) = uint8(a)
+    tbd_2.day = tbd_2.day + int(tbd_2.month = tbd_2.month + 1)
+    unsafe(unsafe(addr(ma_results[0]))[15]) = uint8(tbd_2.day)
+    unsafe(unsafe(addr(ma_results[0]))[16]) = uint8(tbd_2.month)
+    return
 }
+[export]
 def use_renamed_field() {
-    var rr : renamer_required
-    rr.use = 0
+    var rr : renamer_required = renamer_required()
+    rr.use = uint(uint(0))
+    return
+}
+[export] def main() : int {
+    return 0
 }

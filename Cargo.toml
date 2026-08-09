@@ -10,6 +10,7 @@ members = [
     "c2rust-build-paths",
     "c2rust-rust-tools",
     "c2rust-transpile",
+    "c2dascript",
     "c2dascript-ast-builder",
     "c2dascript-transpile",
     "das_ast",

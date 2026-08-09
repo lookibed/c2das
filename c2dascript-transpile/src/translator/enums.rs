@@ -9,15 +9,26 @@ impl<'c> Translation<'c> {
         variants: &[CEnumConstantId],
         integral_type: Option<CQualTypeId>,
     ) -> TranslationResult<DaDecl> {
-        let ename = name.as_ref()
+        let raw_ename = name
+            .as_ref()
             .ok_or_else(|| TranslationError::generic("anonymous enum"))?
             .clone();
+        let ename = self
+            .type_converter
+            .borrow_mut()
+            .ensure_decl_name(enum_id, &raw_ename);
         let base = match integral_type {
             Some(qt) => {
                 let dt = self.convert_type(qt)?;
                 match dt.kind {
-                    DaTypeKind::Int | DaTypeKind::UInt | DaTypeKind::Int8 | DaTypeKind::UInt8
-                    | DaTypeKind::Int16 | DaTypeKind::UInt16 | DaTypeKind::Int64 | DaTypeKind::UInt64 => dt,
+                    DaTypeKind::Int
+                    | DaTypeKind::UInt
+                    | DaTypeKind::Int8
+                    | DaTypeKind::UInt8
+                    | DaTypeKind::Int16
+                    | DaTypeKind::UInt16
+                    | DaTypeKind::Int64
+                    | DaTypeKind::UInt64 => dt,
                     _ => DaType::int(),
                 }
             }
@@ -52,7 +63,7 @@ impl<'c> Translation<'c> {
         target_cty: CTypeId,
         val: DaExpr,
     ) -> TranslationResult<DaExpr> {
-        let ty = self.convert_type(target_cty)?;
+        let ty = self.convert_type(CQualTypeId::new(target_cty))?;
         Ok(DaExpr::Cast {
             kind: das_ast::CastKind::Cast,
             expr: Box::new(val),

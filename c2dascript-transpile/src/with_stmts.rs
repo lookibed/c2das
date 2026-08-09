@@ -11,11 +11,19 @@ pub struct WithStmts<T> {
 
 impl<T> WithStmts<T> {
     pub fn new(stmts: Vec<DaStmt>, val: T) -> Self {
-        WithStmts { stmts, val, is_unsafe: false }
+        WithStmts {
+            stmts,
+            val,
+            is_unsafe: false,
+        }
     }
 
     pub fn new_val(val: T) -> Self {
-        WithStmts { stmts: vec![], val, is_unsafe: false }
+        WithStmts {
+            stmts: vec![],
+            val,
+            is_unsafe: false,
+        }
     }
 
     pub fn and_then<U, F>(self, f: F) -> WithStmts<U>
@@ -186,8 +194,9 @@ impl<T> FromIterator<WithStmts<T>> for WithStmts<Vec<T>> {
         let mut is_unsafe = false;
         for val in value.into_iter() {
             is_unsafe |= val.is_unsafe;
-            stmts.append(&mut val.into_stmts());
-            res.push(val.into_value());
+            let mut s = val.stmts;
+            stmts.append(&mut s);
+            res.push(val.val);
         }
         WithStmts::new(stmts, res).merge_unsafe(is_unsafe)
     }

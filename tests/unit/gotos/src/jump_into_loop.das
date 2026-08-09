@@ -1,32 +1,119 @@
 options gen2
 
-def _bswap_16(var _bsx : __uint16_t) : __uint16_t {
-    return cast<__uint16_t>(__bsx >> 8 & 255 | __bsx & 255 << 8)
+def c2da_min_int(a : int; b : int) : int {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
 }
-def _bswap_32(var _bsx : __uint32_t) : __uint32_t {
-    return __bsx & 4278190080 >> 24 | __bsx & 16711680 >> 8 | __bsx & 65280 << 8 | __bsx & 255 << 24
+def c2da_max_int(a : int; b : int) : int {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
 }
-def _bswap_64(var _bsx : __uint64_t) : __uint64_t {
-    return __bsx & -72057594037927936 >> 56 | __bsx & 71776119061217280 >> 40 | __bsx & 280375465082880 >> 24 | __bsx & 1095216660480 >> 8 | __bsx & 4278190080 << 8 | __bsx & 16711680 << 24 | __bsx & 65280 << 40 | __bsx & 255 << 56
+def c2da_min_uint(a : uint; b : uint) : uint {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
 }
-def _uint16_identity(var _x : __uint16_t) : __uint16_t {
-    return __x
+def c2da_max_uint(a : uint; b : uint) : uint {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
 }
-def _uint32_identity(var _x : __uint32_t) : __uint32_t {
-    return __x
+def c2da_min_int64(a : int64; b : int64) : int64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
 }
-def _uint64_identity(var _x : __uint64_t) : __uint64_t {
-    return __x
+def c2da_max_int64(a : int64; b : int64) : int64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
 }
+def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
+    if (a < b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
+    if (a > b) {
+        return a
+    } else {
+        return b
+    }
+}
+def c2da_clip_uint(v : int) : uint {
+    if (v < 0) {
+        return 0x0
+    }
+    if (v > 255) {
+        return 0xff
+    }
+    return uint(v)
+}
+def c2da_bool_to_uint(v : bool) : uint {
+    if (v) {
+        return 0x1
+    } else {
+        return 0x0
+    }
+}
+def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
+}
+[export]
+def c2da___bswap_16(var c2da___bsx : uint16) : uint16 {
+    return uint16(uint(uint(int(c2da___bsx)) >> uint(8)) & uint(255) | uint(int(uint(int(c2da___bsx)) & uint(255) << uint(8))))
+}
+[export]
+def c2da___bswap_32(var c2da___bsx_0 : uint) : uint {
+    return uint(uint(uint(c2da___bsx_0)) & uint(0xff000000)) >> uint(uint(24)) | uint(uint(uint(c2da___bsx_0)) & uint(0xff0000)) >> uint(uint(8)) | uint(uint(uint(c2da___bsx_0)) & uint(0xff00)) << uint(uint(8)) | uint(uint(uint(c2da___bsx_0)) & uint(0xff)) << uint(uint(24))
+}
+[export]
+def c2da___bswap_64(var c2da___bsx_1 : uint64) : uint64 {
+    return uint64(uint64(c2da___bsx_1) & uint64(0xff00000000000000uL)) >> uint64(uint64(56)) | uint64(uint64(c2da___bsx_1) & uint64(0xff000000000000uL)) >> uint64(uint64(40)) | uint64(uint64(c2da___bsx_1) & uint64(0xff0000000000uL)) >> uint64(uint64(24)) | uint64(uint64(c2da___bsx_1) & uint64(0xff00000000uL)) >> uint64(uint64(8)) | uint64(uint64(c2da___bsx_1) & uint64(0xff000000)) << uint64(uint64(8)) | uint64(uint64(c2da___bsx_1) & uint64(0xff0000)) << uint64(uint64(24)) | uint64(uint64(c2da___bsx_1) & uint64(0xff00)) << uint64(uint64(40)) | uint64(uint64(c2da___bsx_1) & uint64(0xff)) << uint64(uint64(56))
+}
+[export]
+def c2da___uint16_identity(var c2da___x : uint16) : uint16 {
+    return c2da___x
+}
+[export]
+def c2da___uint32_identity(var c2da___x_0 : uint) : uint {
+    return c2da___x_0
+}
+[export]
+def c2da___uint64_identity(var c2da___x_1 : uint64) : uint64 {
+    return c2da___x_1
+}
+[export]
 def jump_into_loop() : int {
-    var x : int = 0
-    while (x < 10) {
-        if (x > 11) {
-            label 1574:
-            exit(x)
+    var x : int = int(0)
+    x = 0
+    while (true) {
+        if (x < 10) {
+            if (x > 11) {
+                if (false) {
+                }
+            }
+        } else {
+            x = 1
+            goto _foo
         }
     }
-    x = 1
-    goto label 1574
-    return 1
+}
+[export] def main() : int {
+    return 0
 }

@@ -13,6 +13,9 @@ transpile:
   binary: ruby
   # cflags: "-O0"
 
+dascheck:
+  autogen: true
+
 cargo.transpile:
   autogen: true
   xfail: true

@@ -27,11 +27,13 @@ impl IncCleanup {
             if let DaExpr::IfThenElse { then, else_, .. } = expr {
                 // Recurse into if-then-else
                 if let DaExpr::Block(ref block) = **then {
-                    removed_tail_expr = removed_tail_expr || self.remove_tail_expr_in_block(&block.stmts);
+                    removed_tail_expr =
+                        removed_tail_expr || self.remove_tail_expr_in_block(&block.stmts);
                 }
                 if let Some(el) = else_ {
                     if let DaExpr::Block(ref block) = **el {
-                        removed_tail_expr = removed_tail_expr || self.remove_tail_expr_in_block(&block.stmts);
+                        removed_tail_expr =
+                            removed_tail_expr || self.remove_tail_expr_in_block(&block.stmts);
                     }
                 }
             }

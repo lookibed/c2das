@@ -1,6 +1,9 @@
 transpile:
   autogen: true
 
+dascheck:
+  autogen: true
+
 cargo.transpile:
   autogen: true
 

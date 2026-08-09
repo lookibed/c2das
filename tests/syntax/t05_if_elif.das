@@ -1,6 +1,7 @@
 options gen2
 
-def classify(x : int) : int {
+[export]
+def classify(var x : int) : int {
     if (x > 0) {
         return 1
     } else {
@@ -12,6 +13,6 @@ def classify(x : int) : int {
     }
 }
 [export]
-def main() : int {
+def main_0() : int {
     return classify(5) + classify(0) + classify(-3)
 }

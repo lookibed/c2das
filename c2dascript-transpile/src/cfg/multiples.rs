@@ -4,10 +4,7 @@ use std::collections::BTreeSet;
 
 type MultipleKey<Lbl> = BTreeSet<Lbl>;
 
-type MultipleValue<Lbl> = (
-    Lbl,
-    IndexMap<Lbl, IndexSet<Lbl>>,
-);
+type MultipleValue<Lbl> = (Lbl, IndexMap<Lbl, IndexSet<Lbl>>);
 
 #[derive(Clone, Debug)]
 pub struct MultipleInfo<Lbl: Hash + Ord> {

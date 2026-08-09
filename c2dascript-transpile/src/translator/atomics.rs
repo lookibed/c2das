@@ -14,7 +14,10 @@ impl<'c> Translation<'c> {
         _val2_id: Option<CExprId>,
         _weak_id: Option<CExprId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
-        warn!("Atomic {} not supported in daScript; replacing with 0", name);
+        warn!(
+            "Atomic {} not supported in daScript; replacing with 0",
+            name
+        );
         Ok(WithStmts::new_val(DaExpr::ConstInt(0)))
     }
 
@@ -44,7 +47,11 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new_val(DaExpr::ConstInt(0)))
     }
 
-    pub fn atomic_intrinsic_expr(&self, _base_name: &str, _orders: &[std::sync::atomic::Ordering]) -> DaExpr {
+    pub fn atomic_intrinsic_expr(
+        &self,
+        _base_name: &str,
+        _orders: &[std::sync::atomic::Ordering],
+    ) -> DaExpr {
         DaExpr::ConstInt(0)
     }
 }
@@ -52,8 +59,18 @@ impl<'c> Translation<'c> {
 /// Atomic binary operations (mirrors c2rust CAtomicBinOp)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CAtomicBinOp {
-    FetchAdd, FetchSub, FetchOr, FetchAnd, FetchXor, FetchNand,
-    AddFetch, SubFetch, OrFetch, AndFetch, XorFetch, NandFetch,
+    FetchAdd,
+    FetchSub,
+    FetchOr,
+    FetchAnd,
+    FetchXor,
+    FetchNand,
+    AddFetch,
+    SubFetch,
+    OrFetch,
+    AndFetch,
+    XorFetch,
+    NandFetch,
 }
 
 impl CAtomicBinOp {
@@ -77,37 +94,60 @@ impl CAtomicBinOp {
 
     pub fn from_sync_builtin_fn(name: &str) -> Option<Self> {
         Some(match name {
-            "__sync_add_and_fetch_1" | "__sync_add_and_fetch_2"
-            | "__sync_add_and_fetch_4" | "__sync_add_and_fetch_8"
+            "__sync_add_and_fetch_1"
+            | "__sync_add_and_fetch_2"
+            | "__sync_add_and_fetch_4"
+            | "__sync_add_and_fetch_8"
             | "__sync_add_and_fetch_16" => Self::AddFetch,
-            "__sync_sub_and_fetch_1" | "__sync_sub_and_fetch_2"
-            | "__sync_sub_and_fetch_4" | "__sync_sub_and_fetch_8"
+            "__sync_sub_and_fetch_1"
+            | "__sync_sub_and_fetch_2"
+            | "__sync_sub_and_fetch_4"
+            | "__sync_sub_and_fetch_8"
             | "__sync_sub_and_fetch_16" => Self::SubFetch,
-            "__sync_fetch_and_add_1" | "__sync_fetch_and_add_2"
-            | "__sync_fetch_and_add_4" | "__sync_fetch_and_add_8"
+            "__sync_fetch_and_add_1"
+            | "__sync_fetch_and_add_2"
+            | "__sync_fetch_and_add_4"
+            | "__sync_fetch_and_add_8"
             | "__sync_fetch_and_add_16" => Self::FetchAdd,
-            "__sync_fetch_and_sub_1" | "__sync_fetch_and_sub_2"
-            | "__sync_fetch_and_sub_4" | "__sync_fetch_and_sub_8"
+            "__sync_fetch_and_sub_1"
+            | "__sync_fetch_and_sub_2"
+            | "__sync_fetch_and_sub_4"
+            | "__sync_fetch_and_sub_8"
             | "__sync_fetch_and_sub_16" => Self::FetchSub,
-            "__sync_fetch_and_or_1" | "__sync_fetch_and_or_2"
-            | "__sync_fetch_and_or_4" | "__sync_fetch_and_or_8"
+            "__sync_fetch_and_or_1"
+            | "__sync_fetch_and_or_2"
+            | "__sync_fetch_and_or_4"
+            | "__sync_fetch_and_or_8"
             | "__sync_fetch_and_or_16" => Self::FetchOr,
-            "__sync_fetch_and_and_1" | "__sync_fetch_and_and_2"
-            | "__sync_fetch_and_and_4" | "__sync_fetch_and_and_8"
+            "__sync_fetch_and_and_1"
+            | "__sync_fetch_and_and_2"
+            | "__sync_fetch_and_and_4"
+            | "__sync_fetch_and_and_8"
             | "__sync_fetch_and_and_16" => Self::FetchAnd,
-            "__sync_fetch_and_xor_1" | "__sync_fetch_and_xor_2"
-            | "__sync_fetch_and_xor_4" | "__sync_fetch_and_xor_8"
+            "__sync_fetch_and_xor_1"
+            | "__sync_fetch_and_xor_2"
+            | "__sync_fetch_and_xor_4"
+            | "__sync_fetch_and_xor_8"
             | "__sync_fetch_and_xor_16" => Self::FetchXor,
-            "__sync_fetch_and_nand_1" | "__sync_fetch_and_nand_2"
-            | "__sync_fetch_and_nand_4" | "__sync_fetch_and_nand_8"
+            "__sync_fetch_and_nand_1"
+            | "__sync_fetch_and_nand_2"
+            | "__sync_fetch_and_nand_4"
+            | "__sync_fetch_and_nand_8"
             | "__sync_fetch_and_nand_16" => Self::FetchNand,
             _ => return None,
         })
     }
 
     pub fn fetches_first(self) -> bool {
-        matches!(self, Self::FetchAdd | Self::FetchSub | Self::FetchOr
-            | Self::FetchAnd | Self::FetchXor | Self::FetchNand)
+        matches!(
+            self,
+            Self::FetchAdd
+                | Self::FetchSub
+                | Self::FetchOr
+                | Self::FetchAnd
+                | Self::FetchXor
+                | Self::FetchNand
+        )
     }
 
     pub fn is_nand(self) -> bool {

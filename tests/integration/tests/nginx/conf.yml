@@ -12,6 +12,9 @@ transpile:
   tflags: --reorganize-definitions --disable-refactoring
   binary: nginx
 
+dascheck:
+  autogen: true
+
 cargo.transpile:
   autogen: true
 

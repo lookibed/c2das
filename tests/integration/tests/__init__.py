@@ -17,14 +17,7 @@ class Test(object):
         "configure": ["configure.sh"],
         "make": ["make.sh", "cmake.sh"],
         "transpile": ["transpile.gen.sh", "transpile.sh"],
-        "cargo.transpile": ["cargo.transpile.gen.sh", "cargo.transpile.sh"],
-        "check.transpile": ["check.transpile.sh", "test.sh"],
-        "refactor": ["refactor.gen.sh", "refactor.sh"],
-        "cargo.refactor": ["cargo.refactor.gen.sh", "cargo.refactor.sh"],
-        "check.refactor": ["check.refactor.sh", "test.sh"],
-        "postprocess": ["postprocess.gen.sh", "postprocess.sh"],
-        "cargo.postprocess": ["cargo.postprocess.gen.sh", "cargo.postprocess.sh"],
-        "check.postprocess": ["check.postprocess.sh", "test.sh"],
+        "dascheck": ["dascheck.gen.sh", "dascheck.sh"],
     }
 
     def __init__(self, directory: Path, generated_scripts: set[Path]):
@@ -86,14 +79,12 @@ class Test(object):
             )
             return False
 
-        if not os.access(script_path, os.X_OK):
-            print(
-                "{color}Script is not executable: {script}{nocolor}".format(
-                    color=Colors.FAIL, script=script_path, nocolor=Colors.NO_COLOR
-                ),
-                flush=True,
-            )
-            return False
+        with open(script_path, "rb") as fh:
+            script_bytes = fh.read()
+        normalized = script_bytes.replace(b"\r\n", b"\n")
+        if normalized != script_bytes:
+            with open(script_path, "wb") as fh:
+                fh.write(normalized)
 
         if not verbose:
             relpath = os.path.relpath(script_path, os.getcwd())
@@ -122,7 +113,7 @@ class Test(object):
         if stage in ["autogen", "configure", "make"]:
             compile_commands = os.path.join(self.dir, "compile_commands.json")
 
-            use_cached_cc_cmds, emsg = check_compile_commands(compile_commands)
+            use_cached_cc_cmds, emsg = check_compile_commands(compile_commands, self.dir)
 
             if use_cached_cc_cmds:
                 if not verbose:
@@ -144,11 +135,15 @@ class Test(object):
             else:
                 stdout = subprocess.DEVNULL
                 stderr = subprocess.DEVNULL
+            env = os.environ.copy()
+            helper_bin = str(Path(__file__).resolve().parent.parent / "bin")
+            env["PATH"] = f"{helper_bin}{os.pathsep}{env.get('PATH', '')}"
             subprocess.check_call(
                 cwd=self.dir,
-                args=[script_path],
+                args=["bash", script_path],
                 stdout=stdout,
                 stderr=stderr,
+                env=env,
             )
             if not verbose:
                 print_outcome(

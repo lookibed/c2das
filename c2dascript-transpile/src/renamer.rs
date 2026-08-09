@@ -42,6 +42,8 @@ pub const DASCRIPT_KEYWORDS: &[&str] = &[
     // Keywords
     "addr",
     "alias",
+    "array",
+    "block",
     "auto",
     "bool",
     "break",
@@ -180,7 +182,9 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
     }
 
     pub fn keywords() -> Self {
-        Renamer::new(&[DASCRIPT_KEYWORDS])
+        // Include ALL reserved words — keywords + type names + value names.
+        // block, for example, is in TYPE_NAMESPACE but not in KEYWORDS.
+        Renamer::new(&[DASCRIPT_KEYWORDS, DASCRIPT_PRELUDE_TYPE_NAMESPACE, DASCRIPT_PRELUDE_VALUE_NAMESPACE])
     }
 
     pub fn type_namespace() -> Self {
@@ -192,7 +196,12 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
     }
 
     pub fn global_value_namespace() -> Self {
-        Renamer::new(&[DASCRIPT_KEYWORDS, DASCRIPT_PRELUDE_VALUE_NAMESPACE, &["main"]])
+        Renamer::new(&[
+            DASCRIPT_KEYWORDS,
+            DASCRIPT_PRELUDE_TYPE_NAMESPACE,
+            DASCRIPT_PRELUDE_VALUE_NAMESPACE,
+            &["main"],
+        ])
     }
 
     pub fn add_scope(&mut self) {
@@ -220,10 +229,11 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
     }
 
     fn pick_name_in_scope(&mut self, basename: &str, scope: Option<usize>) -> String {
-        let mut target = basename.to_string();
+        let normalized = normalize_das_name(basename);
+        let mut target = normalized.clone();
         for i in 0.. {
             if self.is_target_used(&target) {
-                target = format!("{}_{}", basename, i);
+                target = format!("{}_{}", normalized, i);
             } else {
                 break;
             }
@@ -292,6 +302,14 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
     }
 }
 
+fn normalize_das_name(basename: &str) -> String {
+    if basename.starts_with("__") {
+        format!("c2da_{basename}")
+    } else {
+        basename.to_string()
+    }
+}
+
 fn check_c2da_name(basename: &str) {
     assert!(basename.starts_with("c2da_") || basename.starts_with("C2Da_"));
 }
@@ -310,6 +328,12 @@ mod tests {
         let reserved2 = renamer.get(&2).unwrap();
         assert_eq!(reserved1, "reserved_0");
         assert_eq!(reserved2, "reserved_0");
+    }
+
+    #[test]
+    fn reserved_das_prefix() {
+        let mut renamer = Renamer::new(&[]);
+        assert_eq!(renamer.insert(1, "__private").unwrap(), "c2da___private");
     }
 
     #[test]

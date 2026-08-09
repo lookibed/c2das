@@ -1,0 +1,16 @@
+[
+  {
+    "directory": "/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/real-world-plmpeg-stream",
+    "arguments": [
+      "clang",
+      "-c",
+      "-DPLM_NO_STDIO",
+      "-I/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/real-world-plmpeg-stream/include",
+      "-I/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/real-world-plmpeg-stream/upstream",
+      "-I/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/real-world-plmpeg-stream/fixtures",
+      "-I/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/real-world-plmpeg-stream/src",
+      "/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/real-world-plmpeg-stream/src/all.c"
+    ],
+    "file": "/mnt/d/Backups/\u04412daslang/c2dascript/tests/manual/real-world-plmpeg-stream/src/all.c"
+  }
+]

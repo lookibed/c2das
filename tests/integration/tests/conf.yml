@@ -9,11 +9,8 @@ requirements:
   generic: # for any host
     programs:
       in_path:
-        - c2rust
-        - c2rust-transpile
-        - c2rust-refactor
-        - c2rust-postprocess
+        - c2dascript-transpile
+        - daslang
         - make
         - cmake
-        - cargo
         - intercept-build

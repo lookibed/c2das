@@ -4,7 +4,7 @@ import yaml
 import json
 import errno
 
-from typing import Any, List, Iterable, Never, Sequence
+from typing import Any, List, Iterable, NoReturn, Sequence
 
 CONF_YML: str = "conf.yml"
 
@@ -46,7 +46,7 @@ class Colors(object):
     NO_COLOR = "\033[0m"
 
 
-def die(emsg: str, status: int = errno.EINVAL) -> Never:
+def die(emsg: str, status: int = errno.EINVAL) -> NoReturn:
     (red, nc) = (Colors.FAIL, Colors.NO_COLOR)
     print(f"{red}error:{nc} {emsg}", file=sys.stderr)
     exit(status)
@@ -108,7 +108,9 @@ def get_yaml(file: str) -> dict[str, Any]:
             die(str(exc))
 
 
-def check_compile_commands(compile_commands_path: str) -> tuple[bool, str]:
+def check_compile_commands(
+    compile_commands_path: str, project_dir: str | None = None
+) -> tuple[bool, str]:
     """
     Return True iff compile_commands_path points to a valid
     compile_commands.json and all referenced source files exist.
@@ -124,13 +126,18 @@ def check_compile_commands(compile_commands_path: str) -> tuple[bool, str]:
     except:
         return (False, "could not open or parse compile commands")
 
-    missing: List[str] = []
+    project_root = os.path.realpath(project_dir) if project_dir else None
+    invalid: List[str] = []
     for cmd in cc_db:
-        path = os.path.join(cmd["directory"], cmd["file"])
+        directory = os.path.realpath(cmd["directory"])
+        path = os.path.realpath(os.path.join(directory, cmd["file"]))
+        if project_root and os.path.commonpath([project_root, path]) != project_root:
+            invalid.append(f"outside project root: {path}")
+            continue
         if not os.path.isfile(path):
-            missing += path
+            invalid.append(f"missing source file: {path}")
 
-    if missing:
-        return (False, "\n".join(missing))
+    if invalid:
+        return (False, "\n".join(invalid))
 
     return (True, "PASS")

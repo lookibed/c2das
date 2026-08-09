@@ -36,5 +36,9 @@ syn = { version = "2.0", features = ["full", "extra-traits", "parsing", "printin
 tempfile = "3.5.0"
 which = "4.4.0"
 
+[dev-dependencies]
+insta = { version = "1.46.3", features = ["glob", "json"] }
+fs-err = "3.3.0"
+
 [features]
 llvm-static = ["c2rust-ast-exporter/llvm-static"]

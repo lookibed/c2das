@@ -30,14 +30,14 @@ pub fn match_loop_body(
         }
     }
     desired_body.is_empty()
-        && body_blocks.keys().all(|body_lbl| {
-            match strict_reachable_from.get(body_lbl) {
+        && body_blocks
+            .keys()
+            .all(|body_lbl| match strict_reachable_from.get(body_lbl) {
                 None => true,
                 Some(reachable_froms) => reachable_froms
                     .iter()
                     .all(|lbl| body_blocks.contains_key(lbl)),
-            }
-        })
+            })
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]

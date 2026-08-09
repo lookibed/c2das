@@ -133,6 +133,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "c2dascript"
+version = "0.22.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "is_executable",
+]
+
+[[package]]
 name = "c2dascript-ast-builder"
 version = "0.1.0"
 dependencies = [
@@ -153,8 +162,10 @@ dependencies = [
  "dtoa",
  "failure",
  "fern",
+ "fs-err",
  "handlebars",
  "indexmap",
+ "insta",
  "itertools 0.10.5",
  "log",
  "log-reroute",

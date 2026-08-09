@@ -1892,6 +1892,7 @@ pub enum CastKind {
     VectorSplat,
     AtomicToNonAtomic,
     NonAtomicToAtomic,
+    Dependent,
 }
 
 impl CastKind {

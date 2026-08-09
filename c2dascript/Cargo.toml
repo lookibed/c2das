@@ -1,0 +1,11 @@
+[package]
+name = "c2dascript"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "C to daScript transpiler — subcommand CLI"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "3.2.22", features = ["cargo"] }
+is_executable = "1.0"

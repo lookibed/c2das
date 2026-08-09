@@ -1,7 +1,7 @@
 options gen2
 
 [export]
-def main() : int {
+def main_0() : int {
     var a : int = 5
     var b : int = 3
     if (a > b) {
