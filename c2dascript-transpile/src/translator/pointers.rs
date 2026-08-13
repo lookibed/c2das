@@ -112,7 +112,7 @@ impl<'c> Translation<'c> {
     }
 
     pub fn null_ptr(&self, _type_id: CTypeId) -> TranslationResult<DaExpr> {
-        Ok(self.abi_null_pointer(&DaType::pointer(DaType::void())))
+        Ok(self.null_pointer(&DaType::pointer(DaType::void())))
     }
 
     pub fn convert_pointer_is_null(&self, val: DaExpr, is_null: bool) -> TranslationResult<DaExpr> {
@@ -120,13 +120,13 @@ impl<'c> Translation<'c> {
             DaExpr::Op2 {
                 op: "==",
                 left: Box::new(val),
-                right: Box::new(self.abi_null_pointer(&DaType::pointer(DaType::void()))),
+                right: Box::new(self.null_pointer(&DaType::pointer(DaType::void()))),
             }
         } else {
             DaExpr::Op2 {
                 op: "!=",
                 left: Box::new(val),
-                right: Box::new(self.abi_null_pointer(&DaType::pointer(DaType::void()))),
+                right: Box::new(self.null_pointer(&DaType::pointer(DaType::void()))),
             }
         })
     }

@@ -24,6 +24,7 @@ use das_ast::{
 };
 
 mod atomics;
+mod assembly;
 mod abi;
 mod builtins;
 mod comments;
@@ -35,7 +36,9 @@ mod named_references;
 mod operators;
 mod pointers;
 mod runtime;
+mod simd;
 mod structs_unions;
+mod variadic;
 pub(crate) mod value_lowering;
 
 use self::value_lowering::ValueSite;
@@ -99,6 +102,8 @@ pub struct FuncContext {
     name: Option<String>,
     /// Name of the va_list argument for variadic functions
     va_list_arg_name: Option<String>,
+    /// Local va_list declarations that belong to the canonical variadic ABI.
+    va_list_decl_ids: Option<IndexSet<CDeclId>>,
     param_aliases: HashMap<String, String>,
     return_type: Option<CQualTypeId>,
 }
@@ -126,6 +131,10 @@ impl FuncContext {
         self.va_list_arg_name
             .as_deref()
             .expect("va_list_arg_name not set")
+    }
+    pub fn set_va_list_context(&mut self, arg_name: String, decls: IndexSet<CDeclId>) {
+        self.va_list_arg_name = Some(arg_name);
+        self.va_list_decl_ids = Some(decls);
     }
     pub fn add_param_alias(&mut self, c_name: &str, das_name: &str) {
         if !c_name.is_empty() {
@@ -510,6 +519,9 @@ impl<'c> Translation<'c> {
                 // daScript has no union; map to struct
                 self.convert_struct(decl_id, name, fields)
             }
+            MacroObject { name } | MacroFunction { name, .. } => {
+                self.convert_macro(ctx, decl_id, name)
+            }
             _ => Err(TranslationError::generic("unsupported decl kind")),
         }
     }
@@ -626,12 +638,12 @@ impl<'c> Translation<'c> {
                                         .and_then(|e| self.ast_context[e].kind.get_qual_type())
                                         .map_or(false, |qty| self.is_pointer_type(qty.ctype));
                                     if matches!(ret_da.kind, DaTypeKind::UInt64) && expr_is_ptr {
-                                        self.abi_pointer_to_raw_address(ws.val)
+                                        self.pointer_to_raw_address(ws.val)
                                     } else if matches!(ret_da.kind, DaTypeKind::Pointer(_)) {
                                         if expr_is_ptr {
                                             self.abi_pointer_cast(ws.val, ret_da)
                                         } else {
-                                            self.abi_raw_address_to_pointer(ws.val, ret_da)
+                                            self.raw_address_to_pointer(ws.val, ret_da)
                                         }
                                     } else if matches!(ret_da.kind, DaTypeKind::Named(_))
                                         && Self::infer_type(&ws.val)
@@ -905,9 +917,55 @@ impl<'c> Translation<'c> {
                 val: vec![],
                 is_unsafe: false,
             }),
+            CStmtKind::Asm { asm, inputs, outputs, clobbers, is_volatile } => self.convert_inline_assembly(
+                stmt_id,
+                asm,
+                inputs,
+                outputs,
+                clobbers,
+                *is_volatile,
+            ),
             CStmtKind::BadStmt => Err(TranslationError::generic("bad statement")),
             _ => Err(TranslationError::generic("unsupported statement kind")),
         }
+    }
+
+    /// C object sizes used by `sizeof` are lowered before printing. This is a
+    /// target-ABI contract (LP64, matching the WSL Clang exporter), not a
+    /// daScript container size and never a post-print text repair.
+    fn c_sizeof_type(&self, type_id: CTypeId) -> TranslationResult<i64> {
+        use CTypeKind::*;
+        let size = match self.ast_context.resolve_type(type_id).kind {
+            Void => 1,
+            Bool | Char | SChar | UChar | Int8 | UInt8 => 1,
+            Short | UShort | Int16 | UInt16 => 2,
+            Int | UInt | Int32 | UInt32 | Float | Enum(_) => 4,
+            Long | ULong | LongLong | ULongLong | Int64 | UInt64 | IntPtr | UIntPtr
+            | SSize | Size | PtrDiff | IntMax | UIntMax | WChar | Double | LongDouble | Float128
+            | Pointer(_) | Function(_, _, _, _, _) => 8,
+            Int128 | UInt128 => 16,
+            ConstantArray(element, count) => self
+                .c_sizeof_type(element)?
+                .checked_mul(count as i64)
+                .ok_or_else(|| TranslationError::generic("sizeof array overflows target ABI"))?,
+            VariableArray(_, _) | IncompleteArray(_) => {
+                return Err(TranslationError::generic("unsupported sizeof of incomplete or variable-length array"));
+            }
+            Vector(_, _) | UnhandledSveType => {
+                return Err(TranslationError::generic("unsupported SIMD vector type in sizeof"));
+            }
+            Auto(inner) => return self.c_sizeof_type(inner),
+            Struct(_) | Union(_) | Typedef(_) | Elaborated(_) | Paren(_) | Decayed(_)
+            | TypeOf(_) | TypeOfExpr(_) | Complex(_) | Attributed(_, _) | BlockPointer(_)
+            | Reference(_) | BuiltinFn | Half | BFloat16 | Atomic(_) => {
+                return Err(TranslationError::generic("unsupported sizeof type layout"));
+            }
+        };
+        Ok(size)
+    }
+
+    fn c_alignof_type(&self, type_id: CTypeId) -> TranslationResult<i64> {
+        Ok(self.c_sizeof_type(type_id)?.min(8))
     }
 
     /// Convert a C expression into a daScript expression
@@ -921,6 +979,16 @@ impl<'c> Translation<'c> {
             loc: src_loc,
             kind: expr_kind,
         } = &self.ast_context[expr_id];
+
+        // Macro expansion is represented by ordinary Clang expression nodes.
+        // Give provenance ownership to macros.rs before normal AST lowering;
+        // it deliberately returns None because re-parsing macro text would
+        // duplicate side effects and violate C evaluation order.
+        if self.expr_is_expanded_macro(ctx, expr_id, override_ty) {
+            if let Some(lowered) = self.convert_const_macro_expansion(ctx, expr_id, override_ty)? {
+                return Ok(lowered);
+            }
+        }
 
         use CExprKind::*;
         match expr_kind {
@@ -1109,7 +1177,7 @@ impl<'c> Translation<'c> {
                         to: target_type.clone(),
                     };
                     if let Some((lowered_stmts, lowered_val)) =
-                        self.lower_bool_numeric_cast_arg(cast.clone())
+                        self.bool_to_integer_cast(cast.clone())
                     {
                         stmts.extend(lowered_stmts);
                         return Ok(WithStmts::new(stmts, lowered_val)
@@ -1149,11 +1217,11 @@ impl<'c> Translation<'c> {
                     let cast = if matches!(cast_kind, CastKind::IntegralToPointer)
                         && matches!(target_type.kind, DaTypeKind::Pointer(_))
                     {
-                        self.abi_raw_address_to_pointer(inner.val, target_type)
+                        self.raw_address_to_pointer(inner.val, target_type)
                     } else if matches!(cast_kind, CastKind::PointerToIntegral)
                         && matches!(target_type.kind, DaTypeKind::UInt64)
                     {
-                        self.abi_pointer_to_raw_address(inner.val)
+                        self.pointer_to_raw_address(inner.val)
                     } else if matches!(target_type.kind, DaTypeKind::Pointer(_)) {
                         self.abi_pointer_cast(inner.val, target_type)
                     } else {
@@ -1260,7 +1328,7 @@ impl<'c> Translation<'c> {
                 }
                 if matches!(target_type.kind, DaTypeKind::Pointer(_)) {
                     let cast = if matches!(cast_kind, CastKind::IntegralToPointer) {
-                        self.abi_raw_address_to_pointer(inner.val, target_type)
+                        self.raw_address_to_pointer(inner.val, target_type)
                     } else {
                         self.abi_pointer_cast(inner.val, target_type)
                     };
@@ -1320,13 +1388,13 @@ impl<'c> Translation<'c> {
                 }
                 Ok(WithStmts::new_val(DaExpr::MakeArray(items)).merge_unsafe(is_unsafe))
             }
-            UnaryType(_ty, kind, _opt_expr, _arg_ty) => match kind {
-                CUnTypeOp::SizeOf => Ok(WithStmts::new_val(DaExpr::ConstInt(4))),
-                CUnTypeOp::AlignOf => Ok(WithStmts::new_val(DaExpr::ConstInt(4))),
+            UnaryType(_ty, kind, _opt_expr, arg_ty) => match kind {
+                CUnTypeOp::SizeOf => Ok(WithStmts::new_val(DaExpr::ConstInt(self.c_sizeof_type(arg_ty.ctype)?))),
+                CUnTypeOp::AlignOf => Ok(WithStmts::new_val(DaExpr::ConstInt(self.c_alignof_type(arg_ty.ctype)?))),
                 _ => Err(TranslationError::generic("unsupported unary type op")),
             },
             CompoundLiteral(ty, expr) => self.convert_expr(ctx, *expr, Some(*ty)),
-            Predefined(_ty, expr) => self.convert_expr(ctx, *expr, override_ty),
+            Predefined(_ty, expr) => self.convert_predefined_expression(ctx, *expr, override_ty),
             Paren(_ty, expr) => self.convert_expr(ctx, *expr, override_ty),
 
             Unary(_ty, op, expr, _) => {
@@ -1335,10 +1403,7 @@ impl<'c> Translation<'c> {
             }
 
             // GNU statement expression ({ stmts; expr }) → convert as daScript block
-            Statements(_ty, stmt_id) => {
-                let stmts = self.convert_stmt(*stmt_id)?.val;
-                Ok(WithStmts::new_val(DaExpr::Block(DaBlock { stmts })))
-            }
+            Statements(_ty, stmt_id) => self.convert_gnu_statement_expression(ctx, *stmt_id),
             // offsetof → return 0 (daScript has no ABI-visible layout)
             OffsetOf(ty, _kind) => {
                 let target = self.convert_type(ty.clone())?;
@@ -1349,17 +1414,13 @@ impl<'c> Translation<'c> {
                 }))
             }
             // va_arg → not supported
-            VAArg(_ty, _expr) => Err(TranslationError::generic(
-                "va_arg not supported in daScript",
-            )),
+            VAArg(ty, expr) => self.convert_vaarg(ctx, *ty, *expr),
             // C11 atomic expressions → not supported
             Atomic { .. } => Err(TranslationError::generic(
                 "C11 atomics not supported in daScript",
             )),
-            // Unsupported vector operations
-            ShuffleVector(_, _) | ConvertVector(_, _) => {
-                Err(TranslationError::generic("vector operations not supported"))
-            }
+            ShuffleVector(ty, operands) => self.convert_shuffle_vector(expr_id, *ty, operands),
+            ConvertVector(ty, operands) => self.convert_vector_conversion(expr_id, *ty, operands),
             // GNU choose expression
             Choose(_, _, _, _, _) => Err(TranslationError::generic(
                 "GNU choose expression not supported",
@@ -1927,7 +1988,7 @@ impl<'c> Translation<'c> {
                 to: DaType::uint64(),
             })
         } else {
-            Ok(self.abi_null_pointer(&da_type))
+            Ok(self.null_pointer(&da_type))
         }
     }
 
@@ -1974,6 +2035,18 @@ impl<'c> Translation<'c> {
                 );
 
                 let rust_name = self.declare_value_name(decl_id, ident);
+                if self.function_context.borrow().va_list_arg_name.is_some()
+                    && self.ast_context.is_va_list(typ.ctype)
+                {
+                    let decl_stmt = DaStmt::Var {
+                        name: rust_name,
+                        var_type: self.va_cursor_type(),
+                        init: Some(self.va_cursor_initializer()),
+                    };
+                    return Ok(crate::cfg::DeclStmtInfo::new(
+                        vec![decl_stmt.clone()], vec![], vec![decl_stmt],
+                    ));
+                }
                 let var_type = self.convert_type(typ)?;
                 let default_init = self.default_initializer_for_ctype(typ.ctype)?;
                 let decl_stmt = DaStmt::Var {
@@ -2325,6 +2398,7 @@ fn cast_minmax_arg(expr: DaExpr, to: DaType) -> DaExpr {
 
 fn c2da_runtime_helpers() -> Vec<DaDecl> {
     let mut helpers = runtime::declarations();
+    helpers.extend(variadic::declarations());
     helpers.extend([
         c2da_minmax_helper("c2da_min_int", DaType::int(), "<"),
         c2da_minmax_helper("c2da_max_int", DaType::int(), ">"),

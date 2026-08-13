@@ -360,6 +360,7 @@ impl<'c> Translation<'c> {
                 let inner_ty = self.convert_type_raw(inner)?;
                 Ok(DaType::array(inner_ty))
             }
+            Vector(_, _) | UnhandledSveType => self.reject_vector_type(typ),
             Function(_, _, _, _, _) => Ok(DaType::named("function")),
             Struct(decl_id) | Union(decl_id) | Enum(decl_id) => {
                 let decl = &self.ast_context[decl_id];

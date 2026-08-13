@@ -13,7 +13,14 @@ for entry in \
     p22_typed_literals:typed_literals \
     p23_bool_numeric:bool_numeric_runtime \
     p24_nonruntime_pointer_call:nonruntime_pointer_call \
-    p25_array_initializers:array_initializers_runtime
+    p25_array_initializers:array_initializers_runtime \
+    p26_variadic_sum:variadic_sum_runtime \
+    p27_variadic_promotions:variadic_promotions_runtime \
+    p28_variadic_multiple_types:variadic_multiple_types_runtime \
+    p30_macro_constant_expression:macro_constant_expression_runtime \
+    p31_macro_side_effect:macro_side_effect_runtime \
+    p32_macro_statement_expression:macro_statement_expression_runtime \
+    p33_predefined_sizeof_builtin:predefined_sizeof_builtin_runtime
 do
     test_name="${entry%%:*}"
     main_name="${entry#*:}"

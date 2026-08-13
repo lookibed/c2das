@@ -127,6 +127,47 @@ fn pointer_null_cast_repro_lowers_zero_to_null() {
 }
 
 #[test]
+fn canonical_abi_owns_storage_literals_bool_and_pointer_raw_conversions() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    let translator = root.join("c2dascript-transpile/src/translator");
+    let abi = std::fs::read_to_string(translator.join("abi.rs")).expect("abi.rs");
+
+    for api in [
+        "fn raw_address_to_pointer",
+        "fn pointer_to_raw_address",
+        "fn null_pointer",
+        "fn storage_byte_to_numeric",
+        "fn integer_literal_for_type",
+        "fn bool_to_integer",
+    ] {
+        assert!(abi.contains(api), "canonical ABI API missing: {api}");
+    }
+
+    // These are conversion owners. A local reinterpret here would bypass the
+    // ABI contract rather than expressing ordinary C numeric type lowering.
+    for file in ["functions.rs", "operators.rs", "pointers.rs", "value_lowering.rs"] {
+        let source = std::fs::read_to_string(translator.join(file)).expect("translator source");
+        assert!(
+            !source.contains("CastKind::Reinterpret"),
+            "{file} must use translator/abi.rs for pointer/raw reinterpret"
+        );
+    }
+
+    for obsolete in [
+        "lower_bool_numeric_cast",
+        "lower_bool_numeric_cast_arg",
+        "fn integer_literal_for_type",
+        "fn strip_numeric_literal_casts",
+    ] {
+        let functions = std::fs::read_to_string(translator.join("functions.rs")).expect("functions.rs");
+        assert!(
+            !functions.contains(obsolete),
+            "legacy ABI helper survived outside abi.rs: {obsolete}"
+        );
+    }
+}
+
+#[test]
 fn real_world_driver_fixtures_are_present() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -144,5 +185,66 @@ fn real_world_driver_fixtures_are_present() {
             "missing real-world driver fixture: {}",
             path.display()
         );
+    }
+}
+
+#[test]
+fn variadic_macro_and_simd_boundaries_are_owned_before_printing() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    let translator = root.join("c2dascript-transpile/src/translator");
+    let variadic = std::fs::read_to_string(translator.join("variadic.rs")).expect("variadic owner");
+    let macros = std::fs::read_to_string(translator.join("macros.rs")).expect("macro owner");
+    let assembly = std::fs::read_to_string(translator.join("assembly.rs")).expect("asm owner");
+    let simd = std::fs::read_to_string(translator.join("simd.rs")).expect("simd owner");
+    let functions = std::fs::read_to_string(translator.join("functions.rs")).expect("call boundary");
+    let printer = std::fs::read_dir(root.join("das_ast/src"))
+        .expect("das_ast source directory")
+        .filter_map(Result::ok)
+        .filter_map(|entry| std::fs::read_to_string(entry.path()).ok())
+        .collect::<String>();
+
+    for api in ["fn convert_vaarg", "fn pack_variadic_call_tail", "fn pack_variadic_argument"] {
+        assert!(variadic.contains(api), "variadic ABI owner missing {api}");
+    }
+    assert!(!functions.contains("fn pack_variadic_argument"));
+    assert!(macros.contains("fn convert_gnu_statement_expression"));
+    assert!(macros.contains("fn convert_predefined_expression"));
+    assert!(assembly.contains("unsupported inline asm"));
+    assert!(simd.contains("unsupported SIMD shuffle vector"));
+    assert!(simd.contains("unsupported SIMD convert vector"));
+
+    // daScript printing must be a serializer, never an ABI repair layer.
+    for forbidden in ["va_arg", "va_start", "va_end", "C2daVaArg"] {
+        assert!(!printer.contains(forbidden), "printer must not normalize variadic ABI: {forbidden}");
+    }
+}
+
+#[test]
+fn real_world_asm_simd_inventory_is_taken_from_typed_c_ast() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    for fixture in [
+        // Individual real translation units are the canonical AST corpus.
+        // The `all.c` amalgamations intentionally include implementation
+        // owners more than once and are not a valid Clang AST input.
+        "tests/manual/real-world-plmpeg-stream/src/module.c",
+        "tests/manual/real-world-plmpeg-stream/src/pl_mpeg.c",
+        "tests/manual/real-world-plmpeg-stream/src/shim.c",
+        "tests/manual/real-world-h264bsd-mp4/src/h264bsd.c",
+        "tests/manual/real-world-h264bsd-mp4/src/minimp4.c",
+        "tests/manual/real-world-h264bsd-mp4/src/module.c",
+        "tests/manual/real-world-h264bsd-mp4/src/shim.c",
+    ] {
+        let source = root.join(fixture);
+        let (_temp, commands) = c2dascript_transpile::create_temp_compile_commands(&[source]);
+        let inventory = c2dascript_transpile::inventory_asm_simd(
+            &c2dascript_transpile::TranspilerConfig::default(),
+            &commands,
+            &["-w"],
+        )
+        .unwrap_or_else(|error| panic!("AST inventory for {fixture} failed: {error}"));
+        assert_eq!(inventory.inline_asm, 0, "unclassified inline asm in {fixture}");
+        assert_eq!(inventory.shuffle_vector, 0, "unclassified shuffle vector in {fixture}");
+        assert_eq!(inventory.convert_vector, 0, "unclassified convert vector in {fixture}");
+        assert_eq!(inventory.vector_type, 0, "unclassified vector type in {fixture}");
     }
 }

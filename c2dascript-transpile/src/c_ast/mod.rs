@@ -477,6 +477,21 @@ impl TypedAstContext {
         self.c_decls.iter()
     }
 
+    /// Read-only traversal hooks for inventories and diagnostics.  Keeping
+    /// the maps private preserves AST construction invariants while allowing
+    /// tools to count concrete Clang node kinds after conversion.
+    pub fn iter_types(&self) -> impl Iterator<Item = (&CTypeId, &CType)> {
+        self.c_types.iter()
+    }
+
+    pub fn iter_exprs(&self) -> impl Iterator<Item = (&CExprId, &CExpr)> {
+        self.c_exprs.iter()
+    }
+
+    pub fn iter_stmts(&self) -> impl Iterator<Item = (&CStmtId, &CStmt)> {
+        self.c_stmts.iter()
+    }
+
     pub fn iter_mut_decls(&mut self) -> indexmap::map::IterMut<'_, CDeclId, CDecl> {
         self.c_decls.iter_mut()
     }

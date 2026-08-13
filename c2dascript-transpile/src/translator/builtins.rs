@@ -1,5 +1,6 @@
 //! Builtin function translation — полный порт c2rust builtins.rs
 use super::*;
+use crate::format_translation_err;
 
 impl<'c> Translation<'c> {
     pub fn convert_builtin_call(
@@ -25,6 +26,16 @@ impl<'c> Translation<'c> {
             das_args.push(a.val);
         }
 
+        // __builtin_expect is a branch-prediction hint; its C value is exactly
+        // its first argument. This is a semantic lowering, not a safe-default.
+        if builtin_name == "__builtin_expect" {
+            return das_args
+                .into_iter()
+                .next()
+                .map(|value| Ok(WithStmts::new_val(value).merge_unsafe(is_unsafe)))
+                .unwrap_or_else(|| Err(TranslationError::generic("__builtin_expect requires an argument")));
+        }
+
         // Clang represents ordinary malloc calls through its builtin path on
         // some targets.  That classification must not bypass the canonical
         // raw-memory ABI used by normal direct calls.
@@ -41,7 +52,7 @@ impl<'c> Translation<'c> {
                     to: DaType::uint64(),
                 }],
             );
-            return Ok(WithStmts::new_val(self.abi_raw_address_to_pointer(
+            return Ok(WithStmts::new_val(self.raw_address_to_pointer(
                 raw_call,
                 DaType::pointer(DaType::void()),
             ))
@@ -94,7 +105,6 @@ impl<'c> Translation<'c> {
         }
 
         let result = match builtin_name.as_str() {
-            "__builtin_expect" if !das_args.is_empty() => das_args[0].clone(),
             "__builtin_isfinite"
             | "__builtin_isnan"
             | "__builtin_isinf_sign"
@@ -137,7 +147,12 @@ impl<'c> Translation<'c> {
             | "__builtin_assume_aligned"
             | "__builtin_unwind_init" => DaExpr::ConstNull,
             "__builtin_unreachable" => DaExpr::ConstInt(0),
-            _ => return Err(TranslationError::generic("unsupported builtin")),
+            _ => {
+                return Err(format_translation_err!(
+                    self.ast_context.display_loc(&self.ast_context[fexp].loc),
+                    "unsupported builtin {}", builtin_name
+                ));
+            }
         };
         warn!(
             "Unimplemented builtin {} in {}; replacing with safe default",

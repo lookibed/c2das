@@ -803,6 +803,21 @@ impl CfgBuilder {
                 Ok(None)
             }
 
+            // Inline asm has no CFG-neutral scalar substitute. Route it to
+            // translator/assembly.rs so the user receives its source-located
+            // ABI diagnostic instead of a generic CFG failure.
+            CStmtKind::Asm { asm, inputs, outputs, clobbers, is_volatile } => {
+                tr.convert_inline_assembly(
+                    sid,
+                    asm,
+                    inputs,
+                    outputs,
+                    clobbers,
+                    *is_volatile,
+                )?;
+                unreachable!("inline assembly lowering always diagnoses or returns a real statement")
+            }
+
             _ => Err(TranslationError::generic(
                 "unsupported statement in CfgBuilder",
             )),

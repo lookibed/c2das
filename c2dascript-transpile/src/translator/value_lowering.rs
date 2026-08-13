@@ -34,7 +34,7 @@ impl<'c> Translation<'c> {
             let is_unsafe = value.is_unsafe;
             let mut stmts = value.stmts;
             let (lowered_stmts, lowered_value) = self
-                .lower_bool_numeric_cast_arg(cast)
+                .bool_to_integer_cast(cast)
                 .expect("bool-to-numeric cast must lower to statements");
             stmts.extend(lowered_stmts);
             return Ok(WithStmts::new(stmts, lowered_value).merge_unsafe(is_unsafe));
@@ -47,24 +47,9 @@ impl<'c> Translation<'c> {
             )
         });
         if source_is_storage_byte && target.is_numeric() {
-            return Ok(value.map(|expr| DaExpr::Cast {
-                kind: das_ast::CastKind::Cast,
-                expr: Box::new(strip_numeric_casts(expr)),
-                to: target,
-            }));
+            return Ok(value.map(|expr| self.storage_byte_to_numeric(expr, target)));
         }
 
         Ok(value)
-    }
-}
-
-fn strip_numeric_casts(expr: DaExpr) -> DaExpr {
-    match expr {
-        DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr,
-            to,
-        } if to.is_numeric() && !matches!(to.kind, DaTypeKind::Bool) => strip_numeric_casts(*expr),
-        expr => expr,
     }
 }

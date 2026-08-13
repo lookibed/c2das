@@ -159,6 +159,115 @@ fn p21_byte_reads_are_widened_before_numeric_operations() {
 }
 
 #[test]
+fn p26_variadic_sum_uses_the_canonical_packed_abi() {
+    let d = transpile("p26_variadic_sum");
+    assert!(d.contains("struct C2daVaArg"));
+    assert!(d.contains("def sum(var count : int; var c2da_va_args : array<C2daVaArg>)"));
+    assert!(d.contains("def variadic_sum_runtime() : int"));
+    assert!(d.contains("C2daVaArg(tag = 1, i64 = int64(int(10))"));
+    assert!(d.contains("c2da_va_item"));
+    assert!(!d.contains("__builtin_va_start"));
+    assert!(!d.contains("va_arg not supported"));
+}
+
+#[test]
+fn p27_variadic_promotions_pack_int_and_double_lanes() {
+    let d = transpile("p27_variadic_promotions");
+    assert!(d.contains("def promoted_sum(var count : int; var c2da_va_args : array<C2daVaArg>) : double"));
+    assert!(d.contains("C2daVaArg(tag = 1"), "integer promotions must use the integer ABI lane");
+    assert!(d.contains("C2daVaArg(tag = 2"), "float must be promoted to the double ABI lane");
+    assert!(d.contains("double("), "the promoted floating argument must materialize as double");
+}
+
+#[test]
+fn p28_variadic_multiple_types_pack_integer_double_and_raw_lanes() {
+    let d = transpile("p28_variadic_multiple_types");
+    assert!(d.contains("C2daVaArg(tag = 1"));
+    assert!(d.contains("C2daVaArg(tag = 2"));
+    assert!(d.contains("C2daVaArg(tag = 3"));
+    assert!(d.contains("reinterpret<int?>(c2da_va_item"));
+}
+
+#[test]
+fn p29_variadic_function_pointer_is_diagnosed_before_printing() {
+    let d = transpile("p29_variadic_function_pointer_unsupported");
+    assert!(
+        !d.contains("callback("),
+        "unsupported indirect variadic calls must not be printed as invalid daScript"
+    );
+}
+
+#[test]
+fn n02_unsupported_va_arg_type_is_not_printed_as_a_fake_value() {
+    let d = transpile("n02_unsupported_va_arg_type");
+    assert!(
+        !d.contains("def unsupported_va_arg_type"),
+        "unsupported va_arg must reject the declaration, never synthesize 0/null"
+    );
+    assert!(!d.contains("va_arg("));
+}
+
+#[test]
+fn n03_inline_asm_is_rejected_without_a_placeholder_statement() {
+    let d = transpile("n03_inline_asm");
+    assert!(!d.contains("def unsupported_inline_asm"));
+    assert!(!d.contains("asm("));
+}
+
+#[test]
+fn n04_simd_shuffle_is_rejected_without_scalar_emulation() {
+    let d = transpile("n04_simd_shuffle");
+    assert!(!d.contains("def unsupported_simd_shuffle"));
+    assert!(!d.contains("shufflevector"));
+}
+
+#[test]
+fn n05_simd_convert_is_rejected_without_scalar_emulation() {
+    let d = transpile("n05_simd_convert");
+    assert!(!d.contains("def unsupported_simd_convert"));
+    assert!(!d.contains("convertvector"));
+}
+
+#[test]
+fn n01_unsupported_builtin_is_not_silently_lowered() {
+    let d = transpile("n01_unsupported_builtin");
+    assert!(!d.contains("def unsupported_builtin_diagnostic"));
+    assert!(!d.contains("__builtin_abs"));
+}
+
+#[test]
+fn p30_macro_constant_expression_is_lowered_as_expanded_ast() {
+    let d = transpile("p30_macro_constant_expression");
+    assert!(d.contains("def macro_constant_expression_runtime() : int"));
+    assert!(!d.contains("ADD_SCALE"));
+    assert!(!d.contains("#define"));
+}
+
+#[test]
+fn p31_macro_side_effect_is_not_reconstructed_from_text() {
+    let d = transpile("p31_macro_side_effect");
+    assert!(d.contains("def macro_side_effect_runtime() : int"));
+    assert!(!d.contains("NEXT_AND_DOUBLE"));
+    assert!(!d.contains("#define"));
+}
+
+#[test]
+fn p32_statement_expression_uses_statement_ast_not_macro_text() {
+    let d = transpile("p32_macro_statement_expression");
+    assert!(d.contains("def macro_statement_expression_runtime() : int"));
+    assert!(!d.contains("ACCUMULATE_ONCE"));
+    assert!(!d.contains("#define"));
+}
+
+#[test]
+fn p33_sizeof_and_builtin_expect_use_explicit_lowering() {
+    let d = transpile("p33_predefined_sizeof_builtin");
+    assert!(d.contains("def predefined_sizeof_builtin_runtime() : int"));
+    assert!(!d.contains("__builtin_expect"));
+    assert!(d.contains("int(12)"), "sizeof must remain a numeric AST value");
+}
+
+#[test]
 fn p22_literals_follow_their_c_target_types() {
     let d = transpile("p22_typed_literals");
     assert!(d.contains("byte = uint8("));

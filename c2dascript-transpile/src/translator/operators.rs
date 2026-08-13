@@ -156,8 +156,8 @@ impl<'c> Translation<'c> {
         // expressions are bool.  A numeric coercion above may therefore have
         // produced `int(bool)`, which daScript rejects.  Lower it here, at the
         // binary-expression owner, before the enclosing operator consumes it.
-        let lhs_val = self.lower_bool_numeric_cast(lhs_val);
-        let rhs_val = self.lower_bool_numeric_cast(rhs_val);
+        let lhs_val = self.bool_to_integer(lhs_val);
+        let rhs_val = self.bool_to_integer(rhs_val);
 
         // Fallback: if LHS and RHS map to different daScript types, cast RHS to LHS type
         let type_diff =
@@ -842,7 +842,31 @@ impl<'c> Translation<'c> {
         arg: CExprId,
     ) -> TranslationResult<WithStmts<DaExpr>> {
         // Для x++ достаточно x += 1 (значение редко используется)
-        self.convert_pre_increment(ctx, ty, op, arg)
+        // C post-increment returns the old value. Materialize it before the
+        // assignment, rather than treating x++ as pre-increment.
+        let inner = self.convert_expr(ctx.used(), arg, Some(ty))?;
+        let target_da = type_kind_to_datype(&self.ast_context.resolve_type(ty.ctype).kind);
+        let old_name = self.renamer.borrow_mut().pick_name("c2da_postinc");
+        let old = DaExpr::Var(old_name.clone());
+        let one = if matches!(target_da.kind, DaTypeKind::Int | DaTypeKind::Int8 | DaTypeKind::Int16) {
+            DaExpr::ConstInt(1)
+        } else {
+            DaExpr::Cast { kind: das_ast::CastKind::Cast, expr: Box::new(DaExpr::ConstInt(1)), to: target_da.clone() }
+        };
+        let das_op = match op {
+            CBinOp::AssignAdd => "+",
+            CBinOp::AssignSubtract => "-",
+            _ => return Err(TranslationError::generic("invalid post-increment op")),
+        };
+        let rhs = if self.is_pointer_type(ty.ctype) {
+            DaExpr::Unsafe(Box::new(DaExpr::Op2 { op: das_op, left: Box::new(inner.val.clone()), right: Box::new(one) }))
+        } else {
+            DaExpr::Op2 { op: das_op, left: Box::new(inner.val.clone()), right: Box::new(one) }
+        };
+        let mut stmts = inner.stmts;
+        stmts.push(DaStmt::Var { name: old_name, var_type: target_da, init: Some(inner.val.clone()) });
+        stmts.push(DaStmt::Expr(DaExpr::Assign(Box::new(inner.val), Box::new(rhs))));
+        Ok(WithStmts { stmts, val: old, is_unsafe: inner.is_unsafe })
     }
 }
 

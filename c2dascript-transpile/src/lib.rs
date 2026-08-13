@@ -57,6 +57,56 @@ pub struct TranspilerConfig {
     pub edition: c2rust_rust_tools::RustEdition,
 }
 
+/// AST-level inventory for target-specific C surfaces.  These counts are
+/// taken after Clang CBOR has become the typed C AST, so they cannot be
+/// confused with comments, disabled preprocessor branches, or source text.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AsmSimdInventory {
+    pub inline_asm: usize,
+    pub shuffle_vector: usize,
+    pub convert_vector: usize,
+    pub vector_type: usize,
+}
+
+pub fn inventory_asm_simd(
+    tcfg: &TranspilerConfig,
+    cc_db: &Path,
+    extra_clang_args: &[&str],
+) -> Result<AsmSimdInventory, String> {
+    let lcmds = get_compile_commands(cc_db, &tcfg.filter).map_err(|err| err.to_string())?;
+    let mut inventory = AsmSimdInventory::default();
+    for lcmd in &lcmds {
+        for cmd in &lcmd.cmd_inputs {
+            let input_path = cmd.abs_file();
+            let untyped = ast_exporter::get_untyped_ast(
+                &input_path,
+                cc_db,
+                extra_clang_args,
+                tcfg.debug_ast_exporter,
+            )
+            .map_err(|err| format!("{}: {err}", input_path.display()))?;
+            let typed = ConversionContext::new(&input_path, &untyped).into_typed_context();
+            inventory.inline_asm += typed
+                .iter_stmts()
+                .filter(|(_, stmt)| matches!(stmt.kind, CStmtKind::Asm { .. }))
+                .count();
+            inventory.shuffle_vector += typed
+                .iter_exprs()
+                .filter(|(_, expr)| matches!(expr.kind, CExprKind::ShuffleVector(..)))
+                .count();
+            inventory.convert_vector += typed
+                .iter_exprs()
+                .filter(|(_, expr)| matches!(expr.kind, CExprKind::ConvertVector(..)))
+                .count();
+            inventory.vector_type += typed
+                .iter_types()
+                .filter(|(_, ty)| matches!(ty.kind, CTypeKind::Vector(..)))
+                .count();
+        }
+    }
+    Ok(inventory)
+}
+
 impl Default for TranspilerConfig {
     fn default() -> Self {
         TranspilerConfig {

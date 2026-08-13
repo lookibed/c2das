@@ -1,6 +1,7 @@
 //! Function translation — порт c2rust functions.rs + CFG pipeline
 use super::*;
 use crate::c_ast::iterators::{DFExpr, SomeId};
+use crate::format_translation_err;
 
 /// Names provided by the canonical daScript raw-memory runtime.  A source C
 /// symbol is mapped here only after its runtime AST implementation exists.
@@ -29,6 +30,12 @@ impl<'c> Translation<'c> {
         init: Option<CExprId>,
         is_static: bool,
     ) -> TranslationResult<DaDecl> {
+        if self.is_va_decl(decl_id)
+            || (self.function_context.borrow().va_list_arg_name.is_some()
+                && self.ast_context.is_va_list(typ.ctype))
+        {
+            return self.convert_va_list_variable(decl_id, name, init);
+        }
         let das_type = self.convert_type(typ)?;
         let init = init
             .map(|e| self.convert_expr(ctx, e, Some(typ)))
@@ -111,6 +118,7 @@ impl<'c> Translation<'c> {
         self.function_context
             .borrow_mut()
             .set_return_type(ret_ctype);
+        let variadic_arg_name = is_variadic.then(|| body.map(|body_id| self.register_va_decls(body_id))).flatten();
 
         // Convert return type for function signature
         let ret_type = ret_ctype
@@ -142,6 +150,9 @@ impl<'c> Translation<'c> {
                     params.push(mk().param(pname, das_ty, None));
                 }
             }
+        }
+        if let Some(arg_name) = variadic_arg_name {
+            params.push(mk().param_mut(arg_name, DaType::array(self.va_arg_type()), None));
         }
         if let Some(body_id) = body {
             self.add_definition_param_aliases(body_id, &param_bindings);
@@ -194,6 +205,15 @@ impl<'c> Translation<'c> {
         call_expr_ty: CQualTypeId,
         override_ty: Option<CQualTypeId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
+        if let Some(part) = self.match_vapart(func, args) {
+            return self.convert_vapart(part);
+        }
+        if self.is_variadic_function_pointer_callee(func) {
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&self.ast_context[func].loc),
+                "unsupported variadic ABI boundary: variadic function pointer call",
+            ));
+        }
         if let CExprKind::ImplicitCast(_, fexp, CastKind::BuiltinFnToFnPtr, _, _) =
             &self.ast_context[func].kind
         {
@@ -222,7 +242,9 @@ impl<'c> Translation<'c> {
             .and_then(canonical_runtime_function);
         let mut all_stmts = func_expr.stmts;
         let mut das_args = vec![];
+        let mut variadic_tail = vec![];
         let arg_tys = self.call_arg_types(func);
+        let is_variadic = self.is_variadic_callee(func);
         for (idx, &arg) in args.iter().enumerate() {
             let expected = arg_tys
                 .get(idx)
@@ -265,12 +287,17 @@ impl<'c> Translation<'c> {
             if let Some(runtime_arg) = canonical_runtime_arg_type(runtime_name, idx) {
                 arg_val = self.lower_runtime_arg(arg_val, runtime_arg);
             }
-            if let Some((stmts, lowered_arg)) = self.lower_bool_numeric_cast_arg(arg_val.clone()) {
+            if is_variadic && idx >= arg_tys.len() {
+                variadic_tail.push((arg, arg_val));
+            } else if let Some((stmts, lowered_arg)) = self.bool_to_integer_cast(arg_val.clone()) {
                 all_stmts.extend(stmts);
                 das_args.push(lowered_arg);
             } else {
                 das_args.push(arg_val);
             }
+        }
+        if is_variadic {
+            das_args.push(DaExpr::MakeArray(self.pack_variadic_call_tail(0, variadic_tail)?));
         }
         let call_target = runtime_name
             .map(|name| DaExpr::Var(name.to_owned()))
@@ -285,7 +312,7 @@ impl<'c> Translation<'c> {
                 .or_else(|| self.is_pointer_type(call_expr_ty.ctype).then_some(call_expr_ty))
         });
         let call = if let Some(pointer_ty) = runtime_pointer_result_ty {
-            self.abi_raw_address_to_pointer(call, self.convert_type(pointer_ty)?)
+            self.raw_address_to_pointer(call, self.convert_type(pointer_ty)?)
         } else {
             call
         };
@@ -310,75 +337,6 @@ impl<'c> Translation<'c> {
             .merge_unsafe(is_unsafe))
     }
 
-    pub(crate) fn lower_bool_numeric_cast_arg(
-        &self,
-        expr: DaExpr,
-    ) -> Option<(Vec<DaStmt>, DaExpr)> {
-        let DaExpr::Cast { kind, expr, to } = expr else {
-            return None;
-        };
-        let bool_expr = unwrap_numeric_casts(expr);
-        if kind != das_ast::CastKind::Cast
-            || !to.is_numeric()
-            || matches!(to.kind, DaTypeKind::Bool)
-            || !Self::infer_type(&bool_expr).map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
-        {
-            return None;
-        }
-
-        let tmp = self.renamer.borrow_mut().fresh();
-        let one = DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr: Box::new(DaExpr::ConstInt(1)),
-            to: to.clone(),
-        };
-        let zero = DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr: Box::new(DaExpr::ConstInt(0)),
-            to: to.clone(),
-        };
-        let stmts = vec![
-            DaStmt::Var {
-                name: tmp.clone(),
-                var_type: to,
-                init: Some(zero.clone()),
-            },
-            mk().expr_stmt(DaExpr::IfThenElse {
-                cond: Box::new(bool_expr),
-                then: Box::new(DaExpr::Block(DaBlock {
-                    stmts: vec![DaStmt::Expr(DaExpr::Assign(
-                        Box::new(DaExpr::Var(tmp.clone())),
-                        Box::new(one),
-                    ))],
-                })),
-                elifs: vec![],
-                else_: None,
-            }),
-        ];
-        Some((stmts, DaExpr::Var(tmp)))
-    }
-
-    /// daScript has no scalar `bool -> int` conversion.  Materialize the C
-    /// value as `0` or `1` before an enclosing expression consumes it.
-    ///
-    /// This operates on an already-built AST cast so every owner of a numeric
-    /// coercion (calls, explicit casts, and binary operators) shares the same
-    /// lowering and preserves the operand's evaluation order.
-    pub(crate) fn lower_bool_numeric_cast(
-        &self,
-        value: WithStmts<DaExpr>,
-    ) -> WithStmts<DaExpr> {
-        let is_unsafe = value.is_unsafe;
-        let mut stmts = value.stmts;
-        let expr = value.val;
-        if let Some((lowered_stmts, lowered_val)) = self.lower_bool_numeric_cast_arg(expr.clone()) {
-            stmts.extend(lowered_stmts);
-            WithStmts::new(stmts, lowered_val).merge_unsafe(is_unsafe)
-        } else {
-            WithStmts::new(stmts, expr).merge_unsafe(is_unsafe)
-        }
-    }
-
     pub(crate) fn call_arg_types(&self, func: CExprId) -> Vec<CQualTypeId> {
         let func = match &self.ast_context[func].kind {
             CExprKind::ImplicitCast(_, inner, _, _, _) => *inner,
@@ -399,18 +357,45 @@ impl<'c> Translation<'c> {
             .collect()
     }
 
+    fn is_variadic_callee(&self, func: CExprId) -> bool {
+        let mut func = func;
+        while let CExprKind::ImplicitCast(_, inner, _, _, _) = &self.ast_context[func].kind {
+            func = *inner;
+        }
+        let CExprKind::DeclRef(_, decl_id, _) = self.ast_context[func].kind else { return false; };
+        let CDeclKind::Function { typ, .. } = self.ast_context[decl_id].kind else { return false; };
+        matches!(self.ast_context.resolve_type(typ).kind, CTypeKind::Function(_, _, true, _, _))
+    }
+
+    fn is_variadic_function_pointer_callee(&self, func: CExprId) -> bool {
+        // A direct reference to a variadic C declaration is represented by
+        // Clang as an implicit function-to-pointer conversion at the call
+        // site.  That is still our supported direct ABI boundary.  Only an
+        // actual indirect expression (variable, field, dereference, etc.)
+        // is the unsupported function-pointer boundary.
+        if self.is_direct_function_declaration(func) {
+            return false;
+        }
+        let Some(ty) = self.ast_context[func].kind.get_qual_type() else { return false; };
+        let CTypeKind::Pointer(pointee) = self.ast_context.resolve_type(ty.ctype).kind else { return false; };
+        matches!(
+            self.ast_context.resolve_type(pointee.ctype).kind,
+            CTypeKind::Function(_, _, true, _, _)
+        )
+    }
+
     /// The only source-call boundary conversions for the canonical raw-memory
     /// runtime.  Keeping them here prevents type repair from leaking to the
     /// printer or into each individual libc special case.
     fn lower_runtime_arg(&self, arg: DaExpr, kind: RuntimeArgType) -> DaExpr {
         match kind {
-            RuntimeArgType::UInt64 => integer_literal_for_type(arg, DaType::uint64()),
-            RuntimeArgType::RawAddress => self.abi_pointer_to_raw_address(arg),
-            RuntimeArgType::UInt8 => integer_literal_for_type(arg, DaType::uint8()),
+            RuntimeArgType::UInt64 => self.integer_literal_for_type(arg, DaType::uint64()),
+            RuntimeArgType::RawAddress => self.pointer_to_raw_address(arg),
+            RuntimeArgType::UInt8 => self.integer_literal_for_type(arg, DaType::uint8()),
         }
     }
 
-    fn direct_call_name(&self, func: CExprId) -> Option<String> {
+    pub(crate) fn direct_call_name(&self, func: CExprId) -> Option<String> {
         let mut func = func;
         while let CExprKind::ImplicitCast(_, inner, _, _, _) = &self.ast_context[func].kind {
             func = *inner;
@@ -419,6 +404,17 @@ impl<'c> Translation<'c> {
             return None;
         };
         self.ast_context[*decl_id].kind.get_name().cloned()
+    }
+
+    fn is_direct_function_declaration(&self, func: CExprId) -> bool {
+        let mut func = func;
+        while let CExprKind::ImplicitCast(_, inner, _, _, _) = &self.ast_context[func].kind {
+            func = *inner;
+        }
+        let CExprKind::DeclRef(_, decl_id, _) = self.ast_context[func].kind else {
+            return false;
+        };
+        matches!(self.ast_context[decl_id].kind, CDeclKind::Function { .. })
     }
 
     pub(crate) fn libc_memory_arg_cast(
@@ -513,53 +509,6 @@ impl<'c> Translation<'c> {
                     .borrow_mut()
                     .add_param_alias(ident, pname);
             }
-        }
-    }
-}
-
-fn integer_literal_for_type(expr: DaExpr, target: DaType) -> DaExpr {
-    let base = strip_numeric_literal_casts(expr);
-    DaExpr::Cast {
-        kind: das_ast::CastKind::Cast,
-        expr: Box::new(base),
-        to: target,
-    }
-}
-
-fn strip_numeric_literal_casts(expr: DaExpr) -> DaExpr {
-    match expr {
-        DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr,
-            to,
-        } if to.is_numeric() => {
-            let inner = strip_numeric_literal_casts(*expr);
-            if matches!(inner, DaExpr::ConstInt(_) | DaExpr::ConstUInt(_)) {
-                inner
-            } else {
-                DaExpr::Cast {
-                    kind: das_ast::CastKind::Cast,
-                    expr: Box::new(inner),
-                    to,
-                }
-            }
-        }
-        expr => expr,
-    }
-}
-
-/// C may carry a comparison through one or more integral identity casts even
-/// though daScript represents the comparison itself as bool.  Peel only those
-/// numeric casts so bool-to-number lowering owns the final conversion.
-fn unwrap_numeric_casts(mut expr: Box<DaExpr>) -> DaExpr {
-    loop {
-        match *expr {
-            DaExpr::Cast {
-                kind: das_ast::CastKind::Cast,
-                expr: inner,
-                to,
-            } if to.is_numeric() && !matches!(to.kind, DaTypeKind::Bool) => expr = inner,
-            other => return other,
         }
     }
 }
