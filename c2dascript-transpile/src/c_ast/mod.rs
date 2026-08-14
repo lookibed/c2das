@@ -69,12 +69,21 @@ pub type CTypedefId = CDeclId; // Typedef types need to point to 'DeclKind::Type
 pub type CEnumId = CDeclId; // Enum types need to point to 'DeclKind::Enum'
 pub type CEnumConstantId = CDeclId; // Enum's need to point to child 'DeclKind::EnumConstant's
 
+/// Target-ABI facts emitted by the Clang instance that produced this AST.
+/// Values are bits because field offsets can be sub-byte bitfield positions.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct CTypeLayout {
+    pub size_bits: u64,
+    pub align_bits: u64,
+}
+
 /// AST context containing all of the nodes in the Clang AST
 #[derive(Debug, Clone, Default)]
 pub struct TypedAstContext {
     main_file: PathBuf,
 
     c_types: HashMap<CTypeId, CType>,
+    c_type_layouts: HashMap<CTypeId, Option<CTypeLayout>>,
     c_exprs: HashMap<CExprId, CExpr>,
     c_stmts: HashMap<CStmtId, CStmt>,
 
@@ -215,6 +224,13 @@ pub struct CDeclSrcRange {
 }
 
 impl TypedAstContext {
+    pub fn type_layout(&self, typ: CTypeId) -> Option<CTypeLayout> {
+        self.c_type_layouts.get(&typ).copied().flatten()
+    }
+
+    pub(crate) fn set_type_layout(&mut self, typ: CTypeId, layout: Option<CTypeLayout>) {
+        self.c_type_layouts.insert(typ, layout);
+    }
     // TODO: build the TypedAstContext during initialization, rather than
     // building an empty one and filling it later.
     pub fn new(input_path: &Path, clang_files: &[SrcFile]) -> TypedAstContext {
@@ -1622,6 +1638,8 @@ pub enum CDeclKind {
         name: Option<String>,
         fields: Option<Vec<CFieldId>>,
         is_packed: bool,
+        platform_byte_size: u64,
+        platform_alignment: u64,
     },
 
     // Field

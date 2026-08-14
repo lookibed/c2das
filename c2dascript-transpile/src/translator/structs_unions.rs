@@ -1,5 +1,6 @@
 //! Struct/union translation — полный порт c2rust structs_unions.rs
 use super::*;
+use super::object_memory::CObjectAddress;
 use std::ops::Index;
 
 impl<'c> Translation<'c> {
@@ -90,9 +91,19 @@ impl<'c> Translation<'c> {
         &self,
         decl_id: CDeclId,
         name: &Option<String>,
-        fields: &Option<Vec<CFieldId>>,
+        _fields: &Option<Vec<CFieldId>>,
     ) -> TranslationResult<DaDecl> {
-        self.convert_struct(decl_id, name, fields)
+        let raw_name = name.clone().unwrap_or_else(|| "Unnamed".into());
+        let name = self.type_converter.borrow_mut().ensure_decl_name(decl_id, &raw_name);
+        Ok(DaDecl::Structure(DaStructure {
+            name,
+            fields: vec![DaField {
+                name: "c2da_storage".into(),
+                field_type: DaType::uint64(),
+                default: Some(DaExpr::ConstUInt(0)),
+            }],
+            annotations: vec![],
+        }))
     }
 
     pub fn convert_struct_literal(
@@ -157,15 +168,37 @@ impl<'c> Translation<'c> {
     pub fn convert_union_literal(
         &self,
         ctx: ExprContext,
-        _union_id: CRecordId,
+        union_id: CRecordId,
         ids: &[CExprId],
         _override_ty: Option<CQualTypeId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
-        if !ids.is_empty() {
-            self.convert_expr(ctx.used(), ids[0], None)
-        } else {
-            Ok(WithStmts::new_val(DaExpr::ConstInt(0)))
+        let name = self.union_wrapper_name(union_id)?;
+        let storage = self.union_zero_storage(union_id)?;
+        let mut out = WithStmts::new_val(DaExpr::MakeStruct {
+            type_name: name.clone(),
+            fields: vec![("c2da_storage".into(), storage)],
+        });
+        if let Some(&init) = ids.first() {
+            let fields = match &self.ast_context[union_id].kind {
+                CDeclKind::Union { fields: Some(fields), .. } => fields,
+                _ => return Err(TranslationError::generic("union initializer for incomplete union")),
+            };
+            let field = fields[0];
+            let field_ty = match self.ast_context[field].kind {
+                CDeclKind::Field { typ, .. } => typ,
+                _ => return Err(TranslationError::generic("union initializer field is invalid")),
+            };
+            let value = self.convert_expr(ctx.used(), init, Some(field_ty))?;
+            let tmp = self.renamer.borrow_mut().fresh();
+            out.stmts.push(DaStmt::Var {
+                name: tmp.clone(), var_type: DaType::named(&name), init: Some(out.val),
+            });
+            let address = self.local_union_field_address(DaExpr::Var(tmp.clone()), union_id, field)?;
+            let stored = self.raw_store(address, value)?;
+            out.stmts.extend(stored.stmts);
+            out.val = DaExpr::Var(tmp);
         }
+        Ok(out)
     }
 
     pub fn convert_struct_zero_initializer(
@@ -176,15 +209,72 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new_val(DaExpr::ConstNull))
     }
 
+    fn union_wrapper_name(&self, union_id: CRecordId) -> TranslationResult<String> {
+        let raw = match &self.ast_context[union_id].kind {
+            CDeclKind::Union { name: Some(name), .. } => name.clone(),
+            CDeclKind::Union { .. } => self.type_converter.borrow()
+                .resolve_decl_name(union_id).ok_or_else(|| TranslationError::generic("anonymous union has no wrapper name"))?,
+            _ => return Err(TranslationError::generic("union wrapper requested for non-union")),
+        };
+        Ok(self.type_converter.borrow_mut().ensure_decl_name(union_id, &raw))
+    }
+
+    fn union_zero_storage(&self, union_id: CRecordId) -> TranslationResult<DaExpr> {
+        let size = self.record_layout(union_id)?.object.size_bytes;
+        Ok(DaExpr::Call(Box::new(DaExpr::Var("c2da_rt_calloc".into())), vec![
+            self.integer_literal_for_type(DaExpr::ConstInt(1), DaType::uint64()),
+            self.integer_literal_for_type(DaExpr::ConstInt(i64::try_from(size)
+                .map_err(|_| TranslationError::generic("union size exceeds daScript integer range"))?), DaType::uint64()),
+        ]))
+    }
+
+    fn local_union_field_address(
+        &self,
+        union: DaExpr,
+        union_id: CRecordId,
+        field: CFieldId,
+    ) -> TranslationResult<CObjectAddress> {
+        let _ = self.union_wrapper_name(union_id)?;
+        self.field_address(CObjectAddress {
+            raw: WithStmts::new_val(DaExpr::Field(Box::new(union), "c2da_storage".into())),
+            raw_is_address: true,
+            ctype: match self.ast_context[field].kind {
+                CDeclKind::Field { typ, .. } => typ,
+                _ => return Err(TranslationError::generic("union field is invalid")),
+            },
+            byte_offset: 0,
+            storage_size_bytes: None,
+        }, field)
+    }
+
     pub fn convert_member_expr(
         &self,
         ctx: ExprContext,
         qual_ty: CQualTypeId,
         expr: CExprId,
         decl: CDeclId,
-        _kind: MemberKind,
+        kind: MemberKind,
         override_ty: Option<CQualTypeId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
+        if matches!(kind, MemberKind::Arrow) {
+            let base_ctype = self.ast_context[expr]
+                .kind
+                .get_qual_type()
+                .ok_or_else(|| TranslationError::generic("member pointer has no C type"))?;
+            let base = self.convert_expr(ctx, expr, Some(base_ctype))?;
+            let value = self.pointer_member_lvalue(base, base_ctype, decl)?;
+            // This expression can be an assignment target.  Any numeric
+            // conversion is applied by its consuming value-site lowering;
+            // wrapping the dereference here would destroy lvalue-ness.
+            return Ok(value);
+        }
+        let parent = *self.ast_context.parents.get(&decl)
+            .ok_or_else(|| TranslationError::generic("field has no parent record"))?;
+        if matches!(self.ast_context[parent].kind, CDeclKind::Union { .. }) {
+            let union = self.convert_expr(ctx, expr, Some(qual_ty))?;
+            let address = self.local_union_field_address(union.val, parent, decl)?;
+            return self.raw_load(address);
+        }
         let obj = self.convert_expr(ctx, expr, Some(qual_ty))?;
         let fn_ = match &self.ast_context[decl].kind {
             CDeclKind::Field { name, .. } => self
@@ -211,9 +301,27 @@ impl<'c> Translation<'c> {
     pub fn convert_cast_to_union(
         &self,
         val: WithStmts<DaExpr>,
-        _opt_field_id: Option<CFieldId>,
+        opt_field_id: Option<CFieldId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
-        Ok(val)
+        let field = opt_field_id.ok_or_else(|| TranslationError::generic(
+            "cast to union is missing its active C field",
+        ))?;
+        let union_id = *self.ast_context.parents.get(&field)
+            .ok_or_else(|| TranslationError::generic("union cast field has no parent"))?;
+        let name = self.union_wrapper_name(union_id)?;
+        let storage = self.union_zero_storage(union_id)?;
+        let tmp = self.renamer.borrow_mut().fresh();
+        let mut stmts = val.stmts;
+        stmts.push(DaStmt::Var {
+            name: tmp.clone(), var_type: DaType::named(&name), init: Some(DaExpr::MakeStruct {
+                type_name: name,
+                fields: vec![("c2da_storage".into(), storage)],
+            }),
+        });
+        let address = self.local_union_field_address(DaExpr::Var(tmp.clone()), union_id, field)?;
+        let stored = self.raw_store(address, WithStmts::new_val(val.val))?;
+        stmts.extend(stored.stmts);
+        Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(val.is_unsafe || stored.is_unsafe))
     }
 
     /// Field layout with padding/bitfield grouping (c2rust get_field_types).

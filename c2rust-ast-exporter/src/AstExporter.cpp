@@ -215,6 +215,18 @@ private:
         // 3 - extras
         extra(&local);
 
+        // 4/5 - target ABI layout.  Keep this on every type node rather than
+        // reconstructing the target ABI in a downstream translator.  Clang
+        // deliberately has no object layout for incomplete and function types.
+        if (T->isIncompleteType() || T->isFunctionType()) {
+            cbor_encode_null(&local);
+            cbor_encode_null(&local);
+        } else {
+            TypeInfo info = Context->getTypeInfo(T);
+            cbor_encode_uint(&local, info.Width);
+            cbor_encode_uint(&local, info.Align);
+        }
+
         cbor_encoder_close_container(encoder, &local);
     }
 

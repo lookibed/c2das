@@ -601,6 +601,24 @@ impl ConversionContext {
                 None => return,
             };
 
+            // TypeEncoder appends target ABI size/align to every type node.
+            // Older serialized ASTs have no such trailing pair and therefore
+            // explicitly carry no layout facts instead of receiving a guess.
+            let type_layout = if ty_node.extras.len() >= 2 {
+                let size = expect_opt_u64(&ty_node.extras[ty_node.extras.len() - 2]);
+                let align = expect_opt_u64(&ty_node.extras[ty_node.extras.len() - 1]);
+                match (size, align) {
+                    (Some(Some(size_bits)), Some(Some(align_bits))) => {
+                        Some(CTypeLayout { size_bits, align_bits })
+                    }
+                    (Some(None), Some(None)) => None,
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            self.typed_context.set_type_layout(CTypeId(new_id), type_layout);
+
             match ty_node.tag {
                 TypeTag::TagBool if expected_ty & OTHER_TYPE != 0 => {
                     self.add_type(new_id, not_located(CTypeKind::Bool));
@@ -2414,11 +2432,17 @@ impl ConversionContext {
                     };
 
                     let is_packed = has_packed_attribute(attrs);
+                    let platform_byte_size =
+                        from_value(node.extras[5].clone()).expect("Expected union size");
+                    let platform_alignment =
+                        from_value(node.extras[6].clone()).expect("Expected union alignment");
 
                     let record = CDeclKind::Union {
                         name,
                         fields,
                         is_packed,
+                        platform_byte_size,
+                        platform_alignment,
                     };
 
                     self.add_decl(new_id, located(node, record));

@@ -20,7 +20,14 @@ for entry in \
     p30_macro_constant_expression:macro_constant_expression_runtime \
     p31_macro_side_effect:macro_side_effect_runtime \
     p32_macro_statement_expression:macro_statement_expression_runtime \
-    p33_predefined_sizeof_builtin:predefined_sizeof_builtin_runtime
+    p33_predefined_sizeof_builtin:predefined_sizeof_builtin_runtime \
+    p34_c_layout_records:c_layout_records_runtime \
+    p35_pointer_backed_struct:pointer_backed_struct_runtime \
+    p37_union_overlay:union_overlay_runtime \
+    p38_local_union_init:local_union_init_runtime \
+    p39_packed_scalar:packed_scalar_runtime \
+    p40_bitfield_rmw:bitfield_rmw_runtime \
+    p41_union_cast:union_cast_runtime
 do
     test_name="${entry%%:*}"
     main_name="${entry#*:}"

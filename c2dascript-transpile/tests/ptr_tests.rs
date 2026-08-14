@@ -268,6 +268,66 @@ fn p33_sizeof_and_builtin_expect_use_explicit_lowering() {
 }
 
 #[test]
+fn p34_records_and_unions_use_clang_layout_facts() {
+    let d = transpile("p34_c_layout_records");
+    assert!(d.contains("def c_layout_records_runtime() : int"));
+    assert!(d.contains("uint64(12)"), "struct size must be emitted from Clang layout");
+    assert!(d.contains("uint64(4)"), "align/offsetof/union layout must be emitted from Clang layout");
+    assert!(!d.contains("unsupported sizeof type layout"));
+}
+
+#[test]
+fn p35_pointer_backed_struct_uses_c_field_offsets() {
+    let d = transpile("p35_pointer_backed_struct");
+    assert!(d.contains("def pointer_backed_struct_runtime() : int"));
+    assert!(d.contains("reinterpret<uint?>(object)))[2]"),
+        "padded C field must use Clang offset 8 as a uint index");
+    assert!(d.contains("reinterpret<uint?>("), "field must be an address-backed typed lvalue");
+}
+
+#[test]
+fn p37_union_overlay_uses_raw_zero_offset_access() {
+    let d = transpile("p37_union_overlay");
+    assert!(d.contains("def union_overlay_runtime() : int"));
+    assert!(d.contains("reinterpret<uint?>(value)))[0]"));
+    assert!(d.contains("reinterpret<uint8?>(value)))[0]"));
+    assert!(!d.contains("value.word") && !d.contains("value.byte"));
+}
+
+#[test]
+fn p39_packed_scalar_uses_memcpy_not_typed_deref() {
+    let d = transpile("p39_packed_scalar");
+    assert!(d.contains("def packed_scalar_runtime() : int"));
+    assert!(d.contains("c2da_rt_memcpy("), "packed access must cross the runtime copy boundary");
+    assert!(!d.contains("reinterpret<uint?>(pair)))["),
+        "packed uint32 must not be lowered as typed pointer indexing");
+}
+
+#[test]
+fn p38_local_union_uses_raw_storage_wrapper() {
+    let d = transpile("p38_local_union_init");
+    assert!(d.contains("struct local_overlay") && d.contains("c2da_storage : uint64"));
+    assert!(d.contains("c2da_rt_calloc(uint64(1), uint64(4))"));
+    assert!(!d.contains("value.word") && !d.contains("value.byte"));
+}
+
+#[test]
+fn p40_bitfields_use_masked_raw_rmw() {
+    let d = transpile("p40_bitfield_rmw");
+    assert!(d.contains("def bitfield_rmw_runtime() : int"));
+    assert!(d.contains("& uint(0x7)") && d.contains("<< uint(3)"));
+    assert!(!d.contains("value.low") && !d.contains("value.high"));
+}
+
+#[test]
+fn p41_union_cast_initializes_raw_storage() {
+    let d = transpile("p41_union_cast");
+    assert!(d.contains("struct cast_overlay") && d.contains("c2da_storage"));
+    assert!(d.contains("c2da_rt_calloc(uint64(1), uint64(4))"));
+    assert!(!d.contains("cast_overlay(uint(0x11223344))"));
+}
+
+#[test]
 fn p22_literals_follow_their_c_target_types() {
     let d = transpile("p22_typed_literals");
     assert!(d.contains("byte = uint8("));

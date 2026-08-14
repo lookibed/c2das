@@ -355,6 +355,40 @@ impl<'c> Translation<'c> {
             .kind
             .clone();
         let lhs_da_type = self.convert_type(lhs_type_id)?;
+
+        // Address-backed member writes need their own store operation: a
+        // packed C field cannot be represented by a daScript lvalue at all.
+        // Keep the address as a first-class object until `raw_store` selects
+        // typed indexing or statement-level memcpy.
+        if let CExprKind::Member(_, base_expr, field, MemberKind::Arrow, _) = self.ast_context[lhs].kind {
+            let rhs_id = rhs;
+            let base_ty = self.ast_context[base_expr].kind.get_qual_type()
+                .ok_or_else(|| TranslationError::generic("member pointer has no C type"))?;
+            let base = self.convert_expr(ctx.used(), base_expr, Some(base_ty))?;
+            let address = self.pointer_member_address(base.clone(), base_ty, field)?;
+            let is_bitfield = matches!(self.ast_context[field].kind, CDeclKind::Field { bitfield_width: Some(_), .. });
+            if op == CBinOp::Assign {
+                let rhs = self.convert_expr(ctx.used(), rhs_id, Some(lhs_type_id))?;
+                let rhs = self.lower_to_c_value(
+                    rhs,
+                    self.ast_context[rhs_id].kind.get_qual_type(),
+                    lhs_da_type,
+                    ValueSite::Assignment,
+                )?;
+                return if is_bitfield { self.bitfield_store(address, field, rhs) } else { self.raw_store(address, rhs) };
+            }
+            let inner_op = op.underlying_assignment()
+                .ok_or_else(|| TranslationError::generic("not a compound assignment"))?;
+            let das_op = convert_binop(inner_op).map_err(TranslationError::generic)?;
+            let current = if is_bitfield { self.bitfield_load(address, field)? } else { self.raw_load(address)? };
+            let rhs = self.convert_expr(ctx.used(), rhs_id, Some(lhs_type_id))?;
+            let value = current.zip(rhs).map(|(left, right)| mk().binary_op(das_op, left, right));
+            // Reconstruct the field address from the single evaluated base.
+            // `raw_store` is given the same C address facts, never a
+            // daScript field expression.
+            let address = self.pointer_member_address(base, base_ty, field)?;
+            return if is_bitfield { self.bitfield_store(address, field, value) } else { self.raw_store(address, value) };
+        }
         let lhs_val = self.convert_expr(ctx, lhs, Some(lhs_type_id))?;
 
         if op != CBinOp::Assign {

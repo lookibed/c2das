@@ -31,8 +31,10 @@ mod comments;
 mod enums;
 mod functions;
 mod literals;
+mod layout;
 mod macros;
 mod named_references;
+mod object_memory;
 mod operators;
 mod pointers;
 mod runtime;
@@ -246,6 +248,7 @@ pub struct Translation<'c> {
     pub renamer: RefCell<Renamer<CDeclId>>,
     pub emitted_structs: std::cell::RefCell<std::collections::HashSet<String>>,
     pub emitted_anon_structs: std::cell::RefCell<std::collections::HashSet<(String, Vec<String>)>>,
+    pub(crate) layout_cache: RefCell<HashMap<CTypeId, self::layout::CLayout>>,
     pub main_file: PathBuf,
 }
 
@@ -257,6 +260,7 @@ impl<'c> Translation<'c> {
             function_context: RefCell::new(FuncContext::new()),
             emitted_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             emitted_anon_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
+            layout_cache: RefCell::new(HashMap::new()),
             ast_context,
             tcfg,
             main_file: main_file.to_path_buf(),
@@ -498,7 +502,7 @@ impl<'c> Translation<'c> {
                     ));
                 }
                 // No typedef — need to generate the struct body with a generated name
-                self.convert_struct(decl_id, &None, fields)
+                self.convert_union(decl_id, &None, fields)
             }
             Struct { name, fields, .. } => self.convert_struct(decl_id, name, fields),
             Enum {
@@ -517,7 +521,7 @@ impl<'c> Translation<'c> {
             }
             Union { name, fields, .. } => {
                 // daScript has no union; map to struct
-                self.convert_struct(decl_id, name, fields)
+                self.convert_union(decl_id, name, fields)
             }
             MacroObject { name } | MacroFunction { name, .. } => {
                 self.convert_macro(ctx, decl_id, name)
@@ -930,44 +934,6 @@ impl<'c> Translation<'c> {
         }
     }
 
-    /// C object sizes used by `sizeof` are lowered before printing. This is a
-    /// target-ABI contract (LP64, matching the WSL Clang exporter), not a
-    /// daScript container size and never a post-print text repair.
-    fn c_sizeof_type(&self, type_id: CTypeId) -> TranslationResult<i64> {
-        use CTypeKind::*;
-        let size = match self.ast_context.resolve_type(type_id).kind {
-            Void => 1,
-            Bool | Char | SChar | UChar | Int8 | UInt8 => 1,
-            Short | UShort | Int16 | UInt16 => 2,
-            Int | UInt | Int32 | UInt32 | Float | Enum(_) => 4,
-            Long | ULong | LongLong | ULongLong | Int64 | UInt64 | IntPtr | UIntPtr
-            | SSize | Size | PtrDiff | IntMax | UIntMax | WChar | Double | LongDouble | Float128
-            | Pointer(_) | Function(_, _, _, _, _) => 8,
-            Int128 | UInt128 => 16,
-            ConstantArray(element, count) => self
-                .c_sizeof_type(element)?
-                .checked_mul(count as i64)
-                .ok_or_else(|| TranslationError::generic("sizeof array overflows target ABI"))?,
-            VariableArray(_, _) | IncompleteArray(_) => {
-                return Err(TranslationError::generic("unsupported sizeof of incomplete or variable-length array"));
-            }
-            Vector(_, _) | UnhandledSveType => {
-                return Err(TranslationError::generic("unsupported SIMD vector type in sizeof"));
-            }
-            Auto(inner) => return self.c_sizeof_type(inner),
-            Struct(_) | Union(_) | Typedef(_) | Elaborated(_) | Paren(_) | Decayed(_)
-            | TypeOf(_) | TypeOfExpr(_) | Complex(_) | Attributed(_, _) | BlockPointer(_)
-            | Reference(_) | BuiltinFn | Half | BFloat16 | Atomic(_) => {
-                return Err(TranslationError::generic("unsupported sizeof type layout"));
-            }
-        };
-        Ok(size)
-    }
-
-    fn c_alignof_type(&self, type_id: CTypeId) -> TranslationResult<i64> {
-        Ok(self.c_sizeof_type(type_id)?.min(8))
-    }
-
     /// Convert a C expression into a daScript expression
     pub fn convert_expr(
         &self,
@@ -1050,20 +1016,7 @@ impl<'c> Translation<'c> {
             }
 
             Member(ty, expr, field_id, member_kind, _lrvalue) => {
-                let obj = self.convert_expr(ctx, *expr, Some(*ty))?;
-                let field_name = match &self.ast_context[*field_id].kind {
-                    CDeclKind::Field { name, .. } => self
-                        .type_converter
-                        .borrow()
-                        .resolve_field_name(None, *field_id)
-                        .unwrap_or_else(|| name.clone()),
-                    _ => return Err(TranslationError::generic("Member access to non-field")),
-                };
-                let das_expr = match member_kind {
-                    MemberKind::Arrow => DaExpr::Field(Box::new(obj.val), field_name),
-                    MemberKind::Dot => DaExpr::Field(Box::new(obj.val), field_name),
-                };
-                Ok(WithStmts::new_val(das_expr).merge_unsafe(obj.is_unsafe))
+                self.convert_member_expr(ctx, *ty, *expr, *field_id, *member_kind, override_ty)
             }
 
             DeclRef(_ty, decl_id, _lrvalue) => {
@@ -1304,6 +1257,17 @@ impl<'c> Translation<'c> {
                         .merge_unsafe(inner.is_unsafe));
                 }
                 let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
+                if matches!(cast_kind, CastKind::ToUnion) {
+                    let union_id = match self.ast_context.resolve_type(ty.ctype).kind {
+                        CTypeKind::Union(id) => id,
+                        _ => return Err(TranslationError::generic("ToUnion cast has non-union target")),
+                    };
+                    let field = match &self.ast_context[union_id].kind {
+                        CDeclKind::Union { fields: Some(fields), .. } => fields.first().copied(),
+                        _ => None,
+                    };
+                    return self.convert_cast_to_union(inner, field);
+                }
                 // ToVoid and ConstCast are no-ops in daScript too
                 if matches!(
                     cast_kind,
@@ -1355,10 +1319,18 @@ impl<'c> Translation<'c> {
             }
 
             ImplicitValueInit(ty) => {
+                if let CTypeKind::Union(union_id) = self.ast_context.resolve_type(ty.ctype).kind {
+                    return self.convert_union_literal(ctx, union_id, &[], override_ty);
+                }
                 let das_type = self.convert_type(*ty)?;
                 Ok(WithStmts::new_val(zero_for_datype(&das_type)))
             }
-            InitList(ty, ref init_ids, _union_field, _syntactic) => {
+            InitList(ty, ref init_ids, union_field, _syntactic) => {
+                if let CTypeKind::Union(union_id) = self.ast_context.resolve_type(ty.ctype).kind {
+                    let fields: Vec<CExprId> = init_ids.clone();
+                    let value = self.convert_union_literal(ctx, union_id, &fields, override_ty)?;
+                    return Ok(value);
+                }
                 if let Some(struct_init) = self.convert_struct_init_list(ctx, *ty, init_ids)? {
                     return Ok(struct_init);
                 }
@@ -1389,8 +1361,8 @@ impl<'c> Translation<'c> {
                 Ok(WithStmts::new_val(DaExpr::MakeArray(items)).merge_unsafe(is_unsafe))
             }
             UnaryType(_ty, kind, _opt_expr, arg_ty) => match kind {
-                CUnTypeOp::SizeOf => Ok(WithStmts::new_val(DaExpr::ConstInt(self.c_sizeof_type(arg_ty.ctype)?))),
-                CUnTypeOp::AlignOf => Ok(WithStmts::new_val(DaExpr::ConstInt(self.c_alignof_type(arg_ty.ctype)?))),
+                CUnTypeOp::SizeOf => Ok(WithStmts::new_val(DaExpr::ConstInt(self.sizeof_type(arg_ty.ctype)?))),
+                CUnTypeOp::AlignOf => Ok(WithStmts::new_val(DaExpr::ConstInt(self.alignof_type(arg_ty.ctype)?))),
                 _ => Err(TranslationError::generic("unsupported unary type op")),
             },
             CompoundLiteral(ty, expr) => self.convert_expr(ctx, *expr, Some(*ty)),
@@ -1405,11 +1377,36 @@ impl<'c> Translation<'c> {
             // GNU statement expression ({ stmts; expr }) → convert as daScript block
             Statements(_ty, stmt_id) => self.convert_gnu_statement_expression(ctx, *stmt_id),
             // offsetof → return 0 (daScript has no ABI-visible layout)
-            OffsetOf(ty, _kind) => {
+            OffsetOf(ty, kind) => {
                 let target = self.convert_type(ty.clone())?;
+                let value = match kind {
+                    OffsetOfKind::Constant(value) => DaExpr::ConstInt(*value as i64),
+                    OffsetOfKind::Variable(_, field, index) => {
+                        let base = self.field_offset(*field)?;
+                        let field_type = match self.ast_context[*field].kind {
+                            CDeclKind::Field { typ, .. } => typ.ctype,
+                            _ => return Err(TranslationError::generic("offsetof references non-field")),
+                        };
+                        let stride = self.sizeof_type(field_type)?;
+                        let index = self.convert_expr(ctx, *index, None)?;
+                        return Ok(index.map(|index| DaExpr::Cast {
+                            kind: das_ast::CastKind::Cast,
+                            expr: Box::new(DaExpr::Op2 {
+                                op: "+",
+                                left: Box::new(DaExpr::ConstInt(base)),
+                                right: Box::new(DaExpr::Op2 {
+                                    op: "*",
+                                    left: Box::new(index),
+                                    right: Box::new(DaExpr::ConstInt(stride)),
+                                }),
+                            }),
+                            to: target,
+                        }));
+                    }
+                };
                 Ok(WithStmts::new_val(DaExpr::Cast {
                     kind: das_ast::CastKind::Cast,
-                    expr: Box::new(DaExpr::ConstInt(0)),
+                    expr: Box::new(value),
                     to: target,
                 }))
             }
@@ -2160,7 +2157,25 @@ impl<'c> Translation<'c> {
 
     fn default_initializer_for_ctype(&self, ty: CTypeId) -> TranslationResult<DaExpr> {
         match self.ast_context.resolve_type(ty).kind {
-            CTypeKind::Struct(_) | CTypeKind::Union(_) => {
+            CTypeKind::Union(union_id) => {
+                let name = match self.convert_type(CQualTypeId::new(ty))?.kind {
+                    DaTypeKind::Named(name) => name,
+                    _ => return Err(TranslationError::generic("union wrapper has no daScript name")),
+                };
+                let size = self.record_layout(union_id)?.object.size_bytes;
+                Ok(DaExpr::MakeStruct {
+                    type_name: name,
+                    fields: vec![("c2da_storage".into(), DaExpr::Call(
+                        Box::new(DaExpr::Var("c2da_rt_calloc".into())),
+                        vec![
+                            self.integer_literal_for_type(DaExpr::ConstInt(1), DaType::uint64()),
+                            self.integer_literal_for_type(DaExpr::ConstInt(i64::try_from(size)
+                                .map_err(|_| TranslationError::generic("union size exceeds daScript integer range"))?), DaType::uint64()),
+                        ],
+                    ))],
+                })
+            }
+            CTypeKind::Struct(_) => {
                 let das_type = self.convert_type(CQualTypeId::new(ty))?;
                 if let DaTypeKind::Named(name) = das_type.kind {
                     Ok(DaExpr::Call(Box::new(DaExpr::Var(name)), vec![]))

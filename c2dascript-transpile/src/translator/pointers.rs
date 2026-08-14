@@ -93,7 +93,7 @@ impl<'c> Translation<'c> {
         pointee_cty: CTypeId,
         neg: bool,
         _deref: bool,
-    ) -> WithStmts<DaExpr> {
+    ) -> TranslationResult<WithStmts<DaExpr>> {
         let off = if neg {
             DaExpr::Op2 {
                 op: "-",
@@ -103,12 +103,17 @@ impl<'c> Translation<'c> {
         } else {
             offset
         };
-        WithStmts::new_val(DaExpr::Op2 {
+        let stride = self.sizeof_type(pointee_cty)?;
+        Ok(WithStmts::new_val(DaExpr::Op2 {
             op: "+",
             left: Box::new(ptr),
-            right: Box::new(off),
+            right: Box::new(DaExpr::Op2 {
+                op: "*",
+                left: Box::new(off),
+                right: Box::new(DaExpr::ConstInt(stride)),
+            }),
         })
-        .set_unsafe()
+        .set_unsafe())
     }
 
     pub fn null_ptr(&self, _type_id: CTypeId) -> TranslationResult<DaExpr> {
