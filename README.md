@@ -1,406 +1,187 @@
-# C2Rust
+# c2das
 
-[![ci GitHub Actions Status]][github] [![c2rust-testsuite GitHub Actions Status]][github] [![Latest Version]][crates.io] [![Rustc Version]](#)
+**c2das** is an experimental C-to-[daScript](https://dascript.org/) transpiler.
+It is an architectural fork of [C2Rust](https://github.com/immunant/c2rust):
+the front end keeps C2Rust's Clang-based understanding of C, while the back
+end builds and prints daScript AST instead of Rust.
 
-[ci GitHub Actions Status]: https://github.com/immunant/c2rust/workflows/ci/badge.svg
-[c2rust-testsuite GitHub Actions Status]: https://github.com/immunant/c2rust/workflows/c2rust-testsuite/badge.svg
-[github]: https://github.com/immunant/c2rust/actions
+The goal is behavioural translation, not a surface-level C-to-text rewrite.
+c2das is under active development and is not yet a complete C ABI or a
+production-ready C compiler replacement.
 
-[Latest Version]: https://img.shields.io/crates/v/c2rust.svg
-[crates.io]: https://crates.io/crates/c2rust
-[rustc Version]: https://img.shields.io/badge/rustc-nightly--2022--11--03-lightgrey.svg "rustc nightly-2022-11-03"
+## Architecture
 
-<!-- ANCHOR: intro -->
-
-## Intro
-
-C2Rust helps you migrate C99-compliant code to Rust.
-The translator (or transpiler), [`c2rust transpile`](./c2rust-transpile/),
-produces unsafe Rust code that closely mirrors the input C code.
-The primary goal of the translator is to preserve functionality;
-test suites should continue to pass after translation.
-
-Generating safe and idiomatic Rust code from C ultimately requires manual effort.
-We are currently working on analysis to automate some of the effort
-required to lift unsafe Rust into safe Rust types.
-However, we are building a [refactoring tool](c2rust-refactor) that reduces the tedium of doing so.
-This work is still in the early stages; please get in touch if you're interested!
-
-You can also [cross-check](cross-checks) the translated code against the original ([tutorial](docs/cross-check-tutorial.md)).
-
-Here's the big picture:
-
-![C2Rust overview](docs/c2rust-overview.png "C2Rust overview")
-
-To learn more, check out our [RustConf'18](https://www.youtube.com/watch?v=WEsR0Vv7jhg) talk on YouTube
-and try the C2Rust translator online using the [Compiler Explorer](https://godbolt.org/z/GdEzYWGq4).
-This uses the current `master` branch, updated every night.
-
-<!-- ANCHOR_END: intro -->
-
-## Documentation
-
-To learn more about using and developing C2Rust, check out the [manual](https://c2rust.com/manual/).
-The manual is still a work-in-progress, so if you can't find something please let us know.
-[c2rust.com/manual/](https://c2rust.com/manual/) also has not been updated since ~2019,
-so refer to the in-tree [./manual/](./manual/) for more up-to-date instructions.
-
-<!-- ANCHOR: installation -->
-
-## Installation
-
-### Prerequisites
-
-C2Rust requires LLVM 7 or later with its corresponding clang compiler and libraries.
-Python (through `uv`), CMake 3.5 or later and openssl (1.0) are also required.
-These prerequisites may be installed with the following commands, depending on your platform:
-
-Python:
-
-```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv venv
-uv pip install -r scripts/requirements.txt
+```text
+Clang AST -> CBOR -> C AST -> translator -> daScript AST -> printer -> .das
 ```
 
-- **Ubuntu 18.04, Debian 10, and later:**
+![c2das translation roadmap](docs/c2das-roadmap.png)
 
-    ```sh
-    apt install build-essential llvm clang libclang-dev cmake libssl-dev pkg-config git
-    ```
+The translator deliberately keeps C facts separate from daScript
+representation. In particular:
 
-Depending on the LLVM distribution, the `llvm-dev` package may also be required.
-For example, the official LLVM packages from [apt.llvm.org](https://apt.llvm.org/) require `llvm-dev` to be installed.
+- exported Clang facts are the source of truth for C size, alignment, field
+  offsets, padding, `packed`, `aligned`, unions, and bitfields;
+- the canonical runtime lowers allocation and memory primitives to
+  `c2da_rt_*` calls before printing;
+- raw addresses, typed pointers, nulls, storage bytes, integer literals, and
+  boolean-to-integer conversions use an explicit ABI contract;
+- pointer-backed C objects are accessed through address-aware raw-memory
+  lowering, with alignment-safe copies for packed or misaligned fields;
+- generated daScript is checked by the real `daslang`, not only by Rust
+  snapshot tests.
 
-- **Arch Linux:**
+## Translator progress
 
-    ```sh
-    pacman -S base-devel llvm clang cmake openssl
-    ```
+This is an architecture-completion estimate, not a test score. Each value
+compares the implemented c2das owner layers with the corresponding c2rust
+translation surface, then discounts work that still relies on target-specific
+debt, missing ABI semantics, or diagnostic-only boundaries. The scale changes
+only when an owning layer becomes canonical, not when an individual fixture is
+made green.
 
-- **NixOS / nix:**
+| Translation surface | Readiness | Basis |
+| --- | --- | --- |
+| Clang AST, CBOR, C AST and declaration intake | `█████████░` ~85% | Mature inherited front end; c2das target ownership is established. |
+| daScript AST construction and printing | `████████░░` ~80% | Broad output surface exists; printer debt must continue moving into typed lowering. |
+| Core expressions, statements and numeric operators | `███████░░░` ~65% | Main paths are present; cast policy and statement normalization are not fully canonical. |
+| C types, enums, typedefs and record emission | `█████░░░░░` ~50% | Ordinary paths work; anonymous/nested record identity and aggregate representation remain incomplete. |
+| Pointer, null and raw-memory object access | `███████░░░` ~65% | Canonical ABI, layout and alignment-safe field access exist; aggregate copy is still absent. |
+| libc/runtime lowering | `██████░░░░` ~60% | Canonical memory runtime is present; broader libc and aggregate-related allocation paths remain. |
+| CFG reconstruction and C control flow | `█████░░░░░` ~45% | c2rust structure is present, but switch fallthrough/exit classification and declaration dominance are unfinished. |
+| Calls, returns, callbacks and variadics | `█████░░░░░` ~45% | Scalar/pointer calls work; typed callback ABI and aggregate by-value ABI are missing. |
+| Macros, multi-TU graph and build integration | `███░░░░░░░` ~30% | Some macro paths work; canonical amalgamation and broad build-graph handling remain. |
+| Foreign ABI, SIMD, inline asm and atomics | `██░░░░░░░░` ~15% | Mostly explicit diagnostics or future work rather than completed lowering. |
 
-    ```sh
-    nix-shell
-    ```
+## Status
 
-- **macOS:** Xcode command-line tools and recent LLVM (we recommend the Homebrew version) are required.
+The following vertical slices are exercised by executable ABI fixtures:
 
-    ```sh
-    xcode-select --install
-    brew install llvm cmake openssl
-    ```
+- scalar and pointer raw-memory access;
+- `malloc`, `calloc`, `realloc`, `free`, `memset`, `memcpy`, `memmove`,
+  `memcmp`, and `memchr` lowering;
+- pointer/raw-address conversions, typed nulls, byte numeric coercion,
+  integer literals, and boolean numeric lowering;
+- C layout queries (`sizeof`, `alignof`, `offsetof`), padded and packed
+  records;
+- pointer-backed struct fields, union overlay storage, union initialization
+  and casts, and bitfield read-modify-write.
 
-The C2Rust transpiler now builds using a stable Rust compiler.
-If you are developing other features,
-you may need to install the correct nightly compiler version.
+Unsupported semantics must fail with a precise translation diagnostic rather
+than silently becoming a daScript value-layout approximation. Current hard
+boundaries include aggregate raw copy and aggregate by-value call/return ABI,
+foreign aggregate ABI, volatile/atomic raw access, and full SIMD/inline-asm
+lowering.
 
-### Installing from crates.io
+## Build and translate
 
-```sh
-cargo install --locked c2rust
-```
+The public name is `c2das`, but the current internal Cargo packages and
+binaries remain `c2dascript` for compatibility.
 
-You can also set the LLVM version explicitly if you have multiple installed,
-like this, for example:
-
-```sh
-LLVM_CONFIG_PATH=llvm-config-14 cargo install --locked c2rust
-```
-
-If you're using LLVM from Homebrew (either on Apple Silicon, Intel Macs, or Linuxbrew),
-you can run:
-
-```sh
-LLVM_CONFIG_PATH="$(brew --prefix)/opt/llvm/bin/llvm-config" cargo install --locked c2rust
-```
-
-or for a specific LLVM version,
-
-```sh
-LLVM_CONFIG_PATH="$(brew --prefix)/opt/llvm@22/bin/llvm-config" cargo install --locked c2rust
-```
-
-On Gentoo, you need to point the build system to
-the location of `libclang.so` and `llvm-config` as follows:
-
-```sh
-LLVM_CONFIG_PATH=/path/to/llvm-config LIBCLANG_PATH=/path/to/libclang.so cargo install --locked c2rust
-```
-
-If you have trouble with building and installing, or want to build from the latest master,
-the [developer docs](docs/README-developers.md#building-with-system-llvm-libraries)
-provide more details on the build system.
-
-### Installing from Git
-
-If you'd like to check our recently developed features or you urgently require a bugfixed version of `c2rust`,
-you can install it directly from Git:
+Copy the Windows working tree into the independent WSL checkout before building:
 
 ```sh
-cargo install --locked --git https://github.com/immunant/c2rust.git c2rust
+mkdir -p /root/c2dascript
+cp -a /mnt/d/Backups/с2daslang/c2dascript/. /root/c2dascript/
+cd /root/c2dascript
 ```
 
-Please note that the master branch is under constant development and you may experience issues or crashes.
-
-You should also set `LLVM_CONFIG_PATH` accordingly if required as described above.
-
-### Nightly Tools
-
-`c2rust` and `c2rust-transpile` are installed by default and can be built on `stable` `rustc`.
-The other tools, such as `c2rust-refactor`, use `rustc` internal APIs, however,
-and are thus pinned to a specific `rustc` `nightly` version: `nightly-2022-11-03`.
-These are also not published to `crates.io`.
-To install these, these can be installed with `cargo` with the pinned nightly.  For example,
+Build and run the Rust workspace tests:
 
 ```sh
-cargo +nightly-2022-11-03 install --locked --git https://github.com/immunant/c2rust.git c2rust-refactor
+LLVM_CONFIG_PATH=/usr/bin/llvm-config-18 cargo test --workspace
 ```
 
-However, we recommend installing them from a full checkout,
-as this will resolve the pinned nightly automatically:
+Translate one C source file. The generated `.das` is written beside the C
+source file:
 
 ```sh
-git clone https://github.com/immunant/c2rust.git
-cd c2rust
-cargo build --release
+LLVM_CONFIG_PATH=/usr/bin/llvm-config-18 cargo run -q -p c2dascript-transpile -- \
+  --file tests/syntax/p17_runtime_malloc.c
 ```
 
-These tools, like `c2rust-refactor`, can then also be invoked through `c2rust`
-as `c2rust refactor`, assuming they are installed in the same directory.
-
-<!-- ANCHOR_END: installation -->
-<!-- ANCHOR: translating-c-to-rust -->
-
-## Translating C to Rust
-
-To translate C files specified in `compile_commands.json` (see below),
-run the `c2rust` tool with the `transpile` subcommand:
+For a real project, prefer its exact compilation database:
 
 ```sh
-c2rust transpile compile_commands.json
+LLVM_CONFIG_PATH=/usr/bin/llvm-config-18 cargo run -q -p c2dascript-transpile -- \
+  path/to/compile_commands.json
 ```
 
-`c2rust` also supports a trivial transpile of source files, e.g.:
+Extra arguments after the input are passed to Clang. They must describe the
+real C build: target, include paths, defines, and sysroot all affect the AST
+and therefore the translated program.
+
+## Validation pipeline
+
+Validation is layered. A rendered file that merely parses is not a passing
+translation.
+
+1. Rust tests assert translator AST shape and printed daScript.
+2. ABI fixtures are transpiled into `.das` files.
+3. WSL runs every fixture using the real daScript interpreter.
+4. Generated files can be copied to the Windows checkout for `daslang.exe`
+   verification when that installation is available.
+
+Run the executable ABI suite in WSL:
 
 ```sh
-c2rust transpile project/*.c project/*.h
+cd /root/c2dascript
+bash tests/syntax/check_abi_das.sh
 ```
 
-For non-trivial projects, the translator requires the exact compiler commands used to build the C code.
-This information is provided via a [compilation database](https://clang.llvm.org/docs/JSONCompilationDatabase.html)
-file named `compile_commands.json` (note that it must be named exactly `compile_commands.json`;
-otherwise `libclangTooling` can have (silent) trouble resolving it correctly).
-(Read more about [compilation databases here](https://sarcasm.github.io/notes/dev/compilation-database.html)).
-Many build systems can automatically generate this file;
-we show [a few examples below](#generating-compile_commandsjson-files).
+The suite currently covers fixtures `p17` through `p41` and executes each
+file with `/root/daScript/bin/daslang`.
 
-Once you have a `compile_commands.json` file describing the C build,
-translate the C code to Rust with the following command:
+Run the real-world PLMPEG backend gates:
 
 ```sh
-c2rust transpile path/to/compile_commands.json
+cd /root/c2dascript
+bash tests/manual/real-world-plmpeg-stream/check_backend_gates.sh
 ```
 
-To generate a `Cargo.toml` template for a Rust library, add the `--emit-build-files` option:
+PLMPEG and H264 are deliberately used as end-to-end pressure tests. They are
+not marketing claims that all of either upstream project or the full C
+language is already translated.
 
-```sh
-c2rust transpile --emit-build-files path/to/compile_commands.json
-```
+## Development principles
 
-To generate a `Cargo.toml` template for a Rust binary, do this:
+- Keep the C2Rust architecture where it provides a sound front-end model;
+  port mechanisms, not Rust-specific output assumptions.
+- Make one canonical owner for every ABI rule. Do not spread pointer casts,
+  layout arithmetic, or memory conversion policy across expression lowering.
+- Treat Clang layout metadata as C ABI truth. daScript struct layout is a
+  different contract unless a representation has been explicitly proven safe.
+- Prefer raw-memory operations for pointer-backed objects and union storage.
+  Do not replace them with identity casts or direct union field access.
+- A known unsupported feature must produce a location-rich diagnostic. A
+  plausible-looking but semantically wrong `.das` is a bug.
+- Every foundational feature requires Rust AST/render assertions and actual
+  `daslang` execution before it is considered complete.
 
-```sh
-c2rust transpile --binary myprog path/to/compile_commands.json
-```
+## Relationship to C2Rust
 
-Where `--binary myprog` tells the transpiler to use
-the `main` function from `myprog.rs` as the entry point for a binary.
-This can be repeated multiple times for multiple binaries.
+c2das began as a fork of C2Rust and retains substantial C2Rust front-end and
+translator architecture. C2Rust is the reference for analysing Clang AST,
+preserving C semantics, handling control flow, and organising a durable
+translator. c2das differs at the target boundary: it constructs daScript AST,
+has a daScript printer, and owns a target-specific raw-memory runtime and ABI
+layer.
 
-The translated Rust files will not depend directly on each other like
-normal Rust modules.
-They will export and import functions through the C API.
-These modules can be compiled together into a single static Rust library or binary.
+## Contributing
 
-You can run with `--reorganize-definitions` (which invokes `c2rust-refactor`),
-which should deduplicate definitions and directly import them
-with `use`s instead of through the C API.
+Issues and patches should describe the C input, Clang invocation, generated
+daScript, and the result from the real `daslang` run. Small reproductions in
+`tests/syntax` are preferred over textual workarounds. New semantics should
+extend the canonical layer that owns the behaviour and add an executable
+fixture.
 
-The refactorer can also be run on its own to run other refactoring passes:
+## License and acknowledgements
 
-```sh
-c2rust refactor --cargo $transform
-```
+c2das is distributed under the [BSD-3-Clause license](LICENSE). It contains
+and adapts components originating in C2Rust; their notices and third-party
+licenses remain in the repository. C2Rust was inspired by Jamey Sharp's
+[Corrode](https://github.com/jameysharp/corrode) translator and uses
+Emscripten's Relooper approach for arbitrary C control flow.
 
-There are several [known limitations](./docs/known-limitations.md) in this
-translator.
-The translator will emit a warning and attempt to skip function
-definitions that cannot be translated.
-
-### Generating `compile_commands.json` Files
-
-The `compile_commands.json` file can be automatically created
-using either `cmake`, `meson`, `bear`, `intercept-build`, or `compiledb`.
-
-It may be a good idea to remove optimizations (`-OX`) from the compilation database,
-as there are optimization builtins which we do not support translating.
-
-#### ... with `cmake`
-
-When creating the initial build directory with `cmake`,
-specify `-DCMAKE_EXPORT_COMPILE_COMMANDS=1`.
-This only works on projects configured to be built by `cmake`.
-This works on Linux and MacOS.
-
-```sh
-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ...
-```
-
-#### ... with `meson`
-
-When creating the initial build directory with `meson`,
-it will automatically generate a `compile_commands.json`
-file inside of `<build_dir>`.
-
-```sh
-meson setup <build_dir>
-```
-
-#### ... with `bear`
-
-[`bear`](https://github.com/rizsotto/Bear) is recommended for projects whose build systems
-don't generate `compile_commands.json` automatically
-(`make`, for example, unlike `cmake` or `meson`). It can also be useful
-for `cmake` and `meson` to generate a subset of the full `compile_commands.json`,
-as it records all compilations that a subcommand does.
-
-It can be installed with
-
-```sh
-apt install bear
-```
-
-or
-
-```sh
-brew install bear
-```
-
-Usage:
-
-```sh
-bear -- <build command>
-```
-
-`<build command>` can be `make`, `make`/`cmake` for a single target, or a single `cc` compilation:
-
-```sh
-bear -- make
-bear -- cmake --build . --target $target
-bear -- cc -c program.c
-```
-
-Note that since it detects compilations,
-if compilations are cached (by `make` for example),
-you'll need a clean build first (e.g. `make clean`).
-
-#### ... with `intercept-build`
-
-`intercept-build` (part of the [scan-build](https://github.com/rizsotto/scan-build))
-is very similar, but not always as up-to-date and comprehensive as `bear`.
-`intercept-build` is bundled with `clang` under `tools/scan-build-py`,
-but a standalone version can be easily installed via `pip` with:
-
-```sh
-uv tool install scan-build
-```
-
-#### ... with `compiledb`
-
-The `compiledb` package can also be used for `make` projects if the other tools don't work.
-Unlike the others, it doesn't require a clean build/`make clean`.
-Install via `pip` with:
-
-```sh
-uv tool install compiledb
-```
-
-Usage:
-
-```sh
-# After running
-./autogen.sh && ./configure # etc.
-# Run
-compiledb make
-```
-
-<!-- ANCHOR_END: translating-c-to-rust -->
-
-## Contact
-
-To report issues with translation or refactoring,
-please use our [Issue Tracker](https://github.com/immunant/c2rust/issues).
-
-To reach the development team, join our [discord channel](https://discord.gg/ANSrTuu)
-or email us at [c2rust@immunant.com](mailto:c2rust@immunant.com).
-
-## FAQ
-
-> I translated code on platform X, but it didn't work correctly on platform Y.
-
-We run the C preprocessor before translation to Rust.
-This specializes the code to the target platform (usually the host platform).
-We do, however, support cross-architecture transpilation with a different sysroot
-(cross-OS transpilation is more difficult because
-it can be difficult to get a sysroot for the target OS).
-For example, on an `aarch64-linux-gnu` host, to cross-transpile to `x86_64-linux-gnu`,
-you can run
-
-```sh
-sudo apt install gcc-x86-64-linux-gnu # install cross-compiler, which comes with a sysroot
-c2rust transpile ${existing_args[@]} -- --target=x86_64-linux-gnu --sysroot=/usr/x86_64-linux-gnu
-```
-
-These extra args are passed to the `libclangTooling` that `c2rust-transpile` uses.
-You sometimes also need to pass extra headers, as occasionally headers are installed globally
-in the default sysroot and won't be found in the cross-compiling sysroot.
-
-> What platforms can C2Rust be run on?
-
-The translator and refactoring tool support both macOS and Linux.
-
-## Uses of `c2rust transpile`
-
-This is a list of all significant uses of `c2rust transpile` that we know of:
-
-| Rust | C | By | Safety | Description |
-| - | -- | - | - | - |
-| [`rav1d`](https://github.com/memorysafety/rav1d/) | [`dav1d`](https://code.videolan.org/videolan/dav1d) | @memorysafety, @immunant | fully safe | AV1 decoder |
-| [`rexpat`](https://github.com/immunant/rexpat) | [`libexpat`](https://github.com/libexpat/libexpat) | @immunant | safety unfinished | streaming XML parser |
-| [`unsafe-libyaml`](https://github.com/dtolnay/unsafe-libyaml) | [`libyaml`](https://github.com/yaml/libyaml) | @dtolnay | minor cleanup, fully unsafe | YAML parser and writer used by [`serde_yaml`](https://github.com/dtolnay/serde-yaml)
-| [`libyaml-safer`](https://github.com/simonask/libyaml-safer) | [`libyaml`](https://github.com/yaml/libyaml) | @simonask | fully safe | safe fork of [`unsafe-libyaml`](https://github.com/dtolnay/unsafe-libyaml) |
-| [`libbzip2-rs`](https://github.com/trifectatechfoundation/libbzip2-rs) | [`bzip2`](https://gitlab.com/bzip2/bzip2) | @trifectatechfoundation | fully safe | file compression |
-| [`tsuki`](https://github.com/ultimaweapon/tsuki) | [`lua`](https://www.lua.org/source/5.4/) | @ultimaweapon | fully safe | Lua interpreter |
-| [`spiro.rlib`](https://github.com/MFEK/spiro.rlib) | [`spiro`](https://github.com/raphlinus/spiro) | @ctrlcctrlv | fully safe | spline interpolation |
-| [`sapp-kms`](https://crates.io/crates/sapp-kms) | [`sokol`](https://github.com/floooh/sokol) | @not-fl3 | cleaned up, still unsafe | application rendering library |
-
-If any other project successfully uses `c2rust`, feel free to add your ported project here.
-
-## Acknowledgements and Licensing
-
-This material is available under the BSD-3 style license as found in the
-[LICENSE](./LICENSE) file.
-
-The C2Rust translator is inspired by Jamey Sharp's [Corrode](https://github.com/jameysharp/corrode) translator.
-We rely on [Emscripten](https://github.com/kripken/emscripten)'s
-Relooper algorithm to translate arbitrary C control flows.
-Many individuals have contributed bug fixes and improvements to C2Rust; thank you so much!
-
-This material is based upon work supported by the United States Air Force and
-DARPA under Contracts No. FA8750-15-C-0124, HR0011-22-C-0020, and HR00112590133.
-Any opinions, findings and conclusions or recommendations expressed in this
-material are those of the author(s) and do not necessarily reflect the views
-of the United States Air Force or DARPA.
-
-Distribution Statement A, "Approved for Public Release, Distribution Unlimited."
+daScript is an independent language and runtime. See
+[dascript.org](https://dascript.org/) for its documentation and licensing.
