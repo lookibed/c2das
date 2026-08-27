@@ -1,14 +1,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef PLM_NO_STDIO
 #define PLM_NO_STDIO
+#endif
 #include "../upstream/pl_mpeg.h"
 #include "sample_mpg_data.h"
 
 void *malloc(size_t size);
 void free(void *ptr);
 void *memset(void *dest, int value, size_t count);
-void shim_reset_heap(void);
+/* Explicit test-runtime hook.  The C reference graph implements it through
+ * shim.c; the c2das graph receives the canonical daScript runtime declaration. */
+void c2da_rt_reset(void);
 int plm_buffer_find_start_code(plm_buffer_t *self, int code);
 
 static const int REAL_WORLD_PLMPEG_START_SEQUENCE = 0xB3;
@@ -199,7 +203,7 @@ static void host_stream_end_internal(void) {
 int32_t plmpeg_decode_hash(int32_t frame_limit) {
     DecodeSummary summary;
 
-    shim_reset_heap();
+    c2da_rt_reset();
     if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, frame_limit, &summary)) {
         return -1;
     }
@@ -210,7 +214,7 @@ int32_t plmpeg_decode_hash(int32_t frame_limit) {
 int32_t plmpeg_probe_width(void) {
     DecodeSummary summary;
 
-    shim_reset_heap();
+    c2da_rt_reset();
     if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, 1, &summary)) {
         return -1;
     }
@@ -221,7 +225,7 @@ int32_t plmpeg_probe_width(void) {
 int32_t plmpeg_probe_height(void) {
     DecodeSummary summary;
 
-    shim_reset_heap();
+    c2da_rt_reset();
     if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, 1, &summary)) {
         return -1;
     }
@@ -232,7 +236,7 @@ int32_t plmpeg_probe_height(void) {
 int32_t plmpeg_probe_frame_count(int32_t frame_limit) {
     DecodeSummary summary;
 
-    shim_reset_heap();
+    c2da_rt_reset();
     if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, frame_limit, &summary)) {
         return -1;
     }
@@ -243,7 +247,7 @@ int32_t plmpeg_probe_frame_count(int32_t frame_limit) {
 int32_t plmpeg_probe_first_frame_hash(void) {
     DecodeSummary summary;
 
-    shim_reset_heap();
+    c2da_rt_reset();
     if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, 1, &summary)) {
         return -1;
     }
@@ -254,7 +258,7 @@ int32_t plmpeg_probe_first_frame_hash(void) {
 int32_t plmpeg_probe_last_frame_hash(int32_t frame_limit) {
     DecodeSummary summary;
 
-    shim_reset_heap();
+    c2da_rt_reset();
     if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, frame_limit, &summary)) {
         return -1;
     }
@@ -266,7 +270,7 @@ int32_t plmpeg_probe_sequence_start_code(void) {
     plm_buffer_t *buffer = 0;
     int code = -1;
 
-    shim_reset_heap();
+    c2da_rt_reset();
     buffer = plm_buffer_create_with_memory((uint8_t *)sample_mpg_bytes, sample_mpg_len, 0);
     if (!buffer) {
         return -2;
@@ -281,7 +285,7 @@ int32_t plmpeg_probe_video_has_header(void) {
     plm_video_t *video = 0;
     int result = 0;
 
-    shim_reset_heap();
+    c2da_rt_reset();
     video = create_decoder((uint8_t *)sample_mpg_bytes, sample_mpg_len);
     if (!video) {
         return -1;

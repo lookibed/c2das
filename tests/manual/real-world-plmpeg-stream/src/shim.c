@@ -12,6 +12,13 @@ void shim_reset_heap(void) {
     heap_offset = 8;
 }
 
+/* The reference implementation of the explicit test-runtime hook declared by
+ * module.c.  The target graph never includes this body: c2da_rt_reset is
+ * emitted directly by translator/runtime.rs. */
+void c2da_rt_reset(void) {
+    shim_reset_heap();
+}
+
 void *malloc(size_t size) {
     const size_t aligned_header = (sizeof(HeapHeader) + 7u) & ~(size_t)7u;
     const size_t aligned_size = (size + 7u) & ~(size_t)7u;

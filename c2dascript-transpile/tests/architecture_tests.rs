@@ -81,7 +81,10 @@ fn post_render_semantic_repair_is_removed_and_cannot_return() {
         "dead in current render path",
         "DaModule::to_string()",
     ] {
-        assert!(inventory.contains(entry), "inventory missing proof record: {entry}");
+        assert!(
+            inventory.contains(entry),
+            "inventory missing proof record: {entry}"
+        );
     }
 
     for source in std::fs::read_dir(&translator).expect("translator directory") {
@@ -183,7 +186,9 @@ fn pointer_null_cast_repro_lowers_zero_to_null() {
 
 #[test]
 fn canonical_abi_owns_storage_literals_bool_and_pointer_raw_conversions() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root");
     let translator = root.join("c2dascript-transpile/src/translator");
     let abi = std::fs::read_to_string(translator.join("abi.rs")).expect("abi.rs");
 
@@ -200,7 +205,12 @@ fn canonical_abi_owns_storage_literals_bool_and_pointer_raw_conversions() {
 
     // These are conversion owners. A local reinterpret here would bypass the
     // ABI contract rather than expressing ordinary C numeric type lowering.
-    for file in ["functions.rs", "operators.rs", "pointers.rs", "value_lowering.rs"] {
+    for file in [
+        "functions.rs",
+        "operators.rs",
+        "pointers.rs",
+        "value_lowering.rs",
+    ] {
         let source = std::fs::read_to_string(translator.join(file)).expect("translator source");
         assert!(
             !source.contains("CastKind::Reinterpret"),
@@ -214,7 +224,8 @@ fn canonical_abi_owns_storage_literals_bool_and_pointer_raw_conversions() {
         "fn integer_literal_for_type",
         "fn strip_numeric_literal_casts",
     ] {
-        let functions = std::fs::read_to_string(translator.join("functions.rs")).expect("functions.rs");
+        let functions =
+            std::fs::read_to_string(translator.join("functions.rs")).expect("functions.rs");
         assert!(
             !functions.contains(obsolete),
             "legacy ABI helper survived outside abi.rs: {obsolete}"
@@ -244,21 +255,111 @@ fn real_world_driver_fixtures_are_present() {
 }
 
 #[test]
+fn plmpeg_target_graph_excludes_fixture_libc_and_reference_graph_keeps_it() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root");
+    let fixture = root.join("tests/manual/real-world-plmpeg-stream");
+    let src = fixture.join("src");
+    let all = std::fs::read_to_string(src.join("all.c")).expect("PLMPEG all.c");
+    let reference =
+        std::fs::read_to_string(src.join("all_reference.c")).expect("PLMPEG C reference graph");
+    let implementation =
+        std::fs::read_to_string(src.join("pl_mpeg.c")).expect("PLMPEG implementation owner");
+    let module = std::fs::read_to_string(src.join("module.c")).expect("PLMPEG module");
+    let shim = std::fs::read_to_string(src.join("shim.c")).expect("PLMPEG shim");
+    let graph =
+        std::fs::read_to_string(fixture.join("PLMPEG_GRAPH.md")).expect("PLMPEG graph contract");
+    let functions =
+        std::fs::read_to_string(root.join("c2dascript-transpile/src/translator/functions.rs"))
+            .expect("runtime call lowering");
+    let runtime =
+        std::fs::read_to_string(root.join("c2dascript-transpile/src/translator/runtime.rs"))
+            .expect("canonical runtime registry");
+
+    assert_eq!(
+        implementation
+            .matches("#define PL_MPEG_IMPLEMENTATION")
+            .count(),
+        1,
+        "pl_mpeg.c must be the sole single-header implementation owner"
+    );
+    assert!(!module.contains("PL_MPEG_IMPLEMENTATION"));
+    assert!(!shim.contains("PL_MPEG_IMPLEMENTATION"));
+
+    let implementation_include = all
+        .find("#include \"pl_mpeg.c\"")
+        .expect("all.c includes implementation");
+    let undef = all
+        .find("#undef PL_MPEG_IMPLEMENTATION")
+        .expect("all.c releases implementation macro");
+    let module_include = all
+        .find("#include \"module.c\"")
+        .expect("all.c includes public wrapper");
+    assert!(implementation_include < undef && undef < module_include);
+    assert!(
+        !all.contains("#include \"shim.c\""),
+        "target graph must not translate fixture allocator/libc definitions"
+    );
+    let reference_shim = reference
+        .find("#include \"shim.c\"")
+        .expect("reference graph includes fixture shim");
+    let reference_implementation = reference
+        .find("#include \"pl_mpeg.c\"")
+        .expect("reference graph includes implementation");
+    let reference_undef = reference
+        .find("#undef PL_MPEG_IMPLEMENTATION")
+        .expect("reference graph releases implementation macro");
+    let reference_module = reference
+        .find("#include \"module.c\"")
+        .expect("reference graph includes public wrapper");
+    assert!(
+        reference_shim < reference_implementation
+            && reference_implementation < reference_undef
+            && reference_undef < reference_module
+    );
+    assert!(module.contains("void c2da_rt_reset(void);"));
+    assert!(shim.contains("void c2da_rt_reset(void)"));
+    assert!(
+        !functions.contains("fn canonical_runtime_function"),
+        "call lowering must use runtime.rs registry, not a second name table"
+    );
+    for symbol in [
+        "Malloc", "Calloc", "Realloc", "Free", "Memset", "Memcpy", "Memmove", "Memcmp", "Memchr",
+    ] {
+        assert!(
+            runtime.contains(symbol),
+            "runtime registry missing {symbol}"
+        );
+    }
+    assert!(graph.contains("src/all.c"));
+    assert!(graph.contains("src/all_reference.c"));
+    assert!(graph.contains("src/all.das"));
+}
+
+#[test]
 fn variadic_macro_and_simd_boundaries_are_owned_before_printing() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root");
     let translator = root.join("c2dascript-transpile/src/translator");
     let variadic = std::fs::read_to_string(translator.join("variadic.rs")).expect("variadic owner");
     let macros = std::fs::read_to_string(translator.join("macros.rs")).expect("macro owner");
     let assembly = std::fs::read_to_string(translator.join("assembly.rs")).expect("asm owner");
     let simd = std::fs::read_to_string(translator.join("simd.rs")).expect("simd owner");
-    let functions = std::fs::read_to_string(translator.join("functions.rs")).expect("call boundary");
+    let functions =
+        std::fs::read_to_string(translator.join("functions.rs")).expect("call boundary");
     let printer = std::fs::read_dir(root.join("das_ast/src"))
         .expect("das_ast source directory")
         .filter_map(Result::ok)
         .filter_map(|entry| std::fs::read_to_string(entry.path()).ok())
         .collect::<String>();
 
-    for api in ["fn convert_vaarg", "fn pack_variadic_call_tail", "fn pack_variadic_argument"] {
+    for api in [
+        "fn convert_vaarg",
+        "fn pack_variadic_call_tail",
+        "fn pack_variadic_argument",
+    ] {
         assert!(variadic.contains(api), "variadic ABI owner missing {api}");
     }
     assert!(!functions.contains("fn pack_variadic_argument"));
@@ -270,17 +371,22 @@ fn variadic_macro_and_simd_boundaries_are_owned_before_printing() {
 
     // daScript printing must be a serializer, never an ABI repair layer.
     for forbidden in ["va_arg", "va_start", "va_end", "C2daVaArg"] {
-        assert!(!printer.contains(forbidden), "printer must not normalize variadic ABI: {forbidden}");
+        assert!(
+            !printer.contains(forbidden),
+            "printer must not normalize variadic ABI: {forbidden}"
+        );
     }
 }
 
 #[test]
 fn real_world_asm_simd_inventory_is_taken_from_typed_c_ast() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root");
     for fixture in [
-        // Individual real translation units are the canonical AST corpus.
-        // The `all.c` amalgamations intentionally include implementation
-        // owners more than once and are not a valid Clang AST input.
+        // Individual TUs are the compact ASM/SIMD inventory corpus.  PLMPEG's
+        // `all.c` is separately validated as the canonical decoder graph;
+        // this inventory stays per-TU so a new surface has a precise source.
         "tests/manual/real-world-plmpeg-stream/src/module.c",
         "tests/manual/real-world-plmpeg-stream/src/pl_mpeg.c",
         "tests/manual/real-world-plmpeg-stream/src/shim.c",
@@ -297,9 +403,21 @@ fn real_world_asm_simd_inventory_is_taken_from_typed_c_ast() {
             &["-w"],
         )
         .unwrap_or_else(|error| panic!("AST inventory for {fixture} failed: {error}"));
-        assert_eq!(inventory.inline_asm, 0, "unclassified inline asm in {fixture}");
-        assert_eq!(inventory.shuffle_vector, 0, "unclassified shuffle vector in {fixture}");
-        assert_eq!(inventory.convert_vector, 0, "unclassified convert vector in {fixture}");
-        assert_eq!(inventory.vector_type, 0, "unclassified vector type in {fixture}");
+        assert_eq!(
+            inventory.inline_asm, 0,
+            "unclassified inline asm in {fixture}"
+        );
+        assert_eq!(
+            inventory.shuffle_vector, 0,
+            "unclassified shuffle vector in {fixture}"
+        );
+        assert_eq!(
+            inventory.convert_vector, 0,
+            "unclassified convert vector in {fixture}"
+        );
+        assert_eq!(
+            inventory.vector_type, 0,
+            "unclassified vector type in {fixture}"
+        );
     }
 }
