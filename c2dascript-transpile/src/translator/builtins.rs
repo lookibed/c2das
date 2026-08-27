@@ -33,17 +33,18 @@ impl<'c> Translation<'c> {
                 .into_iter()
                 .next()
                 .map(|value| Ok(WithStmts::new_val(value).merge_unsafe(is_unsafe)))
-                .unwrap_or_else(|| Err(TranslationError::generic("__builtin_expect requires an argument")));
+                .unwrap_or_else(|| {
+                    Err(TranslationError::generic(
+                        "__builtin_expect requires an argument",
+                    ))
+                });
         }
 
         // Clang represents ordinary malloc calls through its builtin path on
         // some targets.  That classification must not bypass the canonical
         // raw-memory ABI used by normal direct calls.
         if builtin_name == "malloc" || builtin_name.ends_with("_malloc") {
-            let size = das_args
-                .into_iter()
-                .next()
-                .unwrap_or(DaExpr::ConstUInt(0));
+            let size = das_args.into_iter().next().unwrap_or(DaExpr::ConstUInt(0));
             let raw_call = DaExpr::Call(
                 Box::new(DaExpr::Var("c2da_rt_malloc".to_owned())),
                 vec![DaExpr::Cast {
@@ -52,10 +53,9 @@ impl<'c> Translation<'c> {
                     to: DaType::uint64(),
                 }],
             );
-            return Ok(WithStmts::new_val(self.raw_address_to_pointer(
-                raw_call,
-                DaType::pointer(DaType::void()),
-            ))
+            return Ok(WithStmts::new_val(
+                self.raw_address_to_pointer(raw_call, DaType::pointer(DaType::void())),
+            )
             .merge_unsafe(is_unsafe));
         }
 
@@ -150,7 +150,8 @@ impl<'c> Translation<'c> {
             _ => {
                 return Err(format_translation_err!(
                     self.ast_context.display_loc(&self.ast_context[fexp].loc),
-                    "unsupported builtin {}", builtin_name
+                    "unsupported builtin {}",
+                    builtin_name
                 ));
             }
         };

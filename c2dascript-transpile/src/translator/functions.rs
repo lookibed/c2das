@@ -1,24 +1,8 @@
 //! Function translation — порт c2rust functions.rs + CFG pipeline
+use super::runtime::{canonical_runtime_function, CanonicalRuntimeFunction, RuntimeArgKind};
 use super::*;
 use crate::c_ast::iterators::{DFExpr, SomeId};
 use crate::format_translation_err;
-
-/// Names provided by the canonical daScript raw-memory runtime.  A source C
-/// symbol is mapped here only after its runtime AST implementation exists.
-fn canonical_runtime_function(name: &str) -> Option<&'static str> {
-    match name {
-        "malloc" | "__builtin_malloc" => Some("c2da_rt_malloc"),
-        "calloc" | "__builtin_calloc" => Some("c2da_rt_calloc"),
-        "realloc" | "__builtin_realloc" => Some("c2da_rt_realloc"),
-        "free" | "__builtin_free" => Some("c2da_rt_free"),
-        "memset" | "__builtin_memset" => Some("c2da_rt_memset"),
-        "memcpy" | "__builtin_memcpy" => Some("c2da_rt_memcpy"),
-        "memmove" | "__builtin_memmove" => Some("c2da_rt_memmove"),
-        "memcmp" | "__builtin_memcmp" => Some("c2da_rt_memcmp"),
-        "memchr" | "__builtin_memchr" => Some("c2da_rt_memchr"),
-        _ => None,
-    }
-}
 
 impl<'c> Translation<'c> {
     pub fn convert_variable(
@@ -118,7 +102,9 @@ impl<'c> Translation<'c> {
         self.function_context
             .borrow_mut()
             .set_return_type(ret_ctype);
-        let variadic_arg_name = is_variadic.then(|| body.map(|body_id| self.register_va_decls(body_id))).flatten();
+        let variadic_arg_name = is_variadic
+            .then(|| body.map(|body_id| self.register_va_decls(body_id)))
+            .flatten();
 
         // Convert return type for function signature
         let ret_type = ret_ctype
@@ -233,26 +219,24 @@ impl<'c> Translation<'c> {
         // Runtime policy is selected from the C declaration, not from the
         // already-lowered expression: an implicit function-to-pointer cast can
         // erase the direct `DaExpr::Var` shape.
-        let func_name = self.direct_call_name(func).or_else(|| match &func_expr.val {
-            DaExpr::Var(n) => Some(n.clone()),
-            _ => None,
-        });
-        let runtime_name = func_name
-            .as_deref()
-            .and_then(canonical_runtime_function);
+        let func_name = self
+            .direct_call_name(func)
+            .or_else(|| match &func_expr.val {
+                DaExpr::Var(n) => Some(n.clone()),
+                _ => None,
+            });
+        let runtime = func_name.as_deref().and_then(canonical_runtime_function);
         let mut all_stmts = func_expr.stmts;
         let mut das_args = vec![];
         let mut variadic_tail = vec![];
         let arg_tys = self.call_arg_types(func);
         let is_variadic = self.is_variadic_callee(func);
         for (idx, &arg) in args.iter().enumerate() {
-            let expected = arg_tys
-                .get(idx)
-                .copied()
-                .filter(|_| {
-                    self.libc_memory_arg_cast(func_name.as_deref(), idx).is_none()
-                        && canonical_runtime_arg_type(runtime_name, idx).is_none()
-                });
+            let expected = arg_tys.get(idx).copied().filter(|_| {
+                self.libc_memory_arg_cast(func_name.as_deref(), idx)
+                    .is_none()
+                    && canonical_runtime_arg_type(runtime, idx).is_none()
+            });
             let a = self.convert_expr(ctx, arg, expected)?;
             let a = if let Some(expected_ty) = expected {
                 self.lower_to_c_value(
@@ -284,7 +268,7 @@ impl<'c> Translation<'c> {
             }
             // Canonical runtime ABI is raw-address/uint64 based.  This cast is
             // constructed before the daScript AST reaches the printer.
-            if let Some(runtime_arg) = canonical_runtime_arg_type(runtime_name, idx) {
+            if let Some(runtime_arg) = canonical_runtime_arg_type(runtime, idx) {
                 arg_val = self.lower_runtime_arg(arg_val, runtime_arg);
             }
             if is_variadic && idx >= arg_tys.len() {
@@ -297,19 +281,24 @@ impl<'c> Translation<'c> {
             }
         }
         if is_variadic {
-            das_args.push(DaExpr::MakeArray(self.pack_variadic_call_tail(0, variadic_tail)?));
+            das_args.push(DaExpr::MakeArray(
+                self.pack_variadic_call_tail(0, variadic_tail)?,
+            ));
         }
-        let call_target = runtime_name
-            .map(|name| DaExpr::Var(name.to_owned()))
+        let call_target = runtime
+            .map(|function| DaExpr::Var(function.target_name().to_owned()))
             .unwrap_or(func_expr.val);
         let call = mk().call_expr(call_target, das_args);
         // The raw-memory runtime returns an address, not C's declared return
         // type. Materialize it once at the outermost pointer type demanded by
         // this expression: `(int *)malloc(...)` crosses as `uint64 -> int?`.
-        let runtime_pointer_result_ty = runtime_name.and_then(|_| {
+        let runtime_pointer_result_ty = runtime.and_then(|_| {
             override_ty
                 .filter(|ty| self.is_pointer_type(ty.ctype))
-                .or_else(|| self.is_pointer_type(call_expr_ty.ctype).then_some(call_expr_ty))
+                .or_else(|| {
+                    self.is_pointer_type(call_expr_ty.ctype)
+                        .then_some(call_expr_ty)
+                })
         });
         let call = if let Some(pointer_ty) = runtime_pointer_result_ty {
             self.raw_address_to_pointer(call, self.convert_type(pointer_ty)?)
@@ -364,7 +353,10 @@ impl<'c> Translation<'c> {
         }
         let CExprKind::DeclRef(_, decl_id, _) = self.ast_context[func].kind else { return false; };
         let CDeclKind::Function { typ, .. } = self.ast_context[decl_id].kind else { return false; };
-        matches!(self.ast_context.resolve_type(typ).kind, CTypeKind::Function(_, _, true, _, _))
+        matches!(
+            self.ast_context.resolve_type(typ).kind,
+            CTypeKind::Function(_, _, true, _, _)
+        )
     }
 
     fn is_variadic_function_pointer_callee(&self, func: CExprId) -> bool {
@@ -387,11 +379,11 @@ impl<'c> Translation<'c> {
     /// The only source-call boundary conversions for the canonical raw-memory
     /// runtime.  Keeping them here prevents type repair from leaking to the
     /// printer or into each individual libc special case.
-    fn lower_runtime_arg(&self, arg: DaExpr, kind: RuntimeArgType) -> DaExpr {
+    fn lower_runtime_arg(&self, arg: DaExpr, kind: RuntimeArgKind) -> DaExpr {
         match kind {
-            RuntimeArgType::UInt64 => self.integer_literal_for_type(arg, DaType::uint64()),
-            RuntimeArgType::RawAddress => self.pointer_to_raw_address(arg),
-            RuntimeArgType::UInt8 => self.integer_literal_for_type(arg, DaType::uint8()),
+            RuntimeArgKind::UInt64 => self.integer_literal_for_type(arg, DaType::uint64()),
+            RuntimeArgKind::RawAddress => self.pointer_to_raw_address(arg),
+            RuntimeArgKind::UInt8 => self.integer_literal_for_type(arg, DaType::uint8()),
         }
     }
 
@@ -513,25 +505,11 @@ impl<'c> Translation<'c> {
     }
 }
 
-#[derive(Clone, Copy)]
-enum RuntimeArgType {
-    UInt64,
-    RawAddress,
-    UInt8,
-}
-
-fn canonical_runtime_arg_type(runtime_name: Option<&str>, idx: usize) -> Option<RuntimeArgType> {
-    match (runtime_name, idx) {
-        (Some("c2da_rt_malloc"), 0)
-        | (Some("c2da_rt_calloc"), 0 | 1)
-        | (Some("c2da_rt_realloc"), 1)
-        | (Some("c2da_rt_memset" | "c2da_rt_memcpy" | "c2da_rt_memmove" | "c2da_rt_memcmp" | "c2da_rt_memchr"), 2) => Some(RuntimeArgType::UInt64),
-        (Some("c2da_rt_realloc" | "c2da_rt_free"), 0)
-        | (Some("c2da_rt_memset" | "c2da_rt_memchr"), 0)
-        | (Some("c2da_rt_memcpy" | "c2da_rt_memmove" | "c2da_rt_memcmp"), 0 | 1) => Some(RuntimeArgType::RawAddress),
-        (Some("c2da_rt_memset" | "c2da_rt_memchr"), 1) => Some(RuntimeArgType::UInt8),
-        _ => None,
-    }
+fn canonical_runtime_arg_type(
+    runtime: Option<CanonicalRuntimeFunction>,
+    idx: usize,
+) -> Option<RuntimeArgKind> {
+    runtime.and_then(|function| function.arg_kind(idx))
 }
 
 pub(crate) fn normalize_array_initializer_for_type(expr: DaExpr, ty: &DaType) -> DaExpr {
