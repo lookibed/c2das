@@ -23,15 +23,15 @@ use das_ast::{
     DaStmt, DaStructure, DaType, DaTypeKind, DaVariable,
 };
 
-mod atomics;
-mod assembly;
 mod abi;
+mod assembly;
+mod atomics;
 mod builtins;
 mod comments;
 mod enums;
 mod functions;
-mod literals;
 mod layout;
+mod literals;
 mod macros;
 mod named_references;
 mod object_memory;
@@ -40,8 +40,8 @@ mod pointers;
 mod runtime;
 mod simd;
 mod structs_unions;
-mod variadic;
 pub(crate) mod value_lowering;
+mod variadic;
 
 use self::value_lowering::ValueSite;
 
@@ -920,14 +920,15 @@ impl<'c> Translation<'c> {
                 val: vec![],
                 is_unsafe: false,
             }),
-            CStmtKind::Asm { asm, inputs, outputs, clobbers, is_volatile } => self.convert_inline_assembly(
-                stmt_id,
+            CStmtKind::Asm {
                 asm,
                 inputs,
                 outputs,
                 clobbers,
-                *is_volatile,
-            ),
+                is_volatile,
+            } => {
+                self.convert_inline_assembly(stmt_id, asm, inputs, outputs, clobbers, *is_volatile)
+            }
             CStmtKind::BadStmt => Err(TranslationError::generic("bad statement")),
             _ => Err(TranslationError::generic("unsupported statement kind")),
         }
@@ -1078,8 +1079,9 @@ impl<'c> Translation<'c> {
                             else_: None,
                         }),
                     ]);
-                    return Ok(WithStmts::new(stmts, DaExpr::Var(tmp))
-                        .merge_unsafe(inner.is_unsafe));
+                    return Ok(
+                        WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(inner.is_unsafe)
+                    );
                 }
                 // ToVoid, ConstCast, NoOp — transparent in C, but daScript may need
                 // an explicit cast if the inferred types differ (e.g., int→uint for 0).
@@ -1132,8 +1134,7 @@ impl<'c> Translation<'c> {
                         self.bool_to_integer_cast(cast.clone())
                     {
                         stmts.extend(lowered_stmts);
-                        return Ok(WithStmts::new(stmts, lowered_val)
-                            .merge_unsafe(inner_unsafe));
+                        return Ok(WithStmts::new(stmts, lowered_val).merge_unsafe(inner_unsafe));
                     }
                     // Check if inner expr already has the target type (e.g., int→int identity)
                     // Check identity cast: if source and target daScript types match, skip.
@@ -1143,14 +1144,21 @@ impl<'c> Translation<'c> {
                             == target_type
                     });
                     if is_identity {
-                        return Ok(WithStmts::new(stmts, inner_val)
-                            .merge_unsafe(inner_unsafe));
+                        return Ok(WithStmts::new(stmts, inner_val).merge_unsafe(inner_unsafe));
                     }
                     return Ok(WithStmts::new_val(cast)
                         .prepend_stmts(stmts)
                         .merge_unsafe(inner_unsafe));
                 }
                 if matches!(cast_kind, CastKind::ArrayToPointerDecay) {
+                    // `p->array` is an aggregate C place, not a daScript
+                    // array value.  C decay crosses directly from its Clang
+                    // field address to the requested pointer type.
+                    if let Some(place) = self.member_place_address(ctx, *expr)? {
+                        let raw = self.raw_address_of_place(&place);
+                        let target = self.convert_type(*ty)?;
+                        return Ok(raw.map(|raw| self.raw_address_to_pointer(raw, target)));
+                    }
                     let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                     let idx = mk().int_lit(0);
                     return Ok(WithStmts::new_val(DaExpr::Unsafe(Box::new(DaExpr::Addr(
@@ -1184,8 +1192,8 @@ impl<'c> Translation<'c> {
                         }))
                     };
                     return Ok(WithStmts::new_val(cast)
-                    .prepend_stmts(inner.stmts)
-                    .merge_unsafe(inner.is_unsafe));
+                        .prepend_stmts(inner.stmts)
+                        .merge_unsafe(inner.is_unsafe));
                 }
                 // int↔float casts — generate explicit cast (mirrors c2rust convert_cast)
                 if matches!(
@@ -1216,7 +1224,10 @@ impl<'c> Translation<'c> {
                     .kind
                     .get_qual_type()
                     .map(|source_ty| {
-                        matches!(self.ast_context.resolve_type(source_ty.ctype).kind, CTypeKind::Bool)
+                        matches!(
+                            self.ast_context.resolve_type(source_ty.ctype).kind,
+                            CTypeKind::Bool
+                        )
                     })
                     .unwrap_or(false);
                 // daScript has no direct bool -> integer cast.  Lower this C
@@ -1252,17 +1263,25 @@ impl<'c> Translation<'c> {
                             else_: None,
                         }),
                     ]);
-                    return Ok(WithStmts::new(stmts, DaExpr::Var(tmp))
-                        .merge_unsafe(inner.is_unsafe));
+                    return Ok(
+                        WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(inner.is_unsafe)
+                    );
                 }
                 let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                 if matches!(cast_kind, CastKind::ToUnion) {
                     let union_id = match self.ast_context.resolve_type(ty.ctype).kind {
                         CTypeKind::Union(id) => id,
-                        _ => return Err(TranslationError::generic("ToUnion cast has non-union target")),
+                        _ => {
+                            return Err(TranslationError::generic(
+                                "ToUnion cast has non-union target",
+                            ))
+                        }
                     };
                     let field = match &self.ast_context[union_id].kind {
-                        CDeclKind::Union { fields: Some(fields), .. } => fields.first().copied(),
+                        CDeclKind::Union {
+                            fields: Some(fields),
+                            ..
+                        } => fields.first().copied(),
                         _ => None,
                     };
                     return self.convert_cast_to_union(inner, field);
@@ -1296,8 +1315,8 @@ impl<'c> Translation<'c> {
                         self.abi_pointer_cast(inner.val, target_type)
                     };
                     return Ok(WithStmts::new_val(cast)
-                    .prepend_stmts(inner.stmts)
-                    .merge_unsafe(inner.is_unsafe));
+                        .prepend_stmts(inner.stmts)
+                        .merge_unsafe(inner.is_unsafe));
                 }
                 // Pointer/integer/bitwise casts use reinterpret<T>(x) in daScript
                 let kind = if matches!(
@@ -1360,8 +1379,12 @@ impl<'c> Translation<'c> {
                 Ok(WithStmts::new_val(DaExpr::MakeArray(items)).merge_unsafe(is_unsafe))
             }
             UnaryType(_ty, kind, _opt_expr, arg_ty) => match kind {
-                CUnTypeOp::SizeOf => Ok(WithStmts::new_val(DaExpr::ConstInt(self.sizeof_type(arg_ty.ctype)?))),
-                CUnTypeOp::AlignOf => Ok(WithStmts::new_val(DaExpr::ConstInt(self.alignof_type(arg_ty.ctype)?))),
+                CUnTypeOp::SizeOf => Ok(WithStmts::new_val(DaExpr::ConstInt(
+                    self.sizeof_type(arg_ty.ctype)?,
+                ))),
+                CUnTypeOp::AlignOf => Ok(WithStmts::new_val(DaExpr::ConstInt(
+                    self.alignof_type(arg_ty.ctype)?,
+                ))),
                 _ => Err(TranslationError::generic("unsupported unary type op")),
             },
             CompoundLiteral(ty, expr) => self.convert_expr(ctx, *expr, Some(*ty)),
@@ -1384,7 +1407,11 @@ impl<'c> Translation<'c> {
                         let base = self.field_offset(*field)?;
                         let field_type = match self.ast_context[*field].kind {
                             CDeclKind::Field { typ, .. } => typ.ctype,
-                            _ => return Err(TranslationError::generic("offsetof references non-field")),
+                            _ => {
+                                return Err(TranslationError::generic(
+                                    "offsetof references non-field",
+                                ))
+                            }
                         };
                         let stride = self.sizeof_type(field_type)?;
                         let index = self.convert_expr(ctx, *index, None)?;
@@ -2040,7 +2067,9 @@ impl<'c> Translation<'c> {
                         init: Some(self.va_cursor_initializer()),
                     };
                     return Ok(crate::cfg::DeclStmtInfo::new(
-                        vec![decl_stmt.clone()], vec![], vec![decl_stmt],
+                        vec![decl_stmt.clone()],
+                        vec![],
+                        vec![decl_stmt],
                     ));
                 }
                 let var_type = self.convert_type(typ)?;
@@ -2159,19 +2188,35 @@ impl<'c> Translation<'c> {
             CTypeKind::Union(union_id) => {
                 let name = match self.convert_type(CQualTypeId::new(ty))?.kind {
                     DaTypeKind::Named(name) => name,
-                    _ => return Err(TranslationError::generic("union wrapper has no daScript name")),
+                    _ => {
+                        return Err(TranslationError::generic(
+                            "union wrapper has no daScript name",
+                        ))
+                    }
                 };
                 let size = self.record_layout(union_id)?.object.size_bytes;
                 Ok(DaExpr::MakeStruct {
                     type_name: name,
-                    fields: vec![("c2da_storage".into(), DaExpr::Call(
-                        Box::new(DaExpr::Var("c2da_rt_calloc".into())),
-                        vec![
-                            self.integer_literal_for_type(DaExpr::ConstInt(1), DaType::uint64()),
-                            self.integer_literal_for_type(DaExpr::ConstInt(i64::try_from(size)
-                                .map_err(|_| TranslationError::generic("union size exceeds daScript integer range"))?), DaType::uint64()),
-                        ],
-                    ))],
+                    fields: vec![(
+                        "c2da_storage".into(),
+                        DaExpr::Call(
+                            Box::new(DaExpr::Var("c2da_rt_calloc".into())),
+                            vec![
+                                self.integer_literal_for_type(
+                                    DaExpr::ConstInt(1),
+                                    DaType::uint64(),
+                                ),
+                                self.integer_literal_for_type(
+                                    DaExpr::ConstInt(i64::try_from(size).map_err(|_| {
+                                        TranslationError::generic(
+                                            "union size exceeds daScript integer range",
+                                        )
+                                    })?),
+                                    DaType::uint64(),
+                                ),
+                            ],
+                        ),
+                    )],
                 })
             }
             CTypeKind::Struct(_) => {
@@ -2907,10 +2952,5 @@ pub fn translate(
         decls: module_decls,
     };
 
-    (
-        module.to_string(),
-        None,
-        vec![],
-        IndexSet::new(),
-    )
+    (module.to_string(), None, vec![], IndexSet::new())
 }

@@ -360,13 +360,32 @@ impl<'c> Translation<'c> {
         // packed C field cannot be represented by a daScript lvalue at all.
         // Keep the address as a first-class object until `raw_store` selects
         // typed indexing or statement-level memcpy.
-        if let CExprKind::Member(_, base_expr, field, MemberKind::Arrow, _) = self.ast_context[lhs].kind {
+        let raw_member = match self.ast_context[lhs].kind.clone() {
+            CExprKind::Member(_, base_expr, field, member_kind, _) => {
+                if let Some(base) = self.member_place_address(ctx.used(), base_expr)? {
+                    Some((field, self.field_address(base, field)?))
+                } else if matches!(member_kind, MemberKind::Arrow) {
+                    let base_ty = self.ast_context[base_expr]
+                        .kind
+                        .get_qual_type()
+                        .ok_or_else(|| TranslationError::generic("member pointer has no C type"))?;
+                    let base = self.convert_expr(ctx.used(), base_expr, Some(base_ty))?;
+                    Some((field, self.pointer_member_address(base, base_ty, field)?))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        if let Some((field, address)) = raw_member {
             let rhs_id = rhs;
-            let base_ty = self.ast_context[base_expr].kind.get_qual_type()
-                .ok_or_else(|| TranslationError::generic("member pointer has no C type"))?;
-            let base = self.convert_expr(ctx.used(), base_expr, Some(base_ty))?;
-            let address = self.pointer_member_address(base.clone(), base_ty, field)?;
-            let is_bitfield = matches!(self.ast_context[field].kind, CDeclKind::Field { bitfield_width: Some(_), .. });
+            let is_bitfield = matches!(
+                self.ast_context[field].kind,
+                CDeclKind::Field {
+                    bitfield_width: Some(_),
+                    ..
+                }
+            );
             if op == CBinOp::Assign {
                 let rhs = self.convert_expr(ctx.used(), rhs_id, Some(lhs_type_id))?;
                 let rhs = self.lower_to_c_value(
@@ -375,19 +394,30 @@ impl<'c> Translation<'c> {
                     lhs_da_type,
                     ValueSite::Assignment,
                 )?;
-                return if is_bitfield { self.bitfield_store(address, field, rhs) } else { self.raw_store(address, rhs) };
+                return if is_bitfield {
+                    self.bitfield_store(address, field, rhs)
+                } else {
+                    self.raw_store(address, rhs)
+                };
             }
-            let inner_op = op.underlying_assignment()
+            let inner_op = op
+                .underlying_assignment()
                 .ok_or_else(|| TranslationError::generic("not a compound assignment"))?;
             let das_op = convert_binop(inner_op).map_err(TranslationError::generic)?;
-            let current = if is_bitfield { self.bitfield_load(address, field)? } else { self.raw_load(address)? };
+            let current = if is_bitfield {
+                self.bitfield_load(address.clone(), field)?
+            } else {
+                self.raw_load(address.clone())?
+            };
             let rhs = self.convert_expr(ctx.used(), rhs_id, Some(lhs_type_id))?;
-            let value = current.zip(rhs).map(|(left, right)| mk().binary_op(das_op, left, right));
-            // Reconstruct the field address from the single evaluated base.
-            // `raw_store` is given the same C address facts, never a
-            // daScript field expression.
-            let address = self.pointer_member_address(base, base_ty, field)?;
-            return if is_bitfield { self.bitfield_store(address, field, value) } else { self.raw_store(address, value) };
+            let value = current
+                .zip(rhs)
+                .map(|(left, right)| mk().binary_op(das_op, left, right));
+            return if is_bitfield {
+                self.bitfield_store(address, field, value)
+            } else {
+                self.raw_store(address, value)
+            };
         }
         let lhs_val = self.convert_expr(ctx, lhs, Some(lhs_type_id))?;
 
@@ -882,10 +912,17 @@ impl<'c> Translation<'c> {
         let target_da = type_kind_to_datype(&self.ast_context.resolve_type(ty.ctype).kind);
         let old_name = self.renamer.borrow_mut().pick_name("c2da_postinc");
         let old = DaExpr::Var(old_name.clone());
-        let one = if matches!(target_da.kind, DaTypeKind::Int | DaTypeKind::Int8 | DaTypeKind::Int16) {
+        let one = if matches!(
+            target_da.kind,
+            DaTypeKind::Int | DaTypeKind::Int8 | DaTypeKind::Int16
+        ) {
             DaExpr::ConstInt(1)
         } else {
-            DaExpr::Cast { kind: das_ast::CastKind::Cast, expr: Box::new(DaExpr::ConstInt(1)), to: target_da.clone() }
+            DaExpr::Cast {
+                kind: das_ast::CastKind::Cast,
+                expr: Box::new(DaExpr::ConstInt(1)),
+                to: target_da.clone(),
+            }
         };
         let das_op = match op {
             CBinOp::AssignAdd => "+",
@@ -893,14 +930,33 @@ impl<'c> Translation<'c> {
             _ => return Err(TranslationError::generic("invalid post-increment op")),
         };
         let rhs = if self.is_pointer_type(ty.ctype) {
-            DaExpr::Unsafe(Box::new(DaExpr::Op2 { op: das_op, left: Box::new(inner.val.clone()), right: Box::new(one) }))
+            DaExpr::Unsafe(Box::new(DaExpr::Op2 {
+                op: das_op,
+                left: Box::new(inner.val.clone()),
+                right: Box::new(one),
+            }))
         } else {
-            DaExpr::Op2 { op: das_op, left: Box::new(inner.val.clone()), right: Box::new(one) }
+            DaExpr::Op2 {
+                op: das_op,
+                left: Box::new(inner.val.clone()),
+                right: Box::new(one),
+            }
         };
         let mut stmts = inner.stmts;
-        stmts.push(DaStmt::Var { name: old_name, var_type: target_da, init: Some(inner.val.clone()) });
-        stmts.push(DaStmt::Expr(DaExpr::Assign(Box::new(inner.val), Box::new(rhs))));
-        Ok(WithStmts { stmts, val: old, is_unsafe: inner.is_unsafe })
+        stmts.push(DaStmt::Var {
+            name: old_name,
+            var_type: target_da,
+            init: Some(inner.val.clone()),
+        });
+        stmts.push(DaStmt::Expr(DaExpr::Assign(
+            Box::new(inner.val),
+            Box::new(rhs),
+        )));
+        Ok(WithStmts {
+            stmts,
+            val: old,
+            is_unsafe: inner.is_unsafe,
+        })
     }
 }
 
@@ -1017,59 +1073,60 @@ fn coerce_shift_types(lhs: &Option<CTypeKind>, rhs: &Option<CTypeKind>) -> Optio
 }
 
 impl<'c> Translation<'c> {
-fn coerce_assignment_value(
-    &self,
-    expr: DaExpr,
-    target_kind: &CTypeKind,
-    target_da_type: &DaType,
-) -> DaExpr {
-    if matches!(target_da_type.kind, DaTypeKind::Pointer(_)) && !matches!(expr, DaExpr::ConstNull) {
-        return self.abi_pointer_cast(expr, target_da_type.clone());
-    }
-    if target_da_type.is_numeric() && !matches!(target_da_type.kind, DaTypeKind::Auto) {
-        let mut target = target_da_type.clone();
-        target.is_const = false;
-        target.is_ref = false;
-        target.is_temporary = false;
-        if Translation::infer_type(&expr)
-            .map(|mut inferred| {
-                inferred.is_const = false;
-                inferred.is_ref = false;
-                inferred.is_temporary = false;
-                inferred != target
-            })
-            .unwrap_or(false)
+    fn coerce_assignment_value(
+        &self,
+        expr: DaExpr,
+        target_kind: &CTypeKind,
+        target_da_type: &DaType,
+    ) -> DaExpr {
+        if matches!(target_da_type.kind, DaTypeKind::Pointer(_))
+            && !matches!(expr, DaExpr::ConstNull)
         {
-            return DaExpr::Cast {
+            return self.abi_pointer_cast(expr, target_da_type.clone());
+        }
+        if target_da_type.is_numeric() && !matches!(target_da_type.kind, DaTypeKind::Auto) {
+            let mut target = target_da_type.clone();
+            target.is_const = false;
+            target.is_ref = false;
+            target.is_temporary = false;
+            if Translation::infer_type(&expr)
+                .map(|mut inferred| {
+                    inferred.is_const = false;
+                    inferred.is_ref = false;
+                    inferred.is_temporary = false;
+                    inferred != target
+                })
+                .unwrap_or(false)
+            {
+                return DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(expr),
+                    to: target,
+                };
+            }
+        }
+        // Only cast when target type differs from default int32 (the type of integer literals).
+        // This avoids redundant `cast<int>(10)` while still catching `uint = 10` → `uint(10)`.
+        let needs_cast = target_kind.is_integral_type()
+            && !matches!(
+                target_kind,
+                CTypeKind::Bool
+                    | CTypeKind::Int
+                    | CTypeKind::SChar
+                    | CTypeKind::Char
+                    | CTypeKind::Short
+                    | CTypeKind::Int32
+                    | CTypeKind::Int8
+                    | CTypeKind::Int16
+            );
+        if needs_cast {
+            DaExpr::Cast {
                 kind: das_ast::CastKind::Cast,
                 expr: Box::new(expr),
-                to: target,
-            };
+                to: target_da_type.clone(),
+            }
+        } else {
+            expr
         }
     }
-    // Only cast when target type differs from default int32 (the type of integer literals).
-    // This avoids redundant `cast<int>(10)` while still catching `uint = 10` → `uint(10)`.
-    let needs_cast = target_kind.is_integral_type()
-        && !matches!(
-            target_kind,
-            CTypeKind::Bool
-                | CTypeKind::Int
-                | CTypeKind::SChar
-                | CTypeKind::Char
-                | CTypeKind::Short
-                | CTypeKind::Int32
-                | CTypeKind::Int8
-                | CTypeKind::Int16
-        );
-    if needs_cast {
-        DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr: Box::new(expr),
-            to: target_da_type.clone(),
-        }
-    } else {
-        expr
-    }
 }
-}
-

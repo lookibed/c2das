@@ -102,8 +102,7 @@ fn p17_runtime_malloc_uses_canonical_raw_memory_abi() {
         "source malloc must not survive as the backend call target"
     );
     assert!(
-        d.contains("var value : int? = null")
-            && d.contains("reinterpret<int?>(c2da_rt_malloc("),
+        d.contains("var value : int? = null") && d.contains("reinterpret<int?>(c2da_rt_malloc("),
         "runtime raw address must materialize directly as the demanded int?"
     );
 }
@@ -130,8 +129,13 @@ fn p19_runtime_memory_calls_use_canonical_raw_memory_abi() {
     ] {
         assert!(d.contains(runtime_name), "missing lowered {runtime_name}");
     }
-    for source_name in ["realloc(", "free(", "memcpy(", "memmove(", "memcmp(", "memchr("] {
-        assert!(!d.contains(&format!("unsafe({source_name}")), "source call survived: {source_name}");
+    for source_name in [
+        "realloc(", "free(", "memcpy(", "memmove(", "memcmp(", "memchr(",
+    ] {
+        assert!(
+            !d.contains(&format!("unsafe({source_name}")),
+            "source call survived: {source_name}"
+        );
     }
 }
 
@@ -139,7 +143,10 @@ fn p19_runtime_memory_calls_use_canonical_raw_memory_abi() {
 fn p20_pointer_abi_edges_stay_typed_outside_raw_boundaries() {
     let d = transpile("p20_pointer_abi_edges");
     assert!(d.contains("var typed : uint8?"));
-    assert!(d.contains("var erased : uint8?"), "void* must stay pointer-shaped");
+    assert!(
+        d.contains("var erased : uint8?"),
+        "void* must stay pointer-shaped"
+    );
     assert!(d.contains("var restored : uint8?"));
     assert!(d.contains("var nil : uint8? = null"));
     assert!(!d.contains("uint8? = uint64("));
@@ -154,7 +161,10 @@ fn p21_byte_reads_are_widened_before_numeric_operations() {
         d.contains("uint(left) < uint(right)"),
         "byte comparison must widen storage uint8 values to uint"
     );
-    assert!(d.contains("uint("), "byte arithmetic must widen storage uint8 values");
+    assert!(
+        d.contains("uint("),
+        "byte arithmetic must widen storage uint8 values"
+    );
     assert!(!d.contains("uint8? = uint64("));
 }
 
@@ -173,10 +183,21 @@ fn p26_variadic_sum_uses_the_canonical_packed_abi() {
 #[test]
 fn p27_variadic_promotions_pack_int_and_double_lanes() {
     let d = transpile("p27_variadic_promotions");
-    assert!(d.contains("def promoted_sum(var count : int; var c2da_va_args : array<C2daVaArg>) : double"));
-    assert!(d.contains("C2daVaArg(tag = 1"), "integer promotions must use the integer ABI lane");
-    assert!(d.contains("C2daVaArg(tag = 2"), "float must be promoted to the double ABI lane");
-    assert!(d.contains("double("), "the promoted floating argument must materialize as double");
+    assert!(d.contains(
+        "def promoted_sum(var count : int; var c2da_va_args : array<C2daVaArg>) : double"
+    ));
+    assert!(
+        d.contains("C2daVaArg(tag = 1"),
+        "integer promotions must use the integer ABI lane"
+    );
+    assert!(
+        d.contains("C2daVaArg(tag = 2"),
+        "float must be promoted to the double ABI lane"
+    );
+    assert!(
+        d.contains("double("),
+        "the promoted floating argument must materialize as double"
+    );
 }
 
 #[test]
@@ -264,15 +285,24 @@ fn p33_sizeof_and_builtin_expect_use_explicit_lowering() {
     let d = transpile("p33_predefined_sizeof_builtin");
     assert!(d.contains("def predefined_sizeof_builtin_runtime() : int"));
     assert!(!d.contains("__builtin_expect"));
-    assert!(d.contains("int(12)"), "sizeof must remain a numeric AST value");
+    assert!(
+        d.contains("int(12)"),
+        "sizeof must remain a numeric AST value"
+    );
 }
 
 #[test]
 fn p34_records_and_unions_use_clang_layout_facts() {
     let d = transpile("p34_c_layout_records");
     assert!(d.contains("def c_layout_records_runtime() : int"));
-    assert!(d.contains("uint64(12)"), "struct size must be emitted from Clang layout");
-    assert!(d.contains("uint64(4)"), "align/offsetof/union layout must be emitted from Clang layout");
+    assert!(
+        d.contains("uint64(12)"),
+        "struct size must be emitted from Clang layout"
+    );
+    assert!(
+        d.contains("uint64(4)"),
+        "align/offsetof/union layout must be emitted from Clang layout"
+    );
     assert!(!d.contains("unsupported sizeof type layout"));
 }
 
@@ -280,9 +310,14 @@ fn p34_records_and_unions_use_clang_layout_facts() {
 fn p35_pointer_backed_struct_uses_c_field_offsets() {
     let d = transpile("p35_pointer_backed_struct");
     assert!(d.contains("def pointer_backed_struct_runtime() : int"));
-    assert!(d.contains("reinterpret<uint?>(object)))[2]"),
-        "padded C field must use Clang offset 8 as a uint index");
-    assert!(d.contains("reinterpret<uint?>("), "field must be an address-backed typed lvalue");
+    assert!(
+        d.contains("reinterpret<uint?>(object)))[2]"),
+        "padded C field must use Clang offset 8 as a uint index"
+    );
+    assert!(
+        d.contains("reinterpret<uint?>("),
+        "field must be an address-backed typed lvalue"
+    );
 }
 
 #[test]
@@ -298,9 +333,41 @@ fn p37_union_overlay_uses_raw_zero_offset_access() {
 fn p39_packed_scalar_uses_memcpy_not_typed_deref() {
     let d = transpile("p39_packed_scalar");
     assert!(d.contains("def packed_scalar_runtime() : int"));
-    assert!(d.contains("c2da_rt_memcpy("), "packed access must cross the runtime copy boundary");
-    assert!(!d.contains("reinterpret<uint?>(pair)))["),
-        "packed uint32 must not be lowered as typed pointer indexing");
+    assert!(
+        d.contains("c2da_rt_memcpy("),
+        "packed access must cross the runtime copy boundary"
+    );
+    assert!(
+        !d.contains("reinterpret<uint?>(pair)))["),
+        "packed uint32 must not be lowered as typed pointer indexing"
+    );
+}
+
+#[test]
+fn p40_nested_raw_aggregate_is_an_address_chain_not_an_rvalue() {
+    let d = transpile("p40_nested_raw_aggregate_place");
+    assert!(d.contains("def nested_raw_aggregate_place_runtime() : int"));
+    assert!(
+        !d.contains("aggregate C object rvalue from raw storage is not implemented"),
+        "nested field access must reach its scalar leaf through raw addresses"
+    );
+    assert!(
+        d.contains("reinterpret<uint?>(") && d.contains("))[1]"),
+        "Clang offset 4 for inner.count must become the uint storage index"
+    );
+    assert!(d.contains("0x10203040") || d.contains("270544960"));
+}
+
+#[test]
+fn p41_raw_array_field_decays_from_its_address_not_a_das_array_value() {
+    let d = transpile("p41_raw_array_field_decay");
+    assert!(d.contains("def raw_array_field_decay_runtime() : int"));
+    assert!(d.contains("c2da_rt_calloc"));
+    assert!(
+        !d.contains("aggregate C object rvalue from raw storage is not implemented"),
+        "array field decay must use its C object address"
+    );
+    assert!(d.contains("[int(0)]") && d.contains("[int(3)]"));
 }
 
 #[test]
