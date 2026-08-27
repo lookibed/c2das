@@ -117,7 +117,11 @@ impl<'c> Translation<'c> {
         let value = self.convert_expr(ctx.used(), value_id, None)?;
         is_unsafe |= value.is_unsafe;
         stmts.extend(value.stmts);
-        Ok(WithStmts { stmts, val: value.val, is_unsafe })
+        Ok(WithStmts {
+            stmts,
+            val: value.val,
+            is_unsafe,
+        })
     }
 
     pub fn expr_is_expanded_macro(

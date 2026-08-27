@@ -22,7 +22,9 @@ impl<'c> Translation<'c> {
         _site: ValueSite,
     ) -> TranslationResult<WithStmts<DaExpr>> {
         let actual = Self::infer_type(&value.val);
-        if actual.as_ref().map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+        if actual
+            .as_ref()
+            .map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
             && target.is_numeric()
             && !matches!(target.kind, DaTypeKind::Bool)
         {

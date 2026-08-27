@@ -34,28 +34,40 @@ impl<'c> Translation<'c> {
 
     /// daScript has no scalar bool-to-number conversion. Materialize C's 0/1
     /// value in statements before another expression consumes it.
-    pub(crate) fn bool_to_integer_cast(
-        &self,
-        expr: DaExpr,
-    ) -> Option<(Vec<DaStmt>, DaExpr)> {
+    pub(crate) fn bool_to_integer_cast(&self, expr: DaExpr) -> Option<(Vec<DaStmt>, DaExpr)> {
         let DaExpr::Cast { kind, expr, to } = expr else { return None; };
         let bool_expr = unwrap_numeric_casts(expr);
         if kind != das_ast::CastKind::Cast
             || !to.is_numeric()
             || matches!(to.kind, DaTypeKind::Bool)
             || !Self::infer_type(&bool_expr).map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
-        { return None; }
+        {
+            return None;
+        }
         let tmp = self.renamer.borrow_mut().fresh();
         let one = self.integer_literal_for_type(DaExpr::ConstInt(1), to.clone());
         let zero = self.integer_literal_for_type(DaExpr::ConstInt(0), to.clone());
-        Some((vec![
-            DaStmt::Var { name: tmp.clone(), var_type: to, init: Some(zero) },
-            mk().expr_stmt(DaExpr::IfThenElse {
-                cond: Box::new(bool_expr),
-                then: Box::new(DaExpr::Block(DaBlock { stmts: vec![DaStmt::Expr(DaExpr::Assign(Box::new(DaExpr::Var(tmp.clone())), Box::new(one)))] })),
-                elifs: vec![], else_: None,
-            }),
-        ], DaExpr::Var(tmp)))
+        Some((
+            vec![
+                DaStmt::Var {
+                    name: tmp.clone(),
+                    var_type: to,
+                    init: Some(zero),
+                },
+                mk().expr_stmt(DaExpr::IfThenElse {
+                    cond: Box::new(bool_expr),
+                    then: Box::new(DaExpr::Block(DaBlock {
+                        stmts: vec![DaStmt::Expr(DaExpr::Assign(
+                            Box::new(DaExpr::Var(tmp.clone())),
+                            Box::new(one),
+                        ))],
+                    })),
+                    elifs: vec![],
+                    else_: None,
+                }),
+            ],
+            DaExpr::Var(tmp),
+        ))
     }
 
     pub(crate) fn bool_to_integer(&self, value: WithStmts<DaExpr>) -> WithStmts<DaExpr> {
@@ -127,18 +139,32 @@ impl<'c> Translation<'c> {
 
 fn strip_numeric_casts(expr: DaExpr) -> DaExpr {
     match expr {
-        DaExpr::Cast { kind: das_ast::CastKind::Cast, expr, to }
-            if to.is_numeric() && !matches!(to.kind, DaTypeKind::Bool) => strip_numeric_casts(*expr),
+        DaExpr::Cast {
+            kind: das_ast::CastKind::Cast,
+            expr,
+            to,
+        } if to.is_numeric() && !matches!(to.kind, DaTypeKind::Bool) => strip_numeric_casts(*expr),
         expr => expr,
     }
 }
 
 fn strip_numeric_literal_casts(expr: DaExpr) -> DaExpr {
     match expr {
-        DaExpr::Cast { kind: das_ast::CastKind::Cast, expr, to } if to.is_numeric() => {
+        DaExpr::Cast {
+            kind: das_ast::CastKind::Cast,
+            expr,
+            to,
+        } if to.is_numeric() => {
             let inner = strip_numeric_literal_casts(*expr);
-            if matches!(inner, DaExpr::ConstInt(_) | DaExpr::ConstUInt(_)) { inner }
-            else { DaExpr::Cast { kind: das_ast::CastKind::Cast, expr: Box::new(inner), to } }
+            if matches!(inner, DaExpr::ConstInt(_) | DaExpr::ConstUInt(_)) {
+                inner
+            } else {
+                DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(inner),
+                    to,
+                }
+            }
         }
         expr => expr,
     }
@@ -147,8 +173,11 @@ fn strip_numeric_literal_casts(expr: DaExpr) -> DaExpr {
 fn unwrap_numeric_casts(mut expr: Box<DaExpr>) -> DaExpr {
     loop {
         match *expr {
-            DaExpr::Cast { kind: das_ast::CastKind::Cast, expr: inner, to }
-                if to.is_numeric() && !matches!(to.kind, DaTypeKind::Bool) => expr = inner,
+            DaExpr::Cast {
+                kind: das_ast::CastKind::Cast,
+                expr: inner,
+                to,
+            } if to.is_numeric() && !matches!(to.kind, DaTypeKind::Bool) => expr = inner,
             other => return other,
         }
     }
