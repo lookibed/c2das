@@ -43,11 +43,11 @@ made green.
 | Translation surface | Readiness | Basis |
 | --- | --- | --- |
 | Clang AST, CBOR, C AST and declaration intake | `█████████░` ~85% | Mature inherited front end; c2das target ownership is established. |
-| daScript AST construction and printing | `████████░░` ~80% | Broad output surface exists; printer debt must continue moving into typed lowering. |
+| daScript AST construction and printing | `███████░░░` ~70% | Broad output surface exists; the render boundary is now direct AST serialization, while typed lowering still has open semantic work. |
 | Core expressions, statements and numeric operators | `███████░░░` ~65% | Main paths are present; cast policy and statement normalization are not fully canonical. |
 | C types, enums, typedefs and record emission | `█████░░░░░` ~50% | Ordinary paths work; anonymous/nested record identity and aggregate representation remain incomplete. |
 | Pointer, null and raw-memory object access | `███████░░░` ~65% | Canonical ABI, layout and alignment-safe field access exist; aggregate copy is still absent. |
-| libc/runtime lowering | `██████░░░░` ~60% | Canonical memory runtime is present; broader libc and aggregate-related allocation paths remain. |
+| libc/runtime lowering | `█████░░░░░` ~50% | Canonical memory runtime exists; broader libc and aggregate-related allocation paths remain unfinished. |
 | CFG reconstruction and C control flow | `█████░░░░░` ~45% | c2rust structure is present, but switch fallthrough/exit classification and declaration dominance are unfinished. |
 | Calls, returns, callbacks and variadics | `█████░░░░░` ~45% | Scalar/pointer calls work; typed callback ABI and aggregate by-value ABI are missing. |
 | Macros, multi-TU graph and build integration | `███░░░░░░░` ~30% | Some macro paths work; canonical amalgamation and broad build-graph handling remain. |
@@ -55,7 +55,9 @@ made green.
 
 ## Status
 
-The following vertical slices are exercised by executable ABI fixtures:
+### Completed foundations
+
+The following layers are implemented and exercised by executable ABI fixtures:
 
 - scalar and pointer raw-memory access;
 - `malloc`, `calloc`, `realloc`, `free`, `memset`, `memcpy`, `memmove`,
@@ -66,6 +68,32 @@ The following vertical slices are exercised by executable ABI fixtures:
   records;
 - pointer-backed struct fields, union overlay storage, union initialization
   and casts, and bitfield read-modify-write.
+
+### Current verification truth
+
+- WSL `/root/daScript/bin/daslang` is the current trusted executable gate for
+  ABI fixtures `p17` through `p41`.
+
+### Future WSL end-to-end goals
+
+PLMPEG, then H264, are future end-to-end goals exclusively through WSL
+`/root/daScript/bin/daslang`. They receive no current readiness credit and are
+not Windows acceptance gates. Their first new failure must become an
+owner-layer issue with a focused fixture or diagnostic, never a generated-text
+workaround.
+
+### Known debt and next canonical sequence
+
+- Post-render generated-text normalizers, libc/function replacements, and
+  injected entrypoints have been removed. Their historical predicates and
+  owner/fixture-or-diagnostic obligations are recorded in
+  [`docs/post-render-inventory.md`](docs/post-render-inventory.md).
+- Aggregate object copy is the next semantic layer: struct/union byte-copy,
+  raw aggregate load/store, and array/nested-record storage paths.
+- Internal aggregate call/return ABI follows: generated C functions receive
+  aggregate arguments and results through canonical raw-address slots.
+- Bitfield getter/setter surface lowering follows the aggregate ABI. Foreign
+  platform aggregate ABI remains a separate later layer.
 
 Unsupported semantics must fail with a precise translation diagnostic rather
 than silently becoming a daScript value-layout approximation. Current hard
@@ -119,8 +147,6 @@ translation.
 1. Rust tests assert translator AST shape and printed daScript.
 2. ABI fixtures are transpiled into `.das` files.
 3. WSL runs every fixture using the real daScript interpreter.
-4. Generated files can be copied to the Windows checkout for `daslang.exe`
-   verification when that installation is available.
 
 Run the executable ABI suite in WSL:
 
@@ -131,17 +157,6 @@ bash tests/syntax/check_abi_das.sh
 
 The suite currently covers fixtures `p17` through `p41` and executes each
 file with `/root/daScript/bin/daslang`.
-
-Run the real-world PLMPEG backend gates:
-
-```sh
-cd /root/c2dascript
-bash tests/manual/real-world-plmpeg-stream/check_backend_gates.sh
-```
-
-PLMPEG and H264 are deliberately used as end-to-end pressure tests. They are
-not marketing claims that all of either upstream project or the full C
-language is already translated.
 
 ## Development principles
 

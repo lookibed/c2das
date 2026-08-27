@@ -20,7 +20,7 @@ fn c2rust_to_c2dascript_map_covers_required_layers() {
         "Renaming / namespaces",
         "Statement / expression normalization",
         "Intermediate Invariants",
-        "Frozen Debt",
+        "Render Boundary Invariant",
         "c2da_runtime_helpers",
         "Function pointer / callback ABI",
         "invoke(function?)",
@@ -31,14 +31,69 @@ fn c2rust_to_c2dascript_map_covers_required_layers() {
         );
     }
 
-    for frozen_debt in [
+    for removed_debt in [
         "normalize_generated_numeric_patterns",
         "replace_generated_function",
         "normalize_first_phase_shift_assignments",
     ] {
         assert!(
-            map.contains(frozen_debt),
-            "architecture map must explicitly track frozen generated-text debt: {frozen_debt}"
+            !map.contains(removed_debt),
+            "architecture map must not describe removed generated-text debt as live code: {removed_debt}"
+        );
+    }
+}
+
+#[test]
+fn post_render_semantic_repair_is_removed_and_cannot_return() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root");
+    let translator = root.join("c2dascript-transpile/src/translator");
+    let mod_rs = std::fs::read_to_string(translator.join("mod.rs")).expect("translator/mod.rs");
+    let inventory = std::fs::read_to_string(root.join("docs/post-render-inventory.md"))
+        .expect("post-render inventory");
+
+    for forbidden in [
+        "normalize_generated_numeric_patterns",
+        "normalize_first_phase_shift_assignments",
+        "replace_generated_function",
+        "let mut code = module.to_string()",
+    ] {
+        assert!(
+            !mod_rs.contains(forbidden),
+            "post-render semantic repair is forbidden in translator/mod.rs: {forbidden}"
+        );
+    }
+    assert!(
+        mod_rs.contains("module.to_string(),"),
+        "active translation must render the DaModule directly"
+    );
+    assert_eq!(
+        mod_rs.matches("module.to_string()").count(),
+        1,
+        "DaModule rendering must have one direct terminal use, not an intermediate mutable string"
+    );
+
+    for entry in [
+        "normalize_generated_numeric_patterns",
+        "normalize_first_phase_shift_assignments",
+        "replace_generated_function",
+        "dead in current render path",
+        "DaModule::to_string()",
+    ] {
+        assert!(inventory.contains(entry), "inventory missing proof record: {entry}");
+    }
+
+    for source in std::fs::read_dir(&translator).expect("translator directory") {
+        let source = source.expect("translator entry").path();
+        if source.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&source).expect("translator source");
+        assert!(
+            !text.contains("let mut code = module.to_string()"),
+            "mutable rendered source is forbidden: {}",
+            source.display()
         );
     }
 }

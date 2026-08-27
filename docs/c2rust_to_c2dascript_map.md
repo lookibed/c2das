@@ -22,7 +22,7 @@ This file is the working map for architecture-first development. It is not a sta
 | C runtime / libc compatibility | `translator/builtins.rs`, libc call handling in `translator/functions.rs`, runtime shims emitted by c2rust support code | `translator/functions.rs`, `translator/mod.rs::c2da_runtime_helpers`, `translator/builtins.rs` | Early vertical block | daScript only has a small subset of libc-like builtins. Missing calls such as `memchr`, `memset`, `strdup`, and `strlen` must lower through typed runtime helpers and call-argument policy, not generated text replacement. Current helper semantics are conservative and backend-valid; full memory semantics remain future work. |
 | Anonymous / named type emission | `translator/structs_unions.rs`, `translator/enums.rs`, `convert_type.rs`, `translator/mod.rs` type arrangement | Same c2dascript paths | Partially ported | Anonymous typedef-backed structs are handled, but deterministic uniqueness/emission order is not enforced by a registry invariant test. Builtin typedef aliases are skipped ad hoc. |
 | Renaming / namespaces | `renamer.rs`, `translator/mod.rs` name declaration, `rust_ast/item_store.rs` | `renamer.rs`, `translator/mod.rs`, `das_ast` names | Basic | daScript keyword hygiene exists, but namespaces for type/global/local/synthetic names are not separately audited. |
-| Statement / expression normalization | `translator/mod.rs` normalization, `cfg/inc_cleanup.rs`, `cfg/structures.rs` | `translator/mod.rs`, `cfg/inc_cleanup.rs`, `das_ast/src/expr.rs` | Problematic | `normalize_generated_numeric_patterns` and `replace_generated_function` are symptom-layer generated-text rewrites. They are frozen debt: do not add to them; replace with owning-layer lowering. |
+| Statement / expression normalization | `translator/mod.rs` normalization, `cfg/inc_cleanup.rs`, `cfg/structures.rs` | typed lowering, `with_stmts.rs`, `cfg/inc_cleanup.rs`, `cfg/structures.rs`, `das_ast/src/expr.rs` | In progress | The post-render rewrite block was removed. Semantic normalization belongs to typed lowering/CFG; printer output is never rewritten. See `docs/post-render-inventory.md`. |
 
 ## Intermediate Invariants
 
@@ -81,12 +81,10 @@ Missing corpus slot:
    - c2dascript task: replace the current default-result fallback with a real typed callback representation once daScript function type syntax and nullable callback invocation policy are encoded in `DaType` and call lowering.
    - Required tests: struct-field callback call, typedef callback call, nullable callback guard, callback return value coercion, callback argument side-effect preservation.
 
-## Frozen Debt
+## Render Boundary Invariant
 
-The following generated-text normalizers exist and should not be expanded:
-
-- `c2dascript-transpile/src/translator/mod.rs::normalize_generated_numeric_patterns`
-- `c2dascript-transpile/src/translator/mod.rs::replace_generated_function`
-- `c2dascript-transpile/src/translator/mod.rs::normalize_first_phase_shift_assignments`
-
-Replace their responsibilities with typed AST / lowering logic in the owning layer.
+Post-render generated-text normalizers and function-body replacements were
+removed.  `DaModule::to_string()` is the terminal renderer boundary: a printer
+may serialize typed AST but cannot repair semantics.  The historical inventory
+and an owner/fixture-or-diagnostic obligation for each removed workaround are
+in `docs/post-render-inventory.md`.
