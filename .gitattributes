@@ -4,3 +4,7 @@
 c2rust-transpile/tests/snapshots/*transpile*.c.snap linguist-language=Rust
 c2rust-transpile/tests/snapshots/*transpile*.c.snap diff=Rust
 c2rust-transpile/tests/snapshots/*transpile*.c.snap linguist-detectable
+
+# Versioned upstream fixtures are retained byte-for-byte; their historical whitespace is not a
+# c2das source-style violation.
+tests/manual/real-world-h264bsd-mp4/upstream/** -whitespace

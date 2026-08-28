@@ -1,0 +1,5 @@
+{
+  "project": "c2das",
+  "contract": "CLAUDE.md",
+  "note": "Compatibility metadata only. Enforcement is performed by scripts/c2das_preflight.* and Rust source-invariant tests."
+}

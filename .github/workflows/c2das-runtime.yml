@@ -1,0 +1,32 @@
+name: c2das-runtime
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  linux-wsl-equivalent:
+    name: Linux WSL-equivalent daScript gate
+    runs-on: ubuntu-24.04
+    env:
+      LLVM_CONFIG_PATH: /usr/bin/llvm-config-18
+      DASCRIPT_REVISION: b1289736d
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LLVM 18 and daScript build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 llvm-18-dev libclang-18-dev cmake ninja-build git
+      - name: Build pinned daScript runtime
+        run: |
+          git clone https://github.com/GaijinEntertainment/daScript.git /tmp/daScript
+          git -C /tmp/daScript checkout "$DASCRIPT_REVISION"
+          cmake -S /tmp/daScript -B /tmp/daScript/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/daScript/build --parallel 2
+          test -x /tmp/daScript/bin/daslang
+      - name: Run canonical fast preflight
+        run: |
+          export DASROOT=/tmp/daScript
+          bash scripts/c2das_preflight.sh --fast
