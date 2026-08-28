@@ -1,10 +1,26 @@
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workspace root")
         .to_path_buf()
+}
+
+#[test]
+fn fixture_registry_is_current_and_complete() {
+    let root = workspace_root();
+    let output = Command::new("python3")
+        .arg(root.join("scripts/check_test_registry.py"))
+        .arg("--check")
+        .output()
+        .expect("canonical WSL test environment must provide python3");
+    assert!(
+        output.status.success(),
+        "fixture registry check failed:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -20,6 +36,8 @@ fn development_system_contracts_are_present_and_cited() {
         "c2dascript-transpile/src/translator/REVIEW.md",
         "c2dascript-transpile/tests/ARCHITECTURE.md",
         "c2dascript-transpile/tests/REVIEW.md",
+        "c2rust-ast-exporter/ARCHITECTURE.md",
+        "c2rust-ast-exporter/REVIEW.md",
         "tests/ARCHITECTURE.md",
         "tests/REVIEW.md",
         "tests/manual/ARCHITECTURE.md",
@@ -27,6 +45,13 @@ fn development_system_contracts_are_present_and_cited() {
         "skills/internal/review_round.md",
         "scripts/c2das_preflight.ps1",
         "scripts/c2das_preflight.sh",
+        "scripts/check_test_registry.py",
+        "scripts/run_c2das_cases.py",
+        "tests/registry/catalog.json",
+        "tests/registry/fixtures.json",
+        "tests/registry/README.md",
+        "tests/canonical/cases.json",
+        "tests/canonical/README.md",
         "docs/followups/real_world_status.md",
         "docs/preflight-baseline.md",
     ] {
@@ -140,8 +165,10 @@ fn preflight_and_corpus_ledgers_are_fail_closed() {
     for required in [
         "canonical WSL checkout must be a Git repository",
         "untracked artifacts are forbidden",
-        "abi-daslang",
+        "canonical-c2das-runtime",
+        "isolated-exporter-known-red",
         "plmpeg-c-graph",
+        "test-registry",
         "refusing to label its runner a success",
     ] {
         assert!(
@@ -164,12 +191,53 @@ fn preflight_and_corpus_ledgers_are_fail_closed() {
         .expect("preflight baseline");
     for required in [
         "not an exemption",
-        "ABI daScript suite",
-        "missing generated fixture",
+        "Canonical c2das runtime cases",
+        "Legacy ABI daScript shell suite",
     ] {
         assert!(
             baseline.contains(required),
             "baseline omits measured gate: {required}"
         );
     }
+}
+
+#[test]
+fn clang_cbor_exporter_isolated_process_boundary_is_not_optional() {
+    let root = workspace_root();
+    let exporter = std::fs::read_to_string(root.join("c2rust-ast-exporter/src/lib.rs"))
+        .expect("c2rust-ast-exporter Rust boundary");
+    let architecture = std::fs::read_to_string(root.join("c2rust-ast-exporter/ARCHITECTURE.md"))
+        .expect("exporter architecture");
+    let review = std::fs::read_to_string(root.join("c2rust-ast-exporter/REVIEW.md"))
+        .expect("exporter review contract");
+    let build = std::fs::read_to_string(root.join("c2rust-ast-exporter/build.rs"))
+        .expect("exporter build boundary");
+
+    for required in [
+        "ExporterFailure",
+        "Command::new(&executable)",
+        "exporter-timeout",
+        "cbor-protocol",
+        "C2DAS_AST_EXPORTER_BIN",
+        "Stdio::from(stdout)",
+        "read_diagnostic_file",
+        "--c2das-debug",
+    ] {
+        assert!(
+            exporter.contains(required),
+            "exporter boundary missing required mechanism: {required}"
+        );
+    }
+    for forbidden in ["fn ast_exporter(", "marshal_result(", "CLANG_MUTEX"] {
+        assert!(
+            !exporter.contains(forbidden),
+            "in-process exporter execution is forbidden: {forbidden}"
+        );
+    }
+    assert!(architecture.contains("Process boundary"));
+    assert!(architecture.contains("every newly exported AST entry"));
+    assert!(review.contains("parent-process crash"));
+    assert!(review.contains("pipe-backpressure"));
+    assert!(build.contains("C2RUST_AST_EXPORTER_LIB_DIR"));
+    assert!(build.contains("requires C2DAS_AST_EXPORTER_BIN"));
 }

@@ -1,0 +1,6552 @@
+{
+  "fixtures": [
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/alloca.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--alloca",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/alloca.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--arch-os-specific--dummy",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/arch-os-specific/dummy.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/arch-os-specific/varargs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--arch-os-specific--varargs",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/arch-os-specific/varargs.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/arch-specific/asm.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--arch-specific--asm",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/arch-specific/asm.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--arch-specific--dummy",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/arch-specific/dummy.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/arch-specific/spin.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--arch-specific--spin",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/arch-specific/spin.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/arch-specific/vm_x86.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--arch-specific--vm_x86",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/arch-specific/vm_x86.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/arrays.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--arrays",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/arrays.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/atomics.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--atomics",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/atomics.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/auto_type.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--auto_type",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/auto_type.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/bitfields.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--bitfields",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/bitfields.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/bool.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--bool",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/bool.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/compound_literals.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--compound_literals",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/compound_literals.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/empty_init.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--empty_init",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/empty_init.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/exprs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--exprs",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/exprs.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/factorial.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--factorial",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/factorial.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/fn_attrs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--fn_attrs",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/fn_attrs.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/frame_address.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--frame_address",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/frame_address.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/generics.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--generics",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/generics.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/gotos.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--gotos",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/gotos.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/if_else.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--if_else",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/if_else.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/incomplete_arrays.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--incomplete_arrays",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/incomplete_arrays.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/insertion.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--insertion",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/insertion.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/keywords.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--keywords",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/keywords.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/lift_const.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--lift_const",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/lift_const.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/loops.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--loops",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/loops.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/macrocase.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--macrocase",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/macrocase.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/macros.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--macros",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/macros.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/main_fn.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--main_fn",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/main_fn.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/call_only_once.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--call_only_once",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/call_only_once.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/f128.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--f128",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/f128.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/irreducible.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--irreducible",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/irreducible.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/macros.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--macros",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/macros.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/out_of_range_lit.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--out_of_range_lit",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/out_of_range_lit.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/rnd.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--rnd",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/rnd.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/rotate.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--rotate",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/rotate.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/sigign.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--sigign",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/sigign.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/switch.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--switch",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/switch.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/typedefidx.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--typedefidx",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/typedefidx.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/types.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--types",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/types.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/os-specific/wide_strings.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--os-specific--wide_strings",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/os-specific/wide_strings.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/predefined.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--predefined",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/predefined.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/records.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--records",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/records.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/ref_ub.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--ref_ub",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/ref_ub.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/return_addr_helpers.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--return_addr_helpers",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/return_addr_helpers.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/return_address.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--return_address",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/return_address.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/rotate.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--rotate",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/rotate.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/scalar_init.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--scalar_init",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/scalar_init.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/static_assert.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--static_assert",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/static_assert.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/str_init.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--str_init",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/str_init.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/types_compatible.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--types_compatible",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/types_compatible.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "c2dascript-transpile/tests/snapshots/volatile.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "textual-snapshot",
+        "value": "unregistered"
+      },
+      "family": "printer-snapshots",
+      "id": "c2dascript-transpile--tests--snapshots--volatile",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "source": "c2dascript-transpile/tests/snapshots/volatile.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/all.das",
+      "clang": {
+        "compile_commands": "tests/manual/real-world-h264bsd-mp4/compile_commands.json",
+        "flags": [
+          "from-compile-commands"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "h264bsd-mp4",
+      "id": "tests--manual--real-world-h264bsd-mp4--src--all",
+      "owner": "real-world graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/real-world-h264bsd-mp4/src/all.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/h264bsd.das",
+      "clang": {
+        "compile_commands": "tests/manual/real-world-h264bsd-mp4/compile_commands.json",
+        "flags": [
+          "from-compile-commands"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "h264bsd-mp4",
+      "id": "tests--manual--real-world-h264bsd-mp4--src--h264bsd",
+      "owner": "real-world graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/real-world-h264bsd-mp4/src/h264bsd.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/minimp4.das",
+      "clang": {
+        "compile_commands": "tests/manual/real-world-h264bsd-mp4/compile_commands.json",
+        "flags": [
+          "from-compile-commands"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "h264bsd-mp4",
+      "id": "tests--manual--real-world-h264bsd-mp4--src--minimp4",
+      "owner": "real-world graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/real-world-h264bsd-mp4/src/minimp4.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/module.das",
+      "clang": {
+        "compile_commands": "tests/manual/real-world-h264bsd-mp4/compile_commands.json",
+        "flags": [
+          "from-compile-commands"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "h264bsd-mp4",
+      "id": "tests--manual--real-world-h264bsd-mp4--src--module",
+      "owner": "real-world graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/real-world-h264bsd-mp4/src/module.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/shim.das",
+      "clang": {
+        "compile_commands": "tests/manual/real-world-h264bsd-mp4/compile_commands.json",
+        "flags": [
+          "from-compile-commands"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "h264bsd-mp4",
+      "id": "tests--manual--real-world-h264bsd-mp4--src--shim",
+      "owner": "real-world graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/real-world-h264bsd-mp4/src/shim.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "canonical_case": "plmpeg-stream",
+      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/all.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--all",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/all.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--all_reference",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/all_reference.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--macro_origin_probe",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/macro_origin_probe.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/module.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--module",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/module.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/pl_mpeg.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--pl_mpeg",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/pl_mpeg.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--plmpeg_reference_entry",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/plmpeg_reference_entry.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--plmpeg_reference_probe",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/plmpeg_reference_probe.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/shim.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--shim",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/shim.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--variadic_abi_probe",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/variadic_abi_probe.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_assignment_bitand_const_ptr.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_assignment_bitand_const_ptr",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_assignment_bitand_const_ptr.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_assignment_bitand_int_lhs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_assignment_bitand_int_lhs",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_assignment_bitand_int_lhs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_assignment_declared_lhs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_assignment_declared_lhs",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_assignment_declared_lhs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_assignment_expr_rhs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_assignment_expr_rhs",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_assignment_expr_rhs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_function_pointer_callback.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_function_pointer_callback",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_function_pointer_callback.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_if_two_while.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_if_two_while",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_if_two_while.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_if_two_while_assign_cond.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_if_two_while_assign_cond",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_if_two_while_assign_cond.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_libc_runtime_calls.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_libc_runtime_calls",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_libc_runtime_calls.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_local_anonymous_enum.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_local_anonymous_enum",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_local_anonymous_enum.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_local_const_var.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_local_const_var",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_local_const_var.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_local_struct.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_local_struct",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_local_struct.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_pointer_null_cast.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_pointer_null_cast",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_pointer_null_cast.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_pointer_to_uint_cast.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_pointer_to_uint_cast",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_pointer_to_uint_cast.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-architecture/repro_string_literal_address.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-architecture",
+      "id": "tests--manual--repro-architecture--repro_string_literal_address",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-architecture/repro_string_literal_address.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-plmpeg-bugs/repro_complex_if.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-plmpeg",
+      "id": "tests--manual--repro-plmpeg-bugs--repro_complex_if",
+      "owner": "historical PLMPEG reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-plmpeg-bugs/repro_complex_if.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-plmpeg-bugs/repro_complex_if_v2.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-plmpeg",
+      "id": "tests--manual--repro-plmpeg-bugs--repro_complex_if_v2",
+      "owner": "historical PLMPEG reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-plmpeg-bugs/repro_complex_if_v2.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-plmpeg-bugs/repro_complex_if_v4.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-plmpeg",
+      "id": "tests--manual--repro-plmpeg-bugs--repro_complex_if_v4",
+      "owner": "historical PLMPEG reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-plmpeg-bugs/repro_complex_if_v4.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-plmpeg-bugs/repro_for_array.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-plmpeg",
+      "id": "tests--manual--repro-plmpeg-bugs--repro_for_array",
+      "owner": "historical PLMPEG reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-plmpeg-bugs/repro_for_array.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-plmpeg-bugs/repro_for_fold_bytes.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-plmpeg",
+      "id": "tests--manual--repro-plmpeg-bugs--repro_for_fold_bytes",
+      "owner": "historical PLMPEG reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-plmpeg-bugs/repro_for_fold_bytes.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/manual/repro-plmpeg-bugs/repro_for_simple.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "manual-repro-plmpeg",
+      "id": "tests--manual--repro-plmpeg-bugs--repro_for_simple",
+      "owner": "historical PLMPEG reproducer inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/repro-plmpeg-bugs/repro_for_simple.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "archive-secret",
+      "checked_in_das": "tests/production/real-archive-secret/src/all.das",
+      "clang": {
+        "compile_commands": "tests/production/real-archive-secret/cc_all.json",
+        "flags": [
+          "from-compile-commands"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "production-archive",
+      "id": "tests--production--real-archive-secret--src--all",
+      "owner": "historical production corpus inventory",
+      "runtime": "unverified",
+      "source": "tests/production/real-archive-secret/src/all.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "archive-secret",
+      "checked_in_das": "tests/production/real-archive-secret/src/module.das",
+      "clang": {
+        "compile_commands": "tests/production/real-archive-secret/cc_all.json",
+        "flags": [
+          "from-compile-commands"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "production-archive",
+      "id": "tests--production--real-archive-secret--src--module",
+      "owner": "historical production corpus inventory",
+      "runtime": "unverified",
+      "source": "tests/production/real-archive-secret/src/module.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "archive-secret",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": "tests/production/real-archive-secret/cc_all.json",
+        "flags": [
+          "from-compile-commands"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "production-archive",
+      "id": "tests--production--real-archive-secret--src--shim",
+      "owner": "historical production corpus inventory",
+      "runtime": "unverified",
+      "source": "tests/production/real-archive-secret/src/shim.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c01_complex.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c01_complex",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c01_complex.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c01_const_int.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c01_const_int",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c01_const_int.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c02_const_ptr.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c02_const_ptr",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c02_const_ptr.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c03_ptr_to_const.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c03_ptr_to_const",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c03_ptr_to_const.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c04_const_array.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c04_const_array",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c04_const_array.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c05_const_struct_ptr.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c05_const_struct_ptr",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c05_const_struct_ptr.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c06_const_chain.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c06_const_chain",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c06_const_chain.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c07_const_assign.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c07_const_assign",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c07_const_assign.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c08_const_static.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c08_const_static",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c08_const_static.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c09_const_multi.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c09_const_multi",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c09_const_multi.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/c10_const_mixed.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-const",
+      "id": "tests--syntax--c10_const_mixed",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "source": "tests/syntax/c10_const_mixed.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d01_basic.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d01_basic",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d01_basic.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d01_dowhile",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d01_dowhile.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d02_dowhile_break",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d02_dowhile_break.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d02_once.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d02_once",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d02_once.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d03_dowhile_continue",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d03_dowhile_continue.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d03_zero.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d03_zero",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d03_zero.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d04_break.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d04_break",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d04_break.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d04_dowhile_once",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d04_dowhile_once.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d05_continue.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d05_continue",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d05_continue.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d05_dowhile_zero",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d05_dowhile_zero.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d06_dowhile_nest",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d06_dowhile_nest.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d06_nested_do.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d06_nested_do",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d06_nested_do.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d07_do_while_var.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d07_do_while_var",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d07_do_while_var.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d07_ptr_arith",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d07_ptr_arith.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d08_do_in_while.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d08_do_in_while",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d08_do_in_while.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d08_ptr_arrow",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d08_ptr_arrow.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d09_continue_in_while.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d09_continue_in_while",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d09_continue_in_while.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/d10_sum_do.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-do-while",
+      "id": "tests--syntax--d10_sum_do",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/d10_sum_do.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/g01_goto_basic.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-goto",
+      "id": "tests--syntax--g01_goto_basic",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/g01_goto_basic.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/g02_goto_loop.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-goto",
+      "id": "tests--syntax--g02_goto_loop",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/g02_goto_loop.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/g03_goto_forward.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-goto",
+      "id": "tests--syntax--g03_goto_forward",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/g03_goto_forward.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error-unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n01_unsupported_builtin",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n01_unsupported_builtin.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error-unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n02_unsupported_va_arg_type",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n02_unsupported_va_arg_type.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error-unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n03_inline_asm",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n03_inline_asm.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error-unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n04_simd_shuffle",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n04_simd_shuffle.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error-unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n05_simd_convert",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n05_simd_convert.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p01_ptr_deref.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p01_ptr_deref",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p01_ptr_deref.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p01_ptr_int",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p01_ptr_int.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p02_ptr_assign.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p02_ptr_assign",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p02_ptr_assign.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p03_ptr_add.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p03_ptr_add",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p03_ptr_add.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p04_arrow_basic.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p04_arrow_basic",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p04_arrow_basic.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p05_arrow_chain.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p05_arrow_chain",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p05_arrow_chain.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p06_ptr_to_ptr.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p06_ptr_to_ptr",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p06_ptr_to_ptr.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p07_ptr_arith.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p07_ptr_arith",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p07_ptr_arith.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p08_arrow_func.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p08_arrow_func",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p08_arrow_func.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p09_ptr_null.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p09_ptr_null",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p09_ptr_null.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p10_ptr_swap.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p10_ptr_swap",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p10_ptr_swap.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p11_function_pointer_decay.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p11_function_pointer_decay",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p11_function_pointer_decay.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p12_fixed_array_default.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p12_fixed_array_default",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p12_fixed_array_default.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p13_pointer_array_default.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p13_pointer_array_default",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p13_pointer_array_default.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p14_void_pointer_field_assign.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p14_void_pointer_field_assign",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p14_void_pointer_field_assign.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p15_function_pointer_arg_coerce.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p15_function_pointer_arg_coerce",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p15_function_pointer_arg_coerce.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/p16_post_increment_write_lvalue.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p16_post_increment_write_lvalue",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/p16_post_increment_write_lvalue.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p17-runtime-malloc",
+      "checked_in_das": "tests/syntax/p17_runtime_malloc.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "runtime_malloc_returns_typed_pointer",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p17_runtime_malloc",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p17_runtime_malloc.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p18-runtime-calloc-memset",
+      "checked_in_das": "tests/syntax/p18_runtime_calloc_memset.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "runtime_calloc_and_memset_lower_to_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p18_runtime_calloc_memset",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p18_runtime_calloc_memset.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p19-runtime-memory-calls",
+      "checked_in_das": "tests/syntax/p19_runtime_memory_calls.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "runtime_memory_calls_lower_to_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p19_runtime_memory_calls",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p19_runtime_memory_calls.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p20-pointer-abi-edges",
+      "checked_in_das": "tests/syntax/p20_pointer_abi_edges.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "pointer_abi_edges",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p20_pointer_abi_edges",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p20_pointer_abi_edges.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p21-byte-numeric",
+      "checked_in_das": "tests/syntax/p21_byte_numeric.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "byte_numeric_edges",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p21_byte_numeric",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p21_byte_numeric.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p22-typed-literals",
+      "checked_in_das": "tests/syntax/p22_typed_literals.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "typed_literals",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p22_typed_literals",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p22_typed_literals.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p23-bool-numeric",
+      "checked_in_das": "tests/syntax/p23_bool_numeric.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "bool_numeric_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p23_bool_numeric",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p23_bool_numeric.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p24-nonruntime-pointer-call",
+      "checked_in_das": "tests/syntax/p24_nonruntime_pointer_call.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "nonruntime_pointer_call",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p24_nonruntime_pointer_call",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p24_nonruntime_pointer_call.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p25-array-initializers",
+      "checked_in_das": "tests/syntax/p25_array_initializers.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "array_initializers_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p25_array_initializers",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p25_array_initializers.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p26-variadic-sum",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "variadic_sum_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p26_variadic_sum",
+      "owner": "variadic call lowering",
+      "runtime": "required",
+      "source": "tests/syntax/p26_variadic_sum.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p27-variadic-promotions",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "variadic_promotions_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p27_variadic_promotions",
+      "owner": "variadic call lowering",
+      "runtime": "required",
+      "source": "tests/syntax/p27_variadic_promotions.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p28-variadic-multiple-types",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "variadic_multiple_types_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p28_variadic_multiple_types",
+      "owner": "variadic call lowering",
+      "runtime": "required",
+      "source": "tests/syntax/p28_variadic_multiple_types.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p29-variadic-function-pointer",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "unsupported variadic ABI boundary: variadic function pointer call",
+          "location": "p29_variadic_function_pointer_unsupported.c",
+          "operation": "top-level declaration lowering",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p29_variadic_function_pointer_unsupported",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/p29_variadic_function_pointer_unsupported.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p30-macro-constant-expression",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "macro_constant_expression_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p30_macro_constant_expression",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p30_macro_constant_expression.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p31-macro-side-effect",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "macro_side_effect_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p31_macro_side_effect",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p31_macro_side_effect.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p32-macro-statement-expression",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "macro_statement_expression_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p32_macro_statement_expression",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p32_macro_statement_expression.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p33-offsetof-sizeof",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "predefined_sizeof_builtin_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p33_predefined_sizeof_builtin",
+      "owner": "layout and builtin lowering",
+      "runtime": "required",
+      "source": "tests/syntax/p33_predefined_sizeof_builtin.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p34-clang-layout-records",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "c_layout_records_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p34_c_layout_records",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p34_c_layout_records.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p35-pointer-backed-struct",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "pointer_backed_struct_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p35_pointer_backed_struct",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p35_pointer_backed_struct.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p37-union-overlay",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "union_overlay_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p37_union_overlay",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p37_union_overlay.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p38-local-union-init",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "local_union_init_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p38_local_union_init",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p38_local_union_init.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p39-packed-scalar",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "packed_scalar_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p39_packed_scalar",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p39_packed_scalar.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p40-bitfield-rmw",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "bitfield_rmw_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p40_bitfield_rmw",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p40_bitfield_rmw.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p40-nested-raw-aggregate-place",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "nested_raw_aggregate_place_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p40_nested_raw_aggregate_place",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p40_nested_raw_aggregate_place.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p41-raw-array-field-decay",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "raw_array_field_decay_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p41_raw_array_field_decay",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p41_raw_array_field_decay.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p41-union-cast",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "union_cast_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p41_union_cast",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p41_union_cast.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/s01_switch_basic.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-switch",
+      "id": "tests--syntax--s01_switch_basic",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/s01_switch_basic.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/s02_switch_default.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-switch",
+      "id": "tests--syntax--s02_switch_default",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/s02_switch_default.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/s03_switch_fallthrough.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-switch",
+      "id": "tests--syntax--s03_switch_fallthrough",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/s03_switch_fallthrough.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/s11_switch_fallthrough_read.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-switch",
+      "id": "tests--syntax--s11_switch_fallthrough_read",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/s11_switch_fallthrough_read.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/s12_sizeof_array_nelem.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-switch",
+      "id": "tests--syntax--s12_sizeof_array_nelem",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "source": "tests/syntax/s12_sizeof_array_nelem.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t01_arith.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t01_arith",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t01_arith.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t01_typedef_simple.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t01_typedef_simple",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t01_typedef_simple.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t02_mul_div.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t02_mul_div",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t02_mul_div.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t02_typedef_ptr.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t02_typedef_ptr",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t02_typedef_ptr.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t03_cmp.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t03_cmp",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t03_cmp.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t03_typedef_struct.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t03_typedef_struct",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t03_typedef_struct.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t04_logical.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t04_logical",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t04_logical.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t05_if_elif.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t05_if_elif",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t05_if_elif.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t06_while.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t06_while",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t06_while.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t07_for.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t07_for",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t07_for.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t08_struct.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t08_struct",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t08_struct.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t09_enum.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t09_enum",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t09_enum.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t10_chain.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t10_chain",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t10_chain.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/t11_bool_precedence.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-numeric",
+      "id": "tests--syntax--t11_bool_precedence",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/t11_bool_precedence.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/test_full.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-smoke",
+      "id": "tests--syntax--test_full",
+      "owner": "legacy smoke coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/test_full.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/test_if.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-smoke",
+      "id": "tests--syntax--test_if",
+      "owner": "legacy smoke coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/test_if.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/test_member.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-smoke",
+      "id": "tests--syntax--test_member",
+      "owner": "legacy smoke coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/test_member.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/test_simple.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-smoke",
+      "id": "tests--syntax--test_simple",
+      "owner": "legacy smoke coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/test_simple.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/test_struct.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-smoke",
+      "id": "tests--syntax--test_struct",
+      "owner": "legacy smoke coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/test_struct.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-smoke",
+      "id": "tests--syntax--test_struct_full",
+      "owner": "legacy smoke coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/test_struct_full.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/u01_unsafe_ptr.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-unsafe-legacy",
+      "id": "tests--syntax--u01_unsafe_ptr",
+      "owner": "legacy pointer coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/u01_unsafe_ptr.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/u02_unsafe_write.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-unsafe-legacy",
+      "id": "tests--syntax--u02_unsafe_write",
+      "owner": "legacy pointer coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/u02_unsafe_write.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/syntax/u03_unsafe_swap.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-unsafe-legacy",
+      "id": "tests--syntax--u03_unsafe_swap",
+      "owner": "legacy pointer coverage",
+      "runtime": "unverified",
+      "source": "tests/syntax/u03_unsafe_swap.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "include-fragment",
+        "value": "unregistered"
+      },
+      "family": "syntax-include-fragment",
+      "id": "tests--syntax--ztest_inc",
+      "owner": "fixture graph inventory",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/ztest_inc.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/arrays/src/arrays.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--arrays--src--arrays",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/arrays/src/arrays.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/arrays/src/incomplete_arrays.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--arrays--src--incomplete_arrays",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/arrays/src/incomplete_arrays.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/arrays/src/packed_arrays.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--arrays--src--packed_arrays",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/arrays/src/packed_arrays.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/arrays/src/variable_arrays.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--arrays--src--variable_arrays",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/arrays/src/variable_arrays.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/asm.aarch64/src/asm.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--asm.aarch64--src--asm",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/asm.aarch64/src/asm.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/asm.arm/src/asm.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--asm.arm--src--asm",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/asm.arm/src/asm.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/asm.x86_64/src/asm.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--asm.x86_64--src--asm",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/asm.x86_64/src/asm.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/builtins/src/alloca.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--builtins--src--alloca",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/builtins/src/alloca.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/builtins/src/atomics.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--builtins--src--atomics",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/builtins/src/atomics.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/builtins/src/math.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--builtins--src--math",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/builtins/src/math.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/builtins/src/mem_x_fns.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--builtins--src--mem_x_fns",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/builtins/src/mem_x_fns.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/casts/src/cast_funptr.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--casts--src--cast_funptr",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/casts/src/cast_funptr.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/casts/src/casts.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--casts--src--casts",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/casts/src/casts.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--cleanup_attr--src--cleanup",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/cleanup_attr/src/cleanup.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/comments/src/comments.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--comments--src--comments",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/comments/src/comments.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/conditionals/src/binary_conditional.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--conditionals--src--binary_conditional",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/conditionals/src/binary_conditional.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/conditionals/src/conditional.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--conditionals--src--conditional",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/conditionals/src/conditional.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/conditionals/src/conditionals.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--conditionals--src--conditionals",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/conditionals/src/conditionals.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/conditionals/src/else_if_chain.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--conditionals--src--else_if_chain",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/conditionals/src/else_if_chain.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/conditionals/src/unused_conditionals.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--conditionals--src--unused_conditionals",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/conditionals/src/unused_conditionals.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/enums/src/big_enum.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--enums--src--big_enum",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/enums/src/big_enum.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/enums/src/enum_as_int.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--enums--src--enum_as_int",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/enums/src/enum_as_int.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/enums/src/enum_compound.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--enums--src--enum_compound",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/enums/src/enum_compound.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/enums/src/enum_duplicate.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--enums--src--enum_duplicate",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/enums/src/enum_duplicate.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/enums/src/enum_fwd_decl.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--enums--src--enum_fwd_decl",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/enums/src/enum_fwd_decl.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/enums/src/enum_ret.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--enums--src--enum_ret",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/enums/src/enum_ret.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/enums/src/non_canonical_enum_def.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--enums--src--non_canonical_enum_def",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/enums/src/non_canonical_enum_def.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/enums/src/top_enum.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--enums--src--top_enum",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/enums/src/top_enum.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/example/src/add.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--example--src--add",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/example/src/add.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/example/src/skip_me.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--example--src--skip_me",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/example/src/skip_me.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/example/src/sub.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--example--src--sub",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/example/src/sub.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/floats/src/no_float_wrapping_neg.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--floats--src--no_float_wrapping_neg",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/floats/src/no_float_wrapping_neg.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/dfa_binary_multiple_three.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--dfa_binary_multiple_three",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/dfa_binary_multiple_three.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/duffs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--duffs",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/duffs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/early_returns.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--early_returns",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/early_returns.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/fallthrough.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--fallthrough",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/fallthrough.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/goto_error.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--goto_error",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/goto_error.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/idiomatic_nested_loops.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--idiomatic_nested_loops",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/idiomatic_nested_loops.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/idiomatic_switch.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--idiomatic_switch",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/idiomatic_switch.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/irreducible.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--irreducible",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/irreducible.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/jump_into_loop.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--jump_into_loop",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/jump_into_loop.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/label_break_trigger.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--label_break_trigger",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/label_break_trigger.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/lifted_decls.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--lifted_decls",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/lifted_decls.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/gotos/src/stmt_expr.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--gotos--src--stmt_expr",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/gotos/src/stmt_expr.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/ints/src/arithmetic.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--ints--src--arithmetic",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/ints/src/arithmetic.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/ints/src/chars.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--ints--src--chars",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/ints/src/chars.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/ints/src/compound_assignment.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--ints--src--compound_assignment",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/ints/src/compound_assignment.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/ints/src/const_test.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--ints--src--const_test",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/ints/src/const_test.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/ints/src/implicit_int.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--ints--src--implicit_int",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/ints/src/implicit_int.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/ints/src/sieve_of_eratosthenes.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--ints--src--sieve_of_eratosthenes",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/ints/src/sieve_of_eratosthenes.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/ints/src/size_t.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--ints--src--size_t",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/ints/src/size_t.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/ints/src/volatile.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--ints--src--volatile",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/ints/src/volatile.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/items/src/fn_attrs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--items--src--fn_attrs",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/items/src/fn_attrs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/items/src/functions.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--items--src--functions",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/items/src/functions.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/items/src/linking.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--items--src--linking",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/items/src/linking.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/items/src/nofnargs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--items--src--nofnargs",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/items/src/nofnargs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/items/src/noop.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--items--src--noop",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/items/src/noop.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/items/src/varargs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--items--src--varargs",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/items/src/varargs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/longdouble/src/long_double.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--longdouble--src--long_double",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/longdouble/src/long_double.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/loops/src/break_continue.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--loops--src--break_continue",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/loops/src/break_continue.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/loops/src/goto_linear_cf.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--loops--src--goto_linear_cf",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/loops/src/goto_linear_cf.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/loops/src/goto_loop_cf.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--loops--src--goto_loop_cf",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/loops/src/goto_loop_cf.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/loops/src/goto_switch_cf.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--loops--src--goto_switch_cf",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/loops/src/goto_switch_cf.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/loops/src/nested_goto.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--loops--src--nested_goto",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/loops/src/nested_goto.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/loops/src/switch.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--loops--src--switch",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/loops/src/switch.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/macros/src/define.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--macros--src--define",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/macros/src/define.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/call_only_once.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--call_only_once",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/call_only_once.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/exprs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--exprs",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/exprs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/lvalues.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--lvalues",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/lvalues.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/malloc.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--malloc",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/malloc.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/qsort.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--qsort",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/qsort.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/shadowing.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--shadowing",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/shadowing.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/sizeofs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--sizeofs",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/sizeofs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/strings_h.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--strings_h",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/strings_h.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/typedef.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--typedef",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/typedef.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/uninitialized.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--uninitialized",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/uninitialized.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/unsized.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--unsized",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/unsized.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/misc/src/vectortypes.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--misc--src--vectortypes",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/misc/src/vectortypes.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/modules/src/modules.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--modules--src--modules",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/modules/src/modules.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/pointers/src/function_pointers.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--pointers--src--function_pointers",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/pointers/src/function_pointers.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/pointers/src/pointer_arith.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--pointers--src--pointer_arith",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/pointers/src/pointer_arith.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/pointers/src/pointer_init.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--pointers--src--pointer_init",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/pointers/src/pointer_init.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/pointers/src/ref_decay.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--pointers--src--ref_decay",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/pointers/src/ref_decay.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/simd.x86_64/src/x86.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--simd.x86_64--src--x86",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/simd.x86_64/src/x86.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/statics/src/attributes.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--statics--src--attributes",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/statics/src/attributes.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/statics/src/sections.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--statics--src--sections",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/statics/src/sections.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/statics/src/storage.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--statics--src--storage",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/statics/src/storage.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/statics/src/thread_locals.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--statics--src--thread_locals",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/statics/src/thread_locals.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/structs/src/anonymous_decls.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--structs--src--anonymous_decls",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/structs/src/anonymous_decls.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/structs/src/bitfields.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--structs--src--bitfields",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/structs/src/bitfields.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/structs/src/flex_array_members.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--structs--src--flex_array_members",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/structs/src/flex_array_members.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/structs/src/forward.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--structs--src--forward",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/structs/src/forward.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/structs/src/self_referential.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--structs--src--self_referential",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/structs/src/self_referential.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/structs/src/struct_with_exp.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--structs--src--struct_with_exp",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/structs/src/struct_with_exp.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/structs/src/structs.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--structs--src--structs",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/structs/src/structs.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/structs/src/variable_offsetof.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--structs--src--variable_offsetof",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/structs/src/variable_offsetof.c",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "checked_in_das": "tests/unit/unions/src/unions.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "inherited-c2rust-unit",
+      "id": "tests--unit--unions--src--unions",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "source": "tests/unit/unions/src/unions.c",
+      "status": "historical"
+    }
+  ],
+  "graphs": [
+    {
+      "clang_flags": [
+        "-w"
+      ],
+      "description": "One C translation unit with the fixture-local Clang invocation.",
+      "id": "single-tu"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-DPLM_NO_STDIO",
+        "-Iinclude",
+        "-Iupstream",
+        "-Ifixtures",
+        "-Isrc"
+      ],
+      "description": "Canonical PLMPEG translation graph, rooted at src/all.c.",
+      "entry": "tests/manual/real-world-plmpeg-stream/src/all.c",
+      "id": "plmpeg-target"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-DPLM_NO_STDIO",
+        "-Iinclude",
+        "-Iupstream",
+        "-Ifixtures",
+        "-Isrc"
+      ],
+      "description": "C reference graph for PLMPEG, rooted at src/all_reference.c.",
+      "entry": "tests/manual/real-world-plmpeg-stream/src/all_reference.c",
+      "id": "plmpeg-reference"
+    },
+    {
+      "compile_commands": "tests/manual/real-world-h264bsd-mp4/compile_commands.json",
+      "description": "Recorded H264BSD plus minimp4 corpus graph.",
+      "entry": "tests/manual/real-world-h264bsd-mp4/src/all.c",
+      "id": "h264bsd-mp4"
+    },
+    {
+      "compile_commands": "tests/production/real-archive-secret/cc_all.json",
+      "description": "Historical production archive graph; not a current acceptance target.",
+      "entry": "tests/production/real-archive-secret/src/all.c",
+      "id": "archive-secret"
+    }
+  ],
+  "purpose": "Frozen inventory; statuses are facts, never a compatibility claim.",
+  "runners": [
+    {
+      "path": ".github/workflows/c2das-runtime.yml",
+      "reason": "Calls the blocked fast preflight.",
+      "role": "c2das-ci",
+      "status": "blocked"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "reason": "Runs c2rust-transpile and Rust-output validation, not c2das.",
+      "role": "inherited-c2rust-ci",
+      "status": "quarantined"
+    },
+    {
+      "path": ".github/workflows/internal-testsuite.yml",
+      "reason": "Checks out immunant/c2rust rather than this repository.",
+      "role": "upstream-c2rust-ci",
+      "status": "retire"
+    },
+    {
+      "path": "scripts/c2das_preflight.ps1",
+      "reason": "Windows convenience wrapper for the canonical WSL preflight.",
+      "role": "c2das-preflight-wrapper",
+      "status": "blocked"
+    },
+    {
+      "path": "scripts/c2das_preflight.sh",
+      "reason": "Known red rustfmt baseline precedes semantic gates.",
+      "role": "c2das-preflight",
+      "status": "blocked"
+    },
+    {
+      "path": "scripts/check_test_registry.py",
+      "reason": "Mandatory inventory-drift verifier; it does not execute fixtures.",
+      "role": "test-registry-verifier",
+      "status": "retained-non-e2e"
+    },
+    {
+      "path": "scripts/integration_test_translator.py",
+      "reason": "C2Rust integration helper, not a daScript execution runner.",
+      "role": "inherited-c2rust-integration",
+      "status": "quarantined"
+    },
+    {
+      "path": "scripts/run_c2das_cases.py",
+      "reason": "Canonical isolated C reference to fresh daScript runtime runner.",
+      "role": "canonical-c2das-runtime-runner",
+      "status": "retained-non-e2e"
+    },
+    {
+      "path": "scripts/run_ci_checks.sh",
+      "reason": "Invokes inherited C2Rust test surfaces.",
+      "role": "inherited-ci-helper",
+      "status": "quarantined"
+    },
+    {
+      "path": "scripts/test_cross_checks.py",
+      "reason": "Inherited C2Rust cross-check surface, not c2das runtime proof.",
+      "role": "inherited-c2rust-cross-checks",
+      "status": "historical"
+    },
+    {
+      "path": "scripts/test_dascript.py",
+      "reason": "Old Windows path and fail-open runtime handling.",
+      "role": "legacy-dascript-runner",
+      "status": "retire"
+    },
+    {
+      "path": "scripts/test_examples.py",
+      "reason": "Inherited C2Rust example runner, not c2das runtime proof.",
+      "role": "inherited-c2rust-examples",
+      "status": "historical"
+    },
+    {
+      "path": "scripts/test_rust_refactor.py",
+      "reason": "Inherited C2Rust refactor runner, not c2das runtime proof.",
+      "role": "inherited-c2rust-refactor",
+      "status": "historical"
+    },
+    {
+      "path": "scripts/test_translator.py",
+      "reason": "C2Rust Rust-output harness; retained only as upstream parity material.",
+      "role": "inherited-c2rust-translator-runner",
+      "status": "quarantined"
+    },
+    {
+      "path": "tests/integration/test.py",
+      "reason": "C2Rust integration suite retained as upstream corpus material.",
+      "role": "inherited-c2rust-integration-suite",
+      "status": "historical"
+    },
+    {
+      "path": "tests/manual/real-world-h264bsd-mp4/run_dascheck.ps1",
+      "reason": "Windows diagnostic script that overwrites tracked reports.",
+      "role": "h264-windows-diagnostic",
+      "status": "retire"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/check_backend_gates.sh",
+      "reason": "Historical diagnostic helper, not an end-to-end proof.",
+      "role": "plmpeg-backend-helper",
+      "status": "historical"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/check_c_graph.sh",
+      "reason": "Clang graph proof only.",
+      "role": "plmpeg-c-graph",
+      "status": "retained-non-e2e"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/run_dascheck.ps1",
+      "reason": "Windows diagnostic script outside the canonical WSL runtime.",
+      "role": "plmpeg-windows-diagnostic",
+      "status": "retire"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/run_end_to_end.sh",
+      "reason": "Requires fresh-output proof before it can be an acceptance gate.",
+      "role": "plmpeg-e2e",
+      "status": "known-red"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/transpile_canonical_graph.sh",
+      "reason": "Writes generated output beside fixture source and is not an oracle.",
+      "role": "plmpeg-transpile-helper",
+      "status": "quarantined"
+    },
+    {
+      "path": "tests/run_all.bat",
+      "reason": "Old source path and copy pipeline.",
+      "role": "legacy-windows-batch-suite",
+      "status": "retire"
+    },
+    {
+      "path": "tests/run_all.ps1",
+      "reason": "Old source path, copy pipeline, and skipped outputs.",
+      "role": "legacy-windows-suite",
+      "status": "retire"
+    },
+    {
+      "path": "tests/run_bulk.ps1",
+      "reason": "Old Windows source path.",
+      "role": "legacy-windows-bulk",
+      "status": "retire"
+    },
+    {
+      "path": "tests/syntax/check_abi_das.sh",
+      "reason": "Consumes checked-in output and stops at missing p26_variadic_sum.das.",
+      "role": "abi-runtime",
+      "status": "known-red"
+    }
+  ],
+  "schema_version": 1
+}

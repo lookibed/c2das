@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "p17-runtime-malloc",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p17_runtime_malloc.c",
+      "c_graph": "single-tu",
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-w"]
+      },
+      "c_reference": {
+        "entrypoint": "runtime_malloc_returns_typed_pointer",
+        "return_type": "int"
+      },
+      "das_entrypoint": "runtime_malloc_returns_typed_pointer",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p17_runtime_malloc_uses_canonical_raw_memory_abi",
+      "runtime": "required"
+    },
+    {
+      "id": "p18-runtime-calloc-memset",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p18_runtime_calloc_memset.c",
+      "c_graph": "single-tu",
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-w"]
+      },
+      "c_reference": {
+        "entrypoint": "runtime_calloc_and_memset_lower_to_runtime",
+        "return_type": "int"
+      },
+      "das_entrypoint": "runtime_calloc_and_memset_lower_to_runtime",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p18_runtime_calloc_and_memset_use_canonical_raw_memory_abi",
+      "runtime": "required"
+    },
+    {
+      "id": "p20-pointer-abi-edges",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p20_pointer_abi_edges.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "pointer_abi_edges", "return_type": "int" },
+      "das_entrypoint": "pointer_abi_edges",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p20_pointer_abi_edges_stay_typed_outside_raw_boundaries",
+      "runtime": "required"
+    },
+    {
+      "id": "p21-byte-numeric",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p21_byte_numeric.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "byte_numeric_edges", "return_type": "int" },
+      "das_entrypoint": "byte_numeric_edges",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p21_byte_reads_are_widened_before_numeric_operations",
+      "runtime": "required"
+    },
+    {
+      "id": "p22-typed-literals",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p22_typed_literals.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "typed_literals", "return_type": "int" },
+      "das_entrypoint": "typed_literals",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p22_literals_follow_their_c_target_types",
+      "runtime": "required"
+    },
+    {
+      "id": "p23-bool-numeric",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p23_bool_numeric.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "bool_numeric_runtime", "return_type": "int" },
+      "das_entrypoint": "bool_numeric_runtime",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p23_bool_to_numeric_is_statement_lowered_at_every_value_site",
+      "runtime": "required"
+    },
+    {
+      "id": "p24-nonruntime-pointer-call",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p24_nonruntime_pointer_call.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "nonruntime_pointer_call", "return_type": "int" },
+      "das_entrypoint": "nonruntime_pointer_call",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p24_nonruntime_pointer_calls_use_typed_pointer_abi_without_runtime",
+      "runtime": "required"
+    },
+    {
+      "id": "p25-array-initializers",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p25_array_initializers.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "array_initializers_runtime", "return_type": "int" },
+      "das_entrypoint": "array_initializers_runtime",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p25_array_initializers_are_aggregate_ast_not_numeric_casts",
+      "runtime": "required"
+    },
+    {
+      "id": "p19-runtime-memory-calls",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p19_runtime_memory_calls.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "runtime_memory_calls_lower_to_runtime", "return_type": "int" },
+      "das_entrypoint": "runtime_memory_calls_lower_to_runtime",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p19_runtime_memory_calls_use_canonical_raw_memory_abi",
+      "runtime": "required"
+    },
+    {
+      "id": "p26-variadic-sum",
+      "status": "ready",
+      "source_root": "tests/syntax", "translation_entry": "p26_variadic_sum.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "variadic_sum_runtime", "return_type": "int" },
+      "das_entrypoint": "variadic_sum_runtime", "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p26_variadic_sum_uses_the_canonical_packed_abi", "runtime": "required"
+    },
+    {
+      "id": "p27-variadic-promotions",
+      "status": "ready",
+      "source_root": "tests/syntax", "translation_entry": "p27_variadic_promotions.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "variadic_promotions_runtime", "return_type": "int" },
+      "das_entrypoint": "variadic_promotions_runtime", "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p27_variadic_promotions_pack_int_and_double_lanes", "runtime": "required"
+    },
+    {
+      "id": "p28-variadic-multiple-types",
+      "status": "ready",
+      "source_root": "tests/syntax", "translation_entry": "p28_variadic_multiple_types.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "variadic_multiple_types_runtime", "return_type": "int" },
+      "das_entrypoint": "variadic_multiple_types_runtime", "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p28_variadic_multiple_types_pack_integer_double_and_raw_lanes", "runtime": "required"
+    },
+    {
+      "id": "p29-variadic-function-pointer",
+      "status": "negative",
+      "source_root": "tests/syntax", "translation_entry": "p29_variadic_function_pointer_unsupported.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
+      "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "p29_variadic_function_pointer_unsupported.c", "cause": "unsupported variadic ABI boundary: variadic function pointer call" },
+      "rust_assertion": "ptr_tests::p29_variadic_function_pointer_is_diagnosed_before_printing", "runtime": "not-applicable"
+    },
+    {
+      "id": "p30-macro-constant-expression", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p30_macro_constant_expression.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "macro_constant_expression_runtime", "return_type": "int" }, "das_entrypoint": "macro_constant_expression_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p30_macro_constant_expression_is_lowered_as_expanded_ast", "runtime": "required"
+    },
+    {
+      "id": "p31-macro-side-effect", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p31_macro_side_effect.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "macro_side_effect_runtime", "return_type": "int" }, "das_entrypoint": "macro_side_effect_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p31_macro_side_effect_is_not_reconstructed_from_text", "runtime": "required"
+    },
+    {
+      "id": "p32-macro-statement-expression", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p32_macro_statement_expression.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "macro_statement_expression_runtime", "return_type": "int" }, "das_entrypoint": "macro_statement_expression_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p32_statement_expression_uses_statement_ast_not_macro_text", "runtime": "required"
+    },
+    {
+      "id": "p33-offsetof-sizeof", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p33_predefined_sizeof_builtin.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "predefined_sizeof_builtin_runtime", "return_type": "int" }, "das_entrypoint": "predefined_sizeof_builtin_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p33_sizeof_and_builtin_expect_use_explicit_lowering", "runtime": "required"
+    },
+    {
+      "id": "p34-clang-layout-records", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p34_c_layout_records.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "c_layout_records_runtime", "return_type": "int" }, "das_entrypoint": "c_layout_records_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p34_records_and_unions_use_clang_layout_facts", "runtime": "required"
+    },
+    {
+      "id": "p35-pointer-backed-struct", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p35_pointer_backed_struct.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "pointer_backed_struct_runtime", "return_type": "int" }, "das_entrypoint": "pointer_backed_struct_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p35_pointer_backed_struct_uses_c_field_offsets", "runtime": "required"
+    },
+    {
+      "id": "p37-union-overlay", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p37_union_overlay.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "union_overlay_runtime", "return_type": "int" }, "das_entrypoint": "union_overlay_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p37_union_overlay_uses_raw_zero_offset_access", "runtime": "required"
+    },
+    {
+      "id": "p38-local-union-init", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p38_local_union_init.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "local_union_init_runtime", "return_type": "int" }, "das_entrypoint": "local_union_init_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p38_local_union_uses_raw_storage_wrapper", "runtime": "required"
+    },
+    {
+      "id": "p39-packed-scalar", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p39_packed_scalar.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "packed_scalar_runtime", "return_type": "int" }, "das_entrypoint": "packed_scalar_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p39_packed_scalar_uses_memcpy_not_typed_deref", "runtime": "required"
+    },
+    {
+      "id": "p40-bitfield-rmw", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p40_bitfield_rmw.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "bitfield_rmw_runtime", "return_type": "int" }, "das_entrypoint": "bitfield_rmw_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p40_bitfields_use_masked_raw_rmw", "runtime": "required"
+    },
+    {
+      "id": "p40-nested-raw-aggregate-place", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p40_nested_raw_aggregate_place.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "nested_raw_aggregate_place_runtime", "return_type": "int" }, "das_entrypoint": "nested_raw_aggregate_place_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p40_nested_raw_aggregate_is_an_address_chain_not_an_rvalue", "runtime": "required"
+    },
+    {
+      "id": "p41-raw-array-field-decay", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p41_raw_array_field_decay.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "raw_array_field_decay_runtime", "return_type": "int" }, "das_entrypoint": "raw_array_field_decay_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p41_raw_array_field_decays_from_its_address_not_a_das_array_value", "runtime": "required"
+    },
+    {
+      "id": "p41-union-cast", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p41_union_cast.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "union_cast_runtime", "return_type": "int" }, "das_entrypoint": "union_cast_runtime", "expected": { "stdout": "", "exit_code": 0 }, "rust_assertion": "ptr_tests::p41_union_cast_initializes_raw_storage", "runtime": "required"
+    },
+    {
+      "id": "plmpeg-stream",
+      "status": "known-red",
+      "source_root": "tests/manual/real-world-plmpeg-stream",
+      "translation_entry": "src/all.c",
+      "c_graph": "plmpeg-target",
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-std=c11", "-DPLM_NO_STDIO", "-Iinclude", "-Iupstream", "-Ifixtures", "-Isrc"]
+      },
+      "c_reference": {
+        "sources": ["src/all_reference.c", "src/plmpeg_reference_entry.c"]
+      },
+      "preserve_das": ["src/plmpeg_entry.das"],
+      "das_program": "src/plmpeg_entry.das",
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "sequence_start_code=179\nvideo_has_header=1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    }
+  ]
+}

@@ -1,0 +1,522 @@
+{
+  "family": [
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/c*.c",
+      "id": "syntax-const",
+      "owner": "type/value lowering",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/d*.c",
+      "id": "syntax-do-while",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/g*.c",
+      "id": "syntax-goto",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "not-applicable",
+      "expected_kind": "translation-error-unregistered",
+      "glob": "tests/syntax/n*.c",
+      "id": "syntax-negative",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/p*.c",
+      "id": "syntax-pointer-legacy",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/s*.c",
+      "id": "syntax-switch",
+      "owner": "CFG reconstruction",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/t[0-9]*.c",
+      "id": "syntax-numeric",
+      "owner": "operators.rs / value_lowering.rs",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/u*.c",
+      "id": "syntax-unsafe-legacy",
+      "owner": "legacy pointer coverage",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "not-applicable",
+      "expected_kind": "include-fragment",
+      "glob": "tests/syntax/z*.c",
+      "id": "syntax-include-fragment",
+      "owner": "fixture graph inventory",
+      "runtime": "not-applicable",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/test_*.c",
+      "id": "syntax-smoke",
+      "owner": "legacy smoke coverage",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/00_*.c",
+      "id": "syntax-misc",
+      "owner": "legacy smoke coverage",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "not-applicable",
+      "expected_kind": "textual-snapshot",
+      "glob": "c2dascript-transpile/tests/snapshots/**/*.c",
+      "id": "printer-snapshots",
+      "owner": "daScript AST printer",
+      "runtime": "not-applicable",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/unit/*/src/*.c",
+      "id": "inherited-c2rust-unit",
+      "owner": "upstream c2rust parity inventory",
+      "runtime": "not-applicable",
+      "status": "historical"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "entrypoint": "graph-member",
+      "expected_kind": "c-reference-then-das-output",
+      "glob": "tests/manual/real-world-plmpeg-stream/src/*.c",
+      "id": "plmpeg",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "entrypoint": "graph-member",
+      "expected_kind": "unregistered",
+      "glob": "tests/manual/real-world-h264bsd-mp4/src/*.c",
+      "id": "h264bsd-mp4",
+      "owner": "real-world graph inventory",
+      "runtime": "unverified",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/manual/repro-architecture/*.c",
+      "id": "manual-repro-architecture",
+      "owner": "historical reproducer inventory",
+      "runtime": "unverified",
+      "status": "historical"
+    },
+    {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/manual/repro-plmpeg-bugs/*.c",
+      "id": "manual-repro-plmpeg",
+      "owner": "historical PLMPEG reproducer inventory",
+      "runtime": "unverified",
+      "status": "historical"
+    },
+    {
+      "c_graph": "archive-secret",
+      "entrypoint": "graph-member",
+      "expected_kind": "unregistered",
+      "glob": "tests/production/real-archive-secret/src/*.c",
+      "id": "production-archive",
+      "owner": "historical production corpus inventory",
+      "runtime": "unverified",
+      "status": "historical"
+    }
+  ],
+  "graph": [
+    {
+      "clang_flags": [
+        "-w"
+      ],
+      "description": "One C translation unit with the fixture-local Clang invocation.",
+      "id": "single-tu"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-DPLM_NO_STDIO",
+        "-Iinclude",
+        "-Iupstream",
+        "-Ifixtures",
+        "-Isrc"
+      ],
+      "description": "Canonical PLMPEG translation graph, rooted at src/all.c.",
+      "entry": "tests/manual/real-world-plmpeg-stream/src/all.c",
+      "id": "plmpeg-target"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-DPLM_NO_STDIO",
+        "-Iinclude",
+        "-Iupstream",
+        "-Ifixtures",
+        "-Isrc"
+      ],
+      "description": "C reference graph for PLMPEG, rooted at src/all_reference.c.",
+      "entry": "tests/manual/real-world-plmpeg-stream/src/all_reference.c",
+      "id": "plmpeg-reference"
+    },
+    {
+      "compile_commands": "tests/manual/real-world-h264bsd-mp4/compile_commands.json",
+      "description": "Recorded H264BSD plus minimp4 corpus graph.",
+      "entry": "tests/manual/real-world-h264bsd-mp4/src/all.c",
+      "id": "h264bsd-mp4"
+    },
+    {
+      "compile_commands": "tests/production/real-archive-secret/cc_all.json",
+      "description": "Historical production archive graph; not a current acceptance target.",
+      "entry": "tests/production/real-archive-secret/src/all.c",
+      "id": "archive-secret"
+    }
+  ],
+  "override": [
+    {
+      "canonical_case": "plmpeg-stream",
+      "path": "tests/manual/real-world-plmpeg-stream/src/all.c"
+    },
+    {
+      "canonical_case": "p17-runtime-malloc",
+      "entrypoint": "runtime_malloc_returns_typed_pointer",
+      "expected_kind": "stdout-and-exit-code",
+      "expected_value": {
+        "exit_code": 0,
+        "stdout": ""
+      },
+      "path": "tests/syntax/p17_runtime_malloc.c",
+      "runtime": "required",
+      "status": "supported"
+    },
+    {
+      "entrypoint": "runtime_calloc_and_memset_lower_to_runtime",
+      "canonical_case": "p18-runtime-calloc-memset",
+      "expected_kind": "stdout-and-exit-code",
+      "expected_value": {
+        "exit_code": 0,
+        "stdout": ""
+      },
+      "path": "tests/syntax/p18_runtime_calloc_memset.c",
+      "runtime": "required",
+      "status": "supported"
+    },
+    {
+      "canonical_case": "p20-pointer-abi-edges",
+      "entrypoint": "pointer_abi_edges",
+      "expected_kind": "stdout-and-exit-code",
+      "expected_value": { "exit_code": 0, "stdout": "" },
+      "path": "tests/syntax/p20_pointer_abi_edges.c",
+      "runtime": "required",
+      "status": "supported"
+    },
+    {
+      "canonical_case": "p21-byte-numeric",
+      "entrypoint": "byte_numeric_edges",
+      "expected_kind": "stdout-and-exit-code",
+      "expected_value": { "exit_code": 0, "stdout": "" },
+      "path": "tests/syntax/p21_byte_numeric.c",
+      "runtime": "required",
+      "status": "supported"
+    },
+    {
+      "canonical_case": "p22-typed-literals",
+      "entrypoint": "typed_literals",
+      "expected_kind": "stdout-and-exit-code",
+      "expected_value": { "exit_code": 0, "stdout": "" },
+      "path": "tests/syntax/p22_typed_literals.c",
+      "runtime": "required",
+      "status": "supported"
+    },
+    {
+      "canonical_case": "p23-bool-numeric",
+      "entrypoint": "bool_numeric_runtime",
+      "expected_kind": "stdout-and-exit-code",
+      "expected_value": { "exit_code": 0, "stdout": "" },
+      "path": "tests/syntax/p23_bool_numeric.c",
+      "runtime": "required",
+      "status": "supported"
+    },
+    {
+      "canonical_case": "p24-nonruntime-pointer-call",
+      "entrypoint": "nonruntime_pointer_call",
+      "expected_kind": "stdout-and-exit-code",
+      "expected_value": { "exit_code": 0, "stdout": "" },
+      "path": "tests/syntax/p24_nonruntime_pointer_call.c",
+      "runtime": "required",
+      "status": "supported"
+    },
+    {
+      "canonical_case": "p25-array-initializers",
+      "entrypoint": "array_initializers_runtime",
+      "expected_kind": "stdout-and-exit-code",
+      "expected_value": { "exit_code": 0, "stdout": "" },
+      "path": "tests/syntax/p25_array_initializers.c",
+      "runtime": "required",
+      "status": "supported"
+    },
+    {
+      "canonical_case": "p19-runtime-memory-calls", "path": "tests/syntax/p19_runtime_memory_calls.c", "entrypoint": "runtime_memory_calls_lower_to_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p26-variadic-sum", "path": "tests/syntax/p26_variadic_sum.c", "entrypoint": "variadic_sum_runtime", "owner": "variadic call lowering", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p27-variadic-promotions", "path": "tests/syntax/p27_variadic_promotions.c", "entrypoint": "variadic_promotions_runtime", "owner": "variadic call lowering", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p28-variadic-multiple-types", "path": "tests/syntax/p28_variadic_multiple_types.c", "entrypoint": "variadic_multiple_types_runtime", "owner": "variadic call lowering", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p29-variadic-function-pointer", "path": "tests/syntax/p29_variadic_function_pointer_unsupported.c", "entrypoint": "not-applicable", "expected_kind": "translation-error", "expected_value": { "operation": "top-level declaration lowering", "type": "Function", "location": "p29_variadic_function_pointer_unsupported.c", "cause": "unsupported variadic ABI boundary: variadic function pointer call" }, "runtime": "not-applicable", "status": "supported"
+    },
+    {
+      "canonical_case": "p30-macro-constant-expression", "path": "tests/syntax/p30_macro_constant_expression.c", "entrypoint": "macro_constant_expression_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p31-macro-side-effect", "path": "tests/syntax/p31_macro_side_effect.c", "entrypoint": "macro_side_effect_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p32-macro-statement-expression", "path": "tests/syntax/p32_macro_statement_expression.c", "entrypoint": "macro_statement_expression_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p33-offsetof-sizeof", "path": "tests/syntax/p33_predefined_sizeof_builtin.c", "entrypoint": "predefined_sizeof_builtin_runtime", "owner": "layout and builtin lowering", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p34-clang-layout-records", "path": "tests/syntax/p34_c_layout_records.c", "entrypoint": "c_layout_records_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p35-pointer-backed-struct", "path": "tests/syntax/p35_pointer_backed_struct.c", "entrypoint": "pointer_backed_struct_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p37-union-overlay", "path": "tests/syntax/p37_union_overlay.c", "entrypoint": "union_overlay_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p38-local-union-init", "path": "tests/syntax/p38_local_union_init.c", "entrypoint": "local_union_init_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p39-packed-scalar", "path": "tests/syntax/p39_packed_scalar.c", "entrypoint": "packed_scalar_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p40-bitfield-rmw", "path": "tests/syntax/p40_bitfield_rmw.c", "entrypoint": "bitfield_rmw_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p40-nested-raw-aggregate-place", "path": "tests/syntax/p40_nested_raw_aggregate_place.c", "entrypoint": "nested_raw_aggregate_place_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p41-raw-array-field-decay", "path": "tests/syntax/p41_raw_array_field_decay.c", "entrypoint": "raw_array_field_decay_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    },
+    {
+      "canonical_case": "p41-union-cast", "path": "tests/syntax/p41_union_cast.c", "entrypoint": "union_cast_runtime", "expected_kind": "stdout-and-exit-code", "expected_value": { "exit_code": 0, "stdout": "" }, "runtime": "required", "status": "supported"
+    }
+  ],
+  "runner": [
+    {
+      "path": "scripts/check_test_registry.py",
+      "reason": "Mandatory inventory-drift verifier; it does not execute fixtures.",
+      "role": "test-registry-verifier",
+      "status": "retained-non-e2e"
+    },
+    {
+      "path": "scripts/run_c2das_cases.py",
+      "reason": "Canonical isolated C reference to fresh daScript runtime runner.",
+      "role": "canonical-c2das-runtime-runner",
+      "status": "retained-non-e2e"
+    },
+    {
+      "path": "scripts/c2das_preflight.sh",
+      "reason": "Known red rustfmt baseline precedes semantic gates.",
+      "role": "c2das-preflight",
+      "status": "blocked"
+    },
+    {
+      "path": "scripts/c2das_preflight.ps1",
+      "reason": "Windows convenience wrapper for the canonical WSL preflight.",
+      "role": "c2das-preflight-wrapper",
+      "status": "blocked"
+    },
+    {
+      "path": "tests/syntax/check_abi_das.sh",
+      "reason": "Consumes checked-in output and stops at missing p26_variadic_sum.das.",
+      "role": "abi-runtime",
+      "status": "known-red"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/check_c_graph.sh",
+      "reason": "Clang graph proof only.",
+      "role": "plmpeg-c-graph",
+      "status": "retained-non-e2e"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/run_end_to_end.sh",
+      "reason": "Requires fresh-output proof before it can be an acceptance gate.",
+      "role": "plmpeg-e2e",
+      "status": "known-red"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/transpile_canonical_graph.sh",
+      "reason": "Writes generated output beside fixture source and is not an oracle.",
+      "role": "plmpeg-transpile-helper",
+      "status": "quarantined"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/check_backend_gates.sh",
+      "reason": "Historical diagnostic helper, not an end-to-end proof.",
+      "role": "plmpeg-backend-helper",
+      "status": "historical"
+    },
+    {
+      "path": "tests/manual/real-world-plmpeg-stream/run_dascheck.ps1",
+      "reason": "Windows diagnostic script outside the canonical WSL runtime.",
+      "role": "plmpeg-windows-diagnostic",
+      "status": "retire"
+    },
+    {
+      "path": "tests/manual/real-world-h264bsd-mp4/run_dascheck.ps1",
+      "reason": "Windows diagnostic script that overwrites tracked reports.",
+      "role": "h264-windows-diagnostic",
+      "status": "retire"
+    },
+    {
+      "path": "scripts/test_dascript.py",
+      "reason": "Old Windows path and fail-open runtime handling.",
+      "role": "legacy-dascript-runner",
+      "status": "retire"
+    },
+    {
+      "path": "scripts/test_translator.py",
+      "reason": "C2Rust Rust-output harness; retained only as upstream parity material.",
+      "role": "inherited-c2rust-translator-runner",
+      "status": "quarantined"
+    },
+    {
+      "path": "scripts/test_cross_checks.py",
+      "reason": "Inherited C2Rust cross-check surface, not c2das runtime proof.",
+      "role": "inherited-c2rust-cross-checks",
+      "status": "historical"
+    },
+    {
+      "path": "scripts/test_examples.py",
+      "reason": "Inherited C2Rust example runner, not c2das runtime proof.",
+      "role": "inherited-c2rust-examples",
+      "status": "historical"
+    },
+    {
+      "path": "scripts/test_rust_refactor.py",
+      "reason": "Inherited C2Rust refactor runner, not c2das runtime proof.",
+      "role": "inherited-c2rust-refactor",
+      "status": "historical"
+    },
+    {
+      "path": "scripts/integration_test_translator.py",
+      "reason": "C2Rust integration helper, not a daScript execution runner.",
+      "role": "inherited-c2rust-integration",
+      "status": "quarantined"
+    },
+    {
+      "path": "scripts/run_ci_checks.sh",
+      "reason": "Invokes inherited C2Rust test surfaces.",
+      "role": "inherited-ci-helper",
+      "status": "quarantined"
+    },
+    {
+      "path": "tests/integration/test.py",
+      "reason": "C2Rust integration suite retained as upstream corpus material.",
+      "role": "inherited-c2rust-integration-suite",
+      "status": "historical"
+    },
+    {
+      "path": "tests/run_all.ps1",
+      "reason": "Old source path, copy pipeline, and skipped outputs.",
+      "role": "legacy-windows-suite",
+      "status": "retire"
+    },
+    {
+      "path": "tests/run_bulk.ps1",
+      "reason": "Old Windows source path.",
+      "role": "legacy-windows-bulk",
+      "status": "retire"
+    },
+    {
+      "path": "tests/run_all.bat",
+      "reason": "Old source path and copy pipeline.",
+      "role": "legacy-windows-batch-suite",
+      "status": "retire"
+    },
+    {
+      "path": ".github/workflows/c2das-runtime.yml",
+      "reason": "Calls the blocked fast preflight.",
+      "role": "c2das-ci",
+      "status": "blocked"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "reason": "Runs c2rust-transpile and Rust-output validation, not c2das.",
+      "role": "inherited-c2rust-ci",
+      "status": "quarantined"
+    },
+    {
+      "path": ".github/workflows/internal-testsuite.yml",
+      "reason": "Checks out immunant/c2rust rather than this repository.",
+      "role": "upstream-c2rust-ci",
+      "status": "retire"
+    }
+  ],
+  "schema_version": 1
+}

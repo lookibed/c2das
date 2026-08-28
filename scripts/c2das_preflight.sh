@@ -47,8 +47,19 @@ check_architecture() {
 }
 check_changed_fixture_assertions() { cargo test -p c2dascript-transpile --test ptr_tests; }
 check_runtime_owners() {
-    ! rg -n 'normalize_generated_numeric_patterns|normalize_first_phase_shift_assignments|replace_generated_function' "$root/c2dascript-transpile/src/translator"
-    ! rg -n 'let mut [A-Za-z_][A-Za-z0-9_]* = .*\.to_string\(\)' "$root/c2dascript-transpile/src/translator"
+    local forbidden
+    forbidden="$(grep -RInE 'normalize_generated_numeric_patterns|normalize_first_phase_shift_assignments|replace_generated_function' "$root/c2dascript-transpile/src/translator" || true)"
+    [[ -z "$forbidden" ]] || {
+        echo 'forbidden post-render semantic repair found:' >&2
+        printf '%s\n' "$forbidden" >&2
+        return 1
+    }
+    forbidden="$(grep -RInE 'let mut [A-Za-z_][A-Za-z0-9_]* = .*\.to_string\(\)' "$root/c2dascript-transpile/src/translator" || true)"
+    [[ -z "$forbidden" ]] || {
+        echo 'mutable rendered-source repair found:' >&2
+        printf '%s\n' "$forbidden" >&2
+        return 1
+    }
 }
 check_corpus_inventory() {
     test -f "$root/docs/followups/real_world_status.md"
@@ -61,11 +72,13 @@ check_corpus_inventory() {
 
 gate repository check_repository
 gate untracked-artifacts check_untracked
+gate test-registry python3 "$root/scripts/check_test_registry.py" --check
 gate rustfmt cargo fmt --check
 gate translator-architecture check_architecture
 gate changed-fixture-assertions check_changed_fixture_assertions
 gate runtime-owner-invariants check_runtime_owners
-gate abi-daslang bash "$root/tests/syntax/check_abi_das.sh"
+gate canonical-c2das-runtime python3 "$root/scripts/run_c2das_cases.py" --all-ready
+gate isolated-exporter-known-red python3 "$root/scripts/run_c2das_cases.py" --all-exporter-failures
 gate plmpeg-c-graph bash "$root/tests/manual/real-world-plmpeg-stream/check_c_graph.sh"
 
 if [[ "$mode" == full || "$mode" == extended ]]; then gate workspace-tests cargo test --workspace; fi
