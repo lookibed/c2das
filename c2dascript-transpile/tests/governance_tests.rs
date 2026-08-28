@@ -12,7 +12,7 @@ fn development_system_contracts_are_present_and_cited() {
     let root = workspace_root();
     for relative in [
         "AGENTS.md",
-        "CLAUDE.md",
+        "CODEX.md",
         "ARCHITECTURE_COMMON.md",
         "REVIEW_COMMON.md",
         "LAWS.md",
@@ -55,7 +55,7 @@ fn development_system_contracts_are_present_and_cited() {
 }
 
 #[test]
-fn all_dascript_review_roles_and_c2das_skills_are_versioned() {
+fn all_codex_review_roles_and_c2das_skills_are_versioned() {
     let root = workspace_root();
     for role in [
         "targeted-reviewer",
@@ -72,7 +72,7 @@ fn all_dascript_review_roles_and_c2das_skills_are_versioned() {
         "spartan",
     ] {
         assert!(
-            root.join(".claude/agents")
+            root.join("docs/codex/agents")
                 .join(format!("{role}.md"))
                 .is_file(),
             "missing agent role: {role}"
@@ -118,8 +118,8 @@ fn review_round_is_proof_first_and_tdd_audit_requires_restoration() {
             "review round missing proof phase: {required}"
         );
     }
-    let tdd =
-        std::fs::read_to_string(root.join(".claude/agents/tdd-auditor.md")).expect("tdd auditor");
+    let tdd = std::fs::read_to_string(root.join("docs/codex/agents/tdd-auditor.md"))
+        .expect("tdd auditor");
     for required in [
         "dedicated Windows git worktree",
         "named WSL mirror",

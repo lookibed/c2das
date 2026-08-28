@@ -7,9 +7,10 @@
 ## Mandatory reading and routing
 
 Read root `AGENTS.md`, `ARCHITECTURE_COMMON.md`, `REVIEW_COMMON.md`, `LAWS.md`, the nearest
-folder contracts, and the relevant `skills/*.md` before changing a semantic owner.  Codex,
-Claude, and any external agent use the same contracts; `.claude/settings.json` is compatibility
-metadata, never the sole enforcement mechanism.
+folder contracts, and the relevant `skills/*.md` before changing a semantic owner.  Codex sessions
+use `AGENTS.md` as their automatic repository instruction entrypoint.  `docs/codex/agents/` is a
+versioned topology and report-contract library for agents launched through Codex collaboration; it
+is not a hidden hook or automatic executor.
 
 Use these owners, rather than fixing symptoms at rendering time:
 
