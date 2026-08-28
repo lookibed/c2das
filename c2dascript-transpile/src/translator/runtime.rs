@@ -279,6 +279,15 @@ pub fn declarations() -> Vec<DaDecl> {
                 else_: None,
             }),
             assign(NEXT, var("end")),
+            // The raw-address ABI exposes the actual address of the reserved
+            // arena.  Bookkeeping must retain that same value: `start` is an
+            // arena-relative offset and is only meaningful while deriving this
+            // address, never as an allocation identity.
+            DaStmt::Var {
+                name: "address".to_owned(),
+                var_type: uint64.clone(),
+                init: Some(heap_address(var("start"))),
+            },
             // Allocation metadata is deliberately separate from the raw byte
             // arena: free/realloc must never infer an allocation boundary from
             // a typed C pointer.
@@ -317,7 +326,7 @@ pub fn declarations() -> Vec<DaDecl> {
                     Box::new(var(ALLOC_ADDRS)),
                     Box::new(uint_to_int(var("record"))),
                 )),
-                Box::new(var("start")),
+                Box::new(var("address")),
             )),
             DaStmt::Expr(DaExpr::Assign(
                 Box::new(DaExpr::Index(
@@ -333,7 +342,7 @@ pub fn declarations() -> Vec<DaDecl> {
                 )),
                 Box::new(DaExpr::ConstBool(true)),
             )),
-            ret(heap_address(var("start"))),
+            ret(var("address")),
         ],
     );
 
@@ -903,6 +912,7 @@ mod tests {
         assert!(rendered.contains("resize(c2da_rt_alloc_addrs, 0)"));
         assert!(rendered.contains("c2da_rt_memset(address, uint8("));
         assert!(rendered.contains("reserve(c2da_rt_heap"));
+        assert!(rendered.contains("c2da_rt_alloc_addrs[int(record)] = address"));
         assert!(rendered.contains("intptr(unsafe(addr(c2da_rt_heap[int(start)])))"));
         assert!(!rendered.contains(".replace("));
     }
