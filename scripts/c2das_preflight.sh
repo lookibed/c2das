@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical Linux/WSL preflight. Windows invokes it only after hash-verified mirroring.
+# Canonical WSL/Linux preflight. It runs only in the native `/root/c2das` Git checkout.
 set -euo pipefail
 
 # `wsl.exe env ...` starts a non-login shell.  Make the canonical runner independent of
@@ -22,44 +22,18 @@ while (($#)); do
 done
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -n "${C2DAS_MIRROR_NAME:-}" ]]; then
-    default_target="/root/.cache/c2das/${C2DAS_MIRROR_NAME}"
-else
-    default_target="$root/.c2das-target"
-fi
-export CARGO_TARGET_DIR="${C2DAS_CARGO_TARGET_DIR:-$default_target}"
+export CARGO_TARGET_DIR="${C2DAS_CARGO_TARGET_DIR:-$root/.c2das-target}"
 
 gate() { local name="$1"; shift; printf '\n== c2das gate: %s ==\n' "$name"; "$@"; }
 
-tree_hash() {
-    (
-        cd "$1"
-        find . -type f ! -path './.git/*' ! -path './target/*' ! -path './.c2das-target/*' ! -name '.c2das-sync-manifest' -print0 \
-          | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}'
-    )
-}
-
-check_sync() {
-    if [[ -n "${C2DAS_SOURCE_HASH:-}" ]]; then
-        [[ -n "${C2DAS_MIRROR_NAME:-}" ]] || { echo 'missing named WSL mirror' >&2; return 1; }
-        local actual; actual="$(tree_hash "$root")"
-        [[ "$actual" == "$C2DAS_SOURCE_HASH" ]] || { echo "stale WSL mirror: expected $C2DAS_SOURCE_HASH, got $actual" >&2; return 1; }
-        printf 'verified mirror %s at source hash %s\n' "$C2DAS_MIRROR_NAME" "$actual"
-        return 0
-    fi
+check_repository() {
     git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
-        echo 'non-git WSL tree: invoke scripts/c2das_preflight.ps1 from Windows' >&2; return 1;
+        echo "canonical WSL checkout must be a Git repository: $root" >&2; return 1;
     }
     printf 'native git checkout %s\n' "$(git -C "$root" rev-parse --short HEAD)"
 }
 
 check_untracked() {
-    if [[ -n "${C2DAS_SOURCE_HASH:-}" ]]; then
-        [[ "${C2DAS_UNTRACKED_CLEAN:-}" == 1 ]] || {
-            echo 'Windows synchronizer did not prove source artifact cleanliness' >&2; return 1;
-        }
-        return 0
-    fi
     local files; files="$(git -C "$root" ls-files --others --exclude-standard)"
     [[ -z "$files" ]] || { echo "untracked artifacts are forbidden:" >&2; printf '%s\n' "$files" >&2; return 1; }
     if git -C "$root" ls-files --others --exclude-standard '*.das' | grep -q .; then
@@ -85,7 +59,7 @@ check_corpus_inventory() {
     grep -Fq '| PLMPEG stream |' "$root/docs/followups/real_world_status.md"
 }
 
-gate sync check_sync
+gate repository check_repository
 gate untracked-artifacts check_untracked
 gate rustfmt cargo fmt --check
 gate translator-architecture check_architecture

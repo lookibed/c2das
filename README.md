@@ -106,12 +106,10 @@ lowering.
 The public name is `c2das`, but the current internal Cargo packages and
 binaries remain `c2dascript` for compatibility.
 
-Copy the Windows working tree into the independent WSL checkout before building:
+Work directly in the canonical WSL checkout:
 
 ```sh
-mkdir -p /root/c2dascript
-cp -a /mnt/d/Backups/с2daslang/c2dascript/. /root/c2dascript/
-cd /root/c2dascript
+cd /root/c2das
 ```
 
 Build and run the Rust workspace tests:
@@ -151,7 +149,7 @@ translation.
 Run the executable ABI suite in WSL:
 
 ```sh
-cd /root/c2dascript
+cd /root/c2das
 bash tests/syntax/check_abi_das.sh
 ```
 

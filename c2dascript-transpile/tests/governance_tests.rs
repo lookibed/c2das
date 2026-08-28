@@ -57,6 +57,10 @@ fn development_system_contracts_are_present_and_cited() {
 #[test]
 fn all_codex_review_roles_and_c2das_skills_are_versioned() {
     let root = workspace_root();
+    assert!(
+        !root.join(".claude").exists(),
+        "Claude compatibility metadata must not shadow Codex governance"
+    );
     for role in [
         "targeted-reviewer",
         "tdd-auditor",
@@ -120,12 +124,7 @@ fn review_round_is_proof_first_and_tdd_audit_requires_restoration() {
     }
     let tdd = std::fs::read_to_string(root.join("docs/codex/agents/tdd-auditor.md"))
         .expect("tdd auditor");
-    for required in [
-        "dedicated Windows git worktree",
-        "named WSL mirror",
-        "restore",
-        "COVERED",
-    ] {
+    for required in ["dedicated WSL Git worktree", "restore", "COVERED"] {
         assert!(
             tdd.contains(required),
             "TDD audit contract missing: {required}"
@@ -139,7 +138,7 @@ fn preflight_and_corpus_ledgers_are_fail_closed() {
     let preflight =
         std::fs::read_to_string(root.join("scripts/c2das_preflight.sh")).expect("preflight");
     for required in [
-        "stale WSL mirror",
+        "canonical WSL checkout must be a Git repository",
         "untracked artifacts are forbidden",
         "abi-daslang",
         "plmpeg-c-graph",
@@ -150,6 +149,10 @@ fn preflight_and_corpus_ledgers_are_fail_closed() {
             "preflight missing fail-closed gate: {required}"
         );
     }
+    assert!(
+        !preflight.contains("C2DAS_SOURCE_HASH") && !preflight.contains("c2das-preflight-"),
+        "native WSL preflight must not retain Windows-to-WSL mirror machinery"
+    );
     let upstream =
         std::fs::read_to_string(root.join("tests/manual/real-world-h264bsd-mp4/UPSTREAM.md"))
             .expect("H264 provenance");
