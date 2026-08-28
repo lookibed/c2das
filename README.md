@@ -55,9 +55,10 @@ made green.
 
 ## Status
 
-### Completed foundations
+### Implemented foundations
 
-The following layers are implemented and exercised by executable ABI fixtures:
+The following layers have focused translator/AST-render coverage.  Their
+runtime-readiness is tracked independently in the frozen fixture registry:
 
 - scalar and pointer raw-memory access;
 - `malloc`, `calloc`, `realloc`, `free`, `memset`, `memcpy`, `memmove`,
@@ -71,8 +72,19 @@ The following layers are implemented and exercised by executable ABI fixtures:
 
 ### Current verification truth
 
-- WSL `/root/daScript/bin/daslang` is the current trusted executable gate for
-  ABI fixtures `p17` through `p41`.
+- WSL `/root/daScript/bin/daslang` is the only trusted runtime target.  The
+  canonical runner currently proves `p17`–`p20`, `p21`–`p28`, `p30`–`p41`
+  from fresh
+  output; the legacy ABI shell runner remains known-red because it consumes
+  checked-in output and stops at missing `p26_variadic_sum.das`.
+- The Clang/CBOR exporter is process-isolated and reports launch, timeout,
+  signal, nonzero ClangTool exit, malformed-CBOR and trace facts as a typed
+  `ExporterFailure`. `p26`–`p28` and `p33` no longer crash it: their runtime
+  cases execute through the canonical C→daScript comparison.
+- [`tests/registry/fixtures.json`](tests/registry/fixtures.json) is the
+  complete fixture/runner truth inventory.  No `p17`–`p41` entry receives
+  runtime-readiness credit until the canonical runner proves fresh C→`.das`
+  generation and daScript execution.
 
 ### Future WSL end-to-end goals
 
@@ -143,18 +155,22 @@ Validation is layered. A rendered file that merely parses is not a passing
 translation.
 
 1. Rust tests assert translator AST shape and printed daScript.
-2. ABI fixtures are transpiled into `.das` files.
-3. WSL runs every fixture using the real daScript interpreter.
+2. The canonical case runner copies each C graph to a temporary workspace,
+   compiles its C reference, and requires fresh c2das output there.
+3. WSL runs the fresh daScript output and compares its stdout and exit code to
+   the declared C oracle.
 
-Run the executable ABI suite in WSL:
+Run the canonical executable cases in WSL:
 
 ```sh
 cd /root/c2das
-bash tests/syntax/check_abi_das.sh
+python3 scripts/run_c2das_cases.py --all-ready
 ```
 
-The suite currently covers fixtures `p17` through `p41` and executes each
-file with `/root/daScript/bin/daslang`.
+The supported executable cases are `p17`–`p25`, `p30`–`p32`,
+`p34`, `p35`, and `p37`–`p41`; the registry exposes
+every remaining fixture's exact current status instead of treating it as
+covered.
 
 ## Development principles
 
