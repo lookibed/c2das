@@ -13,6 +13,8 @@
 
 using Outputs = std::unordered_map<std::string, std::vector<uint8_t>>;
 
-Outputs process(int argc, const char *argv[], int *result);
+Outputs process(int argc, const char *argv[], int *result,
+                const std::string &trace_path = "");
+void configure_exporter_debug(bool enabled);
 
 #endif /* AstExporter_hpp */

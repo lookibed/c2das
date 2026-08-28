@@ -58,6 +58,38 @@ using std::string;
 
 namespace { // for local definitions, preferred to making each `static`
 
+// Crash localisation must survive a SIGSEGV in Clang or an exporter visitor.
+// Every event is flushed before the next AST entry is encoded, so the parent
+// can report the last known source boundary rather than only "process began".
+class TraceWriter {
+    std::ofstream stream;
+
+  public:
+    explicit TraceWriter(const std::string &path) {
+        if (!path.empty()) {
+            stream.open(path, std::ios::out | std::ios::trunc);
+        }
+    }
+
+    void event(const std::string &value) {
+        if (!stream)
+            return;
+        stream << value << '\n';
+        stream.flush();
+    }
+};
+
+std::string trace_location(ASTContext *context, SourceLocation location) {
+    if (context == nullptr || location.isInvalid())
+        return "<invalid>";
+    const auto presumed = context->getSourceManager().getPresumedLoc(location);
+    if (presumed.isInvalid())
+        return "<invalid>";
+    return llvm::sys::path::filename(presumed.getFilename()).str() + ":" +
+           std::to_string(presumed.getLine()) + ":" +
+           std::to_string(presumed.getColumn());
+}
+
 // Encode a string object assuming that it is valid UTF-8 encoded text
 void cbor_encode_string(CborEncoder *encoder, const std::string &str) {
     auto ptr = str.data();
@@ -216,9 +248,13 @@ private:
         extra(&local);
 
         // 4/5 - target ABI layout.  Keep this on every type node rather than
-        // reconstructing the target ABI in a downstream translator.  Clang
+        // reconstructing the target ABI in a downstream translator. Clang
         // deliberately has no object layout for incomplete and function types.
-        if (T->isIncompleteType() || T->isFunctionType()) {
+        // `BuiltinFn` is likewise a callable sentinel, not an object type;
+        // asking ASTContext::getTypeInfo for it aborts on current Clang.
+        const bool builtin_function =
+            isa<BuiltinType>(T) && cast<BuiltinType>(T)->getKind() == BuiltinType::BuiltinFn;
+        if (T->isIncompleteType() || T->isFunctionType() || builtin_function) {
             cbor_encode_null(&local);
             cbor_encode_null(&local);
         } else {
@@ -742,6 +778,7 @@ class TranslateASTVisitor final
     std::unordered_set<unsigned> macroCallSites;
     SmallVector<MacroInfo*, 1> curMacroExpansionStack;
     StringRef curMacroExpansionSource;
+    TraceWriter *trace;
 
     // Returns true when a new entry is added to exportedTags
     bool markForExport(void *ptr, ASTEntryTag tag) {
@@ -786,6 +823,11 @@ class TranslateASTVisitor final
                           std::function<void(CborEncoder *)> extra) {
         if (!markForExport(ast, tag))
             return;
+
+        if (trace != nullptr) {
+            trace->event("event=ast-entry; tag=" + std::to_string(tag) +
+                         "; source=" + trace_location(Context, loc.getBegin()));
+        }
 
         CborEncoder local, childEnc;
         cbor_encoder_create_array(encoder, &local, CborIndefiniteLength);
@@ -873,6 +915,10 @@ class TranslateASTVisitor final
         expandSpanToFinalChar(span, Context);
         encode_entry_raw(ast, tag, span, ty, isRValue, isVaList,
                          encodeMacroExpansions, childIds, extra);
+        if (trace != nullptr) {
+            trace->event("event=expr-type-lowering; tag=" + std::to_string(tag) +
+                         "; source=" + trace_location(Context, span.getBegin()));
+        }
         typeEncoder.VisitQualTypeOf(ty, ast);
     }
 
@@ -991,9 +1037,9 @@ class TranslateASTVisitor final
   public:
     explicit TranslateASTVisitor(ASTContext *Context, CborEncoder *encoder,
                                  std::unordered_map<void *, QualType> *sugared,
-                                 Preprocessor &PP)
+                                 Preprocessor &PP, TraceWriter *trace)
         : Context(Context), typeEncoder(Context, encoder, sugared, this),
-          encoder(encoder), PP(PP),
+          encoder(encoder), PP(PP), trace(trace),
           files{{"", {}}} {}
 
     // Override the default behavior of the RecursiveASTVisitor
@@ -1942,6 +1988,11 @@ class TranslateASTVisitor final
 
         auto decl = DRE->getDecl()->getCanonicalDecl();
 
+        if (trace != nullptr) {
+            trace->event("event=declref-target; name=" + DRE->getDecl()->getNameAsString() +
+                         "; source=" + trace_location(Context, DRE->getExprLoc()));
+        }
+
         std::vector<void *> childIds{decl};
         encode_entry(DRE, TagDeclRefExpr, childIds);
 
@@ -2871,12 +2922,17 @@ class TranslateConsumer : public clang::ASTConsumer {
     Outputs *outputs;
     const std::string outfile;
     Preprocessor &PP;
+    TraceWriter *trace;
 
   public:
-    explicit TranslateConsumer(Outputs *outputs, llvm::StringRef InFile, Preprocessor &PP)
-        : outputs(outputs), outfile(InFile.str()), PP(PP) {}
+    explicit TranslateConsumer(Outputs *outputs, llvm::StringRef InFile, Preprocessor &PP,
+                               TraceWriter *trace)
+        : outputs(outputs), outfile(InFile.str()), PP(PP), trace(trace) {}
 
     virtual void HandleTranslationUnit(clang::ASTContext &Context) {
+
+        if (trace != nullptr)
+            trace->event("phase=translation-unit; source=" + outfile);
 
         CborEncoder encoder;
 
@@ -2897,7 +2953,7 @@ class TranslateConsumer : public clang::ASTConsumer {
 
             // 1. Encode all of the reachable AST nodes and types
             cbor_encoder_create_array(&outer, &array, CborIndefiniteLength);
-            TranslateASTVisitor visitor(&Context, &array, &sugared, PP);
+            TranslateASTVisitor visitor(&Context, &array, &sugared, PP, trace);
             auto translation_unit = Context.getTranslationUnitDecl();
             visitor.TraverseDecl(translation_unit);
             visitor.encodeMacros();
@@ -3019,9 +3075,10 @@ class TranslateConsumer : public clang::ASTConsumer {
 
 class TranslateAction : public clang::ASTFrontendAction {
     Outputs *outputs;
+    TraceWriter *trace;
 
   public:
-    TranslateAction(Outputs *outputs) : outputs(outputs) {}
+    TranslateAction(Outputs *outputs, TraceWriter *trace) : outputs(outputs), trace(trace) {}
 
     virtual std::unique_ptr<clang::ASTConsumer>
     CreateASTConsumer(clang::CompilerInstance &Compiler,
@@ -3037,7 +3094,7 @@ class TranslateAction : public clang::ASTFrontendAction {
         }
 
         return std::unique_ptr<clang::ASTConsumer>(
-            new TranslateConsumer(outputs, InFile, Compiler.getPreprocessor()));
+            new TranslateConsumer(outputs, InFile, Compiler.getPreprocessor(), trace));
     }
 };
 
@@ -3094,17 +3151,19 @@ static std::vector<const char *> augment_argv(int argc, const char *argv[]) {
 
 class MyFrontendActionFactory : public FrontendActionFactory {
     Outputs *outputs;
+    TraceWriter *trace;
 
   public:
-    MyFrontendActionFactory(Outputs *outputs) : outputs(outputs) {}
+    MyFrontendActionFactory(Outputs *outputs, TraceWriter *trace)
+        : outputs(outputs), trace(trace) {}
 
 #if CLANG_VERSION_MAJOR < 10
     clang::FrontendAction *create() override {
-        return new TranslateAction(outputs);
+        return new TranslateAction(outputs, trace);
     }
 #else
     std::unique_ptr<FrontendAction> create() override {
-        return std::make_unique<TranslateAction>(outputs);
+        return std::make_unique<TranslateAction>(outputs, trace);
     }
 #endif // CLANG_VERSION_MAJOR
 };
@@ -3136,7 +3195,10 @@ ExportResult *make_export_result(const Outputs &outputs) {
 
 // Extract clang AST for the source file specified in the argument vector.
 // Note: The arguments should only reference one source file at a time.
-Outputs process(int argc, const char *argv[], int *result) {
+Outputs process(int argc, const char *argv[], int *result,
+                const std::string &trace_path) {
+    TraceWriter trace(trace_path);
+    trace.event("phase=clang-tooling-start");
     auto argv_ = augment_argv(argc, argv);
     int argc_ = argv_.size() - 1; // ignore the extra nullptr
 
@@ -3147,7 +3209,9 @@ Outputs process(int argc, const char *argv[], int *result) {
         CommonOptionsParser::create(argc_, argv_.data(), MyToolCategory);
     if (auto err = parseResult.takeError()) {
         logAllUnhandledErrors(std::move(err), errs(), "[Parse Error] ");
-        assert(0 && "Failed to parse command line options");
+        trace.event("phase=clang-option-parse-error");
+        *result = 64;
+        return {};
     }
     CommonOptionsParser& OptionsParser = *parseResult;
 #endif
@@ -3156,11 +3220,13 @@ Outputs process(int argc, const char *argv[], int *result) {
     static size_t source_path_count = 0;
     source_path_count++;
     const size_t num_sources = OptionsParser.getSourcePathList().size();
-    assert(
-        (num_sources == 1 // newer clang versions
-        || num_sources == source_path_count // older clang versions
-        ) && "Expected exactly one source path"
-    );
+    if (!(num_sources == 1 // newer clang versions
+          || num_sources == source_path_count // older clang versions
+          )) {
+        trace.event("phase=clang-source-count-error");
+        *result = 64;
+        return {};
+    }
 
     // CommonOptionsParser is stateful so the vector returned by
     // getSourcePathList() includes paths from past invocations.
@@ -3170,22 +3236,31 @@ Outputs process(int argc, const char *argv[], int *result) {
     ClangTool Tool(OptionsParser.getCompilations(), sourcePathList);
 
     Outputs outputs;
-    MyFrontendActionFactory myFrontendActionFactory(&outputs);
+    MyFrontendActionFactory myFrontendActionFactory(&outputs, &trace);
 
     *result = Tool.run(&myFrontendActionFactory);
-    assert(outputs.size() == 1 && "Expected exactly one output.");
+    if (*result != 0)
+        trace.event("phase=clang-tooling-error");
+    else if (outputs.size() != 1)
+        trace.event("phase=cbor-output-count-error");
     return outputs;
+}
+
+void configure_exporter_debug(bool enabled) {
+#ifndef NDEBUG
+    if (enabled) {
+        llvm::DebugFlag = true;
+        llvm::setCurrentDebugType(DEBUG_TYPE);
+    }
+#else
+    (void)enabled;
+#endif
 }
 
 // AST exporter library interface.
 extern "C" {
 ExportResult *ast_exporter(int argc, const char *argv[], int debug) {
-#ifndef NDEBUG
-    if (debug) {
-        llvm::DebugFlag = true;
-        llvm::setCurrentDebugType(DEBUG_TYPE);
-    }
-#endif // NDEBUG
+    configure_exporter_debug(debug);
 
     int result;
     auto outputs = process(argc, argv, &result);

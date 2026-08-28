@@ -87,6 +87,13 @@ add_executable(c2rust-ast-exporter ${AST_EXPORTER_BIN_SRCS})
 # The library
 add_library(clangAstExporter STATIC ${AST_EXPORTER_SRCS})
 
+# The Rust frontend invokes this executable as an isolated child process.
+# Building the library and executable as one target keeps their Clang/TinyCBOR
+# implementation exactly in lockstep.
+add_custom_target(c2dasAstExporterArtifacts
+  DEPENDS clangAstExporter c2rust-ast-exporter
+)
+
 add_definitions(-DCLANG_LIBDIR_SUFFIX="${LLVM_LIBDIR_SUFFIX}")
 
 set_target_properties(c2rust-ast-exporter PROPERTIES

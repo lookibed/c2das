@@ -22,10 +22,47 @@ pub use tempfile::TempDir;
 
 use crate::c_ast::*;
 pub use crate::diagnostics::Diagnostic;
+use crate::diagnostics::TranslationError;
 use c2rust_ast_exporter as ast_exporter;
 
 use crate::compile_cmds::get_compile_commands;
 use std::prelude::v1::Vec;
+
+/// Failure produced by the strict, fixture-facing translation API.
+///
+/// The historical [`transpile`] entrypoint is deliberately lossy for
+/// compatibility with the inherited c2rust command-line workflow: it logs a
+/// failed translation unit and continues with the rest of the compilation
+/// database. Tests and canonical runners must use [`transpile_checked`]
+/// instead, so an unsupported C construct can never be mistaken for a
+/// successfully printed partial module.
+#[derive(Debug)]
+pub enum TranspileError {
+    CompileCommands(String),
+    MissingInput(PathBuf),
+    ClangAst(ast_exporter::ExporterFailure),
+    Translation(TranslationError),
+    Output {
+        path: PathBuf,
+        error: std::io::Error,
+    },
+}
+
+impl std::fmt::Display for TranspileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CompileCommands(error) => write!(f, "compile_commands: {error}"),
+            Self::MissingInput(path) => {
+                write!(f, "input C file does not exist: {}", path.display())
+            }
+            Self::ClangAst(error) => write!(f, "Clang AST export: {error}"),
+            Self::Translation(error) => write!(f, "{error}"),
+            Self::Output { path, error } => write!(f, "cannot write {}: {error}", path.display()),
+        }
+    }
+}
+
+impl std::error::Error for TranspileError {}
 
 type PragmaVec = Vec<(&'static str, Vec<&'static str>)>;
 type PragmaSet = indexmap::IndexSet<(&'static str, &'static str)>;
@@ -181,12 +218,63 @@ pub fn transpile(tcfg: TranspilerConfig, cc_db: &Path, extra_clang_args: &[&str]
     }
 }
 
+/// Translate every selected command and return every output path, failing on
+/// the first unsupported user declaration. This is the canonical API for
+/// fixture assertions and executable cases; it never writes next to a source
+/// file when [`TranspilerConfig::output_dir`] is set.
+pub fn transpile_checked(
+    tcfg: TranspilerConfig,
+    cc_db: &Path,
+    extra_clang_args: &[&str],
+) -> Result<Vec<PathBuf>, TranspileError> {
+    diagnostics::init(HashSet::new(), tcfg.log_level);
+    let lcmds = get_compile_commands(cc_db, &tcfg.filter)
+        .map_err(|error| TranspileError::CompileCommands(error.to_string()))?;
+    let mut outputs = Vec::new();
+    for lcmd in &lcmds {
+        for cmd in &lcmd.cmd_inputs {
+            outputs.push(transpile_single_checked(
+                &tcfg,
+                &cmd.abs_file(),
+                cc_db,
+                extra_clang_args,
+            )?);
+        }
+    }
+    Ok(outputs)
+}
+
 fn transpile_single(
     tcfg: &TranspilerConfig,
     input_path: &Path,
     cc_db: &Path,
     extra_clang_args: &[&str],
 ) -> Result<PathBuf, ()> {
+    transpile_single_checked(tcfg, input_path, cc_db, extra_clang_args).map_err(|error| {
+        warn!("{error}");
+    })
+}
+
+fn output_path_for(tcfg: &TranspilerConfig, input_path: &Path) -> Result<PathBuf, TranspileError> {
+    if let Some(output_dir) = &tcfg.output_dir {
+        fs::create_dir_all(output_dir).map_err(|error| TranspileError::Output {
+            path: output_dir.clone(),
+            error,
+        })?;
+        let filename = input_path
+            .file_name()
+            .ok_or_else(|| TranspileError::MissingInput(input_path.to_path_buf()))?;
+        return Ok(output_dir.join(filename).with_extension("das"));
+    }
+    Ok(input_path.with_extension("das"))
+}
+
+fn transpile_single_checked(
+    tcfg: &TranspilerConfig,
+    input_path: &Path,
+    cc_db: &Path,
+    extra_clang_args: &[&str],
+) -> Result<PathBuf, TranspileError> {
     let file = input_path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -196,7 +284,7 @@ fn transpile_single(
             "Input C file {} does not exist, skipping!",
             input_path.display()
         );
-        return Err(());
+        return Err(TranspileError::MissingInput(input_path.to_path_buf()));
     }
 
     println!("Transpiling {}", file);
@@ -213,7 +301,7 @@ fn transpile_single(
                 e,
                 input_path.display()
             );
-            return Err(());
+            return Err(TranspileError::ClangAst(e));
         }
         Ok(cxt) => cxt,
     };
@@ -224,17 +312,19 @@ fn transpile_single(
     };
 
     let (das_code, _maybe_decl_map, _pragmas, _crates) =
-        translator::translate(typed_context, tcfg, input_path);
+        translator::translate_checked(typed_context, tcfg, input_path)
+            .map_err(TranspileError::Translation)?;
 
-    let output_path = input_path.with_extension("das");
-    if let Err(e) = (|| -> Result<(), std::io::Error> {
-        let mut file = File::create(&output_path)?;
-        file.write_all(das_code.as_bytes())?;
-        Ok(())
-    })() {
-        warn!("Unable to write to {}: {}", output_path.display(), e);
-        return Err(());
-    }
+    let output_path = output_path_for(tcfg, input_path)?;
+    let mut file = File::create(&output_path).map_err(|error| TranspileError::Output {
+        path: output_path.clone(),
+        error,
+    })?;
+    file.write_all(das_code.as_bytes())
+        .map_err(|error| TranspileError::Output {
+            path: output_path.clone(),
+            error,
+        })?;
 
     println!("Wrote {}", output_path.display());
     Ok(output_path)

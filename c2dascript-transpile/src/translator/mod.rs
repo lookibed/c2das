@@ -13,6 +13,7 @@ use crate::c_ast::iterators::{DFExpr, SomeId};
 use crate::c_ast::*;
 use crate::convert_type::TypeConverter;
 use crate::diagnostics::TranslationResult;
+use crate::format_translation_err;
 use crate::renamer::Renamer;
 use crate::with_stmts::WithStmts;
 use crate::ExternCrate;
@@ -2761,6 +2762,37 @@ pub fn translate(
     Vec<(&'static str, Vec<&'static str>)>,
     IndexSet<ExternCrate>,
 ) {
+    translate_impl(ast_context, tcfg, main_file, false)
+        .expect("lossy translation must retain its historical error policy")
+}
+
+/// Strict translation boundary for fixtures and canonical execution. Unlike
+/// [`translate`], a failed top-level C declaration is an error rather than an
+/// omitted daScript declaration.
+pub fn translate_checked(
+    ast_context: TypedAstContext,
+    tcfg: &TranspilerConfig,
+    main_file: &Path,
+) -> TranslationResult<(
+    String,
+    Option<()>,
+    Vec<(&'static str, Vec<&'static str>)>,
+    IndexSet<ExternCrate>,
+)> {
+    translate_impl(ast_context, tcfg, main_file, true)
+}
+
+fn translate_impl(
+    ast_context: TypedAstContext,
+    tcfg: &TranspilerConfig,
+    main_file: &Path,
+    strict_top_level: bool,
+) -> TranslationResult<(
+    String,
+    Option<()>,
+    Vec<(&'static str, Vec<&'static str>)>,
+    IndexSet<ExternCrate>,
+)> {
     let mut t = Translation::new(ast_context, tcfg, main_file);
 
     // Prune unreachable system declarations (removes __-prefixed noise from system headers)
@@ -2872,13 +2904,18 @@ pub fn translate(
         let needs_export = match t.ast_context[top_id].kind {
             Function { body: Some(_), .. } => true, // only functions with bodies
             Variable { .. } => true,
-            MacroObject { .. } => true,
-            MacroFunction { .. } => true,
+            // Macro declarations have no standalone daScript declaration.
+            // Their expanded C AST is lowered at the use site. The historical
+            // permissive path reports them as skipped; strict translation must
+            // also skip them rather than mistake that implementation detail for
+            // an unsupported user program.
+            MacroObject { .. } | MacroFunction { .. } => !strict_top_level,
             _ => false, // types already exported in pass 1; fn decls without body skipped
         };
         if !needs_export {
             continue;
         }
+        let decl = &t.ast_context[top_id];
         match t.convert_decl(
             ExprContext {
                 used: true,
@@ -2889,7 +2926,24 @@ pub fn translate(
         ) {
             Ok(das_decl) => decls.push(das_decl),
             Err(e) => {
-                let decl = &t.ast_context[top_id];
+                if strict_top_level {
+                    let c_type = match &decl.kind {
+                        Function { typ, .. } => {
+                            format!("{:?}", t.ast_context.resolve_type(*typ).kind)
+                        }
+                        Variable { typ, .. } | Typedef { typ, .. } => {
+                            format!("{:?}", t.ast_context.resolve_type(typ.ctype).kind)
+                        }
+                        _ => "declaration".to_string(),
+                    };
+                    return Err(format_translation_err!(
+                        t.ast_context.display_loc(&decl.loc),
+                        "operation=top-level declaration lowering; c_type={}; declaration={}; cause={}",
+                        c_type,
+                        decl.kind.get_name().map(String::as_str).unwrap_or("?"),
+                        e
+                    ));
+                }
                 let name = decl
                     .kind
                     .get_name()
@@ -2952,5 +3006,5 @@ pub fn translate(
         decls: module_decls,
     };
 
-    (module.to_string(), None, vec![], IndexSet::new())
+    Ok((module.to_string(), None, vec![], IndexSet::new()))
 }

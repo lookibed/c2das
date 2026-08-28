@@ -122,6 +122,20 @@ fn build_native(llvm_info: &LLVMInfo) {
     match env::var("C2RUST_AST_EXPORTER_LIB_DIR") {
         Ok(libdir) => {
             println!("cargo:rustc-link-search=native={}", libdir);
+            // The c2das frontend never calls this library in-process.  A
+            // prebuilt-library deployment must therefore name the matching
+            // standalone exporter explicitly rather than producing a binary
+            // which can link but cannot translate.
+            let exporter_bin = env::var_os("C2DAS_AST_EXPORTER_BIN").unwrap_or_else(|| {
+                panic!(
+                    "C2RUST_AST_EXPORTER_LIB_DIR requires C2DAS_AST_EXPORTER_BIN: \
+                     c2das runs the Clang/CBOR exporter as a child process"
+                )
+            });
+            println!(
+                "cargo:rustc-env=C2DAS_AST_EXPORTER_BIN={}",
+                PathBuf::from(exporter_bin).display()
+            );
         }
         _ => {
             // Build libclangAstExporter.a with cmake
@@ -137,11 +151,22 @@ fn build_native(llvm_info: &LLVMInfo) {
                     env::var_os("CMAKE_CLANG_DIR")
                         .unwrap_or_else(|| llvm_lib_dir.join("cmake/clang").into()),
                 )
-                // What to build
-                .build_target("clangAstExporter")
+                // Build both the library used for bindings and the standalone
+                // exporter used by the fail-closed process boundary.
+                .build_target("c2dasAstExporterArtifacts")
                 .build();
 
             let out_dir = dst.display();
+
+            let exporter_bin = dst.join("build").join(if cfg!(windows) {
+                "c2rust-ast-exporter.exe"
+            } else {
+                "c2rust-ast-exporter"
+            });
+            println!(
+                "cargo:rustc-env=C2DAS_AST_EXPORTER_BIN={}",
+                exporter_bin.display()
+            );
 
             // Set up search path for newly built tinycbor.a and libclangAstExporter.a
             println!("cargo:rustc-link-search=native={}/build/lib", out_dir);
