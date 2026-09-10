@@ -266,6 +266,42 @@
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "arrays_runtime", "return_type": "int" }, "das_entrypoint": "arrays_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
     },
     {
+      "id": "p52-struct-copy", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p52_struct_copy.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "struct_copy_runtime", "return_type": "int" }, "das_entrypoint": "struct_copy_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p53-struct-by-value", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p53_struct_by_value.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "struct_by_value_runtime", "return_type": "int" }, "das_entrypoint": "struct_by_value_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p54-address-taken", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p54_address_taken.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "address_taken_runtime", "return_type": "int" }, "das_entrypoint": "address_taken_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p55-union-semantics", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p55_union_semantics.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "union_semantics_runtime", "return_type": "int" }, "das_entrypoint": "union_semantics_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p56-heap-churn", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p56_heap_churn.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "heap_churn_runtime", "return_type": "int" }, "das_entrypoint": "heap_churn_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p57-globals-aggregate", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p57_globals_aggregate.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "globals_aggregate_runtime", "return_type": "int" }, "das_entrypoint": "globals_aggregate_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p58-bitfields-layout", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p58_bitfields_layout.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "bitfields_layout_runtime", "return_type": "int" }, "das_entrypoint": "bitfields_layout_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p59-nested-aggregates", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p59_nested_aggregates.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "nested_aggregates_runtime", "return_type": "int" }, "das_entrypoint": "nested_aggregates_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p60-layout-divergence", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p60_layout_divergence.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "layout_divergence_runtime", "return_type": "int" }, "das_entrypoint": "layout_divergence_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
       "id": "n06-unknown-extern-call", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n06_unknown_extern_call.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "n06_unknown_extern_call.c", "cause": "unsupported external call: absolute_value" }, "runtime": "not-applicable"
