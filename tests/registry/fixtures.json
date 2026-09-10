@@ -1212,17 +1212,20 @@
           "-Isrc"
         ]
       },
-      "entrypoint": "graph-member",
+      "entrypoint": "main",
       "expected": {
-        "kind": "c-reference-then-das-output",
-        "value": "unregistered"
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "sequence_start_code=179\nvideo_has_header=1\n"
+        }
       },
       "family": "plmpeg",
       "id": "tests--manual--real-world-plmpeg-stream--src--all",
       "owner": "real-world graph / aggregate ABI",
       "runtime": "required",
       "source": "tests/manual/real-world-plmpeg-stream/src/all.c",
-      "status": "known-red"
+      "status": "supported"
     },
     {
       "c_graph": "plmpeg-target",

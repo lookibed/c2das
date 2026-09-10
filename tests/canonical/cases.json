@@ -610,7 +610,7 @@
     },
     {
       "id": "plmpeg-stream",
-      "status": "known-red",
+      "status": "ready",
       "source_root": "tests/manual/real-world-plmpeg-stream",
       "translation_entry": "src/all.c",
       "c_graph": "plmpeg-target",

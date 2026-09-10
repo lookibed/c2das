@@ -230,10 +230,6 @@
   ],
   "override": [
     {
-      "canonical_case": "plmpeg-stream",
-      "path": "tests/manual/real-world-plmpeg-stream/src/all.c"
-    },
-    {
       "canonical_case": "p17-runtime-malloc",
       "entrypoint": "runtime_malloc_returns_typed_pointer",
       "expected_kind": "stdout-and-exit-code",
