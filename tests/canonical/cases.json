@@ -671,6 +671,10 @@
         "exit_code": 0
       },
       "runtime": "required"
+    },
+    {
+      "id": "p71-static-inline-calls", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p71_static_inline_calls.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "static_inline_calls_runtime", "return_type": "int" }, "das_entrypoint": "static_inline_calls_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
     }
   ]
 }

@@ -580,3 +580,182 @@ non-obvious pieces — the `int64_t` address API in `bench_module.c` and the
 `bench_c.c`'s timed loop and `bench_hash.das` are quoted in full as well, so the benchmark
 can be rebuilt from this document alone plus the fixture at
 `tests/manual/real-world-plmpeg-stream/`.
+
+## Inlining tiny static functions
+
+The profile above puts `plm_clamp` second at 34.8% of the run and **19 675 048 calls** —
+one interpreter dispatch per output RGB byte, for a helper that native C folds into two
+`cmov`s. That is the first thing to remove, and this section is what removing it did.
+
+### What daslang offers, and why it is not enough
+
+daslang 0.6.4 **does** have an `[inline]` function annotation, plus a heuristic tier behind
+`options auto_inline_functions`. Both were measured with a 20 M-iteration loop over a clamp
+helper (`/tmp/c2das-perf/inline_probe/`, run as `$(bash scripts/find_daslang.sh) probe.das`;
+minimum of three runs, same machine as the tables above):
+
+| probe | callee shape | ms / 20 M calls |
+|---|---|---|
+| `probe_plain` | plain `def`, `if`/`elif` body | 479.1 |
+| `probe_inline` | `[inline]` on the same body | 485.3 |
+| `probe_auto` | plain `def` + `options auto_inline_functions` | 526.8 |
+| `probe_tern_plain` | plain `def`, `return c ? a : b` body | 304.0 |
+| `probe_tern_inline` | `[inline]` on the ternary body | 271.0 |
+| `probe_manual` | no function at all, ternary written at the call site | 277.2 |
+
+`options log_optimization` confirms the splice really happens
+(`INLINE plm_clamp into main at probe_inline_log.das:19:15`), so the annotation works — it
+just buys **nothing** on a statement-shaped body: the interpreter pays about as much for the
+spliced `if`/`elif` and its temps as for the call it replaced. What actually pays is turning
+the body into one *expression*: 479 ms → 277 ms, a 1.7× cut, and that has nothing to do with
+who does the inlining.
+
+And on the body this translator actually emits, `[inline]` is not merely useless, it is
+rejected. A C function body crosses through the CFG relooper, so `plm_clamp` comes out as
+
+```das
+def plm_clamp(var n_0 : int) : uint8 {
+    var c2da_fresh357 : int = int(0)
+    if (n_0 > int(255)) { c2da_fresh357 = int(1) }
+    if (c2da_fresh357 != 0) { goto label 3 }
+    ...
+    label 3:
+    n_0 = int(255)
+    goto label 1
+    panic("unreachable: fell out of a translated control-flow graph")
+}
+```
+
+and `[inline]` is a fail-closed contract:
+
+```
+error[50501]: function annotation lint failed
+[inline] body contains goto
+```
+
+That relooped shape is also far more expensive than the C source suggests. The same 20 M-call
+probe against it:
+
+| probe | ms / 20 M calls |
+|---|---|
+| `probe_real_call` — a call to the relooped body, verbatim from `all_bench.das` | 1119.4 |
+| `probe_real_subst` — the conditional chain substituted at the call site | 338.4 |
+
+**3.3×.** So the substitution has to happen in the translator, on the C AST, before the body
+ever reaches the relooper. (There is no builtin `clamp` to lower onto, either:
+`clamp(int, int, int)` is `error[30341]: no matching functions or generics`.)
+
+### The rule
+
+`c2dascript-transpile/src/translator/inline.rs` decides candidacy from the C AST;
+`translator/functions.rs::convert_function_call` consults it before lowering the callee. A C
+function is a candidate when
+
+* it has a body and **internal linkage** (`static`) — no ABI surface another translation unit
+  can observe;
+* it is not variadic, takes at most four parameters, and every parameter type and the return
+  type is an **arithmetic** C type (integer, enumeration, `float`/`double`). Records, arrays
+  and pointers cross ABI boundaries of their own and are not duplicated into a call site;
+* its body is either `return <expr>;` or the **clamp shape** — one `if`/`else` chain whose
+  every arm assigns one and the same parameter, followed by `return <that parameter>;`
+  (a trailing bare `else` is allowed);
+* every expression in it is **pure**: literals, reads of this function's own parameters,
+  enumeration constants, casts, arithmetic/comparison/logical/bitwise operators, `?:`, and
+  direct calls to other candidates. No loops, no locals, no statics, no globals, no `&`, no
+  `++`/`--`, no assignment beyond the clamp shape's own, no other calls;
+* it does not reach itself. Direct recursion is rejected at analysis time; mutual recursion
+  declines at the call site, off an expansion stack.
+
+The **original definition is still emitted** — another translation unit, or a function
+pointer taken in this one, may still reach it. Only *direct* calls are substituted, and a
+call whose result is discarded, or that sits in a constant initializer, keeps its call.
+
+At the call site each argument crosses exactly as a call would — converted at the parameter's
+C type through `lower_to_c_value` with `ValueSite::CallArg`, so promotion and narrowing are
+unchanged — and then binds a `var` temp unless it is already a leaf (a name or a literal).
+If any argument needs a temp, all of them get one, so the arguments keep C's evaluation order
+relative to each other; that is what makes `clamp(i++)` evaluate `i++` once even though the
+body reads its parameter three times. The clamp shape becomes a conditional-expression chain,
+and the body's own `return` expression is converted with the parameter bound to that chain,
+so the function's return conversion is applied to the result exactly once. Any piece that
+would need statements of its own inside a conditional arm declines and falls back to a real
+call, so nothing is ever hoisted out of the arm that guards it.
+
+`plm_frame_to_rgb` goes from
+
+```das
+unsafe(...[int(d_index_0 + int(0) + int(0))]) = uint8(uint8(plm_clamp(y_11 + r_0)))
+```
+
+to
+
+```das
+var c2da_fresh433 : int = y_11 + r_0
+unsafe(...[int(d_index_0 + int(0) + int(0))]) = uint8(uint8(c2da_fresh433 > int(255) ? int(255) : c2da_fresh433 < int(0) ? int(0) : c2da_fresh433))
+```
+
+All 76 direct `plm_clamp` calls in `all_bench.das` disappear; the definition stays.
+The module grows from 6501 to 6577 lines, and transpiling it still takes ~3.0 s.
+
+`--no-inline` turns the whole thing off, and its output is **byte-identical** to the
+translator's output before this change — which is how the two columns below were produced.
+
+### Results
+
+Minimum of three runs per cell, serial, idle machine, same box as every other table here.
+
+| stream | `--no-inline` | inlined | speedup | hash |
+|---|---|---|---|---|
+| `sample.m1v` 96×64, 11 fr | 127.416 ms | **118.392 ms** | 1.08× | `e2fcf7fa` ✅ |
+| `hd8_test.m1v` 1280×720, 7 fr | 3803.530 ms | **3219.099 ms** | 1.18× | `65effd87` ✅ |
+| `test_480p.m1v` 854×480, 124 fr | 34 273.750 ms | **30 967.625 ms** | 1.11× | `08a9f38a` ✅ |
+
+Every hash is unchanged, so the decoded pixels are still bit-identical to `clang-18 -O2`.
+
+The h264bsd + minimp4 canonical case is unaffected either way. The only substitution the rule
+finds in its 39 224-line graph is `rotl32` in the fixture's own summary hashing — four call
+sites, none of them hot — and the daslang run times the same to within noise (minimum of
+three, `date +%s.%N` around `daslang input/src/h264_entry.das -main main` in a
+`--keep-workdir` workspace): **4.088 s** with `--no-inline`, **4.087 s** inlined, with
+byte-identical stdout.
+
+The win is smaller than the 34.8% the profile attributes to `plm_clamp`, because the profiler
+charges an instrumentation cost per call and there were 19.35 M of them — which is also why
+the profiled run itself drops from 16.1 s to 3.85 s. The uninstrumented gain on `hd8_test` is
+584 ms of 3804, or 15.4%.
+
+### Where the time goes now
+
+`--das-profiler --das-profiler-time-unit ms` on `hd8_test.m1v`, same redirect quirk as above.
+`plm_clamp` no longer appears at all.
+
+| # | function | self ms | % | calls |
+|---|---|---|---|---|
+| 1 | `plm_frame_to_rgb` | 1272 | 33.0% | 7 |
+| 2 | `fold_bytes` | 1137 | 29.5% | 7 |
+| 3 | `plm_video_process_macroblock` | 617 | 16.0% | 64 641 |
+| 4 | `plm_buffer_read` | 222 | 5.8% | 308 496 |
+| 5 | `plm_video_decode_block` | 211 | 5.5% | 23 891 |
+
+The remaining two thirds are the flat per-pixel loops themselves — `plm_frame_to_rgb`'s body
+and the RGB byte-fold — where the interpreter pays one dispatch per *operation*, not per
+call. No further call-elimination reaches those; a JIT or a lower-level lowering of the loop
+bodies does.
+
+### Reproducing this section
+
+```sh
+# translate both ways from the same C
+cargo run -q -p c2dascript-transpile -- --strict --output-dir <dir> --file <dir>/all_bench.c \
+  -DPLM_NO_STDIO -I<dir>/include -I<upstream> -I<dir> -w
+cargo run -q -p c2dascript-transpile -- --strict --no-inline --output-dir <dir-noinline> ...
+
+# run each three times per stream
+daslang -dasroot <das_root> bench_entry.das -- <stream>.m1v
+```
+
+The canonical regression case for the rule itself is
+`tests/syntax/p71_static_inline_calls.c` (`p71-static-inline-calls`): side-effecting
+arguments, narrow parameter and return types, a candidate calling a candidate, a candidate
+taken by address and called through the pointer, a loop and a recursion that must stay calls,
+and calls in positions C only sometimes evaluates.

@@ -91,6 +91,11 @@ pub struct TranspilerConfig {
     pub output_dir: Option<PathBuf>,
     pub log_level: log::LevelFilter,
     pub edition: c2rust_rust_tools::RustEdition,
+    /// Substitute direct calls to tiny `static` C helpers with the expression
+    /// they stand for (`--no-inline` turns it off). See
+    /// `translator/inline.rs`; the daslang interpreter pays one call dispatch
+    /// per invocation, which dominates flat per-byte loops.
+    pub inline_functions: bool,
 }
 
 /// AST-level inventory for target-specific C surfaces.  These counts are
@@ -157,6 +162,7 @@ impl Default for TranspilerConfig {
             output_dir: None,
             log_level: log::LevelFilter::Warn,
             edition: c2rust_rust_tools::RustEdition::Edition2021,
+            inline_functions: true,
         }
     }
 }

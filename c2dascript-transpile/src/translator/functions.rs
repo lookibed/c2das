@@ -322,6 +322,25 @@ impl<'c> Translation<'c> {
             (None, true) => strip_implicit_casts(&self.ast_context, func),
             (None, false) => func,
         };
+        // A direct call to a tiny `static` helper is substituted here, before
+        // the callee expression is lowered: the interpreter pays one dispatch
+        // per call, and the translated body of such a helper is a relooped
+        // label-and-goto graph, so the call is far more expensive than the
+        // expression it stands for. See `translator/inline.rs` for the rule.
+        if self.inlining_enabled() && is_direct && indirect_callee.is_none() {
+            if let Some(callee) = self.direct_call_decl(func) {
+                let is_runtime = self
+                    .direct_call_name(func)
+                    .as_deref()
+                    .and_then(canonical_runtime_function)
+                    .is_some();
+                if !is_runtime {
+                    if let Some(inlined) = self.try_inline_call(ctx, callee, args, override_ty)? {
+                        return Ok(inlined);
+                    }
+                }
+            }
+        }
         let func_expr = self.convert_expr(ctx.used(), callee_expr_id, None)?;
         let mut is_unsafe = func_expr.is_unsafe;
         // Runtime policy is selected from the C declaration, not from the

@@ -28,6 +28,7 @@ fn config(output_dir: &Path) -> TranspilerConfig {
         output_dir: Some(output_dir.to_owned()),
         log_level: log::LevelFilter::Warn,
         edition: c2rust_rust_tools::RustEdition::Edition2021,
+        inline_functions: true,
     }
 }
 

@@ -4722,6 +4722,31 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p71-static-inline-calls",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "static_inline_calls_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p71_static_inline_calls",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p71_static_inline_calls.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-s01-switch-basic",
       "checked_in_das": "tests/syntax/s01_switch_basic.das",
       "clang": {

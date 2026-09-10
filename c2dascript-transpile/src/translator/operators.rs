@@ -1058,6 +1058,9 @@ impl<'c> Translation<'c> {
             }
             DaExpr::Op2 { left, .. } => Self::infer_type(left),
             DaExpr::Op1 { expr: inner, .. } => Self::infer_type(inner),
+            // daScript requires both arms of a conditional expression to have
+            // the same type, so either one names the whole expression's.
+            DaExpr::Op3 { then, .. } => Self::infer_type(then),
             _ => None,
         }
     }

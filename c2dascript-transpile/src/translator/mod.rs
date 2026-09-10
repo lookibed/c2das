@@ -32,6 +32,7 @@ mod comments;
 mod enums;
 mod functions;
 mod global_order;
+mod inline;
 mod layout;
 mod literals;
 mod macros;
@@ -264,6 +265,18 @@ pub struct Translation<'c> {
     /// function-scope `static` becomes a module-level object. Drained once, by
     /// `translate_impl`, into the type section of the module.
     pub(crate) hoisted_types: RefCell<Vec<DaDecl>>,
+    /// Which C functions may be substituted at their direct call sites, by
+    /// the rule in [`self::inline`]. `None` means "not a candidate"; a
+    /// declaration is seeded with `None` while it is being analysed, which is
+    /// how a recursive one answers for itself.
+    pub(crate) inline_candidates: RefCell<HashMap<CDeclId, Option<inline::InlineCandidate>>>,
+    /// The candidates whose bodies are being expanded right now, outermost
+    /// first. A call to one of them stays a call.
+    pub(crate) inline_stack: RefCell<Vec<CDeclId>>,
+    /// Parameter substitutions of the innermost expansion: while a candidate's
+    /// body is converted, a read of one of its parameters is the argument
+    /// value the call site bound.
+    pub(crate) inline_frames: RefCell<Vec<HashMap<CDeclId, DaExpr>>>,
     pub main_file: PathBuf,
 }
 
@@ -279,6 +292,9 @@ impl<'c> Translation<'c> {
             storage_backed_cache: RefCell::new(HashMap::new()),
             hoisted_statics: RefCell::new(vec![]),
             hoisted_types: RefCell::new(vec![]),
+            inline_candidates: RefCell::new(HashMap::new()),
+            inline_stack: RefCell::new(vec![]),
+            inline_frames: RefCell::new(vec![]),
             ast_context,
             tcfg,
             main_file: main_file.to_path_buf(),
@@ -1100,6 +1116,11 @@ impl<'c> Translation<'c> {
             }
 
             DeclRef(_ty, decl_id, _lrvalue) => {
+                // Inside an inlined body a parameter is not a name at all: it
+                // is the value the call site bound for it.
+                if let Some(bound) = self.inline_binding(*decl_id) {
+                    return Ok(WithStmts::new_val(bound));
+                }
                 let decl = &self.ast_context[*decl_id];
                 let name = decl
                     .kind

@@ -7,11 +7,14 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
     let strict = take_flag(&mut args, "--strict");
+    // Opt out of substituting tiny `static` helpers at their call sites, so
+    // the effect of that substitution can be measured against this build.
+    let no_inline = take_flag(&mut args, "--no-inline");
     let output_dir = take_option(&mut args, "--output-dir");
     if args.is_empty() {
         eprintln!("Expected compile_commands.json or --file <file.c>");
@@ -29,6 +32,7 @@ fn main() {
         output_dir,
         log_level: log::LevelFilter::Warn,
         edition: c2rust_rust_tools::RustEdition::Edition2021,
+        inline_functions: !no_inline,
     };
 
     let path = Path::new(&args[0]);
