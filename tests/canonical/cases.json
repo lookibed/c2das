@@ -645,6 +645,32 @@
     {
       "id": "p69-typedef-numeric-casts", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p69_typedef_numeric_casts.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "typedef_numeric_casts_runtime", "return_type": "int" }, "das_entrypoint": "typedef_numeric_casts_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p70-goto-over-declarations", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p70_goto_over_declarations.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "goto_over_declarations_runtime", "return_type": "int" }, "das_entrypoint": "goto_over_declarations_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "h264bsd-mp4",
+      "status": "ready",
+      "source_root": "tests/manual/real-world-h264bsd-mp4",
+      "translation_entry": "src/all.c",
+      "c_graph": "h264bsd-mp4",
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-std=c11", "-w", "-Iinclude", "-Iupstream/h264bsd/src", "-Iupstream/minimp4", "-Isrc"]
+      },
+      "c_reference": {
+        "sources": ["src/all_reference.c", "src/h264_reference_entry.c"]
+      },
+      "preserve_das": ["src/h264_entry.das"],
+      "das_program": "src/h264_entry.das",
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "memory_read_status=0\nmemory_read_word0=32\nfirst_box_name=1718909296\nsecond_box_name=1718773093\ntrack_index=0\nsample_count=12\nwidth=96\nheight=64\nframe_count=8\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
     }
   ]
 }

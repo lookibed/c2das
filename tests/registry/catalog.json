@@ -216,8 +216,15 @@
       "id": "plmpeg-reference"
     },
     {
-      "compile_commands": "tests/manual/real-world-h264bsd-mp4/compile_commands.json",
-      "description": "Recorded H264BSD plus minimp4 corpus graph.",
+      "clang_flags": [
+        "-std=c11",
+        "-w",
+        "-Iinclude",
+        "-Iupstream/h264bsd/src",
+        "-Iupstream/minimp4",
+        "-Isrc"
+      ],
+      "description": "Canonical H264BSD plus minimp4 translation graph, rooted at src/all.c; the C reference graph is src/all_reference.c under the same flags.",
       "entry": "tests/manual/real-world-h264bsd-mp4/src/all.c",
       "id": "h264bsd-mp4"
     },

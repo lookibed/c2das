@@ -17,6 +17,8 @@
 //! 3. **Emission** — labels are numbered in layout order and only assigned to
 //!    blocks that a planned jump actually targets, then the statements are
 //!    concatenated.
+//! 4. **Dead-tail repair** — a label that no executable statement follows is
+//!    turned back into a plain `return`; see [`dead_tail_labels`].
 //!
 //! Everything a block declares lands in the function's own scope, so no
 //! declaration hoisting is required: daScript scopes a `var` to its enclosing
@@ -190,7 +192,83 @@ pub(crate) fn render(
         )));
     }
 
+    // Step 4: repair labels daScript would leave dangling at the end of the body.
+    for label in dead_tail_labels(&out) {
+        retarget_to_return(&mut out, &label);
+    }
+
     Ok(out)
+}
+
+/// Labels that no executable statement follows, and which daScript therefore
+/// cannot jump to at run time.
+///
+/// A label compiles to no node of its own: `sv_collectExpressions`
+/// (`ast_simulate.cpp`) merely records the index the *next* node will get, and
+/// `SimNode_BlockWithLabels::eval` (`simulate.cpp`) rejects a jump whose
+/// recorded index is not inside the block, reporting `jump to label N failed`.
+/// So a label needs a node after it, and two foldings can take the last one
+/// away: `ast_block_folding.cpp` deletes a bare `return` that closes a *void*
+/// function's body ("remove trailing return on the void function"), and the
+/// dead-code pass in the same file drops whatever follows a `return` up to the
+/// next label.  `label N:` sitting at the very end of a void function above
+/// nothing but `return` is exactly the shape a C function with an early
+/// `if (!x) return;` lowers to, and it faults on the first such jump.
+///
+/// A label in that position can only mean "fall off the end of the function",
+/// so the jumps to it are rewritten to `return` and the label is dropped.
+fn dead_tail_labels(out: &[DaStmt]) -> Vec<String> {
+    let mut live = out.len();
+    if matches!(out.last(), Some(DaStmt::Expr(DaExpr::Return(None)))) {
+        live -= 1;
+    }
+    let mut dangling: Vec<String> = Vec::new();
+    for stmt in &out[..live] {
+        match stmt {
+            DaStmt::Expr(DaExpr::Label(name)) => dangling.push(name.clone()),
+            // Anything else compiles to a node, so every label up to here has
+            // one to land on.
+            _ => dangling.clear(),
+        }
+    }
+    dangling
+}
+
+/// Drop `label`'s definition and turn every jump to it into a bare `return`.
+fn retarget_to_return(out: &mut Vec<DaStmt>, label: &str) {
+    out.retain(|stmt| !matches!(stmt, DaStmt::Expr(DaExpr::Label(name)) if name == label));
+    for stmt in out.iter_mut() {
+        if let DaStmt::Expr(expr) = stmt {
+            goto_to_return(expr, label);
+        }
+    }
+}
+
+/// Rewrite `goto label` to `return` inside the `if`/`else` nests that
+/// [`render`] wraps conditional jumps in.
+fn goto_to_return(expr: &mut DaExpr, label: &str) {
+    match expr {
+        DaExpr::Goto(name) if name == label => *expr = DaExpr::Return(None),
+        DaExpr::Block(block) => {
+            for stmt in &mut block.stmts {
+                if let DaStmt::Expr(inner) = stmt {
+                    goto_to_return(inner, label);
+                }
+            }
+        }
+        DaExpr::IfThenElse {
+            then, elifs, else_, ..
+        } => {
+            goto_to_return(then, label);
+            for (_, arm) in elifs.iter_mut() {
+                goto_to_return(arm, label);
+            }
+            if let Some(arm) = else_ {
+                goto_to_return(arm, label);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Depth-first layout that keeps as many edges as possible implicit.

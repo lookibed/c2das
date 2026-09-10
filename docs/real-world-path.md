@@ -50,9 +50,17 @@ recognise runtime names that the C source declares itself.
    enough for the fixtures. If it is not, the interpreter has builtin `malloc`, `free` and
    `memcpy` (`module_builtin_runtime.cpp`), so the allocator can be swapped locally in
    `translator/runtime.rs` without changing the address model.
-5. **Both targets in the canonical manifest.** `plmpeg-stream` is already listed as
-   `known-red`; promote it to `ready` when it passes and add an `h264bsd-mp4` case with the
-   `test_decode.das` expectations, so regressions are caught by
+5. **Both targets in the canonical manifest.** Done for both. `plmpeg-stream` is promoted to
+   `ready` (C reference `src/all_reference.c` + `src/plmpeg_reference_entry.c`, preserved
+   entry `src/plmpeg_entry.das`). `h264bsd-mp4` is now wired the same way — C reference
+   `src/all_reference.c` + `src/h264_reference_entry.c` recorded in `h264_reference.expected`,
+   preserved entry `src/h264_entry.das` replacing the stale `test_decode.das` (which still
+   requires the obsolete module name `c2da_module`) — and pins nine probes: the two
+   memory-read probes, two minimp4 box names, `track_index`, `sample_count`, then `width`,
+   `height` and `frame_count` at frame limit 8. It is registered as `known-red` because it
+   was failing on `EXCEPTION: jump to label 20 failed` when it was added; with the `cfg`
+   label fix in the tree it passes end to end (`--all-known-red` reports 1/1), so promote it
+   to `ready` once that fix is committed. Both cases are now caught by
    `scripts/run_c2das_cases.py` rather than by hand.
 
 Out of the path for now: `p56-heap-churn` (allocator, see step 4) and
