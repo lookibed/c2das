@@ -92,6 +92,48 @@ def remove_copied_das(root: Path, preserved: set[Path]) -> None:
             generated.unlink()
 
 
+def assert_no_stale_das(case: dict[str, Any], root: Path, preserved: set[Path]) -> None:
+    """Prove the pre-transpile cleanup really emptied the copied fixture.
+
+    Every `.das` under the copy must be a declared fixture-owned wrapper; any
+    survivor could otherwise satisfy a `require` and hide a missing fresh
+    translation.
+    """
+    stale = sorted(path for path in root.rglob("*.das") if path not in preserved)
+    if stale:
+        raise CaseFailure(
+            f"{case['id']}: copied daScript modules survived cleanup: "
+            + ", ".join(str(path) for path in stale)
+        )
+
+
+def stage_generated_das(
+    case: dict[str, Any], generated_dir: Path, destination: Path, preserved: set[Path]
+) -> list[Path]:
+    """Place the fresh modules next to the fixture-owned `das_program`.
+
+    daslang resolves `require <module>` against the entry file's own directory,
+    so a wrapper such as `src/plmpeg_entry.das` can only see `all` if `all.das`
+    sits beside it.  This runs *after* `assert_no_stale_das`, so nothing but the
+    just-produced output can ever end up there.
+    """
+    staged: list[Path] = []
+    for generated in sorted(generated_dir.rglob("*.das")):
+        target = destination / generated.relative_to(generated_dir)
+        if target in preserved:
+            raise CaseFailure(
+                f"{case['id']}: generated {generated.name} collides with the fixture-owned wrapper {target}"
+            )
+        if target.exists():
+            raise CaseFailure(f"{case['id']}: stale daScript module reappeared at {target}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(generated, target)
+        staged.append(target)
+    if not staged:
+        raise CaseFailure(f"{case['id']}: transpiler produced no module to stage in {destination}")
+    return staged
+
+
 def copied_flags(flags: list[str], copied_root: Path) -> list[str]:
     resolved: list[str] = []
     for flag in flags:
@@ -220,6 +262,7 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         if any(not path.is_file() for path in preserved):
             raise CaseFailure(f"{case['id']}: declared daScript wrapper is missing")
         remove_copied_das(copied_root, preserved)
+        assert_no_stale_das(case, copied_root, preserved)
         translated_c = copied_root / entry
         generated_dir = work / "generated"
         generated_das = generated_dir / entry.with_suffix(".das").name
@@ -283,14 +326,21 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         if not generated_das.is_file():
             raise CaseFailure(f"{case['id']}: transpiler produced no fresh output at {generated_das}")
 
+        if "das_program" in case:
+            das_program = copied_root / Path(case["das_program"])
+            if das_program not in preserved:
+                raise CaseFailure(
+                    f"{case['id']}: das_program must also be declared in preserve_das"
+                )
+            stage_generated_das(case, generated_dir, das_program.parent, preserved)
+            das_entry = das_program
+        else:
+            das_entry = generated_das
+
         da_result = subprocess.run(
             [
                 str(daslang),
-                str(
-                    copied_root / Path(case["das_program"])
-                    if "das_program" in case
-                    else generated_das
-                ),
+                str(das_entry),
                 "-main",
                 case["das_entrypoint"],
             ],

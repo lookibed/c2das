@@ -2558,15 +2558,21 @@ impl<'c> Translation<'c> {
                     .map(|expr_id| self.has_decl_reference(decl_id, expr_id))
                     .unwrap_or(false);
 
-                // A local declaration initialized from a record lvalue is a
-                // copy in C, and this path builds its assignment directly
-                // rather than through `lower_to_c_value`.
+                // A C declarator's initializer is an assignment: the value is
+                // converted to the declared type exactly as `v = init` would
+                // convert it.  Routing it through the canonical value-site
+                // lowering is what copies a record lvalue by value *and* what
+                // materializes a C `int`-typed comparison result (`int x = a
+                // == b`), which daScript spells as a `bool` with no implicit
+                // conversion of its own.
                 let init_ws = initializer
                     .map(|expr_id| {
                         let init = self.convert_expr(ctx.used(), expr_id, Some(typ))?;
-                        self.copy_aggregate_by_value(
+                        self.lower_to_c_value(
                             init,
                             self.ast_context[expr_id].kind.get_qual_type().or(Some(typ)),
+                            writable_type(var_type.clone()),
+                            ValueSite::Assignment,
                         )
                     })
                     .transpose()?;
@@ -3428,6 +3434,9 @@ fn translate_impl(
             }
         }
     }
+    // Everything appended to `decls` from here on is a value declaration, not
+    // a type; the module has to emit the two groups in that order.
+    let type_decl_count = decls.len();
 
     // Pass 2: export top-level value declarations (function with bodies, variable, macro)
     for &top_id in &t.ast_context.c_decls_top {
@@ -3537,17 +3546,29 @@ fn translate_impl(
             }));
         }
     }
-    decls.extend(enum_const_decls);
+    let value_decls = decls.split_off(type_decl_count);
+    let type_decls = decls;
     let mut module_decls = c2da_runtime_helpers();
+    // daScript resolves the structure a global variable's initializer names
+    // against the structures already declared at that point: a `var g :
+    // T[N] = fixed_array<T>(T(...), ...)` written above `struct T` fails with
+    // "T = T, not the same type".  The C record declarations therefore come
+    // before every module-level object that builds one.
+    module_decls.extend(type_decls);
+    // An enumeration constant is a module-level variable here, and a global
+    // initializer may only read a global declared before it, so the constants
+    // precede the objects — a hoisted `static const` table keyed by enum
+    // constants among them.
+    module_decls.extend(enum_const_decls);
+    // A C string literal has static storage duration; its backing byte array
+    // is a module-level object, declared before any function that takes its
+    // address — and before any initializer that points into it.
+    module_decls.extend(literals::take_string_literal_declarations());
+    module_decls.extend(builtins::take_builtin_helper_declarations());
     // Function-scope `static` storage lowered while pass 2 walked the bodies.
     // It must precede the functions that read it, and it is initialised once.
     module_decls.extend(t.take_hoisted_statics());
-    // A C string literal has static storage duration; its backing byte array
-    // is a module-level object, declared before any function that takes its
-    // address.
-    module_decls.extend(literals::take_string_literal_declarations());
-    module_decls.extend(builtins::take_builtin_helper_declarations());
-    module_decls.extend(decls);
+    module_decls.extend(value_decls);
 
     // Build the daScript module
     let module = DaModule {

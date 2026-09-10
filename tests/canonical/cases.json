@@ -302,6 +302,18 @@
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "layout_divergence_runtime", "return_type": "int" }, "das_entrypoint": "layout_divergence_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
     },
     {
+      "id": "p61-callback-typedef", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p61_callback_typedef.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "callback_typedef_runtime", "return_type": "int" }, "das_entrypoint": "callback_typedef_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p62-bool-store", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p62_bool_store.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "bool_store_runtime", "return_type": "int" }, "das_entrypoint": "bool_store_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p63-const-static-table", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p63_const_static_table.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "const_static_table_runtime", "return_type": "int" }, "das_entrypoint": "const_static_table_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
       "id": "n06-unknown-extern-call", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n06_unknown_extern_call.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "n06_unknown_extern_call.c", "cause": "unsupported external call: absolute_value" }, "runtime": "not-applicable"

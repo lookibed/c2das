@@ -4388,6 +4388,81 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p61-callback-typedef",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "callback_typedef_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p61_callback_typedef",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p61_callback_typedef.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p62-bool-store",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "bool_store_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p62_bool_store",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p62_bool_store.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p63-const-static-table",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "const_static_table_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p63_const_static_table",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p63_const_static_table.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-s01-switch-basic",
       "checked_in_das": "tests/syntax/s01_switch_basic.das",
       "clang": {
