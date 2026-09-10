@@ -2529,13 +2529,13 @@ impl<'c> Translation<'c> {
                     .map(|expr_id| self.has_decl_reference(decl_id, expr_id))
                     .unwrap_or(false);
 
-                // A local declaration initialized from a union lvalue is a
+                // A local declaration initialized from a record lvalue is a
                 // copy in C, and this path builds its assignment directly
                 // rather than through `lower_to_c_value`.
                 let init_ws = initializer
                     .map(|expr_id| {
                         let init = self.convert_expr(ctx.used(), expr_id, Some(typ))?;
-                        self.copy_union_by_value(
+                        self.copy_aggregate_by_value(
                             init,
                             self.ast_context[expr_id].kind.get_qual_type().or(Some(typ)),
                         )

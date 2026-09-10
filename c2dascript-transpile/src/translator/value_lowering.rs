@@ -22,13 +22,14 @@ impl<'c> Translation<'c> {
         site: ValueSite,
     ) -> TranslationResult<WithStmts<DaExpr>> {
         // A C union is an object, not a handle to one, so a use-site that
-        // consumes one by value owes the consumer its own copy of the bytes.
-        // Only the sites that really transfer an object do this: the value of
-        // an assignment expression is the object already stored, and C has no
-        // union operands, so re-copying either would allocate for nothing.
+        // consumes one by value owes the consumer its own copy of the bytes —
+        // and so does a struct that owns a union anywhere inside it.  Only the
+        // sites that really transfer an object do this: the value of an
+        // assignment expression is the object already stored, and C has no
+        // record operands, so re-copying either would allocate for nothing.
         let value = match site {
             ValueSite::Assignment | ValueSite::CallArg | ValueSite::Return => {
-                self.copy_union_by_value(value, source)?
+                self.copy_aggregate_by_value(value, source)?
             }
             ValueSite::BinaryOperand | ValueSite::BinaryResult => value,
         };

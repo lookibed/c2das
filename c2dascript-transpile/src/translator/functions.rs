@@ -127,6 +127,7 @@ impl<'c> Translation<'c> {
 
         let mut params = vec![];
         let mut param_bindings = vec![];
+        let mut by_value_records = vec![];
         let mut unnamed_idx = 0u32;
         for param_id in parameters {
             if let CDeclKind::Variable { ref ident, typ, .. } = self.ast_context[*param_id].kind {
@@ -143,7 +144,18 @@ impl<'c> Translation<'c> {
                     .borrow_mut()
                     .add_param_alias(ident, &pname);
                 param_bindings.push((*param_id, ident.clone(), typ, pname.clone()));
-                if is_ptr || !is_const {
+                // A daScript record parameter is a reference to the caller's
+                // object, so `var` on it would let the callee's writes escape.
+                // C passes a record by value: the parameter is a local object
+                // initialized from the argument.  The incoming reference is
+                // therefore taken read-only under a name of its own, and the
+                // name the body uses is declared as a copy of it.  A `const`
+                // record parameter is already read-only and needs no copy.
+                if self.is_by_value_record_param(typ) {
+                    let incoming = self.renamer.borrow_mut().fresh();
+                    params.push(mk().param(incoming.clone(), das_ty.clone(), None));
+                    by_value_records.push((pname, incoming, typ, das_ty));
+                } else if is_ptr || !is_const {
                     params.push(mk().param_mut(pname, das_ty, None));
                 } else {
                     params.push(mk().param(pname, das_ty, None));
@@ -178,10 +190,16 @@ impl<'c> Translation<'c> {
             };
 
             // Run through CFG pipeline
-            let body_stmts =
+            let mut body_stmts =
                 crate::cfg::convert_function_body(self, body_id, &stmt_ids, imp_ret, ret_ctype)?;
 
-            Some(DaExpr::Block(DaBlock { stmts: body_stmts }))
+            // The parameter copies are the first thing the function does: the
+            // body already refers to them by the C parameter's name, and a
+            // `goto` cannot jump ahead of index 0.
+            let mut prologue = self.by_value_record_prologue(&by_value_records)?;
+            prologue.append(&mut body_stmts);
+
+            Some(DaExpr::Block(DaBlock { stmts: prologue }))
         } else {
             None
         };
@@ -199,6 +217,44 @@ impl<'c> Translation<'c> {
             }
         }
         Ok(func)
+    }
+
+    /// True for a parameter C passes by value as a record object the callee
+    /// may modify without the caller seeing it.
+    ///
+    /// A pointer parameter refers to the caller's object by design, a `const`
+    /// record parameter cannot be written at all, and `va_list` is the ABI's
+    /// own cursor rather than a C record — none of them is copied.
+    fn is_by_value_record_param(&self, typ: CQualTypeId) -> bool {
+        if typ.qualifiers.is_const || self.ast_context.is_va_list(typ.ctype) {
+            return false;
+        }
+        matches!(
+            self.ast_context.resolve_type(typ.ctype).kind,
+            CTypeKind::Struct(_) | CTypeKind::Union(_)
+        )
+    }
+
+    /// The declarations that turn read-only record parameters into the private
+    /// local objects C says they are.
+    fn by_value_record_prologue(
+        &self,
+        params: &[(String, String, CQualTypeId, DaType)],
+    ) -> TranslationResult<Vec<DaStmt>> {
+        let mut stmts = vec![];
+        for (pname, incoming, ctype, das_ty) in params {
+            stmts.push(DaStmt::Var {
+                name: pname.clone(),
+                var_type: writable_type(das_ty.clone()),
+                init: Some(DaExpr::Var(incoming.clone())),
+            });
+            // daScript's copy duplicates scalars and inline fixed arrays, which
+            // is all C asks of a record without unions.  A union field carries
+            // only the address of its bytes, so those objects are re-allocated
+            // in the fresh local afterwards.
+            stmts.extend(self.duplicate_owned_unions(DaExpr::Var(pname.clone()), ctype.ctype)?);
+        }
+        Ok(stmts)
     }
 
     pub fn convert_function_call(

@@ -380,6 +380,228 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new(stmts, DaExpr::Var(copy_tmp)).merge_unsafe(is_unsafe))
     }
 
+    /// Give a C aggregate consumed by value its own copy of every union object
+    /// it owns.
+    ///
+    /// This is the whole of C's by-value rule for records: a plain daScript
+    /// struct copy already duplicates scalars and inline fixed arrays, so the
+    /// only part that still aliases is a union field, whose wrapper carries
+    /// nothing but the address of the union's bytes.  A union value is copied
+    /// by [`copy_union_by_value`]; a struct that transitively owns one is
+    /// bound to a temporary and every union object inside it re-allocated.
+    /// A record with no union anywhere needs nothing and is handed through.
+    pub(crate) fn copy_aggregate_by_value(
+        &self,
+        value: WithStmts<DaExpr>,
+        source: Option<CQualTypeId>,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let Some(source_ty) = source else {
+            return Ok(value);
+        };
+        match self.ast_context.resolve_type(source_ty.ctype).kind {
+            CTypeKind::Union(_) => self.copy_union_by_value(value, source),
+            CTypeKind::Struct(_) if self.ctype_owns_union(source_ty.ctype) => {
+                self.copy_record_with_unions(value, source_ty)
+            }
+            _ => Ok(value),
+        }
+    }
+
+    /// Bind a struct value to a temporary and re-allocate the union storage
+    /// every union field inside it still shares with the source.
+    fn copy_record_with_unions(
+        &self,
+        value: WithStmts<DaExpr>,
+        source: CQualTypeId,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        if matches!(value.val, DaExpr::Assign(..)) {
+            // As for a union: a chained `a = b = s` still has its inner
+            // assignment as an expression here, and binding that to a
+            // temporary is not daScript.
+            return Ok(value);
+        }
+        let var_type = writable_type(self.convert_type(source)?);
+        let tmp = self.renamer.borrow_mut().fresh();
+        let is_unsafe = value.is_unsafe;
+        let mut stmts = value.stmts;
+        // The shallow copy comes first, so an expression with side effects is
+        // evaluated exactly once; the union objects it still shares with the
+        // source are replaced afterwards, in place.
+        stmts.push(DaStmt::Var {
+            name: tmp.clone(),
+            var_type,
+            init: Some(value.val),
+        });
+        stmts.extend(self.duplicate_owned_unions(DaExpr::Var(tmp.clone()), source.ctype)?);
+        Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
+    }
+
+    /// The statements that turn every union object reachable from an already
+    /// shallow-copied place into an object of its own.
+    ///
+    /// This is the second half of a C record copy for callers that have made
+    /// the shallow copy themselves — a by-value parameter, say, whose local is
+    /// declared straight from the incoming reference.
+    pub(crate) fn duplicate_owned_unions(
+        &self,
+        place: DaExpr,
+        ctype: CTypeId,
+    ) -> TranslationResult<Vec<DaStmt>> {
+        let mut stmts = vec![];
+        let mut budget = UNION_COPY_BUDGET;
+        self.reallocate_union_storage(place, ctype, &mut stmts, &mut budget)?;
+        Ok(stmts)
+    }
+
+    /// Whether a C type owns a union object anywhere inside it.
+    ///
+    /// Only what the object itself contains counts: a pointer to a union is a
+    /// reference to somebody else's object, and copying the pointer is exactly
+    /// what C does.
+    pub(crate) fn ctype_owns_union(&self, ctype: CTypeId) -> bool {
+        let mut visiting = vec![];
+        self.ctype_owns_union_inner(ctype, &mut visiting)
+    }
+
+    fn ctype_owns_union_inner(&self, ctype: CTypeId, visiting: &mut Vec<CRecordId>) -> bool {
+        match self.ast_context.resolve_type(ctype).kind {
+            CTypeKind::Union(_) => true,
+            CTypeKind::Struct(record) => {
+                // A C record cannot contain itself by value, but a broken or
+                // still-incomplete AST must not turn that into a hang.
+                if visiting.contains(&record) {
+                    return false;
+                }
+                let fields = match &self.ast_context[record].kind {
+                    CDeclKind::Struct {
+                        fields: Some(fields),
+                        ..
+                    } => fields.clone(),
+                    _ => return false,
+                };
+                visiting.push(record);
+                let owns = fields.into_iter().any(|field| {
+                    match self.ast_context[field].kind {
+                        CDeclKind::Field { typ, .. } => {
+                            self.ctype_owns_union_inner(typ.ctype, visiting)
+                        }
+                        _ => false,
+                    }
+                });
+                visiting.pop();
+                owns
+            }
+            CTypeKind::ConstantArray(element, _) => {
+                self.ctype_owns_union_inner(element, visiting)
+            }
+            _ => false,
+        }
+    }
+
+    /// Replace, in place, the storage address of every union object reachable
+    /// from `place` with a fresh allocation holding a copy of its bytes.
+    ///
+    /// The new address is built in a temporary before it is stored, because
+    /// the copy reads the old address out of the very field it overwrites.
+    fn reallocate_union_storage(
+        &self,
+        place: DaExpr,
+        ctype: CTypeId,
+        stmts: &mut Vec<DaStmt>,
+        budget: &mut u32,
+    ) -> TranslationResult<()> {
+        match self.ast_context.resolve_type(ctype).kind {
+            CTypeKind::Union(union_id) => {
+                if *budget == 0 {
+                    return Err(TranslationError::generic(
+                        "aggregate copy owns too many union objects to duplicate",
+                    ));
+                }
+                *budget -= 1;
+                let size = i64::try_from(self.record_layout(union_id)?.object.size_bytes).map_err(
+                    |_| TranslationError::generic("union size exceeds daScript integer range"),
+                )?;
+                let storage = DaExpr::Field(Box::new(place), "c2da_storage".into());
+                let fresh = self.renamer.borrow_mut().fresh();
+                stmts.push(DaStmt::Var {
+                    name: fresh.clone(),
+                    var_type: DaType::uint64(),
+                    init: Some(self.union_zero_storage(union_id)?),
+                });
+                stmts.push(DaStmt::Expr(DaExpr::Call(
+                    Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
+                    vec![
+                        DaExpr::Var(fresh.clone()),
+                        storage.clone(),
+                        self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
+                    ],
+                )));
+                stmts.push(DaStmt::Expr(DaExpr::Assign(
+                    Box::new(storage),
+                    Box::new(DaExpr::Var(fresh)),
+                )));
+            }
+            CTypeKind::Struct(record) => {
+                let fields = match &self.ast_context[record].kind {
+                    CDeclKind::Struct {
+                        fields: Some(fields),
+                        ..
+                    } => fields.clone(),
+                    _ => return Ok(()),
+                };
+                for field in fields {
+                    let CDeclKind::Field { typ, ref name, .. } = self.ast_context[field].kind else {
+                        continue;
+                    };
+                    if !self.ctype_owns_union(typ.ctype) {
+                        continue;
+                    }
+                    let field_name = self
+                        .type_converter
+                        .borrow()
+                        .resolve_field_name(Some(record), field)
+                        .unwrap_or_else(|| {
+                            if name.is_empty() {
+                                "_unnamed".into()
+                            } else {
+                                name.clone()
+                            }
+                        });
+                    self.reallocate_union_storage(
+                        DaExpr::Field(Box::new(place.clone()), field_name),
+                        typ.ctype,
+                        stmts,
+                        budget,
+                    )?;
+                }
+            }
+            CTypeKind::ConstantArray(element, count) => {
+                if !self.ctype_owns_union(element) {
+                    return Ok(());
+                }
+                // A fixed C array lives inline in the object, so each element
+                // is its own union owner and is duplicated separately.
+                for index in 0..count {
+                    self.reallocate_union_storage(
+                        DaExpr::Index(
+                            Box::new(place.clone()),
+                            Box::new(DaExpr::ConstInt(i64::try_from(index).map_err(|_| {
+                                TranslationError::generic(
+                                    "array extent exceeds daScript integer range",
+                                )
+                            })?)),
+                        ),
+                        element,
+                        stmts,
+                        budget,
+                    )?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// Address of a field inside a union wrapper value.
     ///
     /// The wrapper may carry statements (it can be any C lvalue expression,
@@ -500,6 +722,12 @@ impl<'c> Translation<'c> {
     }
 
 }
+
+/// How many union objects one aggregate copy may duplicate.  A C record can
+/// nest arrays of unions arbitrarily deep, and each element is unrolled into
+/// its own copy; the cap turns a pathological type into a translation error
+/// instead of a megabyte of generated daScript.
+const UNION_COPY_BUDGET: u32 = 4096;
 
 /// Whether a union wrapper value already owns storage no other C object can
 /// reach.  A `MakeStruct` allocates in place; the union literal and the cast
