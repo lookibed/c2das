@@ -249,6 +249,10 @@ pub struct Translation<'c> {
     pub emitted_structs: std::cell::RefCell<std::collections::HashSet<String>>,
     pub emitted_anon_structs: std::cell::RefCell<std::collections::HashSet<(String, Vec<String>)>>,
     pub(crate) layout_cache: RefCell<HashMap<CTypeId, self::layout::CLayout>>,
+    /// Which C records are represented as raw storage rather than as a
+    /// daScript record with the same fields. See
+    /// [`Translation::is_storage_backed_record`].
+    pub(crate) storage_backed_cache: RefCell<HashMap<CRecordId, bool>>,
     /// Module-level variables synthesised while lowering function bodies.
     /// Currently only C function-scope `static` storage, which has to outlive
     /// the call that declares it. Drained once, by `translate_impl`.
@@ -265,6 +269,7 @@ impl<'c> Translation<'c> {
             emitted_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             emitted_anon_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             layout_cache: RefCell::new(HashMap::new()),
+            storage_backed_cache: RefCell::new(HashMap::new()),
             hoisted_statics: RefCell::new(vec![]),
             ast_context,
             tcfg,
@@ -366,6 +371,17 @@ impl<'c> Translation<'c> {
                                     | CDeclKind::Union { fields, .. } => fields,
                                     _ => &None,
                                 };
+                                // A record whose Clang layout diverges from
+                                // daScript's owns its bytes; a typedef of it
+                                // names the same wrapper, not a record with the
+                                // C fields laid out naturally.
+                                if self.is_storage_backed_record(*rec_id) {
+                                    self.type_converter
+                                        .borrow_mut()
+                                        .ensure_decl_name(*rec_id, &typedef_target);
+                                    let name = self.storage_record_name(*rec_id)?;
+                                    return self.storage_backed_record_decl(*rec_id, name);
+                                }
                                 if let Some(fids) = fields {
                                     for &fid in fids {
                                         if let CDeclKind::Field { ref name, .. } =
@@ -1000,15 +1016,15 @@ impl<'c> Translation<'c> {
             }
 
             ArraySubscript(ty, arr, idx, _lrvalue) => {
-                // `p[i]` on a pointer to a union names raw bytes, not a
-                // wrapper: read as a value it is a C by-value copy of the
-                // union object at that address.  A decayed fixed array really
+                // `p[i]` on a pointer to a storage-backed record names raw
+                // bytes, not a wrapper: read as a value it is a C by-value copy
+                // of the object at that address.  A decayed fixed array really
                 // is a daScript array of wrappers and keeps its own lowering.
-                if let CTypeKind::Union(union_id) = self.ast_context.resolve_type(ty.ctype).kind {
+                if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
                     if !self.is_array_decay(*arr) {
-                        if let Some(address) = self.union_object_address(ctx, expr_id)? {
+                        if let Some(address) = self.storage_object_address(ctx, expr_id)? {
                             let raw = self.raw_address_of_place(&address);
-                            return self.load_union_object(union_id, raw);
+                            return self.load_storage_object(record_id, raw);
                         }
                     }
                 }
@@ -1429,16 +1445,17 @@ impl<'c> Translation<'c> {
             }
 
             ImplicitValueInit(ty) => {
-                if let CTypeKind::Union(union_id) = self.ast_context.resolve_type(ty.ctype).kind {
-                    return self.convert_union_literal(ctx, union_id, &[], override_ty);
+                if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
+                    return self.convert_storage_record_literal(ctx, record_id, &[], override_ty);
                 }
                 let das_type = self.convert_type(*ty)?;
                 Ok(WithStmts::new_val(zero_for_datype(&das_type)))
             }
             InitList(ty, ref init_ids, union_field, _syntactic) => {
-                if let CTypeKind::Union(union_id) = self.ast_context.resolve_type(ty.ctype).kind {
+                if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
                     let fields: Vec<CExprId> = init_ids.clone();
-                    let value = self.convert_union_literal(ctx, union_id, &fields, override_ty)?;
+                    let value =
+                        self.convert_storage_record_literal(ctx, record_id, &fields, override_ty)?;
                     return Ok(value);
                 }
                 if let Some(struct_init) = self.convert_struct_init_list(ctx, *ty, init_ids)? {
@@ -2649,42 +2666,22 @@ impl<'c> Translation<'c> {
         }
     }
 
-    fn default_initializer_for_ctype(&self, ty: CTypeId) -> TranslationResult<DaExpr> {
+    pub(crate) fn default_initializer_for_ctype(&self, ty: CTypeId) -> TranslationResult<DaExpr> {
+        if let Some(record_id) = self.storage_backed_record_of(ty) {
+            let name = match self.convert_type(CQualTypeId::new(ty))?.kind {
+                DaTypeKind::Named(name) => name,
+                _ => {
+                    return Err(TranslationError::generic(
+                        "storage-backed record wrapper has no daScript name",
+                    ))
+                }
+            };
+            return Ok(DaExpr::MakeStruct {
+                type_name: name,
+                fields: vec![("c2da_storage".into(), self.record_zero_storage(record_id)?)],
+            });
+        }
         match self.ast_context.resolve_type(ty).kind {
-            CTypeKind::Union(union_id) => {
-                let name = match self.convert_type(CQualTypeId::new(ty))?.kind {
-                    DaTypeKind::Named(name) => name,
-                    _ => {
-                        return Err(TranslationError::generic(
-                            "union wrapper has no daScript name",
-                        ))
-                    }
-                };
-                let size = self.record_layout(union_id)?.object.size_bytes;
-                Ok(DaExpr::MakeStruct {
-                    type_name: name,
-                    fields: vec![(
-                        "c2da_storage".into(),
-                        DaExpr::Call(
-                            Box::new(DaExpr::Var("c2da_rt_calloc".into())),
-                            vec![
-                                self.integer_literal_for_type(
-                                    DaExpr::ConstInt(1),
-                                    DaType::uint64(),
-                                ),
-                                self.integer_literal_for_type(
-                                    DaExpr::ConstInt(i64::try_from(size).map_err(|_| {
-                                        TranslationError::generic(
-                                            "union size exceeds daScript integer range",
-                                        )
-                                    })?),
-                                    DaType::uint64(),
-                                ),
-                            ],
-                        ),
-                    )],
-                })
-            }
             CTypeKind::Struct(_) => {
                 let das_type = self.convert_type(CQualTypeId::new(ty))?;
                 if let DaTypeKind::Named(name) = das_type.kind {
@@ -2710,6 +2707,13 @@ impl<'c> Translation<'c> {
             CTypeKind::Struct(rec_id) | CTypeKind::Union(rec_id) => rec_id,
             _ => return Ok(None),
         };
+        // A storage-backed record has no daScript fields to name: its
+        // initializer is written into its own bytes at Clang offsets.
+        if self.is_storage_backed_record(rec_id) {
+            return self
+                .convert_storage_record_literal(ctx, rec_id, init_ids, Some(ty))
+                .map(Some);
+        }
         let das_type = self.convert_type(ty)?;
         let DaTypeKind::Named(type_name) = das_type.kind else {
             return Ok(None);

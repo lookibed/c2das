@@ -243,16 +243,31 @@ impl<'c> Translation<'c> {
     ) -> TranslationResult<Vec<DaStmt>> {
         let mut stmts = vec![];
         for (pname, incoming, ctype, das_ty) in params {
+            // A storage-backed record is nothing but the address of its bytes,
+            // so daScript's copy would leave the local sharing the caller's
+            // object.  The callee's own object is allocated and the caller's
+            // bytes copied into it, which is exactly C's by-value rule.
+            if let Some(record_id) = self.storage_backed_record_of(ctype.ctype) {
+                let copy = self.copy_storage_record_by_value(
+                    WithStmts::new_val(DaExpr::Var(incoming.clone())),
+                    Some(*ctype),
+                )?;
+                stmts.extend(copy.stmts);
+                stmts.push(DaStmt::Var {
+                    name: pname.clone(),
+                    var_type: DaType::named(&self.storage_record_name(record_id)?),
+                    init: Some(copy.val),
+                });
+                continue;
+            }
+            // daScript's copy duplicates scalars and inline fixed arrays, which
+            // is all C asks of a record whose layout is the natural one: such a
+            // record cannot contain a storage-backed member.
             stmts.push(DaStmt::Var {
                 name: pname.clone(),
                 var_type: writable_type(das_ty.clone()),
                 init: Some(DaExpr::Var(incoming.clone())),
             });
-            // daScript's copy duplicates scalars and inline fixed arrays, which
-            // is all C asks of a record without unions.  A union field carries
-            // only the address of its bytes, so those objects are re-allocated
-            // in the fresh local afterwards.
-            stmts.extend(self.duplicate_owned_unions(DaExpr::Var(pname.clone()), ctype.ctype)?);
         }
         Ok(stmts)
     }

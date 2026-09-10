@@ -519,37 +519,14 @@ impl<'c> Translation<'c> {
         // packed C field cannot be represented by a daScript lvalue at all.
         // Keep the address as a first-class object until `raw_store` selects
         // typed indexing or statement-level memcpy.
-        let raw_member = match self.ast_context[lhs].kind.clone() {
-            CExprKind::Member(_, base_expr, field, member_kind, _) => {
-                if let Some(base) = self.member_place_address(ctx.used(), base_expr)? {
-                    Some((field, self.field_address(base, field)?))
-                } else if matches!(member_kind, MemberKind::Arrow) {
-                    let base_ty = self.ast_context[base_expr]
-                        .kind
-                        .get_qual_type()
-                        .ok_or_else(|| TranslationError::generic("member pointer has no C type"))?;
-                    let base = self.convert_expr(ctx.used(), base_expr, Some(base_ty))?;
-                    Some((field, self.pointer_member_address(base, base_ty, field)?))
-                } else if self.is_raw_union_place(base_expr) {
-                    // `(*p).f` and `p[i].f`: the union behind the pointer is
-                    // raw bytes, so the field's place comes from the pointer
-                    // rather than from a wrapper that does not exist there.
-                    let base = self.union_object_address(ctx.used(), base_expr)?.ok_or_else(
-                        || TranslationError::generic("union member base is not a C union object"),
-                    )?;
-                    Some((field, self.field_address(base, field)?))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        // `*p = u` on a union pointer overwrites the union's bytes; there is
-        // no wrapper struct at that address to assign to.
-        if op == CBinOp::Assign && self.is_raw_union_place(lhs) {
-            let address = self
-                .union_object_address(ctx.used(), lhs)?
-                .ok_or_else(|| TranslationError::generic("union store target is not a union"))?;
+        let raw_member = self.address_backed_member_place(ctx, lhs)?;
+        // `*p = s` on a pointer to a storage-backed record overwrites the
+        // object's bytes; there is no wrapper struct at that address to assign
+        // to.
+        if op == CBinOp::Assign && self.is_raw_record_place(lhs) {
+            let address = self.storage_object_address(ctx.used(), lhs)?.ok_or_else(|| {
+                TranslationError::generic("store target is not a storage-backed C record")
+            })?;
             let value = self.convert_expr(ctx.used(), rhs, Some(lhs_type_id))?;
             let stored = self.raw_store(address, value)?;
             return Ok(lower_raw_store(stored, is_used));
@@ -911,12 +888,13 @@ impl<'c> Translation<'c> {
         if !matches!(lhs_da_type.kind, DaTypeKind::Named(_)) {
             return Ok(None);
         }
-        // A union wrapper is a name for bytes elsewhere, not the object: it
-        // can never be produced by dereferencing a pointer to the object.
-        if matches!(
-            self.ast_context.resolve_type(expr_type_id.ctype).kind,
-            CTypeKind::Union(_)
-        ) {
+        // A storage-backed wrapper is a name for bytes elsewhere, not the
+        // object: it can never be produced by dereferencing a pointer to the
+        // object.
+        if self
+            .storage_backed_record_of(expr_type_id.ctype)
+            .is_some()
+        {
             return Ok(None);
         }
         let Some(ptr_expr) = self.const_deref_pointer_expr(rhs) else {
@@ -1130,12 +1108,23 @@ impl<'c> Translation<'c> {
         use CUnOp::*;
         match name {
             AddressOf => {
-                // A C pointer to a union carries the union's *byte* address:
-                // that is the one model both ends of `union u *p` agree on.
-                // `&u` therefore hands out the storage address, never the
-                // address of the wrapper struct that names it.
-                if let Some(address) = self.union_object_address(ctx.used(), arg)? {
-                    return self.address_of_union_object(cqual_type, address);
+                // A C pointer to a storage-backed record carries the object's
+                // *byte* address: that is the one model both ends of
+                // `struct s *p` agree on.  `&s` therefore hands out the storage
+                // address, never the address of the wrapper struct that names
+                // it.
+                if let Some(address) = self.storage_object_address(ctx.used(), arg)? {
+                    return self.address_of_storage_object(cqual_type, address);
+                }
+                // `&s.field` and `&p->field` name a byte inside an
+                // address-backed C object.  The field has no daScript lvalue
+                // of its own to take the address of — only an offset from the
+                // object's address — so the pointer is built from that offset
+                // directly.
+                if let Some(address) =
+                    self.member_place_address(ctx.used(), self.strip_lvalue_wrappers(arg))?
+                {
+                    return self.address_of_storage_object(cqual_type, address);
                 }
                 // `&x` has pointer type, but `x` does not: passing the result
                 // type down would make the operand cast itself to `T?`.
@@ -1152,18 +1141,17 @@ impl<'c> Translation<'c> {
                 Ok(WithStmts::new_val(DaExpr::Unsafe(Box::new(val))).prepend_stmts(inner.stmts))
             }
             Deref => {
-                // A union behind a pointer is raw bytes, not a wrapper struct,
-                // so `*p` cannot be a daScript dereference.  Read as a value it
-                // is a C by-value copy of the union object; every *place* use
-                // of `*p` (a member access, an assignment target, `&*p`) is
-                // routed through `union_object_address` before it gets here.
-                if let CTypeKind::Union(union_id) =
-                    self.ast_context.resolve_type(cqual_type.ctype).kind
-                {
+                // A storage-backed record behind a pointer is raw bytes, not a
+                // wrapper struct, so `*p` cannot be a daScript dereference.
+                // Read as a value it is a C by-value copy of the object; every
+                // *place* use of `*p` (a member access, an assignment target,
+                // `&*p`) is routed through `storage_object_address` before it
+                // gets here.
+                if let Some(record_id) = self.storage_backed_record_of(cqual_type.ctype) {
                     let ptr_ctype = self.ast_context[arg].kind.get_qual_type();
                     let pointer = self.convert_expr(ctx.used(), arg, ptr_ctype)?;
                     let raw = pointer.map(|pointer| self.pointer_to_raw_address(pointer));
-                    return self.load_union_object(union_id, raw);
+                    return self.load_storage_object(record_id, raw);
                 }
                 // `*p` has the pointee type; the operand keeps the pointer type.
                 let inner = self.convert_expr(ctx, arg, None)?;
@@ -1244,13 +1232,13 @@ impl<'c> Translation<'c> {
         }
     }
 
-    /// Turn the storage address of a C union object into the C pointer value
-    /// `&u` has.
+    /// Turn the raw address of an address-backed C object into the C pointer
+    /// value `&x` has.
     ///
     /// daScript refuses to write through a pointer built inline from address
     /// arithmetic (its dead-write policy), so the pointer becomes a named
     /// value, exactly as an array decay does.
-    fn address_of_union_object(
+    fn address_of_storage_object(
         &self,
         result_ctype: CQualTypeId,
         address: CObjectAddress,
@@ -1272,14 +1260,15 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe || pointer.is_unsafe))
     }
 
-    /// Whether an lvalue names a union object that lives as raw bytes behind a
-    /// C pointer, and so cannot be assigned as a daScript wrapper value.
-    fn is_raw_union_place(&self, expr: CExprId) -> bool {
+    /// Whether an lvalue names a storage-backed C record object that lives as
+    /// raw bytes behind a C pointer, and so cannot be assigned as a daScript
+    /// wrapper value.
+    fn is_raw_record_place(&self, expr: CExprId) -> bool {
         let expr = self.strip_lvalue_wrappers(expr);
         let reached_through_pointer = match self.ast_context[expr].kind {
             CExprKind::Unary(_, CUnOp::Deref, _, _) => true,
             // A decayed fixed array is a daScript array of wrappers, so only a
-            // subscript of a genuine C pointer names raw union bytes.
+            // subscript of a genuine C pointer names raw record bytes.
             CExprKind::ArraySubscript(_, arr, _, _) => !self.is_array_decay(arr),
             _ => false,
         };
@@ -1288,10 +1277,7 @@ impl<'c> Translation<'c> {
                 .kind
                 .get_qual_type()
                 .map_or(false, |ty| {
-                    matches!(
-                        self.ast_context.resolve_type(ty.ctype).kind,
-                        CTypeKind::Union(_)
-                    )
+                    self.storage_backed_record_of(ty.ctype).is_some()
                 })
     }
 
@@ -1343,27 +1329,47 @@ impl<'c> Translation<'c> {
             _ => return Err(TranslationError::generic("invalid increment op")),
         };
         let arg_ty = self.ast_context[arg].kind.get_qual_type().unwrap_or(ty);
-        let place = self.convert_lvalue_once(ctx, arg, arg_ty)?;
         let storage = writable_type(self.convert_type(arg_ty)?);
         let kind = self.ast_context.resolve_type(arg_ty.ctype).kind.clone();
-        let new_value = if self.is_pointer_type(arg_ty.ctype) {
-            DaExpr::Unsafe(Box::new(DaExpr::Op2 {
-                op: das_op,
-                left: Box::new(place.val.clone()),
-                right: Box::new(DaExpr::ConstInt(1)),
-            }))
-        } else {
-            let arith = self
-                .arith_type_of_kind(&kind)
-                .ok_or_else(|| TranslationError::generic("increment of non-arithmetic C type"))?;
-            let one = if matches!(arith, abi::CArith::Int) {
-                DaExpr::ConstInt(1)
+        // A bitfield and a misaligned field have no daScript lvalue at all:
+        // reading one materializes a value, so `f++` has to write the result
+        // back through the object-memory store rather than assign to the read.
+        if let Some((field, address)) = self.address_backed_member_place(ctx, arg)? {
+            let is_bitfield = matches!(
+                self.ast_context[field].kind,
+                CDeclKind::Field {
+                    bitfield_width: Some(_),
+                    ..
+                }
+            );
+            let current = if is_bitfield {
+                self.bitfield_load(address.clone(), field)?
             } else {
-                self.integer_literal_for_type(DaExpr::ConstInt(1), arith.da_type())
+                self.raw_load(address.clone())?
             };
-            let promoted = self.promote_operand(place.val.clone(), &kind, arith);
-            self.narrow_to_storage(mk().binary_op(das_op, promoted, one), &storage)
-        };
+            let is_unsafe = current.is_unsafe;
+            let mut stmts = current.stmts;
+            let old_name = self.renamer.borrow_mut().pick_name("c2da_postinc");
+            stmts.push(DaStmt::Var {
+                name: old_name.clone(),
+                var_type: storage.clone(),
+                init: Some(current.val),
+            });
+            let old = DaExpr::Var(old_name);
+            let new_value = self.increment_value(das_op, old.clone(), arg_ty, &kind, &storage)?;
+            let stored = if is_bitfield {
+                self.bitfield_store(address, field, WithStmts::new_val(new_value.clone()))?
+            } else {
+                self.raw_store(address, WithStmts::new_val(new_value.clone()))?
+            };
+            let store_unsafe = stored.is_unsafe;
+            stmts.extend(stored.stmts);
+            let result = if is_post { old } else { new_value };
+            return Ok(WithStmts::new(stmts, result).merge_unsafe(is_unsafe || store_unsafe));
+        }
+        let place = self.convert_lvalue_once(ctx, arg, arg_ty)?;
+        let new_value =
+            self.increment_value(das_op, place.val.clone(), arg_ty, &kind, &storage)?;
         let is_unsafe = place.is_unsafe;
         let mut stmts = place.stmts;
         let result = if is_post {
@@ -1382,6 +1388,78 @@ impl<'c> Translation<'c> {
             Box::new(new_value),
         )));
         Ok(WithStmts::new(stmts, result).merge_unsafe(is_unsafe))
+    }
+
+    /// `x + 1` / `x - 1` in the type C performs the increment in, narrowed
+    /// back to the object's storage type.
+    fn increment_value(
+        &self,
+        das_op: &'static str,
+        current: DaExpr,
+        arg_ty: CQualTypeId,
+        kind: &CTypeKind,
+        storage: &DaType,
+    ) -> TranslationResult<DaExpr> {
+        if self.is_pointer_type(arg_ty.ctype) {
+            return Ok(DaExpr::Unsafe(Box::new(DaExpr::Op2 {
+                op: das_op,
+                left: Box::new(current),
+                right: Box::new(DaExpr::ConstInt(1)),
+            })));
+        }
+        let arith = self
+            .arith_type_of_kind(kind)
+            .ok_or_else(|| TranslationError::generic("increment of non-arithmetic C type"))?;
+        let one = if matches!(arith, abi::CArith::Int) {
+            DaExpr::ConstInt(1)
+        } else {
+            self.integer_literal_for_type(DaExpr::ConstInt(1), arith.da_type())
+        };
+        let promoted = self.promote_operand(current, kind, arith);
+        Ok(self.narrow_to_storage(mk().binary_op(das_op, promoted, one), storage))
+    }
+
+    /// The address-backed C object place a member expression names, together
+    /// with the field it selects, or `None` when the member has an ordinary
+    /// daScript lvalue.
+    fn address_backed_member_place(
+        &self,
+        ctx: ExprContext,
+        expr: CExprId,
+    ) -> TranslationResult<Option<(CFieldId, CObjectAddress)>> {
+        let expr = self.strip_lvalue_wrappers(expr);
+        let CExprKind::Member(_, base_expr, field, member_kind, _) =
+            self.ast_context[expr].kind.clone()
+        else {
+            return Ok(None);
+        };
+        // `s.f` on a storage-backed record, `p->inner.f` and longer chains are
+        // all address-backed places; only the member expression itself knows
+        // which.
+        if let Some(address) = self.member_place_address(ctx.used(), expr)? {
+            return Ok(Some((field, address)));
+        }
+        if matches!(member_kind, MemberKind::Arrow) {
+            let base_ty = self.ast_context[base_expr]
+                .kind
+                .get_qual_type()
+                .ok_or_else(|| TranslationError::generic("member pointer has no C type"))?;
+            let base = self.convert_expr(ctx.used(), base_expr, Some(base_ty))?;
+            return Ok(Some((
+                field,
+                self.pointer_member_address(base, base_ty, field)?,
+            )));
+        }
+        if self.is_raw_record_place(base_expr) {
+            // `(*p).f` and `p[i].f`: the record behind the pointer is raw
+            // bytes, so the field's place comes from the pointer rather than
+            // from a wrapper that does not exist there.
+            let base = self.storage_object_address(ctx.used(), base_expr)?.ok_or_else(|| {
+                TranslationError::generic("member base is not a storage-backed C record")
+            })?;
+            return Ok(Some((field, self.field_address(base, field)?)));
+        }
+        Ok(None)
     }
 }
 

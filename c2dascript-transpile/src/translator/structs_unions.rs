@@ -54,6 +54,12 @@ impl<'c> Translation<'c> {
                         .declare_field_name(decl_id, fid, name);
                 }
             }
+            // A struct whose Clang layout diverges from daScript's natural one
+            // owns its bytes instead of being a daScript record: its fields
+            // exist only as Clang offsets into that storage.
+            if self.is_storage_backed_record(decl_id) {
+                return self.storage_backed_record_decl(decl_id, sname);
+            }
             for &fid in ids {
                 if let CDeclKind::Field { ref name, typ, .. } = self.ast_context[fid].kind {
                     // A field type that has no daScript representation is a
@@ -99,13 +105,13 @@ impl<'c> Translation<'c> {
                                 name.clone()
                             }
                         });
-                    // A union member is raw storage the containing object
-                    // owns, so every instance of this record has to allocate
-                    // its own.  The field default is what daScript evaluates
-                    // per construction, which is exactly the C lifetime; it
-                    // also satisfies daScript's rule that a record field of
-                    // record type be initialized.
-                    let default = self.union_field_default(typ)?;
+                    // A storage-backed member is raw storage the containing
+                    // object owns, so every instance of this record has to
+                    // allocate its own.  The field default is what daScript
+                    // evaluates per construction, which is exactly the C
+                    // lifetime; it also satisfies daScript's rule that a
+                    // record field of record type be initialized.
+                    let default = self.storage_field_default(typ)?;
                     das_fields.push(DaField {
                         name: field_name,
                         field_type: ft,
@@ -125,24 +131,44 @@ impl<'c> Translation<'c> {
         &self,
         decl_id: CDeclId,
         name: &Option<String>,
-        _fields: &Option<Vec<CFieldId>>,
+        fields: &Option<Vec<CFieldId>>,
     ) -> TranslationResult<DaDecl> {
+        if let Some(ids) = fields {
+            for &fid in ids {
+                if let CDeclKind::Field { ref name, .. } = self.ast_context[fid].kind {
+                    self.type_converter
+                        .borrow_mut()
+                        .declare_field_name(decl_id, fid, name);
+                }
+            }
+        }
         let raw_name = name.clone().unwrap_or_else(|| "Unnamed".into());
         let name = self
             .type_converter
             .borrow_mut()
             .ensure_decl_name(decl_id, &raw_name);
-        // Default-constructing the wrapper must yield a usable C union
-        // object, because that is what a declaration without an initializer
-        // produces — including every element of a `union u a[3]`.  A zero
-        // address would be a null object every field access writes through,
-        // so the wrapper allocates its own storage instead.
+        self.storage_backed_record_decl(decl_id, name)
+    }
+
+    /// The daScript declaration of a storage-backed C record: a wrapper whose
+    /// only field is the address of the record's own bytes.
+    ///
+    /// Default-constructing the wrapper must yield a usable C object, because
+    /// that is what a declaration without an initializer produces — including
+    /// every element of a `struct s a[3]`.  A zero address would be a null
+    /// object every field access writes through, so the wrapper allocates its
+    /// own storage instead.
+    pub(crate) fn storage_backed_record_decl(
+        &self,
+        decl_id: CDeclId,
+        name: String,
+    ) -> TranslationResult<DaDecl> {
         Ok(DaDecl::Structure(DaStructure {
             name,
             fields: vec![DaField {
                 name: "c2da_storage".into(),
                 field_type: DaType::uint64(),
-                default: Some(self.union_zero_storage(decl_id)?),
+                default: Some(self.record_zero_storage(decl_id)?),
             }],
             annotations: vec![],
         }))
@@ -207,115 +233,259 @@ impl<'c> Translation<'c> {
         .merge_unsafe(is_unsafe))
     }
 
-    pub fn convert_union_literal(
+    /// Build a storage-backed C record object from a braced initializer.
+    ///
+    /// The object's bytes are allocated first and every initializer element is
+    /// then written at its own Clang offset, so a packed or otherwise
+    /// layout-divergent record is filled exactly as C fills it.  Elements C
+    /// leaves implicit need no work at all: the allocation is already zeroed.
+    pub fn convert_storage_record_literal(
         &self,
         ctx: ExprContext,
-        union_id: CRecordId,
+        record_id: CRecordId,
         ids: &[CExprId],
         _override_ty: Option<CQualTypeId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
-        let name = self.union_wrapper_name(union_id)?;
-        let storage = self.union_zero_storage(union_id)?;
+        let name = self.storage_record_name(record_id)?;
+        let storage = self.record_zero_storage(record_id)?;
         let mut out = WithStmts::new_val(DaExpr::MakeStruct {
             type_name: name.clone(),
             fields: vec![("c2da_storage".into(), storage)],
         });
-        if let Some(&init) = ids.first() {
-            let fields = match &self.ast_context[union_id].kind {
-                CDeclKind::Union {
-                    fields: Some(fields),
-                    ..
-                } => fields,
-                _ => {
-                    return Err(TranslationError::generic(
-                        "union initializer for incomplete union",
-                    ))
-                }
-            };
-            let field = fields[0];
-            let field_ty = match self.ast_context[field].kind {
-                CDeclKind::Field { typ, .. } => typ,
-                _ => {
-                    return Err(TranslationError::generic(
-                        "union initializer field is invalid",
-                    ))
-                }
-            };
-            let value = self.convert_expr(ctx.used(), init, Some(field_ty))?;
-            let tmp = self.renamer.borrow_mut().fresh();
-            out.stmts.push(DaStmt::Var {
-                name: tmp.clone(),
-                var_type: DaType::named(&name),
-                init: Some(out.val),
-            });
-            let address = self.local_union_field_address(
-                WithStmts::new_val(DaExpr::Var(tmp.clone())),
-                union_id,
-                field,
-            )?;
-            let stored = self.raw_store(address, value)?;
-            out.stmts.extend(stored.stmts);
-            out.val = DaExpr::Var(tmp);
+        if ids.is_empty() {
+            return Ok(out);
         }
-        Ok(out)
+        let fields = self.record_fields(record_id)?;
+        // C initializes exactly one member of a union — Clang always reports
+        // it first — while a struct takes its initializers in field order.
+        let is_union = matches!(self.ast_context[record_id].kind, CDeclKind::Union { .. });
+        let pairs: Vec<(CFieldId, CExprId)> = if is_union {
+            match (fields.first(), ids.first()) {
+                (Some(&field), Some(&init)) => vec![(field, init)],
+                _ => vec![],
+            }
+        } else {
+            fields.iter().copied().zip(ids.iter().copied()).collect()
+        };
+        let tmp = self.renamer.borrow_mut().fresh();
+        out.stmts.push(DaStmt::Var {
+            name: tmp.clone(),
+            var_type: DaType::named(&name),
+            init: Some(out.val),
+        });
+        let base = self.wrapper_storage_place(DaExpr::Var(tmp.clone()), record_id)?;
+        let mut is_unsafe = false;
+        for (field, init) in pairs {
+            let address = self.field_address(base.clone(), field)?;
+            let stored = self.store_initializer(ctx, address, init, Some(field))?;
+            is_unsafe |= stored.is_unsafe;
+            out.stmts.extend(stored.stmts);
+        }
+        out.val = DaExpr::Var(tmp);
+        Ok(out.merge_unsafe(is_unsafe))
     }
 
-    pub(crate) fn union_wrapper_name(&self, union_id: CRecordId) -> TranslationResult<String> {
-        let raw = match &self.ast_context[union_id].kind {
+    /// The C fields of a record, or a diagnostic for an incomplete one.
+    pub(crate) fn record_fields(&self, record_id: CRecordId) -> TranslationResult<Vec<CFieldId>> {
+        match &self.ast_context[record_id].kind {
+            CDeclKind::Struct {
+                fields: Some(fields),
+                ..
+            }
+            | CDeclKind::Union {
+                fields: Some(fields),
+                ..
+            } => Ok(fields.clone()),
+            _ => Err(TranslationError::generic(
+                "C record object has no field layout",
+            )),
+        }
+    }
+
+    /// The whole-object place a storage-backed wrapper value names.
+    pub(crate) fn wrapper_storage_place(
+        &self,
+        wrapper: DaExpr,
+        record_id: CRecordId,
+    ) -> TranslationResult<CObjectAddress> {
+        Ok(CObjectAddress {
+            raw: WithStmts::new_val(DaExpr::Field(Box::new(wrapper), "c2da_storage".into())),
+            raw_is_address: true,
+            ctype: CQualTypeId::new(self.record_ctype(record_id)?),
+            byte_offset: 0,
+            storage_size_bytes: None,
+        })
+    }
+
+    /// Write one C initializer element into the place it initializes.
+    ///
+    /// A braced element initializes a sub-object in place rather than
+    /// producing a value: recursing keeps every scalar leaf a `raw_store` at
+    /// its own Clang offset, which is the only way a packed sub-object gets
+    /// the bytes C gives it.
+    fn store_initializer(
+        &self,
+        ctx: ExprContext,
+        address: CObjectAddress,
+        init: CExprId,
+        field: Option<CFieldId>,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let init = self.strip_lvalue_wrappers(init);
+        // C zero-fills what an initializer leaves out, and the object's bytes
+        // were allocated zeroed; writing the zeros again would only be slower.
+        if matches!(self.ast_context[init].kind, CExprKind::ImplicitValueInit(_)) {
+            return Ok(WithStmts::new_val(DaExpr::ConstInt(0)));
+        }
+        // A bitfield initializer sets its own bits inside a storage word the
+        // neighbouring fields share, so it is a read-modify-write like every
+        // other bitfield assignment, not a store of the whole word.
+        if let Some(field) = field {
+            if matches!(
+                self.ast_context[field].kind,
+                CDeclKind::Field {
+                    bitfield_width: Some(_),
+                    ..
+                }
+            ) {
+                let value = self.convert_expr(ctx.used(), init, Some(address.ctype))?;
+                return self.bitfield_store(address, field, value);
+            }
+        }
+        if let CExprKind::InitList(_, ref elements, _, _) = self.ast_context[init].kind {
+            let elements = elements.clone();
+            match self.ast_context.resolve_type(address.ctype.ctype).kind {
+                CTypeKind::Struct(record) | CTypeKind::Union(record) => {
+                    let fields = self.record_fields(record)?;
+                    let is_union =
+                        matches!(self.ast_context[record].kind, CDeclKind::Union { .. });
+                    let pairs: Vec<(CFieldId, CExprId)> = if is_union {
+                        match (fields.first(), elements.first()) {
+                            (Some(&field), Some(&element)) => vec![(field, element)],
+                            _ => vec![],
+                        }
+                    } else {
+                        fields.into_iter().zip(elements.into_iter()).collect()
+                    };
+                    let mut out = WithStmts::new_val(DaExpr::ConstInt(0));
+                    for (field, element) in pairs {
+                        let field_address = self.field_address(address.clone(), field)?;
+                        let stored =
+                            self.store_initializer(ctx, field_address, element, Some(field))?;
+                        let is_unsafe = stored.is_unsafe;
+                        out.stmts.extend(stored.stmts);
+                        out = out.merge_unsafe(is_unsafe);
+                    }
+                    return Ok(out);
+                }
+                CTypeKind::ConstantArray(element_ty, count) => {
+                    let element_size = self.layout_of(element_ty)?.size_bytes;
+                    let mut out = WithStmts::new_val(DaExpr::ConstInt(0));
+                    for (index, &element) in elements.iter().enumerate() {
+                        if index as u64 >= count as u64 {
+                            break;
+                        }
+                        let mut element_address = address.clone();
+                        element_address.ctype = CQualTypeId::new(element_ty);
+                        element_address.storage_size_bytes = None;
+                        element_address.byte_offset = address
+                            .byte_offset
+                            .checked_add(index as u64 * element_size)
+                            .ok_or_else(|| {
+                                TranslationError::generic("C array element offset overflow")
+                            })?;
+                        let stored =
+                            self.store_initializer(ctx, element_address, element, None)?;
+                        let is_unsafe = stored.is_unsafe;
+                        out.stmts.extend(stored.stmts);
+                        out = out.merge_unsafe(is_unsafe);
+                    }
+                    return Ok(out);
+                }
+                _ => {}
+            }
+        }
+        let value = self.convert_expr(ctx.used(), init, Some(address.ctype))?;
+        self.raw_store(address, value)
+    }
+
+    /// The daScript wrapper type name of a storage-backed C record.
+    pub(crate) fn storage_record_name(&self, record_id: CRecordId) -> TranslationResult<String> {
+        let raw = match &self.ast_context[record_id].kind {
             CDeclKind::Union {
                 name: Some(name), ..
+            }
+            | CDeclKind::Struct {
+                name: Some(name), ..
             } => name.clone(),
-            CDeclKind::Union { .. } => self
+            CDeclKind::Union { .. } | CDeclKind::Struct { .. } => self
                 .type_converter
                 .borrow()
-                .resolve_decl_name(union_id)
-                .ok_or_else(|| TranslationError::generic("anonymous union has no wrapper name"))?,
+                .resolve_decl_name(record_id)
+                .ok_or_else(|| {
+                    TranslationError::generic("anonymous C record has no wrapper name")
+                })?,
             _ => {
                 return Err(TranslationError::generic(
-                    "union wrapper requested for non-union",
+                    "record wrapper requested for non-record",
                 ))
             }
         };
         Ok(self
             .type_converter
             .borrow_mut()
-            .ensure_decl_name(union_id, &raw))
+            .ensure_decl_name(record_id, &raw))
     }
 
-    /// The per-instance initializer for a record field of union type, or
-    /// `None` when the field is not a union.
-    fn union_field_default(&self, field_ty: CQualTypeId) -> TranslationResult<Option<DaExpr>> {
-        let CTypeKind::Union(union_id) = self.ast_context.resolve_type(field_ty.ctype).kind else {
+    /// The C type id of a record declaration.
+    pub(crate) fn record_ctype(&self, record_id: CRecordId) -> TranslationResult<CTypeId> {
+        let kind = match self.ast_context[record_id].kind {
+            CDeclKind::Union { .. } => CTypeKind::Union(record_id),
+            CDeclKind::Struct { .. } => CTypeKind::Struct(record_id),
+            _ => {
+                return Err(TranslationError::generic(
+                    "C type requested for non-record declaration",
+                ))
+            }
+        };
+        self.ast_context
+            .type_for_kind(&kind)
+            .ok_or_else(|| TranslationError::generic("C record declaration has no C type"))
+    }
+
+    /// The per-instance initializer for a record field that is itself a
+    /// storage-backed record, or `None` when it is not.
+    fn storage_field_default(&self, field_ty: CQualTypeId) -> TranslationResult<Option<DaExpr>> {
+        let Some(record_id) = self.storage_backed_record_of(field_ty.ctype) else {
             return Ok(None);
         };
         Ok(Some(DaExpr::MakeStruct {
-            type_name: self.union_wrapper_name(union_id)?,
-            fields: vec![("c2da_storage".into(), self.union_zero_storage(union_id)?)],
+            type_name: self.storage_record_name(record_id)?,
+            fields: vec![("c2da_storage".into(), self.record_zero_storage(record_id)?)],
         }))
     }
 
-    /// The size in bytes Clang gives the union object, as a daScript literal
+    /// The size in bytes Clang gives the record object, as a daScript literal
     /// operand for the raw-memory runtime.
-    pub(crate) fn union_object_size(&self, union_id: CRecordId) -> TranslationResult<i64> {
-        i64::try_from(self.record_layout(union_id)?.object.size_bytes)
-            .map_err(|_| TranslationError::generic("union size exceeds daScript integer range"))
+    pub(crate) fn record_object_size(&self, record_id: CRecordId) -> TranslationResult<i64> {
+        i64::try_from(self.record_layout(record_id)?.object.size_bytes)
+            .map_err(|_| TranslationError::generic("record size exceeds daScript integer range"))
     }
 
-    /// A fresh union wrapper holding a copy of the union object that lives at
-    /// `raw_address`.
+    /// A fresh wrapper holding a copy of the storage-backed record object that
+    /// lives at `raw_address`.
     ///
-    /// This is the read half of the pointer-side union model: bytes at an
-    /// address are not a wrapper struct and cannot be dereferenced as one, so
-    /// an rvalue use of `*p` (or of `q->u`) allocates its own storage and
-    /// copies the object into it — which is also exactly C's by-value rule.
-    pub(crate) fn load_union_object(
+    /// This is the read half of the pointer-side model: bytes at an address are
+    /// not a wrapper struct and cannot be dereferenced as one, so an rvalue use
+    /// of `*p` (or of `q->u`) allocates its own storage and copies the object
+    /// into it — which is also exactly C's by-value rule.
+    pub(crate) fn load_storage_object(
         &self,
-        union_id: CRecordId,
+        record_id: CRecordId,
         raw_address: WithStmts<DaExpr>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
-        let name = self.union_wrapper_name(union_id)?;
-        let size = self.union_object_size(union_id)?;
-        let storage = self.union_zero_storage(union_id)?;
+        let name = self.storage_record_name(record_id)?;
+        let size = self.record_object_size(record_id)?;
+        let storage = self.record_zero_storage(record_id)?;
         let tmp = self.renamer.borrow_mut().fresh();
         let is_unsafe = raw_address.is_unsafe;
         let mut stmts = raw_address.stmts;
@@ -338,19 +508,20 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
     }
 
-    /// Copy a whole union object into the raw storage at `raw_address`.
+    /// Copy a whole storage-backed record object into the raw storage at
+    /// `raw_address`.
     ///
     /// The write half of the same model: `*p = u` and `q->u = u` overwrite the
-    /// union's bytes in place.  Assigning the wrapper instead would store the
-    /// eight bytes of a storage address over the union object.
-    pub(crate) fn store_union_object(
+    /// object's bytes in place.  Assigning the wrapper instead would store the
+    /// eight bytes of a storage address over the object.
+    pub(crate) fn store_storage_object(
         &self,
-        union_id: CRecordId,
+        record_id: CRecordId,
         raw_address: WithStmts<DaExpr>,
         value: WithStmts<DaExpr>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
-        let name = self.union_wrapper_name(union_id)?;
-        let size = self.union_object_size(union_id)?;
+        let name = self.storage_record_name(record_id)?;
+        let size = self.record_object_size(record_id)?;
         let is_unsafe = raw_address.is_unsafe || value.is_unsafe;
         let mut stmts = value.stmts;
         // The source's storage address is read out of the wrapper, so the
@@ -380,34 +551,30 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new(stmts, source).merge_unsafe(is_unsafe))
     }
 
-    pub(crate) fn union_zero_storage(&self, union_id: CRecordId) -> TranslationResult<DaExpr> {
-        let size = self.record_layout(union_id)?.object.size_bytes;
+    /// A zeroed allocation the size Clang gives the record object.
+    pub(crate) fn record_zero_storage(&self, record_id: CRecordId) -> TranslationResult<DaExpr> {
+        let size = self.record_object_size(record_id)?;
         Ok(DaExpr::Call(
             Box::new(DaExpr::Var("c2da_rt_calloc".into())),
             vec![
                 self.integer_literal_for_type(DaExpr::ConstInt(1), DaType::uint64()),
-                self.integer_literal_for_type(
-                    DaExpr::ConstInt(i64::try_from(size).map_err(|_| {
-                        TranslationError::generic("union size exceeds daScript integer range")
-                    })?),
-                    DaType::uint64(),
-                ),
+                self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
             ],
         ))
     }
 
-    /// Give a C union consumed by value its own storage.
+    /// Give a storage-backed C record consumed by value its own storage.
     ///
-    /// The wrapper struct holds nothing but the address of the union's bytes,
+    /// The wrapper struct holds nothing but the address of the record's bytes,
     /// so copying the wrapper — which is what daScript assignment does — would
-    /// leave source and destination sharing one object.  C copies a union by
-    /// value, so the destination gets a fresh allocation and the whole union
-    /// object is copied into it.
+    /// leave source and destination sharing one object.  C copies a record by
+    /// value, so the destination gets a fresh allocation and the whole object
+    /// is copied into it.
     ///
-    /// A value that already *is* a fresh union temporary (a union literal, a
+    /// A value that already *is* a fresh temporary (a braced initializer, a
     /// cast to union, a default initializer) owns storage nobody else can name
     /// yet, so it is handed through untouched rather than allocated twice.
-    pub(crate) fn copy_union_by_value(
+    pub(crate) fn copy_storage_record_by_value(
         &self,
         value: WithStmts<DaExpr>,
         source: Option<CQualTypeId>,
@@ -415,22 +582,21 @@ impl<'c> Translation<'c> {
         let Some(source) = source else {
             return Ok(value);
         };
-        let CTypeKind::Union(union_id) = self.ast_context.resolve_type(source.ctype).kind else {
+        let Some(record_id) = self.storage_backed_record_of(source.ctype) else {
             return Ok(value);
         };
-        if union_value_owns_fresh_storage(&value) {
+        if storage_value_owns_fresh_storage(&value) {
             return Ok(value);
         }
         if matches!(value.val, DaExpr::Assign(..)) {
             // A chained `a = b = u` still has its inner assignment as an
             // expression here; binding it to a temporary is not daScript.
-            // Chain assignment of unions therefore still aliases.
+            // Chain assignment of records therefore still aliases.
             return Ok(value);
         }
-        let name = self.union_wrapper_name(union_id)?;
-        let size = i64::try_from(self.record_layout(union_id)?.object.size_bytes)
-            .map_err(|_| TranslationError::generic("union size exceeds daScript integer range"))?;
-        let storage = self.union_zero_storage(union_id)?;
+        let name = self.storage_record_name(record_id)?;
+        let size = self.record_object_size(record_id)?;
+        let storage = self.record_zero_storage(record_id)?;
         let (source_tmp, copy_tmp) = {
             let mut renamer = self.renamer.borrow_mut();
             (renamer.fresh(), renamer.fresh())
@@ -466,248 +632,44 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new(stmts, DaExpr::Var(copy_tmp)).merge_unsafe(is_unsafe))
     }
 
-    /// Give a C aggregate consumed by value its own copy of every union object
-    /// it owns.
+    /// Give a C aggregate consumed by value its own object.
     ///
-    /// This is the whole of C's by-value rule for records: a plain daScript
-    /// struct copy already duplicates scalars and inline fixed arrays, so the
-    /// only part that still aliases is a union field, whose wrapper carries
-    /// nothing but the address of the union's bytes.  A union value is copied
-    /// by [`copy_union_by_value`]; a struct that transitively owns one is
-    /// bound to a temporary and every union object inside it re-allocated.
-    /// A record with no union anywhere needs nothing and is handed through.
+    /// This is the whole of C's by-value rule for records.  A record whose
+    /// daScript layout matches Clang's is a plain daScript struct, and
+    /// daScript's own copy already duplicates its scalars and inline fixed
+    /// arrays; it also cannot contain a storage-backed record, because a field
+    /// that is one makes the containing record storage-backed in turn.  A
+    /// storage-backed record carries nothing but the address of its bytes and
+    /// is copied by [`Translation::copy_storage_record_by_value`].
     pub(crate) fn copy_aggregate_by_value(
         &self,
         value: WithStmts<DaExpr>,
         source: Option<CQualTypeId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
-        let Some(source_ty) = source else {
-            return Ok(value);
-        };
-        match self.ast_context.resolve_type(source_ty.ctype).kind {
-            CTypeKind::Union(_) => self.copy_union_by_value(value, source),
-            CTypeKind::Struct(_) if self.ctype_owns_union(source_ty.ctype) => {
-                self.copy_record_with_unions(value, source_ty)
-            }
-            _ => Ok(value),
-        }
+        self.copy_storage_record_by_value(value, source)
     }
 
-    /// Bind a struct value to a temporary and re-allocate the union storage
-    /// every union field inside it still shares with the source.
-    fn copy_record_with_unions(
-        &self,
-        value: WithStmts<DaExpr>,
-        source: CQualTypeId,
-    ) -> TranslationResult<WithStmts<DaExpr>> {
-        if matches!(value.val, DaExpr::Assign(..)) {
-            // As for a union: a chained `a = b = s` still has its inner
-            // assignment as an expression here, and binding that to a
-            // temporary is not daScript.
-            return Ok(value);
-        }
-        let var_type = writable_type(self.convert_type(source)?);
-        let tmp = self.renamer.borrow_mut().fresh();
-        let is_unsafe = value.is_unsafe;
-        let mut stmts = value.stmts;
-        // The shallow copy comes first, so an expression with side effects is
-        // evaluated exactly once; the union objects it still shares with the
-        // source are replaced afterwards, in place.
-        stmts.push(DaStmt::Var {
-            name: tmp.clone(),
-            var_type,
-            init: Some(value.val),
-        });
-        stmts.extend(self.duplicate_owned_unions(DaExpr::Var(tmp.clone()), source.ctype)?);
-        Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
-    }
-
-    /// The statements that turn every union object reachable from an already
-    /// shallow-copied place into an object of its own.
-    ///
-    /// This is the second half of a C record copy for callers that have made
-    /// the shallow copy themselves — a by-value parameter, say, whose local is
-    /// declared straight from the incoming reference.
-    pub(crate) fn duplicate_owned_unions(
-        &self,
-        place: DaExpr,
-        ctype: CTypeId,
-    ) -> TranslationResult<Vec<DaStmt>> {
-        let mut stmts = vec![];
-        let mut budget = UNION_COPY_BUDGET;
-        self.reallocate_union_storage(place, ctype, &mut stmts, &mut budget)?;
-        Ok(stmts)
-    }
-
-    /// Whether a C type owns a union object anywhere inside it.
-    ///
-    /// Only what the object itself contains counts: a pointer to a union is a
-    /// reference to somebody else's object, and copying the pointer is exactly
-    /// what C does.
-    pub(crate) fn ctype_owns_union(&self, ctype: CTypeId) -> bool {
-        let mut visiting = vec![];
-        self.ctype_owns_union_inner(ctype, &mut visiting)
-    }
-
-    fn ctype_owns_union_inner(&self, ctype: CTypeId, visiting: &mut Vec<CRecordId>) -> bool {
-        match self.ast_context.resolve_type(ctype).kind {
-            CTypeKind::Union(_) => true,
-            CTypeKind::Struct(record) => {
-                // A C record cannot contain itself by value, but a broken or
-                // still-incomplete AST must not turn that into a hang.
-                if visiting.contains(&record) {
-                    return false;
-                }
-                let fields = match &self.ast_context[record].kind {
-                    CDeclKind::Struct {
-                        fields: Some(fields),
-                        ..
-                    } => fields.clone(),
-                    _ => return false,
-                };
-                visiting.push(record);
-                let owns = fields.into_iter().any(|field| {
-                    match self.ast_context[field].kind {
-                        CDeclKind::Field { typ, .. } => {
-                            self.ctype_owns_union_inner(typ.ctype, visiting)
-                        }
-                        _ => false,
-                    }
-                });
-                visiting.pop();
-                owns
-            }
-            CTypeKind::ConstantArray(element, _) => {
-                self.ctype_owns_union_inner(element, visiting)
-            }
-            _ => false,
-        }
-    }
-
-    /// Replace, in place, the storage address of every union object reachable
-    /// from `place` with a fresh allocation holding a copy of its bytes.
-    ///
-    /// The new address is built in a temporary before it is stored, because
-    /// the copy reads the old address out of the very field it overwrites.
-    fn reallocate_union_storage(
-        &self,
-        place: DaExpr,
-        ctype: CTypeId,
-        stmts: &mut Vec<DaStmt>,
-        budget: &mut u32,
-    ) -> TranslationResult<()> {
-        match self.ast_context.resolve_type(ctype).kind {
-            CTypeKind::Union(union_id) => {
-                if *budget == 0 {
-                    return Err(TranslationError::generic(
-                        "aggregate copy owns too many union objects to duplicate",
-                    ));
-                }
-                *budget -= 1;
-                let size = i64::try_from(self.record_layout(union_id)?.object.size_bytes).map_err(
-                    |_| TranslationError::generic("union size exceeds daScript integer range"),
-                )?;
-                let storage = DaExpr::Field(Box::new(place), "c2da_storage".into());
-                let fresh = self.renamer.borrow_mut().fresh();
-                stmts.push(DaStmt::Var {
-                    name: fresh.clone(),
-                    var_type: DaType::uint64(),
-                    init: Some(self.union_zero_storage(union_id)?),
-                });
-                stmts.push(DaStmt::Expr(DaExpr::Call(
-                    Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
-                    vec![
-                        DaExpr::Var(fresh.clone()),
-                        storage.clone(),
-                        self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
-                    ],
-                )));
-                stmts.push(DaStmt::Expr(DaExpr::Assign(
-                    Box::new(storage),
-                    Box::new(DaExpr::Var(fresh)),
-                )));
-            }
-            CTypeKind::Struct(record) => {
-                let fields = match &self.ast_context[record].kind {
-                    CDeclKind::Struct {
-                        fields: Some(fields),
-                        ..
-                    } => fields.clone(),
-                    _ => return Ok(()),
-                };
-                for field in fields {
-                    let CDeclKind::Field { typ, ref name, .. } = self.ast_context[field].kind else {
-                        continue;
-                    };
-                    if !self.ctype_owns_union(typ.ctype) {
-                        continue;
-                    }
-                    let field_name = self
-                        .type_converter
-                        .borrow()
-                        .resolve_field_name(Some(record), field)
-                        .unwrap_or_else(|| {
-                            if name.is_empty() {
-                                "_unnamed".into()
-                            } else {
-                                name.clone()
-                            }
-                        });
-                    self.reallocate_union_storage(
-                        DaExpr::Field(Box::new(place.clone()), field_name),
-                        typ.ctype,
-                        stmts,
-                        budget,
-                    )?;
-                }
-            }
-            CTypeKind::ConstantArray(element, count) => {
-                if !self.ctype_owns_union(element) {
-                    return Ok(());
-                }
-                // A fixed C array lives inline in the object, so each element
-                // is its own union owner and is duplicated separately.
-                for index in 0..count {
-                    self.reallocate_union_storage(
-                        DaExpr::Index(
-                            Box::new(place.clone()),
-                            Box::new(DaExpr::ConstInt(i64::try_from(index).map_err(|_| {
-                                TranslationError::generic(
-                                    "array extent exceeds daScript integer range",
-                                )
-                            })?)),
-                        ),
-                        element,
-                        stmts,
-                        budget,
-                    )?;
-                }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    /// Address of a field inside a union wrapper value.
+    /// Address of a field inside a storage-backed wrapper value.
     ///
     /// The wrapper may carry statements (it can be any C lvalue expression,
     /// not just a local variable), so the base is taken as a `WithStmts` and
     /// those statements travel with the resulting address.  Dropping them
-    /// would silently discard the side effects that produced the union.
-    pub(crate) fn local_union_field_address(
+    /// would silently discard the side effects that produced the object.
+    pub(crate) fn wrapper_field_address(
         &self,
-        union: WithStmts<DaExpr>,
-        union_id: CRecordId,
+        wrapper: WithStmts<DaExpr>,
+        record_id: CRecordId,
         field: CFieldId,
     ) -> TranslationResult<CObjectAddress> {
-        let _ = self.union_wrapper_name(union_id)?;
+        let _ = self.storage_record_name(record_id)?;
         self.field_address(
             CObjectAddress {
-                raw: union.map(|union| DaExpr::Field(Box::new(union), "c2da_storage".into())),
+                raw: wrapper
+                    .map(|wrapper| DaExpr::Field(Box::new(wrapper), "c2da_storage".into())),
                 raw_is_address: true,
                 ctype: match self.ast_context[field].kind {
                     CDeclKind::Field { typ, .. } => typ,
-                    _ => return Err(TranslationError::generic("union field is invalid")),
+                    _ => return Err(TranslationError::generic("C record field is invalid")),
                 },
                 byte_offset: 0,
                 storage_size_bytes: None,
@@ -748,14 +710,16 @@ impl<'c> Translation<'c> {
             .parents
             .get(&decl)
             .ok_or_else(|| TranslationError::generic("field has no parent record"))?;
-        if matches!(self.ast_context[parent].kind, CDeclKind::Union { .. }) {
-            // The base may be a wrapper value or a union reached through a
+        if self.is_storage_backed_record(parent) {
+            // The base may be a wrapper value or an object reached through a
             // pointer, in which case it is raw bytes with no wrapper to read.
-            let base_address = self.union_object_address(ctx, expr)?.ok_or_else(|| {
-                TranslationError::generic("union member base is not a C union object")
+            let base_address = self.storage_object_address(ctx, expr)?.ok_or_else(|| {
+                TranslationError::generic("member base is not a storage-backed C record")
             })?;
-            let address = self.field_address(base_address, decl)?;
-            return self.raw_load(address);
+            // A bitfield has no byte-addressable place of its own, so the read
+            // goes through the same shift-and-mask lowering as every other
+            // address-backed field access.
+            return self.member_place_lvalue(base_address, decl);
         }
         let obj = self.convert_expr(ctx, expr, Some(qual_ty))?;
         let fn_ = match &self.ast_context[decl].kind {
@@ -789,8 +753,8 @@ impl<'c> Translation<'c> {
             .parents
             .get(&field)
             .ok_or_else(|| TranslationError::generic("union cast field has no parent"))?;
-        let name = self.union_wrapper_name(union_id)?;
-        let storage = self.union_zero_storage(union_id)?;
+        let name = self.storage_record_name(union_id)?;
+        let storage = self.record_zero_storage(union_id)?;
         let tmp = self.renamer.borrow_mut().fresh();
         let mut stmts = val.stmts;
         stmts.push(DaStmt::Var {
@@ -801,7 +765,7 @@ impl<'c> Translation<'c> {
                 fields: vec![("c2da_storage".into(), storage)],
             }),
         });
-        let address = self.local_union_field_address(
+        let address = self.wrapper_field_address(
             WithStmts::new_val(DaExpr::Var(tmp.clone())),
             union_id,
             field,
@@ -813,17 +777,11 @@ impl<'c> Translation<'c> {
 
 }
 
-/// How many union objects one aggregate copy may duplicate.  A C record can
-/// nest arrays of unions arbitrarily deep, and each element is unrolled into
-/// its own copy; the cap turns a pathological type into a translation error
-/// instead of a megabyte of generated daScript.
-const UNION_COPY_BUDGET: u32 = 4096;
-
-/// Whether a union wrapper value already owns storage no other C object can
-/// reach.  A `MakeStruct` allocates in place; the union literal and the cast
-/// to union both bind that `MakeStruct` to a temporary first and then hand
-/// back the temporary, so the declaring statement is what identifies them.
-fn union_value_owns_fresh_storage(value: &WithStmts<DaExpr>) -> bool {
+/// Whether a wrapper value already owns storage no other C object can reach.
+/// A `MakeStruct` allocates in place; the braced initializer and the cast to
+/// union both bind that `MakeStruct` to a temporary first and then hand back
+/// the temporary, so the declaring statement is what identifies them.
+fn storage_value_owns_fresh_storage(value: &WithStmts<DaExpr>) -> bool {
     match &value.val {
         DaExpr::MakeStruct { .. } => true,
         DaExpr::Var(name) => value.stmts().iter().any(|stmt| {
