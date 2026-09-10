@@ -16,6 +16,8 @@ const NEXT: &str = "c2da_rt_next";
 const ALLOC_ADDRS: &str = "c2da_rt_alloc_addrs";
 const ALLOC_SIZES: &str = "c2da_rt_alloc_sizes";
 const ALLOC_LIVE: &str = "c2da_rt_alloc_live";
+/// Addresses of frame-scoped C objects, innermost frame last.
+const LOCALS: &str = "c2da_rt_locals";
 
 /// Canonical C library entry points implemented by the generated raw-memory
 /// runtime.  This is the sole registry shared by call lowering and runtime
@@ -842,10 +844,119 @@ pub fn declarations() -> Vec<DaDecl> {
         ],
     );
 
+    // Frame-scoped storage for addressable C locals (the byte model gives
+    // every aggregate, and every scalar whose address is taken, raw storage
+    // with its C layout). A function that owns such objects brackets its body
+    // with `c2da_rt_frame_enter` / `c2da_rt_frame_leave`; every `return`
+    // leaves the frame first. This is the API contract; the implementation
+    // below is the simplest correct one (objects are heap blocks released on
+    // leave) and is replaced by the per-block allocator.
+    let frame_enter = function(
+        "c2da_rt_frame_enter",
+        vec![],
+        DaType::int(),
+        vec![ret(call("length", vec![var(LOCALS)]))],
+    );
+    let frame_leave = function(
+        "c2da_rt_frame_leave",
+        vec![DaStmt::Param {
+            name: "mark".to_owned(),
+            param_type: DaType::int(),
+            default: None,
+            is_mutable: false,
+        }],
+        DaType::void(),
+        vec![DaStmt::Expr(DaExpr::While(
+            Box::new(op(">", call("length", vec![var(LOCALS)]), var("mark"))),
+            block(vec![
+                DaStmt::Expr(call(
+                    "c2da_rt_free",
+                    vec![DaExpr::Index(
+                        Box::new(var(LOCALS)),
+                        Box::new(op("-", call("length", vec![var(LOCALS)]), DaExpr::ConstInt(1))),
+                    )],
+                )),
+                DaStmt::Expr(call("pop", vec![var(LOCALS)])),
+            ]),
+        ))],
+    );
+    let local = function(
+        "c2da_rt_local",
+        vec![
+            DaStmt::Param {
+                name: "size".to_owned(),
+                param_type: uint64.clone(),
+                default: None,
+                is_mutable: false,
+            },
+            DaStmt::Param {
+                name: "align".to_owned(),
+                param_type: uint64.clone(),
+                default: None,
+                is_mutable: false,
+            },
+        ],
+        uint64.clone(),
+        vec![
+            DaStmt::Var {
+                name: "address".to_owned(),
+                var_type: uint64.clone(),
+                init: Some(call(
+                    "c2da_rt_calloc",
+                    vec![
+                DaExpr::Cast {
+                    kind: CastKind::Cast,
+                    expr: Box::new(DaExpr::ConstUInt(1)),
+                    to: DaType::uint64(),
+                },
+                op("+", var("size"), DaExpr::ConstUInt(1)),
+            ],
+                )),
+            },
+            DaStmt::Expr(call("push", vec![var(LOCALS), var("address")])),
+            ret(var("address")),
+        ],
+    );
+    let static_ = function(
+        "c2da_rt_static",
+        vec![
+            DaStmt::Param {
+                name: "size".to_owned(),
+                param_type: uint64.clone(),
+                default: None,
+                is_mutable: false,
+            },
+            DaStmt::Param {
+                name: "align".to_owned(),
+                param_type: uint64.clone(),
+                default: None,
+                is_mutable: false,
+            },
+        ],
+        uint64.clone(),
+        vec![ret(call(
+            "c2da_rt_calloc",
+            vec![
+                DaExpr::Cast {
+                    kind: CastKind::Cast,
+                    expr: Box::new(DaExpr::ConstUInt(1)),
+                    to: DaType::uint64(),
+                },
+                op("+", var("size"), DaExpr::ConstUInt(1)),
+            ],
+        ))],
+    );
+
     vec![
         DaDecl::Variable(DaVariable {
             name: HEAP.to_owned(),
             var_type: bytes,
+            init: None,
+            annotations: vec![],
+        }),
+        DaDecl::Variable(DaVariable {
+            name: LOCALS.to_owned(),
+            var_type: DaType::array(DaType::uint64()),
             init: None,
             annotations: vec![],
         }),
@@ -884,6 +995,10 @@ pub fn declarations() -> Vec<DaDecl> {
         memcmp,
         memmove,
         memchr,
+        frame_enter,
+        frame_leave,
+        local,
+        static_,
     ]
 }
 
