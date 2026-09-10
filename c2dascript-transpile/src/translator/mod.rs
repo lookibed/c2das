@@ -515,7 +515,7 @@ impl<'c> Translation<'c> {
                     ));
                 }
                 // No typedef — need to generate the struct body with a generated name
-                self.convert_union(decl_id, &None, fields)
+                self.convert_struct(decl_id, &None, fields)
             }
             Struct { name, fields, .. } => self.convert_struct(decl_id, name, fields),
             Enum {
@@ -526,11 +526,12 @@ impl<'c> Translation<'c> {
             Union {
                 name: None, fields, ..
             } => {
-                // Anonymous union — daScript has no union, map to struct.
-                // Must NOT skip: field types (resolved by convert_inner) may
-                // reference this union by its generated Unnamed_N label, and
-                // the struct definition must exist in the output.
-                self.convert_struct(decl_id, &None, fields)
+                // Anonymous union — daScript has no union, so it becomes the
+                // same raw-storage wrapper a named union does.  Must NOT skip:
+                // field types (resolved by convert_inner) may reference this
+                // union by its generated Unnamed_N label, and the definition
+                // must exist in the output.
+                self.convert_union(decl_id, &None, fields)
             }
             Union { name, fields, .. } => {
                 // daScript has no union; map to struct
@@ -2528,8 +2529,17 @@ impl<'c> Translation<'c> {
                     .map(|expr_id| self.has_decl_reference(decl_id, expr_id))
                     .unwrap_or(false);
 
+                // A local declaration initialized from a union lvalue is a
+                // copy in C, and this path builds its assignment directly
+                // rather than through `lower_to_c_value`.
                 let init_ws = initializer
-                    .map(|expr_id| self.convert_expr(ctx.used(), expr_id, Some(typ)))
+                    .map(|expr_id| {
+                        let init = self.convert_expr(ctx.used(), expr_id, Some(typ))?;
+                        self.copy_union_by_value(
+                            init,
+                            self.ast_context[expr_id].kind.get_qual_type().or(Some(typ)),
+                        )
+                    })
                     .transpose()?;
 
                 match init_ws {

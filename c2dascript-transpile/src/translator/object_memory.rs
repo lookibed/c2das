@@ -50,7 +50,25 @@ impl<'c> Translation<'c> {
                 self.pointer_member_address(base, base_ctype, field)
                     .map(Some)
             }
-            (MemberKind::Dot, None) => Ok(None),
+            (MemberKind::Dot, None) => {
+                // A union is not a daScript record: its fields live in raw
+                // `c2da_storage` bytes.  So `u.field` is an address-backed
+                // place even when the union itself is an ordinary daScript
+                // value, and an aggregate field (`u.bytes`, `u.halves`) must
+                // stay a place rather than become an rvalue.
+                let parent = *self.ast_context.parents.get(&field).ok_or_else(|| {
+                    TranslationError::generic("field has no parent record")
+                })?;
+                if !matches!(self.ast_context[parent].kind, CDeclKind::Union { .. }) {
+                    return Ok(None);
+                }
+                let base_ctype = self.ast_context[base_expr]
+                    .kind
+                    .get_qual_type()
+                    .ok_or_else(|| TranslationError::generic("union member base has no C type"))?;
+                let base = self.convert_expr(ctx, base_expr, Some(base_ctype))?;
+                self.local_union_field_address(base, parent, field).map(Some)
+            }
         }
     }
 
@@ -389,18 +407,22 @@ impl<'c> Translation<'c> {
         base_ctype: CQualTypeId,
         field: CFieldId,
     ) -> TranslationResult<CObjectAddress> {
-        match self.ast_context.resolve_type(base_ctype.ctype).kind {
-            CTypeKind::Pointer(inner) => match self.ast_context.resolve_type(inner.ctype).kind {
-                CTypeKind::Struct(_) | CTypeKind::Union(_) => {}
-                _ => {
-                    return Err(TranslationError::generic(
-                        "member pointer does not point to a C record",
-                    ))
-                }
-            },
+        let pointee = match self.ast_context.resolve_type(base_ctype.ctype).kind {
+            CTypeKind::Pointer(inner) => inner,
             _ => {
                 return Err(TranslationError::generic(
                     "address-backed member requires C record pointer",
+                ))
+            }
+        };
+        match self.ast_context.resolve_type(pointee.ctype).kind {
+            // A pointer to a union points at the union's bytes, exactly like a
+            // pointer to a struct: `&u` yields the wrapper's storage address,
+            // never the wrapper itself.
+            CTypeKind::Struct(_) | CTypeKind::Union(_) => {}
+            _ => {
+                return Err(TranslationError::generic(
+                    "member pointer does not point to a C record",
                 ))
             }
         };

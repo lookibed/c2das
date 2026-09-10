@@ -21,10 +21,12 @@ impl<'c> Translation<'c> {
             return self.convert_va_list_variable(decl_id, name, init);
         }
         let das_type = self.convert_type(typ)?;
+        let name = self.declare_value_name(decl_id, name);
         let init = init
             .map(|e| self.convert_expr(ctx, e, Some(typ)))
             .transpose()?
             .map(|ws| {
+                let init_stmts = ws.stmts.clone();
                 let init_val = normalize_array_initializer_for_type(ws.val, &das_type);
                 let val = if matches!(das_type.kind, DaTypeKind::Pointer(_))
                     && !matches!(init_val, DaExpr::ConstNull)
@@ -46,16 +48,43 @@ impl<'c> Translation<'c> {
                 } else {
                     init_val
                 };
-                if is_static && ws.is_unsafe {
+                let val = if is_static && ws.is_unsafe {
                     DaExpr::Unsafe(Box::new(val))
                 } else {
                     val
+                };
+                (init_stmts, val)
+            })
+            .map(|(stmts, val)| {
+                // A daScript module-level variable is initialized by a single
+                // expression, but a C initializer can need statements to build
+                // its object — a union's storage has to be allocated and then
+                // written.  Those statements become a generated initializer
+                // function so the object is still built exactly once, before
+                // any code observes the variable; dropping them would leave
+                // the variable referring to a temporary that never existed.
+                if stmts.is_empty() {
+                    return val;
                 }
+                let init_fn = format!("c2da_ginit_{name}");
+                let mut body = stmts;
+                body.push(DaStmt::Expr(DaExpr::Return(Some(Box::new(val)))));
+                self.hoisted_statics
+                    .borrow_mut()
+                    .push(DaDecl::Function(das_ast::DaFunction {
+                        name: init_fn.clone(),
+                        params: vec![],
+                        ret_type: writable_type(das_type.clone()),
+                        body: Some(DaExpr::Block(das_ast::DaBlock { stmts: body })),
+                        annotations: vec![],
+                        is_public: false,
+                        is_unsafe: false,
+                    }));
+                DaExpr::Call(Box::new(DaExpr::Var(init_fn)), vec![])
             });
         // A daScript fixed array is zero-initialized by its declaration, at
         // any extent, so an uninitialized C array global needs no initializer
         // expression at all.
-        let name = self.declare_value_name(decl_id, name);
         Ok(DaDecl::Variable(DaVariable {
             name,
             var_type: das_type,

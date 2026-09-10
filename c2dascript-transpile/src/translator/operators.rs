@@ -471,6 +471,21 @@ impl<'c> Translation<'c> {
         .then_some(source)
     }
 
+    /// Bind an assignment's stored value to a temporary, so the expression's
+    /// own value can be read back without evaluating the operands a second
+    /// time.
+    fn materialize_stored_value(&self, value: WithStmts<DaExpr>, ty: &DaType) -> WithStmts<DaExpr> {
+        let tmp = self.renamer.borrow_mut().fresh();
+        let is_unsafe = value.is_unsafe;
+        let mut stmts = value.stmts;
+        stmts.push(DaStmt::Var {
+            name: tmp.clone(),
+            var_type: writable_type(ty.clone()),
+            init: Some(value.val),
+        });
+        WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe)
+    }
+
     /// Handle assignment operator.
     /// Разворачивает chain assignment (a=b=c) и if-as-expression (x=if(c)a else b)
     fn convert_assignment_operator(
@@ -529,38 +544,97 @@ impl<'c> Translation<'c> {
                     ..
                 }
             );
-            if op == CBinOp::Assign {
+            let value = if op == CBinOp::Assign {
                 let rhs = self.convert_expr(ctx.used(), rhs_id, Some(lhs_type_id))?;
-                let rhs = self.lower_to_c_value(
+                self.lower_to_c_value(
                     rhs,
                     self.ast_context[rhs_id].kind.get_qual_type(),
-                    lhs_da_type,
+                    lhs_da_type.clone(),
                     ValueSite::Assignment,
-                )?;
-                return if is_bitfield {
-                    self.bitfield_store(address, field, rhs)
+                )?
+            } else {
+                let inner_op = op
+                    .underlying_assignment()
+                    .ok_or_else(|| TranslationError::generic("not a compound assignment"))?;
+                let das_op = convert_binop(inner_op).map_err(TranslationError::generic)?;
+                let current = if is_bitfield {
+                    self.bitfield_load(address.clone(), field)?
                 } else {
-                    self.raw_store(address, rhs)
+                    self.raw_load(address.clone())?
                 };
-            }
-            let inner_op = op
-                .underlying_assignment()
-                .ok_or_else(|| TranslationError::generic("not a compound assignment"))?;
-            let das_op = convert_binop(inner_op).map_err(TranslationError::generic)?;
-            let current = if is_bitfield {
-                self.bitfield_load(address.clone(), field)?
-            } else {
-                self.raw_load(address.clone())?
+                let is_ptr_op = lhs_kind.is_pointer() || self.is_pointer_type(lhs_type_id.ctype);
+                let rhs_ty = self.ast_context[rhs_id].kind.get_qual_type();
+                let rhs_kind = rhs_ty.map(|q| self.ast_context.resolve_type(q.ctype).kind.clone());
+                // Arithmetic on an address-backed field obeys the same C rules
+                // as a plain lvalue; only the store differs.  When the operand
+                // types are not arithmetic (and not a pointer offset) fall back
+                // to a direct operation rather than rejecting the program.
+                let arith = (!is_ptr_op)
+                    .then(|| {
+                        let lhs_arith = self.arith_type_of_kind(&lhs_kind)?;
+                        let rhs_kind = rhs_kind.clone()?;
+                        let rhs_arith = self.arith_type_of_kind(&rhs_kind)?;
+                        Some((lhs_arith, rhs_kind, rhs_arith))
+                    })
+                    .flatten();
+                match arith {
+                    Some((lhs_arith, rhs_kind, rhs_arith)) => {
+                        // `a op= b` is `a = (typeof a)(a op b)`: the operation
+                        // runs in the type Clang computed (or in the usual
+                        // arithmetic conversion of the operands), and the
+                        // result is narrowed back to the field's storage type.
+                        let common = match compute_lhs_type_id.and_then(|q| self.arith_type_of(q)) {
+                            Some(computed) => computed,
+                            None if matches!(inner_op, CBinOp::ShiftLeft | CBinOp::ShiftRight) => {
+                                lhs_arith
+                            }
+                            None => abi::usual_arithmetic_type(lhs_arith, rhs_arith),
+                        };
+                        let rhs_val = self.convert_expr(ctx.used(), rhs_id, rhs_ty)?;
+                        let rhs_val = self.bool_to_integer(
+                            rhs_val.map(|v| self.promote_operand(v, &rhs_kind, common)),
+                        );
+                        let current = current.map(|v| self.promote_operand(v, &lhs_kind, common));
+                        current.zip(rhs_val).map(|(left, right)| {
+                            self.narrow_to_storage(
+                                mk().binary_op(das_op, left, right),
+                                &writable_type(lhs_da_type.clone()),
+                            )
+                        })
+                    }
+                    None if is_ptr_op => {
+                        let rhs_val = self.convert_expr(ctx.used(), rhs_id, None)?;
+                        current.zip(rhs_val).map(|(left, right)| {
+                            DaExpr::Unsafe(Box::new(mk().binary_op(
+                                das_op,
+                                left,
+                                self.pointer_offset_operand(right),
+                            )))
+                        })
+                    }
+                    None => {
+                        let rhs_val = self.convert_expr(ctx.used(), rhs_id, Some(lhs_type_id))?;
+                        current
+                            .zip(rhs_val)
+                            .map(|(left, right)| mk().binary_op(das_op, left, right))
+                    }
+                }
             };
-            let rhs = self.convert_expr(ctx.used(), rhs_id, Some(lhs_type_id))?;
-            let value = current
-                .zip(rhs)
-                .map(|(left, right)| mk().binary_op(das_op, left, right));
-            return if is_bitfield {
-                self.bitfield_store(address, field, value)
+            // C hands back the value that was stored, with every operand
+            // evaluated exactly once.  `raw_store` reports the value expression
+            // it was given, so bind it to a temporary whenever the result is
+            // actually consumed.
+            let value = if is_used {
+                self.materialize_stored_value(value, &lhs_da_type)
             } else {
-                self.raw_store(address, value)
+                value
             };
+            let stored = if is_bitfield {
+                self.bitfield_store(address, field, value)?
+            } else {
+                self.raw_store(address, value)?
+            };
+            return Ok(lower_raw_store(stored, is_used));
         }
         let lhs_val = self.convert_lvalue_once(ctx, lhs, lhs_type_id)?;
 
@@ -1244,6 +1318,46 @@ fn normalize_numeric_binop_tree(expr: DaExpr) -> DaExpr {
             to,
         },
         other => other,
+    }
+}
+
+/// Give an address-backed store the shape statement position expects.
+///
+/// A store built by `raw_store`/`bitfield_store` already carries the write in
+/// its statements and reports the stored value.  Statement position discards an
+/// expression's value by emitting it as one more statement (see
+/// `convert_expr_in_stmt_position`), so leaving that value in place prints the
+/// computation a second time as a bare operand — which daScript rejects as a
+/// top-level operation without side effects.  Hand the write itself back as the
+/// value instead, the same way `lower_assignment_expr` does for a plain lvalue.
+fn lower_raw_store(stored: WithStmts<DaExpr>, is_used: bool) -> WithStmts<DaExpr> {
+    if is_used {
+        return stored;
+    }
+    let WithStmts {
+        mut stmts,
+        val,
+        is_unsafe,
+    } = stored;
+    match stmts.pop() {
+        Some(DaStmt::Expr(effect)) => WithStmts {
+            stmts,
+            val: effect,
+            is_unsafe,
+        },
+        Some(other) => {
+            stmts.push(other);
+            WithStmts {
+                stmts,
+                val,
+                is_unsafe,
+            }
+        }
+        None => WithStmts {
+            stmts,
+            val,
+            is_unsafe,
+        },
     }
 }
 

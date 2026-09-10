@@ -19,8 +19,20 @@ impl<'c> Translation<'c> {
         value: WithStmts<DaExpr>,
         source: Option<CQualTypeId>,
         target: DaType,
-        _site: ValueSite,
+        site: ValueSite,
     ) -> TranslationResult<WithStmts<DaExpr>> {
+        // A C union is an object, not a handle to one, so a use-site that
+        // consumes one by value owes the consumer its own copy of the bytes.
+        // Only the sites that really transfer an object do this: the value of
+        // an assignment expression is the object already stored, and C has no
+        // union operands, so re-copying either would allocate for nothing.
+        let value = match site {
+            ValueSite::Assignment | ValueSite::CallArg | ValueSite::Return => {
+                self.copy_union_by_value(value, source)?
+            }
+            ValueSite::BinaryOperand | ValueSite::BinaryResult => value,
+        };
+
         let actual = Self::infer_type(&value.val);
         if actual
             .as_ref()
