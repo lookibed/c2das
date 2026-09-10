@@ -1,5 +1,8 @@
 //! Function translation — порт c2rust functions.rs + CFG pipeline
-use super::runtime::{canonical_runtime_function, CanonicalRuntimeFunction, RuntimeArgKind};
+use super::runtime::{
+    canonical_runtime_function, runtime_declared_arity, runtime_declares, CanonicalRuntimeFunction,
+    RuntimeArgKind,
+};
 use super::*;
 use crate::c_ast::iterators::{DFExpr, SomeId};
 use crate::format_translation_err;
@@ -619,13 +622,36 @@ impl<'c> Translation<'c> {
             return Ok(());
         };
         let CDeclKind::Function {
-            ref name, body, ..
+            ref name,
+            body,
+            ref parameters,
+            ..
         } = self.ast_context[decl_id].kind
         else {
             return Ok(());
         };
         if body.is_some() || canonical_runtime_function(name).is_some() {
             return Ok(());
+        }
+        // The compiler-owned runtime is part of every generated module, so a
+        // translation unit is allowed to declare one of its entry points (the
+        // explicit runtime API, e.g. `c2da_rt_reset`) and call it directly.
+        // The declaration must still describe the function that will actually
+        // be emitted, otherwise the generated call would not type-check.
+        if runtime_declares(name) {
+            let runtime_arity =
+                runtime_declared_arity(name).expect("runtime declares a function by this name");
+            if parameters.len() == runtime_arity {
+                return Ok(());
+            }
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&self.ast_context[func].loc),
+                "declared C prototype does not match runtime function {}: \
+                 declared {} parameter(s), runtime takes {}",
+                name,
+                parameters.len(),
+                runtime_arity,
+            ));
         }
         // A declaration without a body may still be defined elsewhere in this
         // translation unit; `body` is only set on the defining declaration.

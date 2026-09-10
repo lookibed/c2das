@@ -181,6 +181,30 @@ fn function(name: &str, params: Vec<DaStmt>, ret_type: DaType, stmts: Vec<DaStmt
     })
 }
 
+/// The daScript parameter count of the runtime function `name`, or `None` when
+/// the runtime emits no function by that name.
+///
+/// This is the single source of truth for "the compiler-owned runtime defines
+/// this symbol".  It is derived from [`declarations`] itself, so a runtime
+/// function added there is never forgotten here.  Call classification consults
+/// it so that a translation unit may declare a `c2da_rt_*` prototype (the
+/// explicit runtime API, e.g. `c2da_rt_reset`) and call it, while an unknown
+/// `c2da_rt_*` name still fails translation.
+///
+/// The set is rebuilt per query rather than cached: this is only reached when
+/// classifying a body-less non-libc call, i.e. on the diagnostic path.
+pub(crate) fn runtime_declared_arity(name: &str) -> Option<usize> {
+    declarations().into_iter().find_map(|decl| match decl {
+        DaDecl::Function(function) if function.name == name => Some(function.params.len()),
+        _ => None,
+    })
+}
+
+/// Whether the compiler-owned runtime emits a function called `name`.
+pub(crate) fn runtime_declares(name: &str) -> bool {
+    runtime_declared_arity(name).is_some()
+}
+
 /// Emits the first canonical raw-memory runtime slice.
 ///
 /// Call lowering is intentionally added separately in `functions.rs`; keeping

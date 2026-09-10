@@ -132,7 +132,16 @@ impl fmt::Display for DaType {
                     dims.push(*count);
                     element = next.as_ref();
                 }
-                write!(f, "{}", element)?;
+                // daslang lexes `?[` as a single token — the safe-index
+                // operator — so a pointer element type must be separated from
+                // the first dimension by a space: `uint8? [4]`.  A const
+                // pointer prints its const on the pointee (`T const?`), so the
+                // rendered element still ends in `?` and needs the space too.
+                let element_str = element.to_string();
+                write!(f, "{}", element_str)?;
+                if element_str.ends_with('?') {
+                    write!(f, " ")?;
+                }
                 for dim in dims {
                     write!(f, "[{}]", dim)?;
                 }
