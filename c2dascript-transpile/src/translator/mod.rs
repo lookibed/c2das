@@ -257,6 +257,12 @@ pub struct Translation<'c> {
     /// Currently only C function-scope `static` storage, which has to outlive
     /// the call that declares it. Drained once, by `translate_impl`.
     pub(crate) hoisted_statics: RefCell<Vec<DaDecl>>,
+    /// Record and enumeration declarations found inside a function body.
+    /// daScript has no function-scope type declaration, so a C block-scope
+    /// `struct`/`union`/`enum` becomes a module-level type exactly like a
+    /// function-scope `static` becomes a module-level object. Drained once, by
+    /// `translate_impl`, into the type section of the module.
+    pub(crate) hoisted_types: RefCell<Vec<DaDecl>>,
     pub main_file: PathBuf,
 }
 
@@ -271,6 +277,7 @@ impl<'c> Translation<'c> {
             layout_cache: RefCell::new(HashMap::new()),
             storage_backed_cache: RefCell::new(HashMap::new()),
             hoisted_statics: RefCell::new(vec![]),
+            hoisted_types: RefCell::new(vec![]),
             ast_context,
             tcfg,
             main_file: main_file.to_path_buf(),
@@ -280,6 +287,35 @@ impl<'c> Translation<'c> {
     /// Take the module-level variables synthesised for function-scope `static`s.
     pub(crate) fn take_hoisted_statics(&self) -> Vec<DaDecl> {
         std::mem::take(&mut *self.hoisted_statics.borrow_mut())
+    }
+
+    /// Take the module-level types synthesised for function-scope records.
+    pub(crate) fn take_hoisted_types(&self) -> Vec<DaDecl> {
+        std::mem::take(&mut *self.hoisted_types.borrow_mut())
+    }
+
+    /// Record that `decl` is now declared exactly once in the module, or
+    /// report that an identical declaration is already there.
+    ///
+    /// A C record has one daScript declaration no matter how many places name
+    /// it: the top-level type pass emits the ones it walks, and a block-scope
+    /// record that pass never reached is hoisted here on first use. Anonymous
+    /// records share the `Unnamed_N` label space, so they are matched on their
+    /// full field signature rather than on the label alone.
+    pub(crate) fn claim_type_declaration(&self, decl: &DaDecl) -> bool {
+        match decl {
+            DaDecl::Structure(s) => {
+                if s.name.starts_with("Unnamed_") {
+                    self.emitted_anon_structs
+                        .borrow_mut()
+                        .insert(anonymous_struct_signature(s))
+                } else {
+                    self.emitted_structs.borrow_mut().insert(s.name.clone())
+                }
+            }
+            DaDecl::Enumeration(e) => self.emitted_structs.borrow_mut().insert(e.name.clone()),
+            _ => true,
+        }
     }
 
     pub fn declare_value_name(&self, decl_id: CDeclId, name: &str) -> String {
@@ -718,23 +754,15 @@ impl<'c> Translation<'c> {
                         },
                         d,
                     ) {
-                        // Skip declarations already emitted in Pass 1.
-                        let already = match &das_decl {
-                            DaDecl::Structure(s) => {
-                                if s.name.starts_with("Unnamed_") {
-                                    self.emitted_anon_structs
-                                        .borrow()
-                                        .contains(&anonymous_struct_signature(s))
-                                } else {
-                                    self.emitted_structs.borrow().contains(&s.name)
-                                }
+                        // A C block-scope `struct`/`union`/`enum` is a type,
+                        // and daScript declares types only at module scope. It
+                        // is hoisted next to the types the top-level pass
+                        // emitted — unless that pass already walked this very
+                        // declaration, which is the usual case.
+                        if matches!(das_decl, DaDecl::Structure(_) | DaDecl::Enumeration(_)) {
+                            if self.claim_type_declaration(&das_decl) {
+                                self.hoisted_types.borrow_mut().push(das_decl);
                             }
-                            DaDecl::Enumeration(e) => {
-                                self.emitted_structs.borrow().contains(&e.name)
-                            }
-                            _ => false,
-                        };
-                        if already {
                             continue;
                         }
                         result.push(DaStmt::Decl(das_decl));
@@ -2637,6 +2665,24 @@ impl<'c> Translation<'c> {
                 };
 
                 if skip {
+                    // A block-scope type declaration produces no statement, but
+                    // it still has to reach module scope: daScript has no
+                    // function-local `struct`, and a variable below may be the
+                    // only thing that names this record.  A `typedef` of an
+                    // anonymous record is such a declaration too; a `typedef`
+                    // of anything else lowers to an alias and is left alone.
+                    if matches!(
+                        decl,
+                        Struct { .. } | Union { .. } | Enum { .. } | Typedef { .. }
+                    ) {
+                        if let Ok(das_decl) = self.convert_decl(ctx, decl_id) {
+                            if matches!(das_decl, DaDecl::Structure(_) | DaDecl::Enumeration(_))
+                                && self.claim_type_declaration(&das_decl)
+                            {
+                                self.hoisted_types.borrow_mut().push(das_decl);
+                            }
+                        }
+                    }
                     Ok(crate::cfg::DeclStmtInfo::new(vec![], vec![], vec![]))
                 } else {
                     let decl_stmt = DaStmt::Decl(self.convert_decl(ctx, decl_id)?);
@@ -3375,21 +3421,7 @@ fn translate_impl(
                     // Track emitted type declarations for dedup.
                     // Named structs/enums dedup by name; anonymous structs
                     // dedup by (name, field_type_signature) for accuracy.
-                    match &das_decl {
-                        DaDecl::Structure(s) => {
-                            if s.name.starts_with("Unnamed_") {
-                                t.emitted_anon_structs
-                                    .borrow_mut()
-                                    .insert(anonymous_struct_signature(s));
-                            } else {
-                                t.emitted_structs.borrow_mut().insert(s.name.clone());
-                            }
-                        }
-                        DaDecl::Enumeration(e) => {
-                            t.emitted_structs.borrow_mut().insert(e.name.clone());
-                        }
-                        _ => {}
-                    }
+                    t.claim_type_declaration(&das_decl);
                     // Skip duplicate typedefs and named structs (daScript rejects them).
                     let type_name = decl.kind.get_name().map(|s| s.to_string());
                     if let Some(ref name) = type_name {
@@ -3555,6 +3587,12 @@ fn translate_impl(
     // "T = T, not the same type".  The C record declarations therefore come
     // before every module-level object that builds one.
     module_decls.extend(type_decls);
+    // A C record declared inside a function body has no daScript equivalent at
+    // that scope. Pass 2 hoisted the ones the top-level type pass never
+    // reached; they belong in the same type section, before every object that
+    // builds one — a hoisted function-scope `static` of such a record among
+    // them.
+    module_decls.extend(t.take_hoisted_types());
     // An enumeration constant is a module-level variable here, and a global
     // initializer may only read a global declared before it, so the constants
     // precede the objects — a hoisted `static const` table keyed by enum

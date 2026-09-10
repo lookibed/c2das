@@ -348,6 +348,19 @@ impl<'c> Translation<'c> {
                                 None
                             }
                         });
+                    // An anonymous enumeration that no typedef names cannot be
+                    // referred to anywhere in C except at the declaration that
+                    // introduced it, and `convert_enum` has no name to declare
+                    // it under.  Inventing an `Unnamed_N` label here would name
+                    // a type the module never declares.  C already says what
+                    // the variable is: an object of the enumeration's
+                    // compatible integer type, and every enumerator is already
+                    // exported as a module-level integer constant.
+                    if tn.is_none() {
+                        if let CDeclKind::Enum { integral_type, .. } = &decl.kind {
+                            return self.enum_integral_type(*integral_type);
+                        }
+                    }
                     let name = tn.unwrap_or_else(|| "Unnamed".into());
                     let resolved_name = self
                         .type_converter

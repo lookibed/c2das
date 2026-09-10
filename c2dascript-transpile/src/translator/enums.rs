@@ -2,22 +2,17 @@ use super::*;
 use das_ast::{DaExpr, DaType};
 
 impl<'c> Translation<'c> {
-    pub fn convert_enum(
+    /// The daScript integer type a C enumeration is laid out in.
+    ///
+    /// Clang reports the compatible integer type it picked; anything that is
+    /// not one of daScript's integer kinds (or a missing report, for a forward
+    /// declaration) falls back to `int`, which is what C guarantees for an
+    /// enumeration whose values all fit in `int`.
+    pub fn enum_integral_type(
         &self,
-        enum_id: CEnumId,
-        name: &Option<String>,
-        variants: &[CEnumConstantId],
         integral_type: Option<CQualTypeId>,
-    ) -> TranslationResult<DaDecl> {
-        let raw_ename = name
-            .as_ref()
-            .ok_or_else(|| TranslationError::generic("anonymous enum"))?
-            .clone();
-        let ename = self
-            .type_converter
-            .borrow_mut()
-            .ensure_decl_name(enum_id, &raw_ename);
-        let base = match integral_type {
+    ) -> TranslationResult<DaType> {
+        Ok(match integral_type {
             Some(qt) => {
                 let dt = self.convert_type(qt)?;
                 match dt.kind {
@@ -33,7 +28,25 @@ impl<'c> Translation<'c> {
                 }
             }
             None => DaType::int(),
-        };
+        })
+    }
+
+    pub fn convert_enum(
+        &self,
+        enum_id: CEnumId,
+        name: &Option<String>,
+        variants: &[CEnumConstantId],
+        integral_type: Option<CQualTypeId>,
+    ) -> TranslationResult<DaDecl> {
+        let raw_ename = name
+            .as_ref()
+            .ok_or_else(|| TranslationError::generic("anonymous enum"))?
+            .clone();
+        let ename = self
+            .type_converter
+            .borrow_mut()
+            .ensure_decl_name(enum_id, &raw_ename);
+        let base = self.enum_integral_type(integral_type)?;
         let mut das_variants = vec![];
         for &vid in variants {
             if let CDeclKind::EnumConstant { ref name, value } = self.ast_context[vid].kind {

@@ -228,7 +228,13 @@ impl<'c> Translation<'c> {
                 }
             }
             Subtract => {
-                let sub = self.convert_subtraction(lhs_val, rhs_val, expr_type_id, lhs_is_ptr)?;
+                let sub = self.convert_subtraction(
+                    lhs_val,
+                    rhs_val,
+                    expr_type_id,
+                    lhs_is_ptr,
+                    rhs_is_ptr,
+                )?;
                 let needs_unsafe = any_ptr && !matches!(sub.val, DaExpr::Unsafe(_));
                 let sub = if needs_unsafe {
                     sub.map(|v| DaExpr::Unsafe(Box::new(v)))
@@ -944,30 +950,14 @@ impl<'c> Translation<'c> {
     ) -> TranslationResult<WithStmts<DaExpr>> {
         let is_ptr_lhs = lhs_is_ptr || self.is_pointer_type(expr_type_id.ctype);
         if is_ptr_lhs {
+            // C parses `p + a + b` as `(p + a) + b`: two separate
+            // pointer/integer additions, each with its own offset expression.
+            // The offset is therefore converted to the daScript offset type
+            // *as a whole*, after the C arithmetic that produced it — never by
+            // casting one addend and leaving its sibling in another type, and
+            // never by folding the chain into `p + (a + b)`, which mixes two
+            // unrelated C operand types under one daScript operator.
             Ok(lhs.zip(rhs).map(|(l, r)| {
-                if let DaExpr::Unsafe(inner) = l {
-                    if let DaExpr::Op2 {
-                        op: "+",
-                        left,
-                        right,
-                    } = *inner
-                    {
-                        return DaExpr::Unsafe(Box::new(DaExpr::Op2 {
-                            op: "+",
-                            left,
-                            right: Box::new(DaExpr::Op2 {
-                                op: "+",
-                                left: right,
-                                right: Box::new(r),
-                            }),
-                        }));
-                    }
-                    return DaExpr::Unsafe(Box::new(DaExpr::Op2 {
-                        op: "+",
-                        left: Box::new(DaExpr::Unsafe(inner)),
-                        right: Box::new(r),
-                    }));
-                }
                 DaExpr::Unsafe(Box::new(DaExpr::Op2 {
                     op: "+",
                     left: Box::new(l),
@@ -1014,37 +1004,61 @@ impl<'c> Translation<'c> {
     }
 
     /// Subtraction with pointer arithmetic support.
-    /// `is_ptr_op` is true if either operand is a pointer type.
+    /// `lhs_is_ptr`/`rhs_is_ptr` say which operands are C pointers.
     fn convert_subtraction(
         &self,
         lhs: WithStmts<DaExpr>,
         rhs: WithStmts<DaExpr>,
         expr_type_id: CQualTypeId,
         lhs_is_ptr: bool,
+        rhs_is_ptr: bool,
     ) -> TranslationResult<WithStmts<DaExpr>> {
         let is_ptr_ret = lhs_is_ptr || self.is_pointer_type(expr_type_id.ctype);
-        if matches!(lhs.val, DaExpr::Unsafe(_)) {
-            return Ok(lhs.zip(rhs).map(|(l, r)| match l {
-                DaExpr::Unsafe(inner) => match *inner {
-                    DaExpr::Op2 {
-                        op: "+",
-                        left,
-                        right,
-                    } => DaExpr::Unsafe(Box::new(DaExpr::Op2 {
-                        op: "+",
-                        left,
-                        right: Box::new(DaExpr::Op2 {
-                            op: "-",
-                            left: right,
-                            right: Box::new(r),
-                        }),
-                    })),
-                    inner => DaExpr::Unsafe(Box::new(DaExpr::Op2 {
+        if lhs_is_ptr && rhs_is_ptr {
+            // `q - p` is a distance in elements, not an offset: daScript
+            // divides by the pointee size exactly as C does, so neither side
+            // is an offset operand.
+            return Ok(lhs.zip(rhs).map(|(l, r)| {
+                DaExpr::Unsafe(Box::new(DaExpr::Op2 {
+                    op: "-",
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }))
+            }));
+        }
+        if is_ptr_ret {
+            // Same rule as `convert_addition`: `p - a - b` is `(p - a) - b`,
+            // and each offset converts to the daScript offset type as a whole
+            // once its own C arithmetic has run.
+            //
+            // daScript's pointer subtraction takes its pointer by reference
+            // (`i_das_ptr_sub(void?&, …)`), so the left operand of a chained
+            // `p - a - b` — itself a temporary — has no overload.  Pointer
+            // *addition* takes the pointer by value, and `p - n` is `p + (-n)`
+            // on the same signed offset, so lower every pointer/integer
+            // subtraction that way.
+            return Ok(lhs.zip(rhs).map(|(l, r)| {
+                let offset = self.pointer_offset_operand(normalize_numeric_binop_tree(r));
+                DaExpr::Unsafe(Box::new(DaExpr::Op2 {
+                    op: "+",
+                    left: Box::new(l),
+                    right: Box::new(DaExpr::Op1 {
                         op: "-",
-                        left: Box::new(inner),
-                        right: Box::new(r),
-                    })),
-                },
+                        expr: Box::new(offset),
+                    }),
+                }))
+            }));
+        }
+        if matches!(lhs.val, DaExpr::Unsafe(_)) {
+            // A non-pointer operand that had to be read unsafely (`*p - x`):
+            // the operation itself is ordinary, so hoist the `unsafe` to the
+            // whole expression instead of leaving it around one operand.
+            return Ok(lhs.zip(rhs).map(|(l, r)| match l {
+                DaExpr::Unsafe(inner) => DaExpr::Unsafe(Box::new(DaExpr::Op2 {
+                    op: "-",
+                    left: inner,
+                    right: Box::new(r),
+                })),
                 l => DaExpr::Op2 {
                     op: "-",
                     left: Box::new(l),
@@ -1052,50 +1066,21 @@ impl<'c> Translation<'c> {
                 },
             }));
         }
-        if is_ptr_ret {
-            Ok(lhs.zip(rhs).map(|(l, r)| {
-                if let DaExpr::Unsafe(inner) = l {
-                    if let DaExpr::Op2 {
-                        op: "+",
-                        left,
-                        right,
-                    } = *inner
-                    {
-                        return DaExpr::Unsafe(Box::new(DaExpr::Op2 {
-                            op: "+",
-                            left,
-                            right: Box::new(DaExpr::Op2 {
-                                op: "-",
-                                left: right,
-                                right: Box::new(r),
-                            }),
-                        }));
-                    }
-                    return DaExpr::Unsafe(inner);
-                }
-                DaExpr::Unsafe(Box::new(DaExpr::Op2 {
-                    op: "-",
-                    left: Box::new(l),
-                    right: Box::new(r),
-                }))
-            }))
-        } else {
-            let lhs_ty = Self::infer_type(&lhs.val);
-            let rhs_ty = Self::infer_type(&rhs.val);
-            if let (Some(lt), Some(rt)) = (&lhs_ty, &rhs_ty) {
-                if lt != rt {
-                    return Ok(lhs.zip(rhs).map(|(l, r)| {
-                        let r_casted = DaExpr::Cast {
-                            kind: das_ast::CastKind::Cast,
-                            expr: Box::new(r),
-                            to: lt.clone(),
-                        };
-                        mk().binary_op("-", l, r_casted)
-                    }));
-                }
+        let lhs_ty = Self::infer_type(&lhs.val);
+        let rhs_ty = Self::infer_type(&rhs.val);
+        if let (Some(lt), Some(rt)) = (&lhs_ty, &rhs_ty) {
+            if lt != rt {
+                return Ok(lhs.zip(rhs).map(|(l, r)| {
+                    let r_casted = DaExpr::Cast {
+                        kind: das_ast::CastKind::Cast,
+                        expr: Box::new(r),
+                        to: lt.clone(),
+                    };
+                    mk().binary_op("-", l, r_casted)
+                }));
             }
-            Ok(lhs.zip(rhs).map(|(l, r)| mk().binary_op("-", l, r)))
         }
+        Ok(lhs.zip(rhs).map(|(l, r)| mk().binary_op("-", l, r)))
     }
 
     pub fn convert_unary_operator(

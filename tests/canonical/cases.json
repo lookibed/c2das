@@ -314,6 +314,14 @@
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "const_static_table_runtime", "return_type": "int" }, "das_entrypoint": "const_static_table_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
     },
     {
+      "id": "p64-pointer-offset-types", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p64_pointer_offset_types.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "pointer_offset_types_runtime", "return_type": "int" }, "das_entrypoint": "pointer_offset_types_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p65-anonymous-records", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p65_anonymous_records.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "anonymous_records_runtime", "return_type": "int" }, "das_entrypoint": "anonymous_records_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
       "id": "n06-unknown-extern-call", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n06_unknown_extern_call.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "n06_unknown_extern_call.c", "cause": "unsupported external call: absolute_value" }, "runtime": "not-applicable"
