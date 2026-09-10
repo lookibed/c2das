@@ -62,14 +62,153 @@ impl<'c> Translation<'c> {
                 if !matches!(self.ast_context[parent].kind, CDeclKind::Union { .. }) {
                     return Ok(None);
                 }
-                let base_ctype = self.ast_context[base_expr]
-                    .kind
-                    .get_qual_type()
-                    .ok_or_else(|| TranslationError::generic("union member base has no C type"))?;
-                let base = self.convert_expr(ctx, base_expr, Some(base_ctype))?;
-                self.local_union_field_address(base, parent, field).map(Some)
+                // The base may be a union named directly (a wrapper value) or
+                // one reached through a pointer (raw bytes at an address);
+                // only `union_object_address` knows which, and reading
+                // `c2da_storage` out of the latter would dereference garbage.
+                let base_address = self.union_object_address(ctx, base_expr)?.ok_or_else(|| {
+                    TranslationError::generic("union member base is not a C union object")
+                })?;
+                self.field_address(base_address, field).map(Some)
             }
         }
+    }
+
+    /// The raw byte address of the C union object an lvalue names.
+    ///
+    /// A C union has two representations in the translation, and which one an
+    /// expression carries is a property of how the object was reached rather
+    /// than of its C type.  A union *named directly* — a local, a global, a
+    /// struct field, an element of a fixed array — is a wrapper struct whose
+    /// `c2da_storage` holds the address of its bytes.  A union *reached
+    /// through a pointer* already **is** those bytes: the pointer's numeric
+    /// value is the union's address, and there is no wrapper to read.
+    ///
+    /// Returns `None` when the expression is not of C union type.
+    pub(crate) fn union_object_address(
+        &self,
+        ctx: ExprContext,
+        expr: CExprId,
+    ) -> TranslationResult<Option<CObjectAddress>> {
+        let expr = self.strip_lvalue_wrappers(expr);
+        let Some(ctype) = self.ast_context[expr].kind.get_qual_type() else {
+            return Ok(None);
+        };
+        let CTypeKind::Union(union_id) = self.ast_context.resolve_type(ctype.ctype).kind else {
+            return Ok(None);
+        };
+        match self.ast_context[expr].kind.clone() {
+            // `*p`: the pointer's value already is the union's byte address.
+            CExprKind::Unary(_, CUnOp::Deref, ptr, _) => {
+                let ptr_ctype = self.ast_context[ptr].kind.get_qual_type().ok_or_else(|| {
+                    TranslationError::generic("dereferenced union pointer has no C type")
+                })?;
+                let pointer = self.convert_expr(ctx.used(), ptr, Some(ptr_ctype))?;
+                Ok(Some(CObjectAddress {
+                    raw: pointer,
+                    raw_is_address: false,
+                    ctype,
+                    byte_offset: 0,
+                    storage_size_bytes: None,
+                }))
+            }
+            // `p[i]` on a union pointer is `*(p + i)`, and C scales it by the
+            // union's own size — not by the wrapper's.  A decayed fixed array
+            // really is a daScript array of wrappers and keeps that lowering.
+            CExprKind::ArraySubscript(_, arr, idx, _) if !self.is_array_decay(arr) => {
+                let raw = self.union_element_raw_address(ctx, arr, idx, union_id)?;
+                Ok(Some(CObjectAddress {
+                    raw,
+                    raw_is_address: true,
+                    ctype,
+                    byte_offset: 0,
+                    storage_size_bytes: None,
+                }))
+            }
+            // `q->u` and longer chains are already address-backed places.  A
+            // union field of a *local* struct is not, and `member_place_address`
+            // says so by returning `None`.
+            CExprKind::Member(..) => match self.member_place_address(ctx, expr)? {
+                Some(address) => Ok(Some(address)),
+                None => self.union_wrapper_storage_address(ctx, expr, ctype),
+            },
+            _ => self.union_wrapper_storage_address(ctx, expr, ctype),
+        }
+    }
+
+    /// The storage address carried by a union wrapper value.
+    fn union_wrapper_storage_address(
+        &self,
+        ctx: ExprContext,
+        expr: CExprId,
+        ctype: CQualTypeId,
+    ) -> TranslationResult<Option<CObjectAddress>> {
+        let wrapper = self.convert_expr(ctx.used(), expr, Some(ctype))?;
+        Ok(Some(CObjectAddress {
+            raw: wrapper.map(|wrapper| DaExpr::Field(Box::new(wrapper), "c2da_storage".into())),
+            raw_is_address: true,
+            ctype,
+            byte_offset: 0,
+            storage_size_bytes: None,
+        }))
+    }
+
+    /// Whether a subscript's left operand is a fixed C array that decayed,
+    /// rather than a C pointer value.
+    pub(crate) fn is_array_decay(&self, expr: CExprId) -> bool {
+        matches!(
+            self.ast_context[self.strip_lvalue_wrappers(expr)].kind,
+            CExprKind::ImplicitCast(_, _, CastKind::ArrayToPointerDecay, _, _)
+                | CExprKind::ExplicitCast(_, _, CastKind::ArrayToPointerDecay, _, _)
+        )
+    }
+
+    /// `(uint64)p + i * sizeof(union)` — the address of `p[i]` for a C pointer
+    /// to a union, computed in C's own element size.
+    fn union_element_raw_address(
+        &self,
+        ctx: ExprContext,
+        arr: CExprId,
+        idx: CExprId,
+        union_id: CRecordId,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let size = self.union_object_size(union_id)?;
+        let pointer = self.convert_expr(ctx.used(), arr, None)?;
+        let index = self.convert_expr(ctx.used(), idx, None)?;
+        let address = pointer.zip(index).map(|(pointer, index)| DaExpr::Op2 {
+            op: "+",
+            left: Box::new(self.pointer_to_raw_address(pointer)),
+            right: Box::new(DaExpr::Op2 {
+                op: "*",
+                // A C subscript index is signed, and `p[-1]` is a legal read
+                // of the element before `p`; the widening happens in the
+                // signed type so that the wrap into `uint64` is the right one.
+                left: Box::new(DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(DaExpr::Cast {
+                        kind: das_ast::CastKind::Cast,
+                        expr: Box::new(index),
+                        to: DaType::int64(),
+                    }),
+                    to: DaType::uint64(),
+                }),
+                right: Box::new(
+                    self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
+                ),
+            }),
+        });
+        // daScript refuses to write through a pointer built inline from
+        // address arithmetic (its dead-write policy), so the element's
+        // address becomes a named value that both reads and writes can use.
+        let tmp = self.renamer.borrow_mut().fresh();
+        let is_unsafe = address.is_unsafe;
+        let mut stmts = address.stmts;
+        stmts.push(DaStmt::Var {
+            name: tmp.clone(),
+            var_type: DaType::uint64(),
+            init: Some(address.val),
+        });
+        Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
     }
 
     fn raw_byte_address(&self, address: &CObjectAddress) -> WithStmts<DaExpr> {
@@ -168,10 +307,13 @@ impl<'c> Translation<'c> {
                 "volatile raw C object access is not implemented",
             ));
         }
-        if matches!(
-            ty.kind,
-            CTypeKind::ConstantArray(..) | CTypeKind::Struct(_) | CTypeKind::Union(_)
-        ) {
+        // A whole union read out of raw storage is a C by-value copy: the
+        // result owns its own bytes, exactly as `union u v = *p` requires.
+        if let CTypeKind::Union(union_id) = ty.kind {
+            let raw = self.raw_byte_address(&address);
+            return self.load_union_object(union_id, raw);
+        }
+        if matches!(ty.kind, CTypeKind::ConstantArray(..) | CTypeKind::Struct(_)) {
             return Err(TranslationError::generic(
                 "aggregate C object rvalue from raw storage is not implemented",
             ));
@@ -239,6 +381,13 @@ impl<'c> Translation<'c> {
         address: CObjectAddress,
         value: WithStmts<DaExpr>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
+        // A whole union written into raw storage overwrites the union's bytes.
+        // Storing the wrapper would put the eight bytes of a storage address
+        // there instead.
+        if let CTypeKind::Union(union_id) = self.ast_context.resolve_type(address.ctype.ctype).kind {
+            let raw = self.raw_byte_address(&address);
+            return self.store_union_object(union_id, raw, value);
+        }
         let target = self.convert_type(address.ctype)?;
         let storage_size = self.raw_storage_size(&address)?;
         if self.address_is_typed_aligned(&address)? {

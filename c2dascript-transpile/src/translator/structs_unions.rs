@@ -260,7 +260,7 @@ impl<'c> Translation<'c> {
         Ok(out)
     }
 
-    fn union_wrapper_name(&self, union_id: CRecordId) -> TranslationResult<String> {
+    pub(crate) fn union_wrapper_name(&self, union_id: CRecordId) -> TranslationResult<String> {
         let raw = match &self.ast_context[union_id].kind {
             CDeclKind::Union {
                 name: Some(name), ..
@@ -292,6 +292,92 @@ impl<'c> Translation<'c> {
             type_name: self.union_wrapper_name(union_id)?,
             fields: vec![("c2da_storage".into(), self.union_zero_storage(union_id)?)],
         }))
+    }
+
+    /// The size in bytes Clang gives the union object, as a daScript literal
+    /// operand for the raw-memory runtime.
+    pub(crate) fn union_object_size(&self, union_id: CRecordId) -> TranslationResult<i64> {
+        i64::try_from(self.record_layout(union_id)?.object.size_bytes)
+            .map_err(|_| TranslationError::generic("union size exceeds daScript integer range"))
+    }
+
+    /// A fresh union wrapper holding a copy of the union object that lives at
+    /// `raw_address`.
+    ///
+    /// This is the read half of the pointer-side union model: bytes at an
+    /// address are not a wrapper struct and cannot be dereferenced as one, so
+    /// an rvalue use of `*p` (or of `q->u`) allocates its own storage and
+    /// copies the object into it — which is also exactly C's by-value rule.
+    pub(crate) fn load_union_object(
+        &self,
+        union_id: CRecordId,
+        raw_address: WithStmts<DaExpr>,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let name = self.union_wrapper_name(union_id)?;
+        let size = self.union_object_size(union_id)?;
+        let storage = self.union_zero_storage(union_id)?;
+        let tmp = self.renamer.borrow_mut().fresh();
+        let is_unsafe = raw_address.is_unsafe;
+        let mut stmts = raw_address.stmts;
+        stmts.push(DaStmt::Var {
+            name: tmp.clone(),
+            var_type: DaType::named(&name),
+            init: Some(DaExpr::MakeStruct {
+                type_name: name,
+                fields: vec![("c2da_storage".into(), storage)],
+            }),
+        });
+        stmts.push(DaStmt::Expr(DaExpr::Call(
+            Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
+            vec![
+                DaExpr::Field(Box::new(DaExpr::Var(tmp.clone())), "c2da_storage".into()),
+                raw_address.val,
+                self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
+            ],
+        )));
+        Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
+    }
+
+    /// Copy a whole union object into the raw storage at `raw_address`.
+    ///
+    /// The write half of the same model: `*p = u` and `q->u = u` overwrite the
+    /// union's bytes in place.  Assigning the wrapper instead would store the
+    /// eight bytes of a storage address over the union object.
+    pub(crate) fn store_union_object(
+        &self,
+        union_id: CRecordId,
+        raw_address: WithStmts<DaExpr>,
+        value: WithStmts<DaExpr>,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let name = self.union_wrapper_name(union_id)?;
+        let size = self.union_object_size(union_id)?;
+        let is_unsafe = raw_address.is_unsafe || value.is_unsafe;
+        let mut stmts = value.stmts;
+        // The source's storage address is read out of the wrapper, so the
+        // wrapper has to be a place; an expression is bound to a temporary
+        // first, which also evaluates it exactly once as C requires.
+        let source = match value.val {
+            place @ (DaExpr::Var(_) | DaExpr::Field(..)) => place,
+            other => {
+                let tmp = self.renamer.borrow_mut().fresh();
+                stmts.push(DaStmt::Var {
+                    name: tmp.clone(),
+                    var_type: DaType::named(&name),
+                    init: Some(other),
+                });
+                DaExpr::Var(tmp)
+            }
+        };
+        stmts.extend(raw_address.stmts);
+        stmts.push(DaStmt::Expr(DaExpr::Call(
+            Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
+            vec![
+                raw_address.val,
+                DaExpr::Field(Box::new(source.clone()), "c2da_storage".into()),
+                self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
+            ],
+        )));
+        Ok(WithStmts::new(stmts, source).merge_unsafe(is_unsafe))
     }
 
     pub(crate) fn union_zero_storage(&self, union_id: CRecordId) -> TranslationResult<DaExpr> {
@@ -663,8 +749,12 @@ impl<'c> Translation<'c> {
             .get(&decl)
             .ok_or_else(|| TranslationError::generic("field has no parent record"))?;
         if matches!(self.ast_context[parent].kind, CDeclKind::Union { .. }) {
-            let union = self.convert_expr(ctx, expr, Some(qual_ty))?;
-            let address = self.local_union_field_address(union, parent, decl)?;
+            // The base may be a wrapper value or a union reached through a
+            // pointer, in which case it is raw bytes with no wrapper to read.
+            let base_address = self.union_object_address(ctx, expr)?.ok_or_else(|| {
+                TranslationError::generic("union member base is not a C union object")
+            })?;
+            let address = self.field_address(base_address, decl)?;
             return self.raw_load(address);
         }
         let obj = self.convert_expr(ctx, expr, Some(qual_ty))?;

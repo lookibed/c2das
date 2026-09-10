@@ -1,4 +1,5 @@
 //! Operator translation — полный порт c2rust operators.rs
+use super::object_memory::CObjectAddress;
 use super::*;
 
 impl<'c> Translation<'c> {
@@ -529,12 +530,30 @@ impl<'c> Translation<'c> {
                         .ok_or_else(|| TranslationError::generic("member pointer has no C type"))?;
                     let base = self.convert_expr(ctx.used(), base_expr, Some(base_ty))?;
                     Some((field, self.pointer_member_address(base, base_ty, field)?))
+                } else if self.is_raw_union_place(base_expr) {
+                    // `(*p).f` and `p[i].f`: the union behind the pointer is
+                    // raw bytes, so the field's place comes from the pointer
+                    // rather than from a wrapper that does not exist there.
+                    let base = self.union_object_address(ctx.used(), base_expr)?.ok_or_else(
+                        || TranslationError::generic("union member base is not a C union object"),
+                    )?;
+                    Some((field, self.field_address(base, field)?))
                 } else {
                     None
                 }
             }
             _ => None,
         };
+        // `*p = u` on a union pointer overwrites the union's bytes; there is
+        // no wrapper struct at that address to assign to.
+        if op == CBinOp::Assign && self.is_raw_union_place(lhs) {
+            let address = self
+                .union_object_address(ctx.used(), lhs)?
+                .ok_or_else(|| TranslationError::generic("union store target is not a union"))?;
+            let value = self.convert_expr(ctx.used(), rhs, Some(lhs_type_id))?;
+            let stored = self.raw_store(address, value)?;
+            return Ok(lower_raw_store(stored, is_used));
+        }
         if let Some((field, address)) = raw_member {
             let rhs_id = rhs;
             let is_bitfield = matches!(
@@ -801,11 +820,13 @@ impl<'c> Translation<'c> {
     }
 
     /// Strip the C nodes that do not change an lvalue's identity.
-    fn strip_lvalue_wrappers(&self, mut expr: CExprId) -> CExprId {
+    pub(crate) fn strip_lvalue_wrappers(&self, mut expr: CExprId) -> CExprId {
         loop {
             match self.ast_context[expr].kind {
                 CExprKind::Paren(_, inner) => expr = inner,
                 CExprKind::Unary(_, CUnOp::Extension, inner, _) => expr = inner,
+                CExprKind::ImplicitCast(_, inner, CastKind::NoOp, _, _)
+                | CExprKind::ExplicitCast(_, inner, CastKind::NoOp, _, _) => expr = inner,
                 _ => return expr,
             }
         }
@@ -888,6 +909,14 @@ impl<'c> Translation<'c> {
         lhs_da_type: &DaType,
     ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
         if !matches!(lhs_da_type.kind, DaTypeKind::Named(_)) {
+            return Ok(None);
+        }
+        // A union wrapper is a name for bytes elsewhere, not the object: it
+        // can never be produced by dereferencing a pointer to the object.
+        if matches!(
+            self.ast_context.resolve_type(expr_type_id.ctype).kind,
+            CTypeKind::Union(_)
+        ) {
             return Ok(None);
         }
         let Some(ptr_expr) = self.const_deref_pointer_expr(rhs) else {
@@ -1101,6 +1130,13 @@ impl<'c> Translation<'c> {
         use CUnOp::*;
         match name {
             AddressOf => {
+                // A C pointer to a union carries the union's *byte* address:
+                // that is the one model both ends of `union u *p` agree on.
+                // `&u` therefore hands out the storage address, never the
+                // address of the wrapper struct that names it.
+                if let Some(address) = self.union_object_address(ctx.used(), arg)? {
+                    return self.address_of_union_object(cqual_type, address);
+                }
                 // `&x` has pointer type, but `x` does not: passing the result
                 // type down would make the operand cast itself to `T?`.
                 let inner = self.convert_expr(ctx, arg, None)?;
@@ -1116,6 +1152,19 @@ impl<'c> Translation<'c> {
                 Ok(WithStmts::new_val(DaExpr::Unsafe(Box::new(val))).prepend_stmts(inner.stmts))
             }
             Deref => {
+                // A union behind a pointer is raw bytes, not a wrapper struct,
+                // so `*p` cannot be a daScript dereference.  Read as a value it
+                // is a C by-value copy of the union object; every *place* use
+                // of `*p` (a member access, an assignment target, `&*p`) is
+                // routed through `union_object_address` before it gets here.
+                if let CTypeKind::Union(union_id) =
+                    self.ast_context.resolve_type(cqual_type.ctype).kind
+                {
+                    let ptr_ctype = self.ast_context[arg].kind.get_qual_type();
+                    let pointer = self.convert_expr(ctx.used(), arg, ptr_ctype)?;
+                    let raw = pointer.map(|pointer| self.pointer_to_raw_address(pointer));
+                    return self.load_union_object(union_id, raw);
+                }
                 // `*p` has the pointee type; the operand keeps the pointer type.
                 let inner = self.convert_expr(ctx, arg, None)?;
                 let is_unsafe = inner.is_unsafe;
@@ -1193,6 +1242,57 @@ impl<'c> Translation<'c> {
             }
             Real | Imag | Coawait => Err(TranslationError::generic("unsupported unary operator")),
         }
+    }
+
+    /// Turn the storage address of a C union object into the C pointer value
+    /// `&u` has.
+    ///
+    /// daScript refuses to write through a pointer built inline from address
+    /// arithmetic (its dead-write policy), so the pointer becomes a named
+    /// value, exactly as an array decay does.
+    fn address_of_union_object(
+        &self,
+        result_ctype: CQualTypeId,
+        address: CObjectAddress,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let target = match self.convert_type(result_ctype)? {
+            ty if matches!(ty.kind, DaTypeKind::Pointer(_)) => ty,
+            _ => DaType::pointer(self.convert_type(address.ctype)?),
+        };
+        let raw = self.raw_address_of_place(&address);
+        let is_unsafe = raw.is_unsafe;
+        let pointer = raw.map(|raw| self.raw_address_to_pointer(raw, target.clone()));
+        let tmp = self.renamer.borrow_mut().fresh();
+        let mut stmts = pointer.stmts;
+        stmts.push(DaStmt::Var {
+            name: tmp.clone(),
+            var_type: writable_type(target),
+            init: Some(pointer.val),
+        });
+        Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe || pointer.is_unsafe))
+    }
+
+    /// Whether an lvalue names a union object that lives as raw bytes behind a
+    /// C pointer, and so cannot be assigned as a daScript wrapper value.
+    fn is_raw_union_place(&self, expr: CExprId) -> bool {
+        let expr = self.strip_lvalue_wrappers(expr);
+        let reached_through_pointer = match self.ast_context[expr].kind {
+            CExprKind::Unary(_, CUnOp::Deref, _, _) => true,
+            // A decayed fixed array is a daScript array of wrappers, so only a
+            // subscript of a genuine C pointer names raw union bytes.
+            CExprKind::ArraySubscript(_, arr, _, _) => !self.is_array_decay(arr),
+            _ => false,
+        };
+        reached_through_pointer
+            && self.ast_context[expr]
+                .kind
+                .get_qual_type()
+                .map_or(false, |ty| {
+                    matches!(
+                        self.ast_context.resolve_type(ty.ctype).kind,
+                        CTypeKind::Union(_)
+                    )
+                })
     }
 
     /// Negation with literal optimization.

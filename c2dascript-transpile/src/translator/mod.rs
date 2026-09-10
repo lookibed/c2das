@@ -1000,6 +1000,18 @@ impl<'c> Translation<'c> {
             }
 
             ArraySubscript(ty, arr, idx, _lrvalue) => {
+                // `p[i]` on a pointer to a union names raw bytes, not a
+                // wrapper: read as a value it is a C by-value copy of the
+                // union object at that address.  A decayed fixed array really
+                // is a daScript array of wrappers and keeps its own lowering.
+                if let CTypeKind::Union(union_id) = self.ast_context.resolve_type(ty.ctype).kind {
+                    if !self.is_array_decay(*arr) {
+                        if let Some(address) = self.union_object_address(ctx, expr_id)? {
+                            let raw = self.raw_address_of_place(&address);
+                            return self.load_union_object(union_id, raw);
+                        }
+                    }
+                }
                 let arr_val = self.convert_expr(ctx, *arr, None)?;
                 let idx_val = self.convert_expr(ctx, *idx, None)?;
                 // ArraySubscript — daScript requires Index on pointer/array to be
