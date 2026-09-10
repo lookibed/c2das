@@ -432,11 +432,10 @@ impl<'c> Translation<'c> {
             } else if matches!(ret_ty.kind, DaTypeKind::Pointer(_)) {
                 self.abi_pointer_cast(call, ret_ty)
             } else {
-                DaExpr::Cast {
-                    kind: das_ast::CastKind::Cast,
-                    expr: Box::new(call),
-                    to: ret_ty,
-                }
+                // A C enumeration return type crossing into an enumeration
+                // use-site is a reinterpretation, not a conversion; every
+                // other target is the plain numeric conversion.
+                self.cast_to_type(call, ret_ty)
             }
         } else {
             call

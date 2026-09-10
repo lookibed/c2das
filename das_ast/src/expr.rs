@@ -1,6 +1,5 @@
 use crate::DaStmt;
 use crate::DaType;
-use crate::DaTypeKind;
 use std::fmt;
 
 /// daScript expression. Analogous to [`syn::Expr`].
@@ -578,14 +577,21 @@ impl DaExpr {
             DefaultValue(ty) => write!(f, "default<{}>", ty),
 
             Cast { kind, expr, to } => {
-                // For primitive types, use function-style cast: `uint(expr)` instead of `cast<uint>(expr)`.
-                // This includes numeric types (int, uint64, size_t) and named types (enums, typedefs).
-                // daScript `cast<T>` preserves const on source, causing `can't cast int const to uint64`.
-                // Function-style calls (`uint(expr)`) accept const args — they're regular function calls.
-                // Named types are constructible if they're enums or numeric typedefs.
-                if *kind == CastKind::Cast && matches!(&to.kind, DaTypeKind::Named(_)) {
-                    write!(f, "unsafe(reinterpret<{}>({}))", to, expr)
-                } else if *kind == CastKind::Cast && to.is_numeric() {
+                // A `Cast` is a *conversion*: it reads the value and produces
+                // the same number in another type.  For a numeric type that is
+                // the function-style call `uint(expr)` — `cast<T>` would
+                // preserve const on the source (`can't cast int const to
+                // uint64`), while a call accepts a const argument.
+                //
+                // The printer never upgrades a conversion into a bit
+                // reinterpretation.  `reinterpret` reads the target's width out
+                // of the source's storage, so spelling `(size_t)u` over a
+                // 4-byte `unsigned` that way returns whatever follows the local
+                // in memory.  Only the translator knows when a cast really is a
+                // reinterpretation (pointer ↔ integer, pointer ↔ pointer, union
+                // punning, integer → enumeration), and it says so by building
+                // `CastKind::Reinterpret`.
+                if *kind == CastKind::Cast && to.is_numeric() {
                     write!(f, "{}({})", to, expr)
                 } else if *kind == CastKind::Reinterpret || *kind == CastKind::Upcast {
                     // reinterpret/upcast require `unsafe()` in daScript

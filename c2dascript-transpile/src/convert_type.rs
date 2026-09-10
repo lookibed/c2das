@@ -13,6 +13,34 @@ use std::collections::{HashMap, HashSet};
 /// site with its own diagnostic.
 pub(crate) const UNTYPED_FUNCTION: &str = "function";
 
+/// The daScript builtin that spells a C scalar arithmetic type, when there is
+/// one.  This is the single source of truth for "this C type is a number
+/// daScript already has a name for": both the typedef-resolution rule below
+/// and the type conversion itself read it, so an alias can never disagree with
+/// the type it aliases.
+///
+/// A C type with no builtin here (a struct, a union, an enumeration, a
+/// pointer, an array, a function) returns `None` and keeps its own daScript
+/// spelling.
+pub(crate) fn scalar_builtin_datype(kind: &CTypeKind) -> Option<DaType> {
+    use CTypeKind::*;
+    Some(match kind {
+        Void => DaType::void(),
+        Bool => DaType::bool(),
+        Int | Int32 => DaType::int(),
+        SChar | Char | Int8 => DaType::int8(),
+        Short | Int16 => DaType::int16(),
+        Int64 | Long | LongLong | IntPtr | SSize | PtrDiff | IntMax => DaType::int64(),
+        UChar | UInt8 => DaType::uint8(),
+        UShort | UInt16 => DaType::uint16(),
+        UInt | UInt32 => DaType::uint(),
+        UInt64 | ULong | ULongLong | UIntPtr | Size | WChar | UIntMax => DaType::uint64(),
+        Float | BFloat16 => DaType::float(),
+        Double => DaType::double(),
+        _ => return None,
+    })
+}
+
 /// True for the daScript types produced by `Translation::function_value_type`,
 /// i.e. the ones that are already callable values and must never be wrapped in
 /// `?` or crossed through the raw-pointer ABI.
@@ -205,37 +233,19 @@ impl<'c> Translation<'c> {
                             cur = typ.ctype;
                             continue;
                         }
-                        // Если typedef ссылается на built-in тип (u8, u32, int и т.д.),
-                        // не используем alias — daScript не принимает alias?
-                        // (например, uint8_t? валидно, но uint8_t? в struct field — нет)
-                        // Пропускаем alias для built-in типов
+                        // A typedef of a C scalar arithmetic type is only a
+                        // spelling: `size_t`, `ptrdiff_t` and every user alias
+                        // of them denote a number daScript already names.
+                        // Keeping the alias would make the type a *named* one,
+                        // and a named type is not a conversion target — a cast
+                        // to it can only be spelled as a bit reinterpretation,
+                        // which reads the wrong width and silently corrupts the
+                        // value (`(size_t)u` over a 4-byte `unsigned`).  It
+                        // would also be rejected in the places daScript refuses
+                        // an alias outright (`uint8_t?` in a struct field).
+                        // Resolving to the builtin keeps the cast a conversion.
                         let base = self.ast_context.resolve_type(typ.ctype);
-                        if matches!(
-                            base.kind,
-                            CTypeKind::Int
-                                | CTypeKind::UInt
-                                | CTypeKind::Int8
-                                | CTypeKind::UInt8
-                                | CTypeKind::Int16
-                                | CTypeKind::UInt16
-                                | CTypeKind::Int32
-                                | CTypeKind::UInt32
-                                | CTypeKind::Int64
-                                | CTypeKind::UInt64
-                                | CTypeKind::Float
-                                | CTypeKind::Double
-                                | CTypeKind::Bool
-                                | CTypeKind::Void
-                                | CTypeKind::SChar
-                                | CTypeKind::UChar
-                                | CTypeKind::Char
-                                | CTypeKind::Short
-                                | CTypeKind::UShort
-                                | CTypeKind::Long
-                                | CTypeKind::ULong
-                                | CTypeKind::LongLong
-                                | CTypeKind::ULongLong
-                        ) {
+                        if scalar_builtin_datype(&base.kind).is_some() {
                             break;
                         }
                         // For struct/enum typedefs, register under the struct's record ID
@@ -261,21 +271,13 @@ impl<'c> Translation<'c> {
             }
         }
         let resolved = self.ast_context.resolve_type(typ);
+        // Every C scalar arithmetic type is spelled by the shared table, so a
+        // typedef of one and the type itself can never diverge.
+        if let Some(scalar) = scalar_builtin_datype(&resolved.kind) {
+            return Ok(scalar);
+        }
         use CTypeKind::*;
         match resolved.kind {
-            Void => Ok(DaType::void()),
-            Bool => Ok(DaType::bool()),
-            Int | Int32 => Ok(DaType::int()),
-            SChar | Char | Int8 => Ok(DaType::int8()),
-            Short | Int16 => Ok(DaType::int16()),
-            Int64 | Long | LongLong => Ok(DaType::int64()),
-            IntPtr | SSize | PtrDiff | IntMax => Ok(DaType::int64()),
-            UChar | UInt8 => Ok(DaType::uint8()),
-            UShort | UInt16 => Ok(DaType::uint16()),
-            UInt | UInt32 => Ok(DaType::uint()),
-            UInt64 | ULong | ULongLong | UIntPtr | Size | WChar => Ok(DaType::uint64()),
-            Float | BFloat16 => Ok(DaType::float()),
-            Double => Ok(DaType::double()),
             // daScript has no 128-bit integer and no wider-than-double float.
             // Silently narrowing them would change observable C results, so
             // the strict translator refuses instead.

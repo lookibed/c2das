@@ -150,6 +150,20 @@ impl<'c> Translation<'c> {
         {
             return expr;
         }
+        // C types `!p`, `a < b` and `a && b` as `int`, so the C type says the
+        // operand needs no promotion — but the value daScript holds for them
+        // is a `bool`, which no arithmetic operator accepts.  Spelling the
+        // conversion here is what lets the caller's `bool_to_integer`
+        // materialize C's 0/1 through control flow.
+        if Self::infer_type(&expr).map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+            && !matches!(target.kind, DaTypeKind::Bool)
+        {
+            return DaExpr::Cast {
+                kind: das_ast::CastKind::Cast,
+                expr: Box::new(expr),
+                to: target,
+            };
+        }
         let storage = self.storage_type_of_kind(from);
         if storage.as_ref() == Some(&target) {
             return expr;
@@ -169,17 +183,44 @@ impl<'c> Translation<'c> {
         promoted_arith_type(kind).map(|_| type_kind_to_datype(kind))
     }
 
+    /// Give `expr` the daScript type `target`, choosing between the two things
+    /// a C cast can mean.
+    ///
+    /// daScript converts between *numbers*, and nothing else: `uint64(x)` is a
+    /// function call that reads the value.  It has no constructor that turns a
+    /// number into a named type, so the only way to cross into one is
+    /// `reinterpret`, which re-reads the target's width out of the source's
+    /// storage.  After `convert_type` resolves every scalar typedef to its
+    /// builtin, the named types that reach here are C enumerations — where
+    /// re-reading the bytes of the enumeration's own integer type is exactly
+    /// right — and never a numeric alias, where it would read past a narrower
+    /// local and return whatever follows it in memory.
+    ///
+    /// The choice is made here, by the translator, and never by the printer:
+    /// the printer sees only a target type and cannot tell a conversion from a
+    /// reinterpretation.
+    pub(crate) fn cast_to_type(&self, expr: DaExpr, target: DaType) -> DaExpr {
+        if matches!(target.kind, DaTypeKind::Named(_)) && !target.is_numeric() {
+            return DaExpr::Unsafe(Box::new(DaExpr::Cast {
+                kind: das_ast::CastKind::Reinterpret,
+                expr: Box::new(expr),
+                to: target,
+            }));
+        }
+        DaExpr::Cast {
+            kind: das_ast::CastKind::Cast,
+            expr: Box::new(expr),
+            to: target,
+        }
+    }
+
     /// Narrow an arithmetic result back into a C storage type, as C does on
     /// assignment (C6.3.1.3 modular conversion).
     pub(crate) fn narrow_to_storage(&self, expr: DaExpr, target: &DaType) -> DaExpr {
         if Self::infer_type(&expr).as_ref() == Some(target) {
             return expr;
         }
-        DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr: Box::new(expr),
-            to: target.clone(),
-        }
+        self.cast_to_type(expr, target.clone())
     }
 
     /// Canonical typed integer literal boundary for runtime parameters.

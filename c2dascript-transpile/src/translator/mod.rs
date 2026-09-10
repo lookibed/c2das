@@ -31,6 +31,7 @@ mod builtins;
 mod comments;
 mod enums;
 mod functions;
+mod global_order;
 mod layout;
 mod literals;
 mod macros;
@@ -1181,11 +1182,24 @@ impl<'c> Translation<'c> {
                         WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(inner.is_unsafe)
                     );
                 }
-                // ToVoid, ConstCast, NoOp — transparent in C, but daScript may need
+                // `(void)x` discards a value; it is not a conversion *to* a
+                // `void` object, and daScript has no `void` constructor to
+                // call — `void(x)` is a call to a function that does not
+                // exist.  The operand is translated for its side effects and
+                // handed back as itself, so a statement position emits the
+                // expression and a pure operand is dropped when the statement
+                // is built.
+                if matches!(cast_kind, CastKind::ToVoid) {
+                    let inner = self.convert_expr(ctx, *expr, None)?;
+                    return Ok(WithStmts::new_val(inner.val)
+                        .prepend_stmts(inner.stmts)
+                        .merge_unsafe(inner.is_unsafe));
+                }
+                // ConstCast, NoOp — transparent in C, but daScript may need
                 // an explicit cast if the inferred types differ (e.g., int→uint for 0).
                 if matches!(
                     cast_kind,
-                    CastKind::ToVoid | CastKind::ConstCast | CastKind::NoOp | CastKind::Dependent
+                    CastKind::ConstCast | CastKind::NoOp | CastKind::Dependent
                 ) {
                     let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                     let target_type = self.convert_type(ty.clone())?;
@@ -1202,6 +1216,19 @@ impl<'c> Translation<'c> {
                             .merge_unsafe(inner.is_unsafe));
                     }
                     let inner_ty = Translation::infer_type(&inner.val);
+                    // A C no-op cast between pointers only adds or drops a
+                    // qualifier.  daScript takes a `T?` wherever a `T const?`
+                    // is wanted and has no `cast<T const?>` conversion at all,
+                    // so a qualifier-only difference passes through unchanged.
+                    if matches!(target_type.kind, DaTypeKind::Pointer(_))
+                        && inner_ty.as_ref().map_or(false, |it| {
+                            unqualified_type(it) == unqualified_type(&target_type)
+                        })
+                    {
+                        return Ok(WithStmts::new_val(inner.val)
+                            .prepend_stmts(inner.stmts)
+                            .merge_unsafe(inner.is_unsafe));
+                    }
                     if inner_ty.map_or(false, |it| it != target_type) {
                         return Ok(WithStmts::new_val(DaExpr::Cast {
                             kind: das_ast::CastKind::Cast,
@@ -1237,11 +1264,11 @@ impl<'c> Translation<'c> {
                     let inner_unsafe = inner.is_unsafe;
                     let mut stmts = inner.stmts;
                     let inner_val = inner.val;
-                    let cast = DaExpr::Cast {
-                        kind: das_ast::CastKind::Cast,
-                        expr: Box::new(inner_val.clone()),
-                        to: target_type.clone(),
-                    };
+                    // C spells "integer value crossing into an enumeration" as
+                    // an integral cast too; `cast_to_type` picks the
+                    // reinterpretation daScript requires there and the plain
+                    // conversion everywhere else.
+                    let cast = self.cast_to_type(inner_val.clone(), target_type.clone());
                     if let Some((lowered_stmts, lowered_val)) =
                         self.bool_to_integer_cast(cast.clone())
                     {
@@ -1330,11 +1357,9 @@ impl<'c> Translation<'c> {
                 ) {
                     let inner = self.convert_expr(ctx, *expr, None)?;
                     let target_type = self.convert_type(ty.clone())?;
-                    return Ok(WithStmts::new_val(DaExpr::Cast {
-                        kind: das_ast::CastKind::Cast,
-                        expr: Box::new(inner.val),
-                        to: target_type,
-                    })
+                    return Ok(WithStmts::new_val(
+                        self.cast_to_type(inner.val, target_type),
+                    )
                     .prepend_stmts(inner.stmts)
                     .merge_unsafe(inner.is_unsafe));
                 }
@@ -1352,6 +1377,17 @@ impl<'c> Translation<'c> {
                         | CastKind::PointerToBoolean
                 ) {
                     return self.convert_to_boolean(ctx, *expr);
+                }
+                // `(void)f(x)` discards the result of a call; it does not
+                // convert it.  The operand must be translated with no expected
+                // type at all, or the call lowering materializes its result
+                // "as" `void` and prints the call `void(f(x))` to a function
+                // that does not exist.
+                if matches!(cast_kind, CastKind::ToVoid) {
+                    let inner = self.convert_expr(ctx, *expr, None)?;
+                    return Ok(WithStmts::new_val(inner.val)
+                        .prepend_stmts(inner.stmts)
+                        .merge_unsafe(inner.is_unsafe));
                 }
                 let target_type = self.convert_type(ty.clone())?;
                 let source_is_bool = self.ast_context[*expr]
@@ -1455,21 +1491,24 @@ impl<'c> Translation<'c> {
                         .merge_unsafe(inner.is_unsafe));
                 }
                 // Pointer/integer/bitwise casts use reinterpret<T>(x) in daScript
-                let kind = if matches!(
+                let value = if matches!(
                     cast_kind,
                     CastKind::BitCast | CastKind::IntegralToPointer | CastKind::PointerToIntegral
                 ) {
-                    das_ast::CastKind::Reinterpret
+                    DaExpr::Cast {
+                        kind: das_ast::CastKind::Reinterpret,
+                        expr: Box::new(inner.val),
+                        to: target_type,
+                    }
                 } else {
-                    das_ast::CastKind::Cast
+                    // Everything left is a value conversion in C — including
+                    // `(some_enum_t)n`, which daScript can only express as a
+                    // reinterpretation.  `cast_to_type` decides which.
+                    self.cast_to_type(inner.val, target_type)
                 };
-                Ok(WithStmts::new_val(DaExpr::Cast {
-                    kind,
-                    expr: Box::new(inner.val),
-                    to: target_type,
-                })
-                .prepend_stmts(inner.stmts)
-                .merge_unsafe(inner.is_unsafe))
+                Ok(WithStmts::new_val(value)
+                    .prepend_stmts(inner.stmts)
+                    .merge_unsafe(inner.is_unsafe))
             }
 
             ImplicitValueInit(ty) => {
@@ -2356,6 +2395,23 @@ impl<'c> Translation<'c> {
                 right: Box::new(null),
             }));
         }
+        // A C enumeration in a condition tests its integer value, but a
+        // daScript `enum` is a type of its own: it has no truthiness and no
+        // implicit integer value.  The value is read in the enumeration's
+        // compatible integer type and compared against that type's zero, which
+        // is also correct for an enumeration that declares no zero enumerator.
+        if let CTypeKind::Enum(enum_id) = ty.kind {
+            let int_ty = self.enum_underlying_type(enum_id)?;
+            return Ok(val.map(|v| DaExpr::Op2 {
+                op: "!=",
+                left: Box::new(DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(v),
+                    to: int_ty.clone(),
+                }),
+                right: Box::new(zero_for_datype(&int_ty)),
+            }));
+        }
         if ty.kind.is_integral_type() {
             // If the expression is already boolean (Op2 comparison), skip adding `!= 0`.
             // Our !ptr fix generates `ptr == null` which is bool, but C type is `int`.
@@ -2853,6 +2909,23 @@ fn writable_type(mut ty: DaType) -> DaType {
     ty.is_ref = false;
     ty.is_temporary = false;
     ty
+}
+
+/// A daScript type with every qualifier dropped, a pointee's included.
+///
+/// C distinguishes `uint8_t *` from `const uint8_t *`; daScript accepts a
+/// `uint8?` wherever a `uint8 const?` is wanted and has no conversion between
+/// the two, so the qualifier cannot decide whether a cast has to be printed.
+fn unqualified_type(ty: &DaType) -> DaType {
+    let mut out = writable_type(ty.clone());
+    let pointee = match &out.kind {
+        DaTypeKind::Pointer(inner) => Some(unqualified_type(inner)),
+        _ => None,
+    };
+    if let Some(pointee) = pointee {
+        out.kind = DaTypeKind::Pointer(Box::new(pointee));
+    }
+    out
 }
 
 fn zero_for_datype(ty: &DaType) -> DaExpr {
@@ -3603,10 +3676,19 @@ fn translate_impl(
     // address — and before any initializer that points into it.
     module_decls.extend(literals::take_string_literal_declarations());
     module_decls.extend(builtins::take_builtin_helper_declarations());
-    // Function-scope `static` storage lowered while pass 2 walked the bodies.
-    // It must precede the functions that read it, and it is initialised once.
-    module_decls.extend(t.take_hoisted_statics());
-    module_decls.extend(value_decls);
+    // Function-scope `static` storage lowered while pass 2 walked the bodies
+    // joins the file-scope objects: both are module-level `var`s, and an
+    // initializer in either group may name one in the other.
+    //
+    // C orders these objects by source position and gives their initializers
+    // link-time constants, so an initializer may name an object defined later;
+    // daScript initializes them in declaration order and requires the named
+    // object to be declared first.  The Clang export hands us neither order,
+    // so the two groups are ordered together by their initializers'
+    // dependencies before they are emitted.
+    let mut ordered = t.take_hoisted_statics();
+    ordered.extend(value_decls);
+    module_decls.extend(global_order::order_value_declarations(ordered));
 
     // Build the daScript module
     let module = DaModule {

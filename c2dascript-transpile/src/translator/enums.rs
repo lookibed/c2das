@@ -31,6 +31,21 @@ impl<'c> Translation<'c> {
         })
     }
 
+    /// The daScript integer a value of this C enumeration is read as.
+    ///
+    /// A daScript `enum` is a distinct type with neither truthiness nor an
+    /// implicit numeric value, so every C context that treats an enumerator as
+    /// a number — a condition, `!`, a comparison against a plain integer — has
+    /// to spell the conversion, and the enumeration's own compatible integer
+    /// type is the only one that preserves each enumerator's value.
+    pub(crate) fn enum_underlying_type(&self, enum_id: CEnumId) -> TranslationResult<DaType> {
+        let integral_type = match self.ast_context[enum_id].kind {
+            CDeclKind::Enum { integral_type, .. } => integral_type,
+            _ => None,
+        };
+        self.enum_integral_type(integral_type)
+    }
+
     pub fn convert_enum(
         &self,
         enum_id: CEnumId,

@@ -164,6 +164,14 @@ impl<'c> Translation<'c> {
         // binary-expression owner, before the enclosing operator consumes it.
         let lhs_val = self.bool_to_integer(lhs_val);
         let rhs_val = self.bool_to_integer(rhs_val);
+        let (lhs_val, rhs_val) = if matches!(
+            op,
+            EqualEqual | NotEqual | Less | Greater | LessEqual | GreaterEqual
+        ) {
+            self.balance_boolean_comparison_operands(lhs_val, rhs_val)
+        } else {
+            (lhs_val, rhs_val)
+        };
 
         // Fallback: if LHS and RHS map to different daScript types, cast RHS to LHS type
         let type_diff =
@@ -398,6 +406,48 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new(stmts, tmp_var).merge_unsafe(is_unsafe))
     }
 
+    /// C has no boolean operand type: a relational, equality or logical
+    /// subexpression has type `int`, so `(a < b) == c` compares C's 0/1 value
+    /// against `c`.  daScript keeps a comparison's own result as `bool` and
+    /// has no `bool == int` at all, so a mixed pair materializes the boolean
+    /// side as C's number in the other operand's type before the comparison is
+    /// built.  Two boolean operands need nothing: `bool == bool` is exact.
+    fn balance_boolean_comparison_operands(
+        &self,
+        lhs: WithStmts<DaExpr>,
+        rhs: WithStmts<DaExpr>,
+    ) -> (WithStmts<DaExpr>, WithStmts<DaExpr>) {
+        fn is_bool(value: &DaExpr) -> bool {
+            Translation::infer_type(value)
+                .map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+        }
+        fn number_type(value: &DaExpr) -> Option<DaType> {
+            Translation::infer_type(value)
+                .map(writable_type)
+                .filter(|ty| ty.is_numeric() && !matches!(ty.kind, DaTypeKind::Bool))
+        }
+        let target = match (is_bool(&lhs.val), is_bool(&rhs.val)) {
+            (true, false) => number_type(&rhs.val),
+            (false, true) => number_type(&lhs.val),
+            _ => None,
+        };
+        let Some(target) = target else {
+            return (lhs, rhs);
+        };
+        let materialize = |value: WithStmts<DaExpr>| {
+            if !is_bool(&value.val) {
+                return value;
+            }
+            let is_unsafe = value.is_unsafe;
+            let mut stmts = value.stmts;
+            let (extra, materialized) =
+                self.materialize_bool_as_number(value.val, target.clone());
+            stmts.extend(extra);
+            WithStmts::new(stmts, materialized).merge_unsafe(is_unsafe)
+        };
+        (materialize(lhs), materialize(rhs))
+    }
+
     /// The one arithmetic lowering: both operands are raised to the common
     /// type the C usual arithmetic conversions select, and the daScript
     /// operator runs entirely in that type.
@@ -538,6 +588,15 @@ impl<'c> Translation<'c> {
             return Ok(lower_raw_store(stored, is_used));
         }
         if let Some((field, address)) = raw_member {
+            // C evaluates the assignment target once.  A compound assignment
+            // is a read-modify-write, so its address serves a load *and* a
+            // store and is materialized; a plain store uses the place once and
+            // only needs the address's own statements emitted ahead of it.
+            let (address_stmts, address) = if op == CBinOp::Assign {
+                self.hoist_address_stmts(address)
+            } else {
+                self.materialize_address(address)
+            };
             let rhs_id = rhs;
             let is_bitfield = matches!(
                 self.ast_context[field].kind,
@@ -636,7 +695,7 @@ impl<'c> Translation<'c> {
             } else {
                 self.raw_store(address, value)?
             };
-            return Ok(lower_raw_store(stored, is_used));
+            return Ok(lower_raw_store(stored, is_used).prepend_stmts(address_stmts));
         }
         let lhs_val = self.convert_lvalue_once(ctx, lhs, lhs_type_id)?;
 
@@ -1151,6 +1210,16 @@ impl<'c> Translation<'c> {
                 // daScript `!` works only on bool. For non-bool, generate `expr == 0` / `expr == null`.
                 let arg_ty_opt = self.ast_context[arg].kind.get_qual_type();
                 let val = self.convert_expr(ctx.used(), arg, arg_ty_opt)?;
+                // C types `!p`, `a < b` and `a && b` as `int`, but the value
+                // daScript holds for them is a `bool`, and `bool == 0` is not
+                // a comparison daScript has.  Negating the bool directly is
+                // both legal and exact; a consumer that wants C's 0/1 integer
+                // materializes it at its own use-site (`lower_to_c_value`).
+                if Self::infer_type(&val.val)
+                    .map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+                {
+                    return Ok(val.map(|v| mk().unary_op("!", v)));
+                }
                 if let Some(qty) = arg_ty_opt {
                     if self.is_pointer_type(qty.ctype) {
                         let null = self.null_for_type(qty)?;
@@ -1181,19 +1250,22 @@ impl<'c> Translation<'c> {
                             right: Box::new(zero),
                         }));
                     }
-                    if matches!(resolved_kind, CTypeKind::Enum(_)) {
+                    // `!e` on an enumeration tests its integer value.  A
+                    // daScript enum has no numeric value of its own, and only
+                    // the enumeration's compatible integer type is wide enough
+                    // to hold every enumerator: a fixed `uint` would fold a
+                    // 64-bit enumerator's high half away and report `!e` true
+                    // for a non-zero value.
+                    if let CTypeKind::Enum(enum_id) = resolved_kind {
+                        let int_ty = self.enum_underlying_type(enum_id)?;
                         return Ok(val.map(|v| DaExpr::Op2 {
                             op: "==",
                             left: Box::new(DaExpr::Cast {
                                 kind: das_ast::CastKind::Cast,
                                 expr: Box::new(v),
-                                to: DaType::uint(),
+                                to: int_ty.clone(),
                             }),
-                            right: Box::new(DaExpr::Cast {
-                                kind: das_ast::CastKind::Cast,
-                                expr: Box::new(DaExpr::ConstInt(0)),
-                                to: DaType::uint(),
-                            }),
+                            right: Box::new(zero_for_datype(&int_ty)),
                         }));
                     }
                 }
@@ -1320,6 +1392,9 @@ impl<'c> Translation<'c> {
         // reading one materializes a value, so `f++` has to write the result
         // back through the object-memory store rather than assign to the read.
         if let Some((field, address)) = self.address_backed_member_place(ctx, arg)? {
+            // The read and the write-back are the same place, and C evaluates
+            // it once: hoist the address out so neither half re-emits it.
+            let (address_stmts, address) = self.materialize_address(address);
             let is_bitfield = matches!(
                 self.ast_context[field].kind,
                 CDeclKind::Field {
@@ -1350,7 +1425,9 @@ impl<'c> Translation<'c> {
             let store_unsafe = stored.is_unsafe;
             stmts.extend(stored.stmts);
             let result = if is_post { old } else { new_value };
-            return Ok(WithStmts::new(stmts, result).merge_unsafe(is_unsafe || store_unsafe));
+            return Ok(WithStmts::new(stmts, result)
+                .prepend_stmts(address_stmts)
+                .merge_unsafe(is_unsafe || store_unsafe));
         }
         let place = self.convert_lvalue_once(ctx, arg, arg_ty)?;
         let new_value =
@@ -1648,11 +1725,10 @@ impl<'c> Translation<'c> {
                     | CTypeKind::Int16
             );
         if needs_cast {
-            DaExpr::Cast {
-                kind: das_ast::CastKind::Cast,
-                expr: Box::new(expr),
-                to: target_da_type.clone(),
-            }
+            // A C enumeration is an integral type here, and daScript has no
+            // conversion into one: `cast_to_type` spells that crossing as the
+            // reinterpretation it is, and every other target as a conversion.
+            self.cast_to_type(expr, target_da_type.clone())
         } else {
             expr
         }

@@ -488,7 +488,11 @@ impl CfgBuilder {
         }
         let ws = tr.convert_expr(ctx.unused(), eid, None)?;
         out.extend(ws.stmts.into_iter().map(StmtOrDecl::Stmt));
-        out.push(StmtOrDecl::Stmt(DaStmt::Expr(ws.val)));
+        // The value of an expression statement is discarded.  A value with no
+        // side effect of its own — what `(void)x;` and a hoisted `x++` leave
+        // behind — has nothing left to emit, so it is dropped rather than
+        // printed as a statement that only names a variable.
+        out.extend(tr.discard_value_stmt(ws.val).map(StmtOrDecl::Stmt));
         Ok(())
     }
 

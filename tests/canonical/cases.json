@@ -629,6 +629,22 @@
         "exit_code": 0
       },
       "runtime": "required"
+    },
+    {
+      "id": "p66-global-init-order", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p66_global_init_order.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "global_init_order_runtime", "return_type": "int" }, "das_entrypoint": "global_init_order_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p68-nested-place-rmw", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p68_nested_place_rmw.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "nested_place_rmw_runtime", "return_type": "int" }, "das_entrypoint": "nested_place_rmw_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p67-bool-context-enum-void", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p67_bool_context_enum_void.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "bool_context_enum_void_runtime", "return_type": "int" }, "das_entrypoint": "bool_context_enum_void_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p69-typedef-numeric-casts", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p69_typedef_numeric_casts.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "typedef_numeric_casts_runtime", "return_type": "int" }, "das_entrypoint": "typedef_numeric_casts_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
     }
   ]
 }

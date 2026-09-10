@@ -298,6 +298,101 @@ impl<'c> Translation<'c> {
         })
     }
 
+    /// Take an address-backed place's statements out of the address itself.
+    ///
+    /// A `CObjectAddress` is a recipe, not a value: its `raw` may carry
+    /// statements — a nested aggregate reached through a pointer binds the
+    /// intermediate pointer to a `var`, and `p[i]` on a raw record binds the
+    /// element address.  Every use of the address re-emits them, so an
+    /// operation that uses one address twice declares the same `var` name
+    /// twice.  Hand those statements back to the caller, which emits them once
+    /// ahead of the operation, and leave an address whose `raw` is
+    /// statement-free.
+    ///
+    /// The address expression itself is untouched, so a place used exactly
+    /// once (an ordinary store) is emitted exactly as before.
+    pub(crate) fn hoist_address_stmts(
+        &self,
+        address: CObjectAddress,
+    ) -> (Vec<DaStmt>, CObjectAddress) {
+        let CObjectAddress {
+            raw,
+            raw_is_address,
+            ctype,
+            byte_offset,
+            storage_size_bytes,
+        } = address;
+        let WithStmts {
+            stmts,
+            val,
+            is_unsafe,
+        } = raw;
+        (
+            stmts,
+            CObjectAddress {
+                raw: WithStmts::new_val(val).merge_unsafe(is_unsafe),
+                raw_is_address,
+                ctype,
+                byte_offset,
+                storage_size_bytes,
+            },
+        )
+    }
+
+    /// Evaluate an address-backed place's address exactly once, for an
+    /// operation that reads and writes it.
+    ///
+    /// `p->f += x`, `p->f++` and every bitfield store are read-modify-writes:
+    /// the load and the store are the *same* C lvalue, which C evaluates once.
+    /// Beyond hoisting the address's statements, the address expression is
+    /// bound to a temporary unless spelling it again is free of effects — a
+    /// call must not run twice, and a dereference must not be re-read across
+    /// the very store it serves.
+    ///
+    /// An address that already had no statements and names its place through
+    /// a variable is returned untouched, so the emitted code is unchanged for
+    /// it.
+    pub(crate) fn materialize_address(
+        &self,
+        address: CObjectAddress,
+    ) -> (Vec<DaStmt>, CObjectAddress) {
+        let (mut stmts, address) = self.hoist_address_stmts(address);
+        if raw_address_is_reevaluable(&address.raw.val) {
+            return (stmts, address);
+        }
+        // The place is kept in its raw byte form: that type is known here
+        // without consulting the C type of whatever produced the address.
+        let CObjectAddress {
+            raw,
+            raw_is_address,
+            ctype,
+            byte_offset,
+            storage_size_bytes,
+        } = address;
+        let tmp = self.renamer.borrow_mut().fresh();
+        let is_unsafe = raw.is_unsafe;
+        let byte_address = if raw_is_address {
+            raw.val
+        } else {
+            self.pointer_to_raw_address(raw.val)
+        };
+        stmts.push(DaStmt::Var {
+            name: tmp.clone(),
+            var_type: DaType::uint64(),
+            init: Some(byte_address),
+        });
+        (
+            stmts,
+            CObjectAddress {
+                raw: WithStmts::new_val(DaExpr::Var(tmp)).merge_unsafe(is_unsafe),
+                raw_is_address: true,
+                ctype,
+                byte_offset,
+                storage_size_bytes,
+            },
+        )
+    }
+
     /// Return an assignable daScript lvalue for an aligned scalar/pointer C
     /// field. Packed, bitfield and aggregate access deliberately fail until
     /// their respective object-memory lowerings exist.
@@ -627,6 +722,9 @@ impl<'c> Translation<'c> {
         if width == 0 || width > 63 {
             return Err(TranslationError::generic("unsupported C bitfield width"));
         }
+        // A bitfield store is a read-modify-write, so the address serves both
+        // halves and must be evaluated once for them.
+        let (address_stmts, address) = self.materialize_address(address);
         let storage = self.raw_load(address.clone())?;
         // The read-modify-write is performed in the field's own storage type.
         // Every constant is built in that type too: daScript has no implicit
@@ -682,7 +780,7 @@ impl<'c> Translation<'c> {
             }),
         });
         self.raw_store(address, new_storage)
-            .map(|stored| stored.map(|_| value_expr))
+            .map(|stored| stored.map(|_| value_expr).prepend_stmts(address_stmts))
     }
 
     pub(crate) fn pointer_member_address(
@@ -762,5 +860,22 @@ impl<'c> Translation<'c> {
         } else {
             self.raw_load(address)
         }
+    }
+}
+
+/// Whether an address expression can be spelled a second time without
+/// changing what the program does.
+///
+/// A name and pure reinterpretations of it are the whole of it: a call has
+/// effects, and a dereference or a subscript reads memory the very store this
+/// address serves may overwrite.  Anything else is bound to a temporary by
+/// `materialize_address` rather than repeated.
+fn raw_address_is_reevaluable(expr: &DaExpr) -> bool {
+    match expr {
+        DaExpr::Var(_) | DaExpr::ConstNull | DaExpr::ConstInt(_) | DaExpr::ConstUInt(_) => true,
+        DaExpr::Field(base, _) | DaExpr::SafeField(base, _) => raw_address_is_reevaluable(base),
+        DaExpr::Unsafe(inner) => raw_address_is_reevaluable(inner),
+        DaExpr::Cast { expr, .. } => raw_address_is_reevaluable(expr),
+        _ => false,
     }
 }

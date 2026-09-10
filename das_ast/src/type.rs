@@ -60,6 +60,11 @@ impl DaType {
                 | DaTypeKind::Float
                 | DaTypeKind::Double
         ) || matches!(&self.kind, DaTypeKind::Named(n) if matches!(
+            // The translator resolves every scalar typedef to its builtin, so
+            // none of these names should reach a `DaType` at all.  The list
+            // stays as a backstop: if one ever does, it must still be read as
+            // a number, because the alternative — treating a named type as
+            // opaque — is a bit reinterpretation that reads the wrong width.
             // Only the C standard integer aliases belong here. A name taken
             // from one particular corpus is not a language fact and must never
             // decide how a cast is printed.
