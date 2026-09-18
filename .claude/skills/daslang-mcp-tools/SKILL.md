@@ -43,23 +43,28 @@ project; keep it that way when editing.
   `c2rust-ast-exporter/src`. The `cpp_*` index covers the whole served tree, so
   `cpp_goto_definition` (needs `file`, `symbol`, `line`, `column`) finds the
   `TranslateConsumer` class and constructor in `AstExporter.cpp`.
-- `cpp_compile_check` and `cpp_build_info` probe the toolchain's
-  `build/compile_commands.json` by default (`cpp_status` shows that path), so
-  without `build_dir` they answer
-  `no compile DB entry` for c2das sources. The exporter's cargo build configures
-  CMake with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`, so pass that database as
-  `build_dir` (a directory or the JSON file itself, absolute):
+- `cpp_compile_check` and `cpp_build_info` probe `build/`, `build-ninja/` and
+  `build*/` under `/root/c2das` by default; c2das has no such directory, so without
+  `build_dir` they answer `No compile_commands.json found`. The exporter's cargo
+  build configures CMake with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`, so pass that
+  database as `build_dir` (a directory or the JSON file itself, relative or
+  absolute):
 
   ```
-  find /root/c2das/target -path '*c2rust-ast-exporter-*/out/build/compile_commands.json'
+  find target -path '*c2rust-ast-exporter-*/out/build/compile_commands.json'
   ```
 
   The hash in the path changes on rebuilds, so look it up rather than hard-coding
   it. Observed with `build_dir` set to the release database: `cpp_compile_check`
   on `c2rust-ast-exporter/src/AstExporter.cpp` answers `Compile check OK`, and
   `cpp_build_info` prints the `/usr/bin/c++ ... -std=c++17` command from that DB.
-- `cpp_format_file` is a no-op because `clang-format` is not installed and c2das
-  has no `.clang-format` (`cpp_status` reports the missing binary).
+- `cpp_format_file` formats in place with the root `.clang-format` (LLVM style,
+  4-space indent); `cpp_status` reports `clang-format` from `/root/.local/bin`.
+  Observed on a copy of `tests/syntax/p11_function_pointer_decay.c`: status
+  `formatted`, `message: formatted in place using style from ../c2das/.clang-format`.
+  It rewrites the file it is given (the probe's three-line function collapsed to
+  one line), so do not point it at tracked C inputs under `tests/` unless a
+  reformat of that file is the intent.
 - Files outside `/root/c2das` (for example the session scratchpad) get a
   CROSS-TREE WARNING from every file tool; the result is still produced.
 - The MCP results are development aids. `scripts/run_c2das_cases.py` with the real
