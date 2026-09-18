@@ -43,21 +43,16 @@ project; keep it that way when editing.
   `c2rust-ast-exporter/src`. The `cpp_*` index covers the whole served tree, so
   `cpp_goto_definition` (needs `file`, `symbol`, `line`, `column`) finds the
   `TranslateConsumer` class and constructor in `AstExporter.cpp`.
-- `cpp_compile_check` and `cpp_build_info` probe `build/`, `build-ninja/` and
-  `build*/` under `/root/c2das` by default; c2das has no such directory, so without
-  `build_dir` they answer `No compile_commands.json found`. The exporter's cargo
-  build configures CMake with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`, so pass that
-  database as `build_dir` (a directory or the JSON file itself, relative or
-  absolute):
-
-  ```
-  find target -path '*c2rust-ast-exporter-*/out/build/compile_commands.json'
-  ```
-
-  The hash in the path changes on rebuilds, so look it up rather than hard-coding
-  it. Observed with `build_dir` set to the release database: `cpp_compile_check`
-  on `c2rust-ast-exporter/src/AstExporter.cpp` answers `Compile check OK`, and
-  `cpp_build_info` prints the `/usr/bin/c++ ... -std=c++17` command from that DB.
+- `cpp_compile_check` and `cpp_build_info` work without `build_dir`: the exporter's
+  `build.rs` copies the CMake compile database of every `c2rust-ast-exporter` build
+  to `build/compile_commands.json` at the repo root (gitignored), which is the first
+  place the tools probe. Observed after `cargo build -p c2rust-ast-exporter`:
+  `cpp_status` reports `compile DB: /root/c2das/build/compile_commands.json`,
+  `cpp_compile_check` on `c2rust-ast-exporter/src/AstExporter.cpp` answers
+  `Compile check OK`, and `cpp_build_info` prints the `/usr/bin/c++ ... -std=c++17`
+  command. On a fresh clone the file exists only after the first exporter build;
+  until then the tools answer `No compile_commands.json found`. `build_dir` still
+  overrides (a directory or the JSON file, relative or absolute).
 - `cpp_format_file` formats in place with the root `.clang-format` (LLVM style,
   4-space indent); `cpp_status` reports `clang-format` from `/root/.local/bin`.
   Observed on a copy of `tests/syntax/p11_function_pointer_decay.c`: status

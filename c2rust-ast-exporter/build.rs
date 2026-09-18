@@ -158,6 +158,8 @@ fn build_native(llvm_info: &LLVMInfo) {
 
             let out_dir = dst.display();
 
+            publish_compile_db(&dst.join("build"));
+
             let exporter_bin = dst.join("build").join(if cfg!(windows) {
                 "c2rust-ast-exporter.exe"
             } else {
@@ -274,6 +276,41 @@ fn build_native(llvm_info: &LLVMInfo) {
         println!("cargo:rustc-link-lib=c++");
     } else {
         println!("cargo:rustc-link-lib=stdc++");
+    }
+}
+
+/// Copy the CMake compile database of the exporter build to
+/// `<workspace root>/build/compile_commands.json`.
+///
+/// `CMakeLists.txt` sets `CMAKE_EXPORT_COMPILE_COMMANDS`, but the database
+/// lands in cargo's hashed `OUT_DIR`, which C++ tooling (the daslang MCP
+/// `cpp_compile_check` / `cpp_build_info`, clangd) does not probe; they look
+/// for `build/compile_commands.json` under the repository root. The entries
+/// carry absolute paths, so a verbatim copy stays valid until the next
+/// build refreshes it. Both `/build` and `**/compile_commands.json` are
+/// gitignored. Failure to publish never fails the build.
+fn publish_compile_db(cmake_build_dir: &Path) {
+    let source = cmake_build_dir.join("compile_commands.json");
+    if !source.is_file() {
+        return;
+    }
+    let Some(workspace_root) = env::var_os("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .and_then(|manifest_dir| manifest_dir.parent().map(Path::to_path_buf))
+    else {
+        return;
+    };
+    let target_dir = workspace_root.join("build");
+    let target = target_dir.join("compile_commands.json");
+    let published =
+        std::fs::create_dir_all(&target_dir).and_then(|_| std::fs::copy(&source, &target));
+    if let Err(e) = published {
+        println!(
+            "cargo:warning=could not publish {} to {}: {}",
+            source.display(),
+            target.display(),
+            e
+        );
     }
 }
 
