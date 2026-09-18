@@ -20,12 +20,23 @@
 //! 4. **Dead-tail repair** — a label that no executable statement follows is
 //!    turned back into a plain `return`; see [`dead_tail_labels`].
 //!
-//! Everything a block declares lands in the function's own scope, so no
-//! declaration hoisting is required: daScript scopes a `var` to its enclosing
-//! block, and here that block is the function body.
+//! Everything a block declares lands in the function's own scope: daScript
+//! scopes a `var` to its enclosing block, and here that block is the function
+//! body.  Two kinds of declaration still get hoisted to the top of that body,
+//! for two different readers:
+//!
+//! * C declarations, in [`render`] step 1, because C gives a block-scope object
+//!   storage for the whole block however control enters it;
+//! * the translator's own site temporaries (`c2da_fresh*`, `___inl*_res`,
+//!   `__c2da_postinc_*`, ...), in [`hoist_site_temporaries`], because daslang's
+//!   AOT emits a `var` as a C++ declaration at the same position, and C++
+//!   forbids a `goto` that jumps forward past an initialised declaration in the
+//!   same scope (`error: cannot jump from this goto statement to its label`).
+//!   The interpreter, the JIT and `-exe` never minded; AOT is a fourth back end
+//!   of the same text and has to compile too.
 
 use super::*;
-use das_ast::{DaBlock, DaExpr, DaStmt};
+use das_ast::{DaBlock, DaExpr, DaStmt, DaTypeKind};
 
 /// What has to be emitted after a block's own statements.
 enum Tail {
@@ -126,6 +137,7 @@ pub(crate) fn render(
         })
     };
 
+    let hoisted_len = hoisted.len();
     let mut out: Vec<DaStmt> = hoisted;
     for (index, label) in order.iter().enumerate() {
         if label_ids.contains_key(label) {
@@ -192,12 +204,129 @@ pub(crate) fn render(
         )));
     }
 
-    // Step 4: repair labels daScript would leave dangling at the end of the body.
+    // Step 4: a body with jumps in it must also be valid C++ once daslang's AOT
+    // has emitted it; see `hoist_site_temporaries`.
+    if !label_ids.is_empty() {
+        hoist_site_temporaries(&mut out, hoisted_len);
+    }
+
+    // Step 5: repair labels daScript would leave dangling at the end of the body.
     for label in dead_tail_labels(&out) {
         retarget_to_return(&mut out, &label);
     }
 
     Ok(out)
+}
+
+/// Move every `var` the statement lowering left at its use site to the top of
+/// the body, keeping only the assignment where the declaration was.
+///
+/// Statement lowering hands each block a prologue of temporaries — the value
+/// of a `&&` chain, an inlined callee's result, a post-increment's old value —
+/// as `var name : T = init` right before the statement that uses them.  Under
+/// the interpreter, the JIT and `-exe` that is fine anywhere in the body.
+/// daslang's AOT, though, prints the body as C++ with the same layout, and C++
+/// rejects a `goto` whose label lies past an initialised declaration of the
+/// same scope, so a function with a single forward jump over such a temporary
+/// fails to compile ahead of time.  Splitting the declaration the way step 1
+/// already splits C declarations — `var name : T` at the top, `name = init` at
+/// the site — makes the jump legal without changing what runs: the site still
+/// stores the same value at the same moment, and a hoisted `T` default is the
+/// value the object had anyway before its first store.
+///
+/// Nested blocks are visited too: a structured region the relooper kept
+/// inside a jump-rendered body (an `if` arm or a `while` body with statements
+/// of its own) declares its temporaries at its own level, and a jump inside
+/// that region past one of them is the same C++ error.  Every name is already
+/// unique in the function (the renamer sees to that), so moving a declaration
+/// up a few scopes cannot capture or shadow anything.  The hoisted `var`
+/// carries the type's default value — the same `default_initializer_for_datype`
+/// the C declarations get — because daslang refuses an uninitialised `var` of
+/// a record type outright.
+///
+/// A `var` without an explicit type or with a reference type is left alone —
+/// it could not be redeclared without its initializer — and so is a container
+/// initializer, whose declaration-only spelling differs from its assignment
+/// spelling (`typed_initializer_text` in `das_ast`).
+fn hoist_site_temporaries(out: &mut Vec<DaStmt>, at: usize) {
+    let mut declarations: Vec<DaStmt> = Vec::new();
+    let body: Vec<DaStmt> = out.drain(at..).collect();
+    let body = hoist_in_stmts(body, &mut declarations);
+    out.extend(declarations);
+    out.extend(body);
+}
+
+fn hoist_in_stmts(stmts: Vec<DaStmt>, declarations: &mut Vec<DaStmt>) -> Vec<DaStmt> {
+    let mut result: Vec<DaStmt> = Vec::with_capacity(stmts.len());
+    for stmt in stmts {
+        match stmt {
+            DaStmt::Var {
+                name,
+                var_type,
+                init,
+            } if hoistable(&var_type, init.as_ref()) => {
+                let mut declared = var_type.clone();
+                declared.is_const = false;
+                let default = crate::translator::default_initializer_for_datype(&declared);
+                declarations.push(DaStmt::Var {
+                    name: name.clone(),
+                    var_type: declared,
+                    init: Some(default),
+                });
+                if let Some(value) = init {
+                    result.push(DaStmt::Expr(DaExpr::Assign(
+                        Box::new(DaExpr::Var(name)),
+                        Box::new(value),
+                    )));
+                }
+            }
+            DaStmt::Expr(expr) => result.push(DaStmt::Expr(hoist_in_expr(expr, declarations))),
+            other => result.push(other),
+        }
+    }
+    result
+}
+
+fn hoist_in_expr(expr: DaExpr, declarations: &mut Vec<DaStmt>) -> DaExpr {
+    match expr {
+        DaExpr::Block(block) => DaExpr::Block(DaBlock {
+            stmts: hoist_in_stmts(block.stmts, declarations),
+        }),
+        DaExpr::IfThenElse {
+            cond,
+            then,
+            elifs,
+            else_,
+        } => DaExpr::IfThenElse {
+            cond,
+            then: Box::new(hoist_in_expr(*then, declarations)),
+            elifs: elifs
+                .into_iter()
+                .map(|(test, arm)| (test, hoist_in_expr(arm, declarations)))
+                .collect(),
+            else_: else_.map(|arm| Box::new(hoist_in_expr(*arm, declarations))),
+        },
+        DaExpr::While(cond, body) => {
+            DaExpr::While(cond, Box::new(hoist_in_expr(*body, declarations)))
+        }
+        other => other,
+    }
+}
+
+fn hoistable(var_type: &das_ast::DaType, init: Option<&DaExpr>) -> bool {
+    if var_type.is_ref {
+        return false;
+    }
+    if matches!(
+        var_type.kind,
+        DaTypeKind::Auto | DaTypeKind::Array(_) | DaTypeKind::FixedArray(_, _)
+    ) {
+        return false;
+    }
+    !matches!(
+        init,
+        Some(DaExpr::MakeArray(_)) | Some(DaExpr::MakeFixedArray { .. })
+    )
 }
 
 /// Labels that no executable statement follows, and which daScript therefore

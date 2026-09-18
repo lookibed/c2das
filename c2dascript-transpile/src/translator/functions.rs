@@ -830,7 +830,10 @@ pub(crate) fn normalize_array_initializer_for_type(expr: DaExpr, ty: &DaType) ->
     )
 }
 
-fn default_initializer_for_datype(ty: &DaType) -> DaExpr {
+/// The value a hoisted declaration starts with: a record's constructor call,
+/// otherwise the type's zero.  Shared with `cfg::labels`, which hoists the
+/// statement lowering's site temporaries the same way.
+pub(crate) fn default_initializer_for_datype(ty: &DaType) -> DaExpr {
     match &ty.kind {
         DaTypeKind::Named(name) => DaExpr::Call(Box::new(DaExpr::Var(name.clone())), vec![]),
         _ => zero_for_datype(ty),

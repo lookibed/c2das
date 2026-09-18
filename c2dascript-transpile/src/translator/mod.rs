@@ -46,6 +46,7 @@ mod structs_unions;
 pub(crate) mod value_lowering;
 mod variadic;
 
+pub(crate) use self::functions::default_initializer_for_datype;
 use self::value_lowering::ValueSite;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
