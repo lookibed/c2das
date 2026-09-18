@@ -2,7 +2,7 @@
 
 | Corpus | Source revision | Status | Canonical case | Last verified | Acceptance gate |
 |---|---|---|---|---|---|
-| PLMPEG stream | vendored under `tests/manual/real-world-plmpeg-stream/upstream` (no `UPSTREAM.md`; add one when the revision is next refreshed) | ready | `plmpeg-stream` in `tests/canonical/cases.json`, graph `plmpeg-target`, entry `src/all.c` | 2026-09-18 on master after `e6cd45993`: `scripts/run_c2das_cases.py --case plmpeg-stream` → `PASS plmpeg-stream: C reference == fresh daScript` | canonical graph → transpile → WSL `daslang` result equals C reference |
+| PLMPEG stream | `tests/manual/real-world-plmpeg-stream/UPSTREAM.md`: pl_mpeg `c871f2be` (byte-identical to the vendored header) | ready | `plmpeg-stream` in `tests/canonical/cases.json`, graph `plmpeg-target`, entry `src/all.c` | 2026-09-18 on master after `e6cd45993`: `scripts/run_c2das_cases.py --case plmpeg-stream` → `PASS plmpeg-stream: C reference == fresh daScript` | canonical graph → transpile → WSL `daslang` result equals C reference |
 | h264bsd + minimp4 | `tests/manual/real-world-h264bsd-mp4/UPSTREAM.md`: h264bsd `42bcb5d7`, minimp4 `4575afb4` | ready | `h264bsd-mp4` in `tests/canonical/cases.json`, graph `h264bsd-mp4`, entry `src/all.c` | 2026-09-18 on master after `e6cd45993`: `scripts/run_c2das_cases.py --case h264bsd-mp4` → `PASS h264bsd-mp4: C reference == fresh daScript` | canonical graph → transpile → WSL `daslang` result equals C reference |
 
 Both corpora were already `ready` in the `c2das-v0.1.0` release (2026-09-10); its
