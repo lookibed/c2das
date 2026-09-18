@@ -102,10 +102,13 @@ def records(catalog: dict) -> dict:
     graphs = {graph["id"]: graph for graph in catalog["graph"]}
     overrides = {item["path"]: item for item in catalog.get("override", [])}
     canonical_cases = load_canonical_cases()
-    canonical_by_source = {
-        f"{case['source_root'].rstrip('/')}/{case['translation_entry']}": case
-        for case in canonical_cases.values()
-    }
+    # One C graph may back several canonical cases (different entries and
+    # program arguments over the same translation); the registry fixture
+    # mirrors the first case in manifest order and lists every case by id.
+    canonical_by_source: dict[str, list[dict]] = {}
+    for case in canonical_cases.values():
+        source = f"{case['source_root'].rstrip('/')}/{case['translation_entry']}"
+        canonical_by_source.setdefault(source, []).append(case)
     seen: dict[str, str] = {}
     fixtures: list[dict] = []
 
@@ -124,7 +127,7 @@ def records(catalog: dict) -> dict:
             seen[path] = family["id"]
             override = overrides.get(path)
             if override is None and path in canonical_by_source:
-                override = derived_override(canonical_by_source[path])
+                override = derived_override(canonical_by_source[path][0])
             override = override or {}
             entrypoint = override.get("entrypoint", family["entrypoint"])
             fixture = {
@@ -152,6 +155,8 @@ def records(catalog: dict) -> dict:
             }
             if "canonical_case" in override:
                 fixture["canonical_case"] = override["canonical_case"]
+            if path in canonical_by_source:
+                fixture["canonical_cases"] = [case["id"] for case in canonical_by_source[path]]
             fixtures.append(fixture)
 
     audited_roots = ("tests/syntax", "tests/unit", "tests/manual", "tests/production", "c2dascript-transpile/tests/snapshots")
@@ -183,11 +188,12 @@ def records(catalog: dict) -> dict:
                     f"{fixture['source']}: missing canonical case {fixture['canonical_case']}"
                 )
 
-    fixture_by_case = {
-        fixture["canonical_case"]: fixture
-        for fixture in fixtures
-        if "canonical_case" in fixture
-    }
+    fixture_by_case: dict[str, dict] = {}
+    for fixture in fixtures:
+        for case_id in fixture.get("canonical_cases", []):
+            fixture_by_case[case_id] = fixture
+        if "canonical_case" in fixture:
+            fixture_by_case.setdefault(fixture["canonical_case"], fixture)
     for case_id, case in canonical_cases.items():
         fixture = fixture_by_case.get(case_id)
         if fixture is None:
@@ -197,6 +203,13 @@ def records(catalog: dict) -> dict:
             raise ValueError(f"{case_id}: manifest source disagrees with registry fixture")
         if fixture["c_graph"] != case["c_graph"]:
             raise ValueError(f"{case_id}: manifest C graph disagrees with registry fixture")
+        if fixture.get("canonical_case") != case_id:
+            # A secondary case over the same graph: it shares the fixture's
+            # graph and status, but keeps its own entry and oracle in the
+            # manifest, which the runner reads directly.
+            if case.get("status") == "ready" and fixture["status"] != "supported":
+                raise ValueError(f"{case_id}: ready canonical case has no supported registry fixture")
+            continue
         exporter_failure = case.get("expected_exporter_failure")
         if exporter_failure is not None:
             if case.get("status") != "known-red" or fixture["status"] != "known-red":

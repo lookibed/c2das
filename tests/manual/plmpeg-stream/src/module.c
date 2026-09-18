@@ -554,17 +554,24 @@ static void frames_release(void) {
     frames_hash = 0u;
 }
 
-int32_t plmpeg_frames_begin(void) {
+/* Open a session over caller-owned bytes (an entry that read a fixture file).
+ * The caller's buffer must not live in the fixture heap: c2da_rt_reset()
+ * rewinds that heap and the working copy taken here would overlap it. */
+int32_t plmpeg_frames_begin_bytes(const uint8_t *source, int32_t length) {
     uint8_t *bytes = 0;
 
     frames_release();
+    if (!source || length <= 0) {
+        return 0;
+    }
     c2da_rt_reset();
-    bytes = sample_copy();
+    bytes = (uint8_t *)malloc((size_t)length);
     if (!bytes) {
         return 0;
     }
+    memcpy(bytes, source, (size_t)length);
 
-    frames_video = create_decoder(bytes, (size_t)sample_mpg_len);
+    frames_video = create_decoder(bytes, (size_t)length);
     if (!frames_video) {
         return 0;
     }
@@ -584,6 +591,10 @@ int32_t plmpeg_frames_begin(void) {
     }
 
     return 1;
+}
+
+int32_t plmpeg_frames_begin(void) {
+    return plmpeg_frames_begin_bytes(sample_mpg_bytes, (int32_t)sample_mpg_len);
 }
 
 int32_t plmpeg_frames_next(void) {

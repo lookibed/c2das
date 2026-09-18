@@ -1095,6 +1095,10 @@
     {
       "c_graph": "h264bsd-mp4",
       "canonical_case": "h264bsd-mp4",
+      "canonical_cases": [
+        "h264bsd-mp4",
+        "h264bsd-mp4-640x360"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -1172,6 +1176,58 @@
       "owner": "corpus graph inventory",
       "runtime": "unverified",
       "source": "tests/manual/h264bsd-mp4/src/h264_bench_entry.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "checked_in_das": "tests/manual/h264bsd-mp4/src/h264_file_bench_entry.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-w",
+          "-Iinclude",
+          "-Iupstream/h264bsd/src",
+          "-Iupstream/minimp4",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "h264bsd-mp4",
+      "id": "tests--manual--h264bsd-mp4--src--h264_file_bench_entry",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/h264bsd-mp4/src/h264_file_bench_entry.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-w",
+          "-Iinclude",
+          "-Iupstream/h264bsd/src",
+          "-Iupstream/minimp4",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "h264bsd-mp4",
+      "id": "tests--manual--h264bsd-mp4--src--h264_file_reference_entry",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/h264bsd-mp4/src/h264_file_reference_entry.c",
       "status": "inventory-only"
     },
     {
@@ -1307,6 +1363,10 @@
     {
       "c_graph": "plmpeg-target",
       "canonical_case": "plmpeg-stream",
+      "canonical_cases": [
+        "plmpeg-stream",
+        "plmpeg-stream-320x240"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -1462,6 +1522,58 @@
       "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
       "source": "tests/manual/plmpeg-stream/src/plmpeg_bench_entry.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": "tests/manual/plmpeg-stream/src/plmpeg_file_bench_entry.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--plmpeg-stream--src--plmpeg_file_bench_entry",
+      "owner": "corpus graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/plmpeg-stream/src/plmpeg_file_bench_entry.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--plmpeg-stream--src--plmpeg_file_reference_entry",
+      "owner": "corpus graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/plmpeg-stream/src/plmpeg_file_reference_entry.c",
       "status": "known-red"
     },
     {
@@ -2054,6 +2166,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c01-complex",
+      "canonical_cases": [
+        "legacy-c01-complex"
+      ],
       "checked_in_das": "tests/syntax/c01_complex.das",
       "clang": {
         "compile_commands": null,
@@ -2078,6 +2193,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c01-const-int",
+      "canonical_cases": [
+        "legacy-c01-const-int"
+      ],
       "checked_in_das": "tests/syntax/c01_const_int.das",
       "clang": {
         "compile_commands": null,
@@ -2102,6 +2220,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c02-const-ptr",
+      "canonical_cases": [
+        "legacy-c02-const-ptr"
+      ],
       "checked_in_das": "tests/syntax/c02_const_ptr.das",
       "clang": {
         "compile_commands": null,
@@ -2126,6 +2247,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c03-ptr-to-const",
+      "canonical_cases": [
+        "legacy-c03-ptr-to-const"
+      ],
       "checked_in_das": "tests/syntax/c03_ptr_to_const.das",
       "clang": {
         "compile_commands": null,
@@ -2150,6 +2274,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c04-const-array",
+      "canonical_cases": [
+        "legacy-c04-const-array"
+      ],
       "checked_in_das": "tests/syntax/c04_const_array.das",
       "clang": {
         "compile_commands": null,
@@ -2174,6 +2301,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c05-const-struct-ptr",
+      "canonical_cases": [
+        "legacy-c05-const-struct-ptr"
+      ],
       "checked_in_das": "tests/syntax/c05_const_struct_ptr.das",
       "clang": {
         "compile_commands": null,
@@ -2198,6 +2328,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c06-const-chain",
+      "canonical_cases": [
+        "legacy-c06-const-chain"
+      ],
       "checked_in_das": "tests/syntax/c06_const_chain.das",
       "clang": {
         "compile_commands": null,
@@ -2222,6 +2355,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c07-const-assign",
+      "canonical_cases": [
+        "legacy-c07-const-assign"
+      ],
       "checked_in_das": "tests/syntax/c07_const_assign.das",
       "clang": {
         "compile_commands": null,
@@ -2246,6 +2382,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c08-const-static",
+      "canonical_cases": [
+        "legacy-c08-const-static"
+      ],
       "checked_in_das": "tests/syntax/c08_const_static.das",
       "clang": {
         "compile_commands": null,
@@ -2270,6 +2409,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c09-const-multi",
+      "canonical_cases": [
+        "legacy-c09-const-multi"
+      ],
       "checked_in_das": "tests/syntax/c09_const_multi.das",
       "clang": {
         "compile_commands": null,
@@ -2294,6 +2436,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c10-const-mixed",
+      "canonical_cases": [
+        "legacy-c10-const-mixed"
+      ],
       "checked_in_das": "tests/syntax/c10_const_mixed.das",
       "clang": {
         "compile_commands": null,
@@ -2318,6 +2463,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d01-basic",
+      "canonical_cases": [
+        "legacy-d01-basic"
+      ],
       "checked_in_das": "tests/syntax/d01_basic.das",
       "clang": {
         "compile_commands": null,
@@ -2342,6 +2490,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d01-dowhile",
+      "canonical_cases": [
+        "legacy-d01-dowhile"
+      ],
       "checked_in_das": "tests/syntax/d01_dowhile.das",
       "clang": {
         "compile_commands": null,
@@ -2366,6 +2517,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d02-dowhile-break",
+      "canonical_cases": [
+        "legacy-d02-dowhile-break"
+      ],
       "checked_in_das": "tests/syntax/d02_dowhile_break.das",
       "clang": {
         "compile_commands": null,
@@ -2390,6 +2544,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d02-once",
+      "canonical_cases": [
+        "legacy-d02-once"
+      ],
       "checked_in_das": "tests/syntax/d02_once.das",
       "clang": {
         "compile_commands": null,
@@ -2414,6 +2571,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d03-dowhile-continue",
+      "canonical_cases": [
+        "legacy-d03-dowhile-continue"
+      ],
       "checked_in_das": "tests/syntax/d03_dowhile_continue.das",
       "clang": {
         "compile_commands": null,
@@ -2438,6 +2598,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d03-zero",
+      "canonical_cases": [
+        "legacy-d03-zero"
+      ],
       "checked_in_das": "tests/syntax/d03_zero.das",
       "clang": {
         "compile_commands": null,
@@ -2462,6 +2625,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d04-break",
+      "canonical_cases": [
+        "legacy-d04-break"
+      ],
       "checked_in_das": "tests/syntax/d04_break.das",
       "clang": {
         "compile_commands": null,
@@ -2486,6 +2652,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d04-dowhile-once",
+      "canonical_cases": [
+        "legacy-d04-dowhile-once"
+      ],
       "checked_in_das": "tests/syntax/d04_dowhile_once.das",
       "clang": {
         "compile_commands": null,
@@ -2510,6 +2679,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d05-continue",
+      "canonical_cases": [
+        "legacy-d05-continue"
+      ],
       "checked_in_das": "tests/syntax/d05_continue.das",
       "clang": {
         "compile_commands": null,
@@ -2534,6 +2706,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d05-dowhile-zero",
+      "canonical_cases": [
+        "legacy-d05-dowhile-zero"
+      ],
       "checked_in_das": "tests/syntax/d05_dowhile_zero.das",
       "clang": {
         "compile_commands": null,
@@ -2558,6 +2733,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d06-dowhile-nest",
+      "canonical_cases": [
+        "legacy-d06-dowhile-nest"
+      ],
       "checked_in_das": "tests/syntax/d06_dowhile_nest.das",
       "clang": {
         "compile_commands": null,
@@ -2582,6 +2760,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d06-nested-do",
+      "canonical_cases": [
+        "legacy-d06-nested-do"
+      ],
       "checked_in_das": "tests/syntax/d06_nested_do.das",
       "clang": {
         "compile_commands": null,
@@ -2606,6 +2787,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d07-do-while-var",
+      "canonical_cases": [
+        "legacy-d07-do-while-var"
+      ],
       "checked_in_das": "tests/syntax/d07_do_while_var.das",
       "clang": {
         "compile_commands": null,
@@ -2630,6 +2814,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d07-ptr-arith",
+      "canonical_cases": [
+        "legacy-d07-ptr-arith"
+      ],
       "checked_in_das": "tests/syntax/d07_ptr_arith.das",
       "clang": {
         "compile_commands": null,
@@ -2654,6 +2841,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d08-do-in-while",
+      "canonical_cases": [
+        "legacy-d08-do-in-while"
+      ],
       "checked_in_das": "tests/syntax/d08_do_in_while.das",
       "clang": {
         "compile_commands": null,
@@ -2678,6 +2868,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d08-ptr-arrow",
+      "canonical_cases": [
+        "legacy-d08-ptr-arrow"
+      ],
       "checked_in_das": "tests/syntax/d08_ptr_arrow.das",
       "clang": {
         "compile_commands": null,
@@ -2702,6 +2895,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d09-continue-in-while",
+      "canonical_cases": [
+        "legacy-d09-continue-in-while"
+      ],
       "checked_in_das": "tests/syntax/d09_continue_in_while.das",
       "clang": {
         "compile_commands": null,
@@ -2726,6 +2922,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-d10-sum-do",
+      "canonical_cases": [
+        "legacy-d10-sum-do"
+      ],
       "checked_in_das": "tests/syntax/d10_sum_do.das",
       "clang": {
         "compile_commands": null,
@@ -2750,6 +2949,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-g01-goto-basic",
+      "canonical_cases": [
+        "legacy-g01-goto-basic"
+      ],
       "checked_in_das": "tests/syntax/g01_goto_basic.das",
       "clang": {
         "compile_commands": null,
@@ -2774,6 +2976,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-g02-goto-loop",
+      "canonical_cases": [
+        "legacy-g02-goto-loop"
+      ],
       "checked_in_das": "tests/syntax/g02_goto_loop.das",
       "clang": {
         "compile_commands": null,
@@ -2798,6 +3003,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-g03-goto-forward",
+      "canonical_cases": [
+        "legacy-g03-goto-forward"
+      ],
       "checked_in_das": "tests/syntax/g03_goto_forward.das",
       "clang": {
         "compile_commands": null,
@@ -2927,6 +3135,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "n06-unknown-extern-call",
+      "canonical_cases": [
+        "n06-unknown-extern-call"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -2954,6 +3165,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "n07-unknown-builtin",
+      "canonical_cases": [
+        "n07-unknown-builtin"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -2981,6 +3195,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "n08-unsupported-field-type",
+      "canonical_cases": [
+        "n08-unsupported-field-type"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -3008,6 +3225,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p01-ptr-deref",
+      "canonical_cases": [
+        "legacy-p01-ptr-deref"
+      ],
       "checked_in_das": "tests/syntax/p01_ptr_deref.das",
       "clang": {
         "compile_commands": null,
@@ -3032,6 +3252,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p01-ptr-int",
+      "canonical_cases": [
+        "legacy-p01-ptr-int"
+      ],
       "checked_in_das": "tests/syntax/p01_ptr_int.das",
       "clang": {
         "compile_commands": null,
@@ -3056,6 +3279,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p02-ptr-assign",
+      "canonical_cases": [
+        "legacy-p02-ptr-assign"
+      ],
       "checked_in_das": "tests/syntax/p02_ptr_assign.das",
       "clang": {
         "compile_commands": null,
@@ -3080,6 +3306,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p03-ptr-add",
+      "canonical_cases": [
+        "legacy-p03-ptr-add"
+      ],
       "checked_in_das": "tests/syntax/p03_ptr_add.das",
       "clang": {
         "compile_commands": null,
@@ -3104,6 +3333,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p04-arrow-basic",
+      "canonical_cases": [
+        "legacy-p04-arrow-basic"
+      ],
       "checked_in_das": "tests/syntax/p04_arrow_basic.das",
       "clang": {
         "compile_commands": null,
@@ -3128,6 +3360,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p05-arrow-chain",
+      "canonical_cases": [
+        "legacy-p05-arrow-chain"
+      ],
       "checked_in_das": "tests/syntax/p05_arrow_chain.das",
       "clang": {
         "compile_commands": null,
@@ -3152,6 +3387,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p06-ptr-to-ptr",
+      "canonical_cases": [
+        "legacy-p06-ptr-to-ptr"
+      ],
       "checked_in_das": "tests/syntax/p06_ptr_to_ptr.das",
       "clang": {
         "compile_commands": null,
@@ -3176,6 +3414,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p07-ptr-arith",
+      "canonical_cases": [
+        "legacy-p07-ptr-arith"
+      ],
       "checked_in_das": "tests/syntax/p07_ptr_arith.das",
       "clang": {
         "compile_commands": null,
@@ -3200,6 +3441,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p08-arrow-func",
+      "canonical_cases": [
+        "legacy-p08-arrow-func"
+      ],
       "checked_in_das": "tests/syntax/p08_arrow_func.das",
       "clang": {
         "compile_commands": null,
@@ -3224,6 +3468,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p09-ptr-null",
+      "canonical_cases": [
+        "legacy-p09-ptr-null"
+      ],
       "checked_in_das": "tests/syntax/p09_ptr_null.das",
       "clang": {
         "compile_commands": null,
@@ -3248,6 +3495,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-p10-ptr-swap",
+      "canonical_cases": [
+        "legacy-p10-ptr-swap"
+      ],
       "checked_in_das": "tests/syntax/p10_ptr_swap.das",
       "clang": {
         "compile_commands": null,
@@ -3398,6 +3648,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p17-runtime-malloc",
+      "canonical_cases": [
+        "p17-runtime-malloc"
+      ],
       "checked_in_das": "tests/syntax/p17_runtime_malloc.das",
       "clang": {
         "compile_commands": null,
@@ -3423,6 +3676,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p18-runtime-calloc-memset",
+      "canonical_cases": [
+        "p18-runtime-calloc-memset"
+      ],
       "checked_in_das": "tests/syntax/p18_runtime_calloc_memset.das",
       "clang": {
         "compile_commands": null,
@@ -3448,6 +3704,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p19-runtime-memory-calls",
+      "canonical_cases": [
+        "p19-runtime-memory-calls"
+      ],
       "checked_in_das": "tests/syntax/p19_runtime_memory_calls.das",
       "clang": {
         "compile_commands": null,
@@ -3473,6 +3732,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p20-pointer-abi-edges",
+      "canonical_cases": [
+        "p20-pointer-abi-edges"
+      ],
       "checked_in_das": "tests/syntax/p20_pointer_abi_edges.das",
       "clang": {
         "compile_commands": null,
@@ -3498,6 +3760,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p21-byte-numeric",
+      "canonical_cases": [
+        "p21-byte-numeric"
+      ],
       "checked_in_das": "tests/syntax/p21_byte_numeric.das",
       "clang": {
         "compile_commands": null,
@@ -3523,6 +3788,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p22-typed-literals",
+      "canonical_cases": [
+        "p22-typed-literals"
+      ],
       "checked_in_das": "tests/syntax/p22_typed_literals.das",
       "clang": {
         "compile_commands": null,
@@ -3548,6 +3816,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p23-bool-numeric",
+      "canonical_cases": [
+        "p23-bool-numeric"
+      ],
       "checked_in_das": "tests/syntax/p23_bool_numeric.das",
       "clang": {
         "compile_commands": null,
@@ -3573,6 +3844,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p24-nonruntime-pointer-call",
+      "canonical_cases": [
+        "p24-nonruntime-pointer-call"
+      ],
       "checked_in_das": "tests/syntax/p24_nonruntime_pointer_call.das",
       "clang": {
         "compile_commands": null,
@@ -3598,6 +3872,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p25-array-initializers",
+      "canonical_cases": [
+        "p25-array-initializers"
+      ],
       "checked_in_das": "tests/syntax/p25_array_initializers.das",
       "clang": {
         "compile_commands": null,
@@ -3623,6 +3900,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p26-variadic-sum",
+      "canonical_cases": [
+        "p26-variadic-sum"
+      ],
       "checked_in_das": "tests/syntax/p26_variadic_sum.das",
       "clang": {
         "compile_commands": null,
@@ -3648,6 +3928,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p27-variadic-promotions",
+      "canonical_cases": [
+        "p27-variadic-promotions"
+      ],
       "checked_in_das": "tests/syntax/p27_variadic_promotions.das",
       "clang": {
         "compile_commands": null,
@@ -3673,6 +3956,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p28-variadic-multiple-types",
+      "canonical_cases": [
+        "p28-variadic-multiple-types"
+      ],
       "checked_in_das": "tests/syntax/p28_variadic_multiple_types.das",
       "clang": {
         "compile_commands": null,
@@ -3698,6 +3984,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p29-variadic-function-pointer",
+      "canonical_cases": [
+        "p29-variadic-function-pointer"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -3725,6 +4014,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p30-macro-constant-expression",
+      "canonical_cases": [
+        "p30-macro-constant-expression"
+      ],
       "checked_in_das": "tests/syntax/p30_macro_constant_expression.das",
       "clang": {
         "compile_commands": null,
@@ -3750,6 +4042,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p31-macro-side-effect",
+      "canonical_cases": [
+        "p31-macro-side-effect"
+      ],
       "checked_in_das": "tests/syntax/p31_macro_side_effect.das",
       "clang": {
         "compile_commands": null,
@@ -3775,6 +4070,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p32-macro-statement-expression",
+      "canonical_cases": [
+        "p32-macro-statement-expression"
+      ],
       "checked_in_das": "tests/syntax/p32_macro_statement_expression.das",
       "clang": {
         "compile_commands": null,
@@ -3800,6 +4098,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p33-offsetof-sizeof",
+      "canonical_cases": [
+        "p33-offsetof-sizeof"
+      ],
       "checked_in_das": "tests/syntax/p33_predefined_sizeof_builtin.das",
       "clang": {
         "compile_commands": null,
@@ -3825,6 +4126,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p34-clang-layout-records",
+      "canonical_cases": [
+        "p34-clang-layout-records"
+      ],
       "checked_in_das": "tests/syntax/p34_c_layout_records.das",
       "clang": {
         "compile_commands": null,
@@ -3850,6 +4154,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p35-pointer-backed-struct",
+      "canonical_cases": [
+        "p35-pointer-backed-struct"
+      ],
       "checked_in_das": "tests/syntax/p35_pointer_backed_struct.das",
       "clang": {
         "compile_commands": null,
@@ -3875,6 +4182,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p37-union-overlay",
+      "canonical_cases": [
+        "p37-union-overlay"
+      ],
       "checked_in_das": "tests/syntax/p37_union_overlay.das",
       "clang": {
         "compile_commands": null,
@@ -3900,6 +4210,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p38-local-union-init",
+      "canonical_cases": [
+        "p38-local-union-init"
+      ],
       "checked_in_das": "tests/syntax/p38_local_union_init.das",
       "clang": {
         "compile_commands": null,
@@ -3925,6 +4238,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p39-packed-scalar",
+      "canonical_cases": [
+        "p39-packed-scalar"
+      ],
       "checked_in_das": "tests/syntax/p39_packed_scalar.das",
       "clang": {
         "compile_commands": null,
@@ -3950,6 +4266,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p40-bitfield-rmw",
+      "canonical_cases": [
+        "p40-bitfield-rmw"
+      ],
       "checked_in_das": "tests/syntax/p40_bitfield_rmw.das",
       "clang": {
         "compile_commands": null,
@@ -3975,6 +4294,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p40-nested-raw-aggregate-place",
+      "canonical_cases": [
+        "p40-nested-raw-aggregate-place"
+      ],
       "checked_in_das": "tests/syntax/p40_nested_raw_aggregate_place.das",
       "clang": {
         "compile_commands": null,
@@ -4000,6 +4322,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p41-raw-array-field-decay",
+      "canonical_cases": [
+        "p41-raw-array-field-decay"
+      ],
       "checked_in_das": "tests/syntax/p41_raw_array_field_decay.das",
       "clang": {
         "compile_commands": null,
@@ -4025,6 +4350,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p41-union-cast",
+      "canonical_cases": [
+        "p41-union-cast"
+      ],
       "checked_in_das": "tests/syntax/p41_union_cast.das",
       "clang": {
         "compile_commands": null,
@@ -4050,6 +4378,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p42-loops",
+      "canonical_cases": [
+        "p42-loops"
+      ],
       "checked_in_das": "tests/syntax/p42_loops.das",
       "clang": {
         "compile_commands": null,
@@ -4075,6 +4406,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p43-switch",
+      "canonical_cases": [
+        "p43-switch"
+      ],
       "checked_in_das": "tests/syntax/p43_switch.das",
       "clang": {
         "compile_commands": null,
@@ -4100,6 +4434,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p44-goto",
+      "canonical_cases": [
+        "p44-goto"
+      ],
       "checked_in_das": "tests/syntax/p44_goto.das",
       "clang": {
         "compile_commands": null,
@@ -4125,6 +4462,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p45-static-local",
+      "canonical_cases": [
+        "p45-static-local"
+      ],
       "checked_in_das": "tests/syntax/p45_static_local.das",
       "clang": {
         "compile_commands": null,
@@ -4150,6 +4490,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p46-function-pointers",
+      "canonical_cases": [
+        "p46-function-pointers"
+      ],
       "checked_in_das": "tests/syntax/p46_function_pointers.das",
       "clang": {
         "compile_commands": null,
@@ -4175,6 +4518,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p47-side-effects",
+      "canonical_cases": [
+        "p47-side-effects"
+      ],
       "checked_in_das": "tests/syntax/p47_side_effects.das",
       "clang": {
         "compile_commands": null,
@@ -4200,6 +4546,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p48-integer-semantics",
+      "canonical_cases": [
+        "p48-integer-semantics"
+      ],
       "checked_in_das": "tests/syntax/p48_integer_semantics.das",
       "clang": {
         "compile_commands": null,
@@ -4225,6 +4574,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p49-floating",
+      "canonical_cases": [
+        "p49-floating"
+      ],
       "checked_in_das": "tests/syntax/p49_floating.das",
       "clang": {
         "compile_commands": null,
@@ -4250,6 +4602,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p50-printer",
+      "canonical_cases": [
+        "p50-printer"
+      ],
       "checked_in_das": "tests/syntax/p50_printer.das",
       "clang": {
         "compile_commands": null,
@@ -4275,6 +4630,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p51-arrays",
+      "canonical_cases": [
+        "p51-arrays"
+      ],
       "checked_in_das": "tests/syntax/p51_arrays.das",
       "clang": {
         "compile_commands": null,
@@ -4300,6 +4658,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p52-struct-copy",
+      "canonical_cases": [
+        "p52-struct-copy"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4325,6 +4686,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p53-struct-by-value",
+      "canonical_cases": [
+        "p53-struct-by-value"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4350,6 +4714,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p54-address-taken",
+      "canonical_cases": [
+        "p54-address-taken"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4375,6 +4742,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p55-union-semantics",
+      "canonical_cases": [
+        "p55-union-semantics"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4400,6 +4770,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p56-heap-churn",
+      "canonical_cases": [
+        "p56-heap-churn"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4425,6 +4798,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p57-globals-aggregate",
+      "canonical_cases": [
+        "p57-globals-aggregate"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4450,6 +4826,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p58-bitfields-layout",
+      "canonical_cases": [
+        "p58-bitfields-layout"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4475,6 +4854,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p59-nested-aggregates",
+      "canonical_cases": [
+        "p59-nested-aggregates"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4500,6 +4882,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p60-layout-divergence",
+      "canonical_cases": [
+        "p60-layout-divergence"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4525,6 +4910,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p61-callback-typedef",
+      "canonical_cases": [
+        "p61-callback-typedef"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4550,6 +4938,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p62-bool-store",
+      "canonical_cases": [
+        "p62-bool-store"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4575,6 +4966,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p63-const-static-table",
+      "canonical_cases": [
+        "p63-const-static-table"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4600,6 +4994,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p64-pointer-offset-types",
+      "canonical_cases": [
+        "p64-pointer-offset-types"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4625,6 +5022,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p65-anonymous-records",
+      "canonical_cases": [
+        "p65-anonymous-records"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4650,6 +5050,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p66-global-init-order",
+      "canonical_cases": [
+        "p66-global-init-order"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4675,6 +5078,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p67-bool-context-enum-void",
+      "canonical_cases": [
+        "p67-bool-context-enum-void"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4700,6 +5106,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p68-nested-place-rmw",
+      "canonical_cases": [
+        "p68-nested-place-rmw"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4725,6 +5134,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p69-typedef-numeric-casts",
+      "canonical_cases": [
+        "p69-typedef-numeric-casts"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4750,6 +5162,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p70-goto-over-declarations",
+      "canonical_cases": [
+        "p70-goto-over-declarations"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4775,6 +5190,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "p71-static-inline-calls",
+      "canonical_cases": [
+        "p71-static-inline-calls"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -4800,6 +5218,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-s01-switch-basic",
+      "canonical_cases": [
+        "legacy-s01-switch-basic"
+      ],
       "checked_in_das": "tests/syntax/s01_switch_basic.das",
       "clang": {
         "compile_commands": null,
@@ -4824,6 +5245,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-s02-switch-default",
+      "canonical_cases": [
+        "legacy-s02-switch-default"
+      ],
       "checked_in_das": "tests/syntax/s02_switch_default.das",
       "clang": {
         "compile_commands": null,
@@ -4848,6 +5272,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-s03-switch-fallthrough",
+      "canonical_cases": [
+        "legacy-s03-switch-fallthrough"
+      ],
       "checked_in_das": "tests/syntax/s03_switch_fallthrough.das",
       "clang": {
         "compile_commands": null,
@@ -4914,6 +5341,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t01-arith",
+      "canonical_cases": [
+        "legacy-t01-arith"
+      ],
       "checked_in_das": "tests/syntax/t01_arith.das",
       "clang": {
         "compile_commands": null,
@@ -4938,6 +5368,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t01-typedef-simple",
+      "canonical_cases": [
+        "legacy-t01-typedef-simple"
+      ],
       "checked_in_das": "tests/syntax/t01_typedef_simple.das",
       "clang": {
         "compile_commands": null,
@@ -4962,6 +5395,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t02-mul-div",
+      "canonical_cases": [
+        "legacy-t02-mul-div"
+      ],
       "checked_in_das": "tests/syntax/t02_mul_div.das",
       "clang": {
         "compile_commands": null,
@@ -4986,6 +5422,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t02-typedef-ptr",
+      "canonical_cases": [
+        "legacy-t02-typedef-ptr"
+      ],
       "checked_in_das": "tests/syntax/t02_typedef_ptr.das",
       "clang": {
         "compile_commands": null,
@@ -5010,6 +5449,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t03-cmp",
+      "canonical_cases": [
+        "legacy-t03-cmp"
+      ],
       "checked_in_das": "tests/syntax/t03_cmp.das",
       "clang": {
         "compile_commands": null,
@@ -5034,6 +5476,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t03-typedef-struct",
+      "canonical_cases": [
+        "legacy-t03-typedef-struct"
+      ],
       "checked_in_das": "tests/syntax/t03_typedef_struct.das",
       "clang": {
         "compile_commands": null,
@@ -5058,6 +5503,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t04-logical",
+      "canonical_cases": [
+        "legacy-t04-logical"
+      ],
       "checked_in_das": "tests/syntax/t04_logical.das",
       "clang": {
         "compile_commands": null,
@@ -5082,6 +5530,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t05-if-elif",
+      "canonical_cases": [
+        "legacy-t05-if-elif"
+      ],
       "checked_in_das": "tests/syntax/t05_if_elif.das",
       "clang": {
         "compile_commands": null,
@@ -5106,6 +5557,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t06-while",
+      "canonical_cases": [
+        "legacy-t06-while"
+      ],
       "checked_in_das": "tests/syntax/t06_while.das",
       "clang": {
         "compile_commands": null,
@@ -5130,6 +5584,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t07-for",
+      "canonical_cases": [
+        "legacy-t07-for"
+      ],
       "checked_in_das": "tests/syntax/t07_for.das",
       "clang": {
         "compile_commands": null,
@@ -5154,6 +5611,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t08-struct",
+      "canonical_cases": [
+        "legacy-t08-struct"
+      ],
       "checked_in_das": "tests/syntax/t08_struct.das",
       "clang": {
         "compile_commands": null,
@@ -5178,6 +5638,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t09-enum",
+      "canonical_cases": [
+        "legacy-t09-enum"
+      ],
       "checked_in_das": "tests/syntax/t09_enum.das",
       "clang": {
         "compile_commands": null,
@@ -5202,6 +5665,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t10-chain",
+      "canonical_cases": [
+        "legacy-t10-chain"
+      ],
       "checked_in_das": "tests/syntax/t10_chain.das",
       "clang": {
         "compile_commands": null,
@@ -5226,6 +5692,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-t11-bool-precedence",
+      "canonical_cases": [
+        "legacy-t11-bool-precedence"
+      ],
       "checked_in_das": "tests/syntax/t11_bool_precedence.das",
       "clang": {
         "compile_commands": null,
@@ -5250,6 +5719,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-test-full",
+      "canonical_cases": [
+        "legacy-test-full"
+      ],
       "checked_in_das": "tests/syntax/test_full.das",
       "clang": {
         "compile_commands": null,
@@ -5295,6 +5767,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-test-member",
+      "canonical_cases": [
+        "legacy-test-member"
+      ],
       "checked_in_das": "tests/syntax/test_member.das",
       "clang": {
         "compile_commands": null,
@@ -5319,6 +5794,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-test-simple",
+      "canonical_cases": [
+        "legacy-test-simple"
+      ],
       "checked_in_das": "tests/syntax/test_simple.das",
       "clang": {
         "compile_commands": null,
@@ -5364,6 +5842,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-test-struct-full",
+      "canonical_cases": [
+        "legacy-test-struct-full"
+      ],
       "checked_in_das": "tests/syntax/test_struct_full.das",
       "clang": {
         "compile_commands": null,
@@ -5388,6 +5869,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-u01-unsafe-ptr",
+      "canonical_cases": [
+        "legacy-u01-unsafe-ptr"
+      ],
       "checked_in_das": "tests/syntax/u01_unsafe_ptr.das",
       "clang": {
         "compile_commands": null,
@@ -5412,6 +5896,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-u02-unsafe-write",
+      "canonical_cases": [
+        "legacy-u02-unsafe-write"
+      ],
       "checked_in_das": "tests/syntax/u02_unsafe_write.das",
       "clang": {
         "compile_commands": null,
@@ -5436,6 +5923,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-u03-unsafe-swap",
+      "canonical_cases": [
+        "legacy-u03-unsafe-swap"
+      ],
       "checked_in_das": "tests/syntax/u03_unsafe_swap.das",
       "clang": {
         "compile_commands": null,
@@ -5460,6 +5950,9 @@
     {
       "c_graph": "single-tu",
       "canonical_case": "legacy-ztest-inc",
+      "canonical_cases": [
+        "legacy-ztest-inc"
+      ],
       "checked_in_das": "tests/syntax/ztest_inc.das",
       "clang": {
         "compile_commands": null,

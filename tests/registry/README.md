@@ -13,6 +13,14 @@ python3 scripts/check_test_registry.py --write
 python3 scripts/check_test_registry.py --check
 ```
 
+A fixture that is a canonical case's translation entry mirrors that case
+(`canonical_case`, entrypoint, expected value, runtime, status).  One C graph
+may back several canonical cases — different fixture-owned entries and
+`program_args` over the same translation, as the corpus file cases do — and
+then the fixture mirrors the first case in manifest order and lists every case
+id in `canonical_cases`; the other cases keep their own entry and oracle in
+`tests/canonical/cases.json`, which the runner reads directly.
+
 `known-red`, `quarantined`, `historical`, and `inventory-only` are not passing
 states.  They exist to make the boundary explicit.  No status may be promoted
 to support merely because a generated `.das` exists; promotion requires a

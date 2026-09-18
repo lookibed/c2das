@@ -1863,21 +1863,28 @@ static void frames_release(void) {
     frames = 0;
 }
 
-int32_t h264mp4_frames_begin(void) {
+/* Open a session over caller-owned bytes (an entry that read a fixture file).
+ * The demuxer reads through memory_read_callback, so the caller's buffer is
+ * used in place and must outlive the session; it must not live in the
+ * fixture heap, which shim_reset_heap() rewinds here. */
+int32_t h264mp4_frames_begin_bytes(const uint8_t *source, int32_t length) {
     int sample_index = 0;
 
     frames = 0;
+    if (!source || length <= 0) {
+        return 0;
+    }
     shim_reset_heap();
     frames = (FrameStream *)malloc(sizeof(FrameStream));
     if (!frames) {
         return 0;
     }
     memset(frames, 0, sizeof(FrameStream));
-    frames->input.bytes = (const uint8_t *)sample_mp4_bytes;
-    frames->input.length = (int)sample_mp4_len;
+    frames->input.bytes = source;
+    frames->input.length = (int)length;
     frames->frame_index = -1;
 
-    if (MP4D_open(&frames->mp4, memory_read_callback, &frames->input, sample_mp4_len) == 0) {
+    if (MP4D_open(&frames->mp4, memory_read_callback, &frames->input, (int64_t)length) == 0) {
         frames = 0;
         return 0;
     }
@@ -1938,6 +1945,10 @@ int32_t h264mp4_frames_begin(void) {
 
     frames->decoder_ready = 1;
     return 1;
+}
+
+int32_t h264mp4_frames_begin(void) {
+    return h264mp4_frames_begin_bytes((const uint8_t *)sample_mp4_bytes, (int32_t)sample_mp4_len);
 }
 
 int32_t h264mp4_frames_next(void) {

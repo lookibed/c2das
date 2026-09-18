@@ -293,7 +293,14 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
             label="C reference compilation",
         )
         expected = case["expected"]
-        reference_result = subprocess.run([str(reference)], cwd=work, env=env, text=True, capture_output=True)
+        # `program_args`: fixture-root-relative paths handed to both programs
+        # (a fixture file an entry reads at run time instead of embedding it).
+        program_args = [str(copied_root / Path(arg)) for arg in case.get("program_args", [])]
+        if any(".." in Path(arg).parts or Path(arg).is_absolute() for arg in case.get("program_args", [])):
+            raise CaseFailure(f"{case['id']}: program_args must be fixture-root relative")
+        reference_result = subprocess.run(
+            [str(reference), *program_args], cwd=work, env=env, text=True, capture_output=True
+        )
         if expected.get("oracle") == "c-reference":
             # Differential mode: the C program's observable behaviour is the
             # oracle, whatever it is; the daScript run must reproduce it.
@@ -343,6 +350,7 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
                 str(das_entry),
                 "-main",
                 case["das_entrypoint"],
+                *(["--", *program_args] if program_args else []),
             ],
             cwd=work,
             env=env,

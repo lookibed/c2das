@@ -38,6 +38,11 @@ daslang run modes ("interop" in the project's wording is the interpreter):
 
 The C side is the same graph compiled with the case's clang flags, at -O2 and -O0
 for the benchmark and with the case's flags alone for the reference.
+
+A case may carry `program_args` (fixture-root-relative paths): every program, C or
+daslang in any mode, receives them as its command-line arguments, which is how the
+`*_file_*` entries read a fixture file at run time instead of embedding it (see
+with_args for the per-launcher spelling).
 """
 
 from __future__ import annotations
@@ -63,7 +68,7 @@ import run_c2das_cases as runner  # noqa: E402
 ROOT = runner.ROOT
 CONVERGENCE_DOC = ROOT / "docs/corpus-convergence.md"
 BENCHMARK_DOC = ROOT / "docs/corpus-benchmark.md"
-AOT_HOST = ROOT / "scripts/corpus/aot_host.c"
+AOT_HOST = ROOT / "scripts/corpus/aot_host.cpp"
 MODES = ("interp", "jit", "aot", "exe")
 FRAME_LINE = re.compile(r"^frame\[(\d+)\]=(-?\d+)$")
 KEY_LINE = re.compile(r"^([a-z_]+)=(-?\d+)$")
@@ -152,6 +157,12 @@ class Prepared:
         self.compiler = case["clang"].get("compiler", "clang-18")
         self.staged: list[Path] = []
         self.source_root = ROOT / case["source_root"]
+        # `program_args`: fixture-root-relative paths every program gets as its
+        # arguments (an entry that reads a fixture file at run time)
+        for arg in case.get("program_args", []):
+            if Path(arg).is_absolute() or ".." in Path(arg).parts:
+                raise MatrixFailure(f"{case['id']}: program_args must be fixture-root relative")
+        self.args = [str(self.copied_root / Path(arg)) for arg in case.get("program_args", [])]
 
     @property
     def corpus(self) -> dict[str, Any]:
@@ -291,13 +302,12 @@ def build_aot(p: Prepared, entry: Path, name: str) -> list[str]:
         sh(["clang++-18", *flags, "-c", str(cpp), "-o", str(obj)], cwd=aot_dir, env=p.env, label=f"AOT C++ {script.name}")
         objects.append(str(obj))
     host_obj = aot_dir / "aot_host.o"
-    sh(["clang-18", "-O2", f"-I{das_root / 'include'}", "-c", str(AOT_HOST), "-o", str(host_obj)],
-       cwd=aot_dir, env=p.env, label="AOT host")
+    sh(["clang++-18", *flags, "-c", str(AOT_HOST), "-o", str(host_obj)], cwd=aot_dir, env=p.env, label="AOT host")
     binary = aot_dir / "aot_host"
     lib = das_root / "lib"
     sh(["clang++-18", str(host_obj), *objects, f"-L{lib}", "-llibDaScriptDyn", "-llibDaScriptDyn_runtime",
         f"-Wl,-rpath,{lib}", "-o", str(binary)], cwd=aot_dir, env=p.env, label="AOT link")
-    return [str(binary), str(das_root), str(entry_copy)]
+    return [str(binary), str(das_root), str(entry_copy), "main"]
 
 
 def build_mode(p: Prepared, mode: str, entry: Path, name: str) -> list[str]:
@@ -310,6 +320,21 @@ def build_mode(p: Prepared, mode: str, entry: Path, name: str) -> list[str]:
     if mode == "aot":
         return build_aot(p, entry, f"{name}_aot")
     raise MatrixFailure(f"unknown mode {mode}")
+
+
+def with_args(command: list[str], mode: str, args: list[str]) -> list[str]:
+    """The program's arguments, spelled the way each launcher passes them on.
+
+    `daslang` (interpreter and -jit) takes script arguments after `--`; the -exe
+    binary and the AOT host take them as plain trailing arguments.  All four
+    reach the script's get_command_line_arguments() with the argument last, which
+    is what the file entries rely on.
+    """
+    if not args:
+        return command
+    if mode in ("interp", "jit"):
+        return [*command, "--", *args]
+    return [*command, *args]
 
 
 def describe_mode(mode: str, entry_name: str) -> str:
@@ -371,7 +396,7 @@ def converge_case(case: dict[str, Any], daslang: Path, keep: bool) -> dict[str, 
     try:
         entry = p.das_program
         reference_cmd = build_c(p, p.copied_root / Path(case["c_reference"]["sources"][-1]), None, "c_reference")
-        reference = run_once(reference_cmd, p.work, p.env)
+        reference = run_once([*reference_cmd, *p.args], p.work, p.env)
         expected = case["expected"]
         if reference.result.returncode != expected["exit_code"] or reference.result.stdout != expected["stdout"]:
             raise MatrixFailure(
@@ -384,7 +409,7 @@ def converge_case(case: dict[str, Any], daslang: Path, keep: bool) -> dict[str, 
         for mode in MODES:
             row: dict[str, Any] = {"mode": mode, "build": describe_mode(mode, entry.name)}
             try:
-                cmd = build_mode(p, mode, entry, "canonical")
+                cmd = with_args(build_mode(p, mode, entry, "canonical"), mode, p.args)
                 run = run_once(cmd, p.work, p.env)
                 identical = run.program_stdout == reference.program_stdout
                 row["exit"] = run.result.returncode
@@ -509,12 +534,12 @@ def bench_case(case: dict[str, Any], daslang: Path, runs: int, keep: bool) -> di
     p = prepare(case, daslang)
     try:
         variants: list[dict[str, Any]] = []
-        c_o2 = build_c(p, p.bench_c, "-O2", "c_bench_O2")
+        c_o2 = [*build_c(p, p.bench_c, "-O2", "c_bench_O2"), *p.args]
         base = measure(c_o2, p.work, p.env, runs, None)
         variants.append({"name": "C clang-18 -O2", "build": f"`clang-18 {' '.join(case['clang']['flags'])} -O2`", **base})
         print(f"  {case['id']} C -O2: decode {base['decode_median']:.3f} ms")
         reference_frames = base["frames"]
-        c_o0 = build_c(p, p.bench_c, "-O0", "c_bench_O0")
+        c_o0 = [*build_c(p, p.bench_c, "-O0", "c_bench_O0"), *p.args]
         try:
             m = measure(c_o0, p.work, p.env, runs, reference_frames)
             variants.append({"name": "C clang-18 -O0", "build": f"`clang-18 {' '.join(case['clang']['flags'])} -O0`", **m})
@@ -525,7 +550,7 @@ def bench_case(case: dict[str, Any], daslang: Path, runs: int, keep: bool) -> di
         for mode in MODES:
             name = f"daslang {mode}"
             try:
-                cmd = build_mode(p, mode, entry, "bench")
+                cmd = with_args(build_mode(p, mode, entry, "bench"), mode, p.args)
                 m = measure(cmd, p.work, p.env, runs, reference_frames)
                 variants.append({"name": name, "build": describe_mode(mode, entry.name), **m})
                 print(f"  {case['id']} {mode}: decode {m['decode_median']:.3f} ms, wall {m['wall_median']:.1f} ms")
