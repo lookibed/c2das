@@ -621,14 +621,21 @@
       "c_reference": {
         "sources": ["src/all_reference.c", "src/plmpeg_reference_entry.c"]
       },
-      "preserve_das": ["src/plmpeg_entry.das"],
+      "preserve_das": ["src/plmpeg_entry.das", "src/plmpeg_bench_entry.das"],
       "das_program": "src/plmpeg_entry.das",
       "das_entrypoint": "main",
       "expected": {
-        "stdout": "sequence_start_code=179\nvideo_has_header=1\n",
+        "stdout": "sequence_start_code=179\nvideo_has_header=1\nwidth=96\nheight=64\nframe[0]=1251253572\nframe[1]=1838686631\nframe[2]=-1505786116\nframe[3]=643064936\nframe[4]=-2130516794\nframe[5]=-288090628\nframe[6]=-130451034\nframe[7]=1609960924\nframe[8]=1012768831\nframe[9]=-950950143\nframe[10]=407697071\nframes=11\n",
         "exit_code": 0
       },
-      "runtime": "required"
+      "runtime": "required",
+      "real_world": {
+        "label": "pl_mpeg (MPEG-1 video decoder)",
+        "upstream": "UPSTREAM.md",
+        "fixture": "fixtures/sample.m1v",
+        "bench_c_entry": "src/plmpeg_bench_entry.c",
+        "bench_das_entry": "src/plmpeg_bench_entry.das"
+      }
     },
     {
       "id": "p66-global-init-order", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p66_global_init_order.c", "c_graph": "single-tu",
@@ -663,14 +670,21 @@
       "c_reference": {
         "sources": ["src/all_reference.c", "src/h264_reference_entry.c"]
       },
-      "preserve_das": ["src/h264_entry.das"],
+      "preserve_das": ["src/h264_entry.das", "src/h264_bench_entry.das"],
       "das_program": "src/h264_entry.das",
       "das_entrypoint": "main",
       "expected": {
-        "stdout": "memory_read_status=0\nmemory_read_word0=32\nfirst_box_name=1718909296\nsecond_box_name=1718773093\ntrack_index=0\nsample_count=12\nwidth=96\nheight=64\nframe_count=8\n",
+        "stdout": "memory_read_status=0\nmemory_read_word0=32\nfirst_box_name=1718909296\nsecond_box_name=1718773093\ntrack_index=0\nsample_count=12\nwidth=96\nheight=64\nframe_count=8\nframe[0]=-53578803\nframe[1]=307794072\nframe[2]=-773153490\nframe[3]=-313234178\nframe[4]=-155916913\nframe[5]=-665470833\nframe[6]=695445214\nframe[7]=131893473\nframe[8]=2143629032\nframe[9]=173242220\nframe[10]=1246415134\nframe[11]=-2097230119\nframes=12\n",
         "exit_code": 0
       },
-      "runtime": "required"
+      "runtime": "required",
+      "real_world": {
+        "label": "h264bsd + minimp4 (H.264 baseline decoder, MP4 demuxer)",
+        "upstream": "UPSTREAM.md",
+        "fixture": "fixtures/sample.mp4",
+        "bench_c_entry": "src/h264_bench_entry.c",
+        "bench_das_entry": "src/h264_bench_entry.das"
+      }
     },
     {
       "id": "p71-static-inline-calls", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p71_static_inline_calls.c", "c_graph": "single-tu",

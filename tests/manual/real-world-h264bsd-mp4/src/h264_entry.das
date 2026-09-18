@@ -3,7 +3,8 @@ options gen2
 // Fixture-owned entrypoint. `all.das` is the generated target module and
 // never receives a synthetic `main` from the translator.
 // The printed lines and their order are the contract shared with
-// `src/h264_reference_entry.c` / `h264_reference.expected`.
+// `src/h264_reference_entry.c` / `h264_reference.expected`: the demuxer and
+// decoder probes, then every decoded picture's YUV hash from the streaming API.
 require all
 
 [export]
@@ -25,5 +26,16 @@ def main() : int {
     if (width <= 0 || height <= 0 || frame_count <= 0) {
         return 1
     }
-    return 0
+    if (all::h264mp4_frames_begin() == 0) {
+        print("frames_begin=0\n")
+        return 1
+    }
+    var frames = 0
+    while (all::h264mp4_frames_next() != 0) {
+        print("frame[{all::h264mp4_frames_index()}]={all::h264mp4_frames_hash()}\n")
+        frames++
+    }
+    all::h264mp4_frames_end()
+    print("frames={frames}\n")
+    return frames > 0 ? 0 : 1
 }

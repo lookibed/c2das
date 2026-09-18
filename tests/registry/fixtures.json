@@ -1112,7 +1112,7 @@
         "kind": "stdout-and-exit-code",
         "value": {
           "exit_code": 0,
-          "stdout": "memory_read_status=0\nmemory_read_word0=32\nfirst_box_name=1718909296\nsecond_box_name=1718773093\ntrack_index=0\nsample_count=12\nwidth=96\nheight=64\nframe_count=8\n"
+          "stdout": "memory_read_status=0\nmemory_read_word0=32\nfirst_box_name=1718909296\nsecond_box_name=1718773093\ntrack_index=0\nsample_count=12\nwidth=96\nheight=64\nframe_count=8\nframe[0]=-53578803\nframe[1]=307794072\nframe[2]=-773153490\nframe[3]=-313234178\nframe[4]=-155916913\nframe[5]=-665470833\nframe[6]=695445214\nframe[7]=131893473\nframe[8]=2143629032\nframe[9]=173242220\nframe[10]=1246415134\nframe[11]=-2097230119\nframes=12\n"
         }
       },
       "family": "h264bsd-mp4",
@@ -1146,6 +1146,32 @@
       "owner": "real-world graph inventory",
       "runtime": "unverified",
       "source": "tests/manual/real-world-h264bsd-mp4/src/all_reference.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "h264bsd-mp4",
+      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/h264_bench_entry.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-w",
+          "-Iinclude",
+          "-Iupstream/h264bsd/src",
+          "-Iupstream/minimp4",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "h264bsd-mp4",
+      "id": "tests--manual--real-world-h264bsd-mp4--src--h264_bench_entry",
+      "owner": "real-world graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/real-world-h264bsd-mp4/src/h264_bench_entry.c",
       "status": "inventory-only"
     },
     {
@@ -1298,7 +1324,7 @@
         "kind": "stdout-and-exit-code",
         "value": {
           "exit_code": 0,
-          "stdout": "sequence_start_code=179\nvideo_has_header=1\n"
+          "stdout": "sequence_start_code=179\nvideo_has_header=1\nwidth=96\nheight=64\nframe[0]=1251253572\nframe[1]=1838686631\nframe[2]=-1505786116\nframe[3]=643064936\nframe[4]=-2130516794\nframe[5]=-288090628\nframe[6]=-130451034\nframe[7]=1609960924\nframe[8]=1012768831\nframe[9]=-950950143\nframe[10]=407697071\nframes=11\n"
         }
       },
       "family": "plmpeg",
@@ -1410,6 +1436,32 @@
       "owner": "real-world graph / aggregate ABI",
       "runtime": "required",
       "source": "tests/manual/real-world-plmpeg-stream/src/pl_mpeg.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/plmpeg_bench_entry.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--real-world-plmpeg-stream--src--plmpeg_bench_entry",
+      "owner": "real-world graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/real-world-plmpeg-stream/src/plmpeg_bench_entry.c",
       "status": "known-red"
     },
     {

@@ -1821,3 +1821,185 @@ int32_t h264mp4_host_get_width(void) {
 int32_t h264mp4_host_get_height(void) {
     return host_height;
 }
+
+/* Per-frame streaming probes over the embedded sample.  Scalar-only, so the
+ * C reference entry and the daScript entry print the same `frame[i]=hash`
+ * lines without any host-pointer transport:
+ *
+ *   h264mp4_frames_begin()           -> 1 when the demuxer and decoder are set up
+ *   while (h264mp4_frames_next())    -> feeds samples until one output picture is ready
+ *       h264mp4_frames_hash()        -> fold_bytes() of that YUV420 picture
+ *       h264mp4_frames_index()       -> 0-based index of that picture
+ *   h264mp4_frames_end()             -> releases decoder and demuxer
+ *
+ * The setup and the per-sample loop are the ones decode_summary() runs, so
+ * the hash of frame 0 equals h264mp4_probe_first_frame_hash().  All state
+ * lives in one heap block so the probes stay re-entrant across sessions. */
+typedef struct FrameStream {
+    MemoryInput input;
+    MP4D_demux_t mp4;
+    DecoderState state;
+    uint8_t *scratch;
+    int track_index;
+    int track_length_size;
+    int prefix_bytes;
+    int max_sample_bytes;
+    int sample_index;
+    int frame_index;
+    uint32_t hash;
+    int decoder_ready;
+} FrameStream;
+
+static FrameStream *frames = 0;
+
+static void frames_release(void) {
+    if (frames) {
+        if (frames->decoder_ready) {
+            h264bsdShutdown(frames->state.storage);
+            h264bsdFree(frames->state.storage);
+        }
+        MP4D_close(&frames->mp4);
+    }
+    frames = 0;
+}
+
+int32_t h264mp4_frames_begin(void) {
+    int sample_index = 0;
+
+    frames = 0;
+    shim_reset_heap();
+    frames = (FrameStream *)malloc(sizeof(FrameStream));
+    if (!frames) {
+        return 0;
+    }
+    memset(frames, 0, sizeof(FrameStream));
+    frames->input.bytes = (const uint8_t *)sample_mp4_bytes;
+    frames->input.length = (int)sample_mp4_len;
+    frames->frame_index = -1;
+
+    if (MP4D_open(&frames->mp4, memory_read_callback, &frames->input, sample_mp4_len) == 0) {
+        frames = 0;
+        return 0;
+    }
+
+    frames->track_index = find_avc_track(&frames->mp4);
+    if (frames->track_index < 0) {
+        frames_release();
+        return 0;
+    }
+
+    frames->track_length_size = detect_track_length_size(
+        &frames->mp4, frames->track_index, frames->input.bytes, frames->input.length);
+    if (frames->track_length_size <= 0) {
+        frames_release();
+        return 0;
+    }
+
+    frames->prefix_bytes = header_annexb_size(&frames->mp4, frames->track_index);
+    for (sample_index = 0; sample_index < (int)frames->mp4.track[frames->track_index].sample_count; sample_index++) {
+        unsigned int frame_bytes = 0;
+        MP4D_file_offset_t offset = MP4D_frame_offset(
+            &frames->mp4, (unsigned int)frames->track_index, (unsigned int)sample_index, &frame_bytes, 0, 0);
+        int annexb_bytes = 0;
+
+        if ((offset + frame_bytes) > (unsigned int)frames->input.length) {
+            frames_release();
+            return 0;
+        }
+
+        annexb_bytes = sample_annexb_size(frames->input.bytes + offset, (int)frame_bytes, frames->track_length_size);
+        if (annexb_bytes < 0) {
+            frames_release();
+            return 0;
+        }
+
+        if ((annexb_bytes + frames->prefix_bytes) > frames->max_sample_bytes) {
+            frames->max_sample_bytes = annexb_bytes + frames->prefix_bytes;
+        }
+    }
+
+    frames->scratch = (uint8_t *)malloc((size_t)frames->max_sample_bytes);
+    if (!frames->scratch) {
+        frames_release();
+        return 0;
+    }
+
+    frames->state.storage = h264bsdAlloc();
+    if (!frames->state.storage) {
+        frames_release();
+        return 0;
+    }
+
+    if (h264bsdInit(frames->state.storage, 0u) != H264BSD_RDY) {
+        h264bsdFree(frames->state.storage);
+        frames_release();
+        return 0;
+    }
+
+    frames->decoder_ready = 1;
+    return 1;
+}
+
+int32_t h264mp4_frames_next(void) {
+    if (!frames || !frames->decoder_ready) {
+        return 0;
+    }
+
+    while (frames->sample_index < (int)frames->mp4.track[frames->track_index].sample_count) {
+        unsigned int frame_bytes = 0;
+        MP4D_file_offset_t offset = MP4D_frame_offset(
+            &frames->mp4, (unsigned int)frames->track_index, (unsigned int)frames->sample_index, &frame_bytes, 0, 0);
+        int sample_length = build_annexb_sample(
+            &frames->mp4,
+            frames->track_index,
+            frames->input.bytes + offset,
+            (int)frame_bytes,
+            frames->sample_index == 0,
+            frames->scratch,
+            frames->max_sample_bytes,
+            frames->track_length_size
+        );
+        int picture_ready = 0;
+
+        frames->sample_index += 1;
+
+        if (sample_length < 0) {
+            return 0;
+        }
+
+        if (!decode_access_unit(&frames->state, frames->scratch, sample_length, &picture_ready)) {
+            return 0;
+        }
+
+        if (picture_ready) {
+            int picture_bytes = (frames->state.width * frames->state.height * 3) / 2;
+
+            frames->hash = fold_bytes(frames->state.picture, picture_bytes);
+            frames->frame_index += 1;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int32_t h264mp4_frames_hash(void) {
+    return frames ? (int32_t)frames->hash : 0;
+}
+
+int32_t h264mp4_frames_index(void) {
+    return frames ? frames->frame_index : -1;
+}
+
+int32_t h264mp4_frames_width(void) {
+    return frames ? frames->state.width : 0;
+}
+
+int32_t h264mp4_frames_height(void) {
+    return frames ? frames->state.height : 0;
+}
+
+int32_t h264mp4_frames_end(void) {
+    frames_release();
+    return 1;
+}

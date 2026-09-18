@@ -10,6 +10,7 @@
 void *malloc(size_t size);
 void free(void *ptr);
 void *memset(void *dest, int value, size_t count);
+void *memcpy(void *dest, const void *src, size_t count);
 /* Explicit test-runtime hook.  The C reference graph implements it through
  * shim.c; the c2das graph receives the canonical daScript runtime declaration. */
 void c2da_rt_reset(void);
@@ -54,6 +55,24 @@ static uint32_t fold_bytes(const uint8_t *bytes, int length) {
     }
 
     return hash;
+}
+
+/* pl_mpeg treats the memory handed to plm_buffer_create_with_memory as its
+ * own working buffer: plm_video_decode calls plm_buffer_discard_read_bytes,
+ * which memmove()s the unread tail to the front of that very memory.  The
+ * embedded sample is `static const`, so every decode session must work on a
+ * fresh heap copy: in C the original lives in read-only storage (writing it
+ * is a segfault), and in either graph a second session would otherwise see a
+ * stream the first one already shifted. */
+static uint8_t *sample_copy(void) {
+    uint8_t *copy = (uint8_t *)malloc((size_t)sample_mpg_len);
+
+    if (!copy) {
+        return 0;
+    }
+
+    memcpy(copy, sample_mpg_bytes, (size_t)sample_mpg_len);
+    return copy;
 }
 
 static plm_video_t *create_decoder(uint8_t *bytes, size_t length) {
@@ -200,11 +219,23 @@ static void host_stream_end_internal(void) {
     host_stream_frame_index = -1;
 }
 
+/* Fresh runtime, fresh sample copy, one full decode session. */
+static int sample_summary(int frame_limit, DecodeSummary *summary) {
+    uint8_t *bytes = 0;
+
+    c2da_rt_reset();
+    bytes = sample_copy();
+    if (!bytes) {
+        return 0;
+    }
+
+    return decode_summary(bytes, (size_t)sample_mpg_len, frame_limit, summary);
+}
+
 int32_t plmpeg_decode_hash(int32_t frame_limit) {
     DecodeSummary summary;
 
-    c2da_rt_reset();
-    if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, frame_limit, &summary)) {
+    if (!sample_summary(frame_limit, &summary)) {
         return -1;
     }
 
@@ -214,8 +245,7 @@ int32_t plmpeg_decode_hash(int32_t frame_limit) {
 int32_t plmpeg_probe_width(void) {
     DecodeSummary summary;
 
-    c2da_rt_reset();
-    if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, 1, &summary)) {
+    if (!sample_summary(1, &summary)) {
         return -1;
     }
 
@@ -225,8 +255,7 @@ int32_t plmpeg_probe_width(void) {
 int32_t plmpeg_probe_height(void) {
     DecodeSummary summary;
 
-    c2da_rt_reset();
-    if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, 1, &summary)) {
+    if (!sample_summary(1, &summary)) {
         return -1;
     }
 
@@ -236,8 +265,7 @@ int32_t plmpeg_probe_height(void) {
 int32_t plmpeg_probe_frame_count(int32_t frame_limit) {
     DecodeSummary summary;
 
-    c2da_rt_reset();
-    if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, frame_limit, &summary)) {
+    if (!sample_summary(frame_limit, &summary)) {
         return -1;
     }
 
@@ -247,8 +275,7 @@ int32_t plmpeg_probe_frame_count(int32_t frame_limit) {
 int32_t plmpeg_probe_first_frame_hash(void) {
     DecodeSummary summary;
 
-    c2da_rt_reset();
-    if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, 1, &summary)) {
+    if (!sample_summary(1, &summary)) {
         return -1;
     }
 
@@ -258,8 +285,7 @@ int32_t plmpeg_probe_first_frame_hash(void) {
 int32_t plmpeg_probe_last_frame_hash(int32_t frame_limit) {
     DecodeSummary summary;
 
-    c2da_rt_reset();
-    if (!decode_summary((uint8_t *)sample_mpg_bytes, sample_mpg_len, frame_limit, &summary)) {
+    if (!sample_summary(frame_limit, &summary)) {
         return -1;
     }
 
@@ -270,8 +296,15 @@ int32_t plmpeg_probe_sequence_start_code(void) {
     plm_buffer_t *buffer = 0;
     int code = -1;
 
+    uint8_t *bytes = 0;
+
     c2da_rt_reset();
-    buffer = plm_buffer_create_with_memory((uint8_t *)sample_mpg_bytes, sample_mpg_len, 0);
+    bytes = sample_copy();
+    if (!bytes) {
+        return -3;
+    }
+
+    buffer = plm_buffer_create_with_memory(bytes, (size_t)sample_mpg_len, 0);
     if (!buffer) {
         return -2;
     }
@@ -285,8 +318,15 @@ int32_t plmpeg_probe_video_has_header(void) {
     plm_video_t *video = 0;
     int result = 0;
 
+    uint8_t *bytes = 0;
+
     c2da_rt_reset();
-    video = create_decoder((uint8_t *)sample_mpg_bytes, sample_mpg_len);
+    bytes = sample_copy();
+    if (!bytes) {
+        return -3;
+    }
+
+    video = create_decoder(bytes, (size_t)sample_mpg_len);
     if (!video) {
         return -1;
     }
@@ -478,4 +518,109 @@ int32_t plmpeg_host_probe_height(void) {
     result = plm_video_get_height(video);
     plm_video_destroy(video);
     return result;
+}
+
+/* Per-frame streaming probes over the embedded sample.  Scalar-only, so the
+ * C reference entry and the daScript entry print the same `frame[i]=hash`
+ * lines without any host-pointer transport:
+ *
+ *   plmpeg_frames_begin()            -> 1 when a decoder over a fresh sample copy is ready
+ *   while (plmpeg_frames_next())     -> decodes one frame, converts it to RGB, hashes it
+ *       plmpeg_frames_hash()         -> fold_bytes() of that RGB frame
+ *       plmpeg_frames_index()        -> 0-based index of that frame
+ *   plmpeg_frames_end()              -> releases the decoder
+ *
+ * The hash per frame is the same fold_bytes() the DecodeSummary probes use,
+ * so `plmpeg_probe_first_frame_hash()` equals the hash of frame 0. */
+static plm_video_t *frames_video = 0;
+static uint8_t *frames_rgb = 0;
+static int frames_rgb_size = 0;
+static int frames_width = 0;
+static int frames_height = 0;
+static int frames_index = -1;
+static uint32_t frames_hash = 0u;
+
+static void frames_release(void) {
+    if (frames_video) {
+        plm_video_destroy(frames_video);
+    }
+
+    frames_video = 0;
+    frames_rgb = 0;
+    frames_rgb_size = 0;
+    frames_width = 0;
+    frames_height = 0;
+    frames_index = -1;
+    frames_hash = 0u;
+}
+
+int32_t plmpeg_frames_begin(void) {
+    uint8_t *bytes = 0;
+
+    frames_release();
+    c2da_rt_reset();
+    bytes = sample_copy();
+    if (!bytes) {
+        return 0;
+    }
+
+    frames_video = create_decoder(bytes, (size_t)sample_mpg_len);
+    if (!frames_video) {
+        return 0;
+    }
+
+    frames_width = plm_video_get_width(frames_video);
+    frames_height = plm_video_get_height(frames_video);
+    if (frames_width <= 0 || frames_height <= 0) {
+        frames_release();
+        return 0;
+    }
+
+    frames_rgb_size = frames_width * frames_height * 3;
+    frames_rgb = (uint8_t *)malloc((size_t)frames_rgb_size);
+    if (!frames_rgb) {
+        frames_release();
+        return 0;
+    }
+
+    return 1;
+}
+
+int32_t plmpeg_frames_next(void) {
+    plm_frame_t *frame = 0;
+
+    if (!frames_video || !frames_rgb) {
+        return 0;
+    }
+
+    frame = plm_video_decode(frames_video);
+    if (!frame) {
+        return 0;
+    }
+
+    plm_frame_to_rgb(frame, frames_rgb, frames_width * 3);
+    frames_hash = fold_bytes(frames_rgb, frames_rgb_size);
+    frames_index += 1;
+    return 1;
+}
+
+int32_t plmpeg_frames_hash(void) {
+    return (int32_t)frames_hash;
+}
+
+int32_t plmpeg_frames_index(void) {
+    return frames_index;
+}
+
+int32_t plmpeg_frames_width(void) {
+    return frames_width;
+}
+
+int32_t plmpeg_frames_height(void) {
+    return frames_height;
+}
+
+int32_t plmpeg_frames_end(void) {
+    frames_release();
+    return 1;
 }

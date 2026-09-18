@@ -2,7 +2,8 @@
  *
  * Scalar-only by design: every probe returns int32_t, so the oracle needs no
  * host-pointer transport ABI.  The lines printed here are the contract that
- * `src/h264_entry.das` must reproduce, in this order.
+ * `src/h264_entry.das` must reproduce, in this order: the demuxer and decoder
+ * probes, then every decoded picture's YUV hash from the streaming API.
  *
  * `-Iinclude` shadows the real <stdio.h> with the fixture's decoder-only stub
  * (an opaque `FILE` and nothing else), so the few libc entrypoints this file
@@ -26,11 +27,17 @@ int32_t h264mp4_probe_sample_count(void);
 int32_t h264mp4_probe_width(void);
 int32_t h264mp4_probe_height(void);
 int32_t h264mp4_probe_frame_count(int32_t frame_limit);
+int32_t h264mp4_frames_begin(void);
+int32_t h264mp4_frames_next(void);
+int32_t h264mp4_frames_hash(void);
+int32_t h264mp4_frames_index(void);
+int32_t h264mp4_frames_end(void);
 
 int main(void) {
     int32_t width = 0;
     int32_t height = 0;
     int32_t frame_count = 0;
+    int frames = 0;
 
     /* Mandatory: with a buffered stdout glibc takes its buffer from shim.c's
      * bump allocator, and the first `shim_reset_heap()` inside a probe hands
@@ -59,5 +66,15 @@ int main(void) {
         return 1;
     }
 
-    return 0;
+    if (!h264mp4_frames_begin()) {
+        printf("frames_begin=0\n");
+        return 1;
+    }
+    while (h264mp4_frames_next()) {
+        printf("frame[%d]=%d\n", (int)h264mp4_frames_index(), (int)h264mp4_frames_hash());
+        frames += 1;
+    }
+    h264mp4_frames_end();
+    printf("frames=%d\n", frames);
+    return frames > 0 ? 0 : 1;
 }
