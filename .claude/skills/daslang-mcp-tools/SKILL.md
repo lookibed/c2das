@@ -42,10 +42,22 @@ project; keep it that way when editing.
   absolute paths. `cpp_goto_definition` (needs `file`, `symbol`, `line`, `column`)
   answered `No definition found` for a class declared in the same file; prefer
   `cpp_find_symbol` or `cpp_grep_usage`.
-- `cpp_compile_check` and `cpp_build_info` only know the toolchain's
-  `build/compile_commands.json`, so they answer `no compile DB entry` for c2das
-  sources; `cpp_format_file` is a no-op because `clang-format` is not installed
-  (`cpp_status` reports both).
+- `cpp_compile_check` and `cpp_build_info` probe the toolchain's
+  `build/compile_commands.json` by default, so without `build_dir` they answer
+  `no compile DB entry` for c2das sources. The exporter's cargo build configures
+  CMake with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`, so pass that database as
+  `build_dir` (a directory or the JSON file itself, absolute):
+
+  ```
+  find /root/c2das/target -path '*c2rust-ast-exporter-*/out/build/compile_commands.json'
+  ```
+
+  The hash in the path changes on rebuilds, so look it up rather than hard-coding
+  it. Observed with `build_dir` set to the release database: `cpp_compile_check`
+  on `c2rust-ast-exporter/src/AstExporter.cpp` answers `Compile check OK`, and
+  `cpp_build_info` prints the `/usr/bin/c++ ... -std=c++17` command from that DB.
+- `cpp_format_file` is a no-op because `clang-format` is not installed and c2das
+  has no `.clang-format` (`cpp_status` reports the missing binary).
 - Files outside `/root/c2das` (for example the session scratchpad) get a
   CROSS-TREE WARNING from every file tool; the result is still produced.
 - The MCP results are development aids. `scripts/run_c2das_cases.py` with the real
