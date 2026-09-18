@@ -1,5 +1,11 @@
 # MPEG-1 decode performance: native C vs c2das vs a hand-written daslang port
 
+> Superseded for the repository fixtures by `docs/real-world-benchmark.md`, which
+> `python3 scripts/real_world_matrix.py bench` regenerates from the checked-in graphs
+> and covers the interpreter, `-jit`, AOT and `-exe` against the C build. This page
+> keeps the 2026-09-10 interpreter-only measurement on the five larger streams and the
+> comparison with the hand-written port, which the matrix does not repeat.
+
 Measured 2026-09-10 on an Intel Core i5-6200U (2 cores / 4 threads, 2.30 GHz), Debian 13,
 Linux 6.12.107. All runs serial on an otherwise idle machine.
 

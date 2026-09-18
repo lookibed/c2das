@@ -79,3 +79,17 @@ blocks the two targets.
 
 Interpreter speed on h264 decoding. Measure it once the decode runs; do not optimise
 before that.
+
+## Status (2026-09-18)
+
+Both targets decode every frame of their repository fixture with hashes identical to
+the C reference in all four daslang run modes; the oracles are per frame
+(`plmpeg_reference.expected`, `h264_reference.expected`, pinned again in
+`tests/canonical/cases.json`), and `docs/real-world-convergence.md` and
+`docs/real-world-benchmark.md` hold the current numbers. `test_decode.das` named
+above is gone; `src/h264_entry.das` is the entry. Two things this path did not
+foresee: the pl_mpeg harness had to stop feeding the decoder the read-only embedded
+sample (`plm_video_decode` shifts its input buffer in place), and AOT needed the
+translator to hoist its site temporaries above the first `goto` (`cfg/labels.rs`)
+because daslang's AOT prints them as C++ declarations that a forward jump may not
+bypass.

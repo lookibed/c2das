@@ -87,5 +87,9 @@ if [[ "$mode" == extended ]]; then
         echo 'PLMPEG is explicitly known-red; refusing to label its runner a success.' >&2; exit 2
     fi
     gate plmpeg-end-to-end bash "$root/tests/manual/real-world-plmpeg-stream/run_end_to_end.sh"
+    # Every daslang run mode (interpreter, -jit, AOT, -exe) must still print the C
+    # reference's per-frame hashes, and docs/real-world-convergence.md must still
+    # describe exactly that; regenerate it with `converge` (no --check) after review.
+    gate real-world-convergence python3 "$root/scripts/real_world_matrix.py" converge --check
 fi
 printf '\n== c2das preflight %s: PASS ==\n' "$mode"
