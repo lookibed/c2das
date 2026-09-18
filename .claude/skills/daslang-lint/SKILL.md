@@ -7,17 +7,17 @@ description: Meaning and fixes for daslang lint findings (LINT*, PERF*, STYLE* r
 
 Read the rule references in full before acting on a finding:
 
-- `tmp/daslang-toolchain/skills/perf_lint.md` (PERF rules)
-- `tmp/daslang-toolchain/skills/style_lint.md` (STYLE rules)
+- `/root/daScript/skills/perf_lint.md` (PERF rules)
+- `/root/daScript/skills/style_lint.md` (STYLE rules)
 - LINT (paranoid) rules are documented inline next to their checks in
-  `tmp/daslang-toolchain/daslib/lint.das` (search for the rule id, e.g. `LINT003`).
+  `/root/daScript/daslib/lint.das` (search for the rule id, e.g. `LINT003`).
 
 Running the three profiles on the expected outputs:
 
 ```sh
 export DAS_LINT_CONFIG_PATH="$PWD/.lint_config"
 for p in paranoid-only perf-only style-only; do
-  tmp/daslang-toolchain/bin/daslang tmp/daslang-toolchain/utils/lint/main.das -- --$p tests/syntax
+  /root/daScript/bin/daslang /root/daScript/utils/lint/main.das -- --$p tests/syntax
 done
 ```
 

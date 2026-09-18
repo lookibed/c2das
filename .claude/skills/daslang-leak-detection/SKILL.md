@@ -5,8 +5,8 @@ description: Diagnosing daslang memory leaks and teardown crashes (--das-profile
 
 # daslang leak detection (c2das)
 
-Read `tmp/daslang-toolchain/skills/memory_leak_detection.md` in full first, then
-`tmp/daslang-toolchain/skills/jobque_debugging.md` if channels or job status are involved.
+Read `/root/daScript/skills/memory_leak_detection.md` in full first, then
+`/root/daScript/skills/jobque_debugging.md` if channels or job status are involved.
 
 c2das context: transpiled C uses raw heap memory (`malloc`/`calloc`/`free` mapped onto the
 runtime's raw allocation helpers, see `skills/raw_memory_abi.md` and `skills/object_memory.md`

@@ -5,7 +5,7 @@ description: Compile-time macros and AST programming in daslang (quote/qmacro, [
 
 # daslang macros (c2das)
 
-Read `tmp/daslang-toolchain/skills/das_macros.md` in full first; the concise reference is
+Read `/root/daScript/skills/das_macros.md` in full first; the concise reference is
 `.claude/skills/daslang/references/macros.md`.
 
 c2das emits daScript from C, so macros appear only in hand-written runtime support code, never

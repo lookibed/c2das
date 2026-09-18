@@ -6,11 +6,16 @@ description: Reference for the daslang MCP server tools (compile_check, lint, gr
 # daslang MCP tools (c2das)
 
 Read the full tool table and notes first:
-`tmp/daslang-toolchain/skills/mcp_tools.md`.
+`/root/daScript/skills/mcp_tools.md`.
 
-How the server is wired in this project (`.mcp.json`): the `daslang` server is the pinned
-toolchain's `utils/mcp/mcp_supervisor.py` with `--repo-root .`, so the daslang child runs
-with cwd = c2das root and the pinned binary `tmp/daslang-toolchain/bin/daslang`.
+How the server is wired in this project (`.mcp.json`): the `daslang` server is the
+`/root/daScript/bin/watchdog` stdio front, which spawns
+`/root/daScript/bin/daslang -ignore-manifest /root/daScript/utils/mcp/main.das` with
+cwd = c2das root on the first tool call and respawns it after a kill or a rebuild;
+`DAS_LINT_CONFIG_PATH` points it at this repository's `.lint_config`. The `daslang-dap`
+server is the same front over `utils/dap/main.das`, and the LSP plugin
+(`.claude/skills/daslang-lsp`) runs `watchdog --lsp` from the same checkout, which is
+built with the `stddlg` module the watchdog requires.
 
 Path conventions that follow from that:
 

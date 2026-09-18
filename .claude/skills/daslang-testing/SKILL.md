@@ -5,15 +5,15 @@ description: dastest conventions for writing and running component tests (test d
 
 # daslang testing (c2das)
 
-Read the pinned toolchain's instructions in full first:
-`tmp/daslang-toolchain/skills/writing_tests.md`.
+Read the local daScript tree's instructions in full first:
+`/root/daScript/skills/writing_tests.md`.
 
 c2das specifics:
 
 - The authoritative C-to-daScript check is `scripts/run_c2das_cases.py`: it transpiles each
   case, runs the output with the real `daslang`, and compares stdout and exit code with the
-  compiled C reference. Point it at the pinned toolchain with
-  `DASLANG=tmp/daslang-toolchain/bin/daslang`.
+  compiled C reference. Point it at the local build with
+  `DASLANG=/root/daScript/bin/daslang` (its default search also finds `~/daScript/bin/daslang`).
 - `tests/syntax/*.das` and `tests/unit/*/src/*.das` are expected outputs; run any of them
   with `mcp__daslang__compile_check` or `mcp__daslang__run_script` to check that they still
   compile under the pinned compiler.
