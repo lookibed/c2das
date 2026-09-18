@@ -23,27 +23,29 @@ Every statement below was confirmed by calling the tool against
 `tests/manual/tmp_ptr_reinterpret_check.das` (or the exporter sources) from this
 project; keep it that way when editing.
 
-- `compile_check`, `lint`, `type_of`, `goto_definition`, `find_references`,
-  `find_symbol`, `format_file`: project-relative paths work
-  (`tests/manual/tmp_ptr_reinterpret_check.das`), absolute paths work too.
-- `run_script`, `run_test`, `outline`, `grep_usage`, `cpp_outline`: relative paths are
-  joined onto the toolchain root (`/root/daScript`), not the server's cwd, so always
-  pass absolute paths: `directory: <repo root>/tests/manual`,
-  `file: <repo root>/tests/manual/tmp_ptr_reinterpret_check.das`. Observed with a
-  relative path: `run_script` and `run_test` fail with
-  `missing prerequisite '/root/daScript/tests/manual/...'`; `outline` returns no
-  output, `grep_usage` reports `0 matches in 0 files`, `cpp_outline` reports
-  `No C++ declarations found`. This is a daScript MCP server defect (`resolve_path`
-  in `utils/mcp/tools/common.das`), not a `.mcp.json` problem.
+- Project-relative paths (`tests/manual/tmp_ptr_reinterpret_check.das`,
+  `directory: tests/manual`) resolve against the served tree, `/root/c2das`, for
+  every file tool: confirmed for `compile_check`, `lint`, `type_of`,
+  `goto_definition`, `find_references`, `find_symbol`, `format_file`, `run_script`,
+  `run_test`, `outline`, `grep_usage`, `cpp_outline`, `cpp_find_symbol`,
+  `cpp_goto_definition`. Absolute paths work too. This needs daScript commit
+  `6fe6d8e75` ("a tool's relative path resolves against the served tree") or later;
+  on an older checkout `run_script`, `run_test`, `outline`, `grep_usage` and the
+  `cpp_*` tools join relative paths onto `/root/daScript` instead, and the symptom
+  is `missing prerequisite '/root/daScript/tests/...'` from `run_script`. After
+  pulling daScript, call the `shutdown` tool once so the watchdog respawns the
+  server on the new code.
 - `run_script` needs an `[export] def main()`; the transpiler outputs under `tests/`
   are plain modules, so it answers `function 'main' not found` for them (expected).
-- `cpp_grep_usage`, `cpp_outline`, `cpp_find_symbol` work on C/C++ sources: the C
-  inputs under `tests/` and the Clang exporter in `c2rust-ast-exporter/src`; pass
-  absolute paths. `cpp_goto_definition` (needs `file`, `symbol`, `line`, `column`)
-  answered `No definition found` for a class declared in the same file; prefer
-  `cpp_find_symbol` or `cpp_grep_usage`.
+  `run_test` on such a file reports `0 tests ... SUCCESS`.
+- `cpp_grep_usage`, `cpp_outline`, `cpp_find_symbol`, `cpp_goto_definition` work on
+  C/C++ sources: the C inputs under `tests/` and the Clang exporter in
+  `c2rust-ast-exporter/src`. The `cpp_*` index covers the whole served tree, so
+  `cpp_goto_definition` (needs `file`, `symbol`, `line`, `column`) finds the
+  `TranslateConsumer` class and constructor in `AstExporter.cpp`.
 - `cpp_compile_check` and `cpp_build_info` probe the toolchain's
-  `build/compile_commands.json` by default, so without `build_dir` they answer
+  `build/compile_commands.json` by default (`cpp_status` shows that path), so
+  without `build_dir` they answer
   `no compile DB entry` for c2das sources. The exporter's cargo build configures
   CMake with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`, so pass that database as
   `build_dir` (a directory or the JSON file itself, absolute):
