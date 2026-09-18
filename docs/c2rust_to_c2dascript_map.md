@@ -8,7 +8,7 @@ This file is the working map for architecture-first development. It is not a sta
 - Do not fix pointer/null semantics by generated-text replacement.
 - Do not fix duplicate type emission by a dedup script or snapshot accept.
 - Do not add corpus-specific branches in translator/core.
-- New real-world failures must be grouped by owning layer before implementation.
+- New corpus failures must be grouped by owning layer before implementation.
 
 ## Layer Map
 
@@ -16,7 +16,7 @@ This file is the working map for architecture-first development. It is not a sta
 | --- | --- | --- | --- | --- |
 | CFG reconstruction | `c2rust-transpile/src/cfg/mod.rs`, `cfg/relooper.rs`, `cfg/structures.rs`, `cfg/loops.rs`, `cfg/inc_cleanup.rs` | `c2dascript-transpile/src/cfg/mod.rs`, `cfg/relooper.rs`, `cfg/structures.rs`, `cfg/loops.rs`, `cfg/inc_cleanup.rs` | Partially ported | `convert_function_body` has daScript-specific lowering and recent return coercion. Temp declaration dominance is not yet asserted by tests. For-loop entry/cond wiring was repaired reactively and needs invariant coverage. |
 | Decl lifting / temp placement | `translator/mod.rs` item arrangement, `cfg/structures.rs`, `with_stmts.rs`, `rust_ast/item_store.rs` | `translator/mod.rs`, `with_stmts.rs`, `cfg/structures.rs`, `das_ast` declarations | Weak / incomplete | Synthetic locals can be introduced in multiple places (`lower_bool_numeric_cast_arg`, assignment lowering, call lowering). There is no single verifier that every temp dominates every use-site. |
-| Expression translation | `translator/mod.rs`, `translator/functions.rs`, `translator/operators.rs`, `translator/named_references.rs` | Same c2dascript paths plus `das_ast/src/expr.rs` printer | Broad but uneven | Several daScript backend rules live in printer or late normalizers. Function-value references and call ordering were handled after real-world failures, not from a full call/value model. C function pointer calls currently use a backend-valid default-result fallback instead of typed callback ABI support; this is intentional tracked debt, not a final model. |
+| Expression translation | `translator/mod.rs`, `translator/functions.rs`, `translator/operators.rs`, `translator/named_references.rs` | Same c2dascript paths plus `das_ast/src/expr.rs` printer | Broad but uneven | Several daScript backend rules live in printer or late normalizers. Function-value references and call ordering were handled after corpus failures, not from a full call/value model. C function pointer calls currently use a backend-valid default-result fallback instead of typed callback ABI support; this is intentional tracked debt, not a final model. |
 | Implicit / explicit casts | `translator/mod.rs`, `translator/operators.rs`, `convert_type.rs`, `translator/pointers.rs`, `translator/enums.rs` | Same c2dascript paths | In progress | Integer promotions, shift result typing, bool-to-numeric lowering, and pointer/integer mediation are spread across call args, assignment, return, and operator code. Needs one cast policy table and tests against intermediate AST/text fragments. |
 | Pointer / null lowering | `translator/pointers.rs`, `translator/operators.rs`, `translator/named_references.rs`, `convert_type.rs` | Same c2dascript paths | In progress | daScript has explicit `unsafe`/pointer restrictions. Current code still mixes pointer semantic values, nullable pointers, and `uint64` address-like values. Pointer-index unsafe placement had printer-level fixes and needs owning-layer tests. |
 | C runtime / libc compatibility | `translator/builtins.rs`, libc call handling in `translator/functions.rs`, runtime shims emitted by c2rust support code | `translator/functions.rs`, `translator/mod.rs::c2da_runtime_helpers`, `translator/builtins.rs` | Early vertical block | daScript only has a small subset of libc-like builtins. Missing calls such as `memchr`, `memset`, `strdup`, and `strlen` must lower through typed runtime helpers and call-argument policy, not generated text replacement. Current helper semantics are conservative and backend-valid; full memory semantics remain future work. |
@@ -40,19 +40,19 @@ These invariants must become tests as the owning layers are rebuilt.
 10. Every C runtime call either maps to a known daScript builtin with backend-valid argument types, or to a typed `c2da_*` runtime helper emitted before user declarations.
 11. Every C function pointer call must lower to backend-valid daScript. Until typed callback ABI support exists, call lowering must not emit `invoke(function?)`; it must preserve side-effecting argument evaluation and return the C return type default initializer.
 
-## Real-World Driver
+## Corpus Driver
 
 Primary corpus:
 
-- `tests/manual/real-world-h264bsd-mp4`
+- `tests/manual/h264bsd-mp4`
 
 Secondary corpus currently present:
 
-- `tests/manual/real-world-plmpeg-stream`
+- `tests/manual/plmpeg-stream`
 
 Missing corpus slot:
 
-- Add at least one more heavy fixture with a different profile before treating real-world coverage as broad. Candidates should stress callbacks, structs/unions, pointer arithmetic, and multi-TU ordering.
+- Add at least one more heavy fixture with a different profile before treating corpus coverage as broad. Candidates should stress callbacks, structs/unions, pointer arithmetic, and multi-TU ordering.
 
 ## Current Vertical Blocks
 

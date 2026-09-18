@@ -1095,7 +1095,7 @@
     {
       "c_graph": "h264bsd-mp4",
       "canonical_case": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/all.das",
+      "checked_in_das": "tests/manual/h264bsd-mp4/src/all.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1116,10 +1116,10 @@
         }
       },
       "family": "h264bsd-mp4",
-      "id": "tests--manual--real-world-h264bsd-mp4--src--all",
-      "owner": "real-world graph inventory",
+      "id": "tests--manual--h264bsd-mp4--src--all",
+      "owner": "corpus graph inventory",
       "runtime": "required",
-      "source": "tests/manual/real-world-h264bsd-mp4/src/all.c",
+      "source": "tests/manual/h264bsd-mp4/src/all.c",
       "status": "supported"
     },
     {
@@ -1142,15 +1142,15 @@
         "value": "unregistered"
       },
       "family": "h264bsd-mp4",
-      "id": "tests--manual--real-world-h264bsd-mp4--src--all_reference",
-      "owner": "real-world graph inventory",
+      "id": "tests--manual--h264bsd-mp4--src--all_reference",
+      "owner": "corpus graph inventory",
       "runtime": "unverified",
-      "source": "tests/manual/real-world-h264bsd-mp4/src/all_reference.c",
+      "source": "tests/manual/h264bsd-mp4/src/all_reference.c",
       "status": "inventory-only"
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/h264_bench_entry.das",
+      "checked_in_das": "tests/manual/h264bsd-mp4/src/h264_bench_entry.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1168,10 +1168,10 @@
         "value": "unregistered"
       },
       "family": "h264bsd-mp4",
-      "id": "tests--manual--real-world-h264bsd-mp4--src--h264_bench_entry",
-      "owner": "real-world graph inventory",
+      "id": "tests--manual--h264bsd-mp4--src--h264_bench_entry",
+      "owner": "corpus graph inventory",
       "runtime": "unverified",
-      "source": "tests/manual/real-world-h264bsd-mp4/src/h264_bench_entry.c",
+      "source": "tests/manual/h264bsd-mp4/src/h264_bench_entry.c",
       "status": "inventory-only"
     },
     {
@@ -1194,15 +1194,15 @@
         "value": "unregistered"
       },
       "family": "h264bsd-mp4",
-      "id": "tests--manual--real-world-h264bsd-mp4--src--h264_reference_entry",
-      "owner": "real-world graph inventory",
+      "id": "tests--manual--h264bsd-mp4--src--h264_reference_entry",
+      "owner": "corpus graph inventory",
       "runtime": "unverified",
-      "source": "tests/manual/real-world-h264bsd-mp4/src/h264_reference_entry.c",
+      "source": "tests/manual/h264bsd-mp4/src/h264_reference_entry.c",
       "status": "inventory-only"
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/h264bsd.das",
+      "checked_in_das": "tests/manual/h264bsd-mp4/src/h264bsd.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1220,15 +1220,15 @@
         "value": "unregistered"
       },
       "family": "h264bsd-mp4",
-      "id": "tests--manual--real-world-h264bsd-mp4--src--h264bsd",
-      "owner": "real-world graph inventory",
+      "id": "tests--manual--h264bsd-mp4--src--h264bsd",
+      "owner": "corpus graph inventory",
       "runtime": "unverified",
-      "source": "tests/manual/real-world-h264bsd-mp4/src/h264bsd.c",
+      "source": "tests/manual/h264bsd-mp4/src/h264bsd.c",
       "status": "inventory-only"
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/minimp4.das",
+      "checked_in_das": "tests/manual/h264bsd-mp4/src/minimp4.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1246,15 +1246,15 @@
         "value": "unregistered"
       },
       "family": "h264bsd-mp4",
-      "id": "tests--manual--real-world-h264bsd-mp4--src--minimp4",
-      "owner": "real-world graph inventory",
+      "id": "tests--manual--h264bsd-mp4--src--minimp4",
+      "owner": "corpus graph inventory",
       "runtime": "unverified",
-      "source": "tests/manual/real-world-h264bsd-mp4/src/minimp4.c",
+      "source": "tests/manual/h264bsd-mp4/src/minimp4.c",
       "status": "inventory-only"
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/module.das",
+      "checked_in_das": "tests/manual/h264bsd-mp4/src/module.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1272,15 +1272,15 @@
         "value": "unregistered"
       },
       "family": "h264bsd-mp4",
-      "id": "tests--manual--real-world-h264bsd-mp4--src--module",
-      "owner": "real-world graph inventory",
+      "id": "tests--manual--h264bsd-mp4--src--module",
+      "owner": "corpus graph inventory",
       "runtime": "unverified",
-      "source": "tests/manual/real-world-h264bsd-mp4/src/module.c",
+      "source": "tests/manual/h264bsd-mp4/src/module.c",
       "status": "inventory-only"
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/real-world-h264bsd-mp4/src/shim.das",
+      "checked_in_das": "tests/manual/h264bsd-mp4/src/shim.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1298,16 +1298,16 @@
         "value": "unregistered"
       },
       "family": "h264bsd-mp4",
-      "id": "tests--manual--real-world-h264bsd-mp4--src--shim",
-      "owner": "real-world graph inventory",
+      "id": "tests--manual--h264bsd-mp4--src--shim",
+      "owner": "corpus graph inventory",
       "runtime": "unverified",
-      "source": "tests/manual/real-world-h264bsd-mp4/src/shim.c",
+      "source": "tests/manual/h264bsd-mp4/src/shim.c",
       "status": "inventory-only"
     },
     {
       "c_graph": "plmpeg-target",
       "canonical_case": "plmpeg-stream",
-      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/all.das",
+      "checked_in_das": "tests/manual/plmpeg-stream/src/all.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1328,10 +1328,10 @@
         }
       },
       "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--all",
-      "owner": "real-world graph / aggregate ABI",
+      "id": "tests--manual--plmpeg-stream--src--all",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/all.c",
+      "source": "tests/manual/plmpeg-stream/src/all.c",
       "status": "supported"
     },
     {
@@ -1354,10 +1354,10 @@
         "value": "unregistered"
       },
       "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--all_reference",
-      "owner": "real-world graph / aggregate ABI",
+      "id": "tests--manual--plmpeg-stream--src--all_reference",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/all_reference.c",
+      "source": "tests/manual/plmpeg-stream/src/all_reference.c",
       "status": "known-red"
     },
     {
@@ -1380,15 +1380,15 @@
         "value": "unregistered"
       },
       "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--macro_origin_probe",
-      "owner": "real-world graph / aggregate ABI",
+      "id": "tests--manual--plmpeg-stream--src--macro_origin_probe",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/macro_origin_probe.c",
+      "source": "tests/manual/plmpeg-stream/src/macro_origin_probe.c",
       "status": "known-red"
     },
     {
       "c_graph": "plmpeg-target",
-      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/module.das",
+      "checked_in_das": "tests/manual/plmpeg-stream/src/module.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1406,15 +1406,15 @@
         "value": "unregistered"
       },
       "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--module",
-      "owner": "real-world graph / aggregate ABI",
+      "id": "tests--manual--plmpeg-stream--src--module",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/module.c",
+      "source": "tests/manual/plmpeg-stream/src/module.c",
       "status": "known-red"
     },
     {
       "c_graph": "plmpeg-target",
-      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/pl_mpeg.das",
+      "checked_in_das": "tests/manual/plmpeg-stream/src/pl_mpeg.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1432,15 +1432,15 @@
         "value": "unregistered"
       },
       "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--pl_mpeg",
-      "owner": "real-world graph / aggregate ABI",
+      "id": "tests--manual--plmpeg-stream--src--pl_mpeg",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/pl_mpeg.c",
+      "source": "tests/manual/plmpeg-stream/src/pl_mpeg.c",
       "status": "known-red"
     },
     {
       "c_graph": "plmpeg-target",
-      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/plmpeg_bench_entry.das",
+      "checked_in_das": "tests/manual/plmpeg-stream/src/plmpeg_bench_entry.das",
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1458,36 +1458,10 @@
         "value": "unregistered"
       },
       "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--plmpeg_bench_entry",
-      "owner": "real-world graph / aggregate ABI",
+      "id": "tests--manual--plmpeg-stream--src--plmpeg_bench_entry",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/plmpeg_bench_entry.c",
-      "status": "known-red"
-    },
-    {
-      "c_graph": "plmpeg-target",
-      "checked_in_das": null,
-      "clang": {
-        "compile_commands": null,
-        "flags": [
-          "-std=c11",
-          "-DPLM_NO_STDIO",
-          "-Iinclude",
-          "-Iupstream",
-          "-Ifixtures",
-          "-Isrc"
-        ]
-      },
-      "entrypoint": "graph-member",
-      "expected": {
-        "kind": "c-reference-then-das-output",
-        "value": "unregistered"
-      },
-      "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--plmpeg_reference_entry",
-      "owner": "real-world graph / aggregate ABI",
-      "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/plmpeg_reference_entry.c",
+      "source": "tests/manual/plmpeg-stream/src/plmpeg_bench_entry.c",
       "status": "known-red"
     },
     {
@@ -1510,36 +1484,10 @@
         "value": "unregistered"
       },
       "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--plmpeg_reference_probe",
-      "owner": "real-world graph / aggregate ABI",
+      "id": "tests--manual--plmpeg-stream--src--plmpeg_reference_entry",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/plmpeg_reference_probe.c",
-      "status": "known-red"
-    },
-    {
-      "c_graph": "plmpeg-target",
-      "checked_in_das": "tests/manual/real-world-plmpeg-stream/src/shim.das",
-      "clang": {
-        "compile_commands": null,
-        "flags": [
-          "-std=c11",
-          "-DPLM_NO_STDIO",
-          "-Iinclude",
-          "-Iupstream",
-          "-Ifixtures",
-          "-Isrc"
-        ]
-      },
-      "entrypoint": "graph-member",
-      "expected": {
-        "kind": "c-reference-then-das-output",
-        "value": "unregistered"
-      },
-      "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--shim",
-      "owner": "real-world graph / aggregate ABI",
-      "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/shim.c",
+      "source": "tests/manual/plmpeg-stream/src/plmpeg_reference_entry.c",
       "status": "known-red"
     },
     {
@@ -1562,10 +1510,62 @@
         "value": "unregistered"
       },
       "family": "plmpeg",
-      "id": "tests--manual--real-world-plmpeg-stream--src--variadic_abi_probe",
-      "owner": "real-world graph / aggregate ABI",
+      "id": "tests--manual--plmpeg-stream--src--plmpeg_reference_probe",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
-      "source": "tests/manual/real-world-plmpeg-stream/src/variadic_abi_probe.c",
+      "source": "tests/manual/plmpeg-stream/src/plmpeg_reference_probe.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": "tests/manual/plmpeg-stream/src/shim.das",
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--plmpeg-stream--src--shim",
+      "owner": "corpus graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/plmpeg-stream/src/shim.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "plmpeg-target",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-DPLM_NO_STDIO",
+          "-Iinclude",
+          "-Iupstream",
+          "-Ifixtures",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "c-reference-then-das-output",
+        "value": "unregistered"
+      },
+      "family": "plmpeg",
+      "id": "tests--manual--plmpeg-stream--src--variadic_abi_probe",
+      "owner": "corpus graph / aggregate ABI",
+      "runtime": "required",
+      "source": "tests/manual/plmpeg-stream/src/variadic_abi_probe.c",
       "status": "known-red"
     },
     {
@@ -7537,7 +7537,7 @@
         "-Isrc"
       ],
       "description": "Canonical PLMPEG translation graph, rooted at src/all.c.",
-      "entry": "tests/manual/real-world-plmpeg-stream/src/all.c",
+      "entry": "tests/manual/plmpeg-stream/src/all.c",
       "id": "plmpeg-target"
     },
     {
@@ -7550,7 +7550,7 @@
         "-Isrc"
       ],
       "description": "C reference graph for PLMPEG, rooted at src/all_reference.c.",
-      "entry": "tests/manual/real-world-plmpeg-stream/src/all_reference.c",
+      "entry": "tests/manual/plmpeg-stream/src/all_reference.c",
       "id": "plmpeg-reference"
     },
     {
@@ -7563,7 +7563,7 @@
         "-Isrc"
       ],
       "description": "Canonical H264BSD plus minimp4 translation graph, rooted at src/all.c; the C reference graph is src/all_reference.c under the same flags.",
-      "entry": "tests/manual/real-world-h264bsd-mp4/src/all.c",
+      "entry": "tests/manual/h264bsd-mp4/src/all.c",
       "id": "h264bsd-mp4"
     },
     {
@@ -7666,37 +7666,37 @@
       "status": "historical"
     },
     {
-      "path": "tests/manual/real-world-h264bsd-mp4/run_dascheck.ps1",
+      "path": "tests/manual/h264bsd-mp4/run_dascheck.ps1",
       "reason": "Windows diagnostic script that overwrites tracked reports.",
       "role": "h264-windows-diagnostic",
       "status": "retire"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/check_backend_gates.sh",
+      "path": "tests/manual/plmpeg-stream/check_backend_gates.sh",
       "reason": "Historical diagnostic helper, not an end-to-end proof.",
       "role": "plmpeg-backend-helper",
       "status": "historical"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/check_c_graph.sh",
+      "path": "tests/manual/plmpeg-stream/check_c_graph.sh",
       "reason": "Clang graph proof only.",
       "role": "plmpeg-c-graph",
       "status": "retained-non-e2e"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/run_dascheck.ps1",
+      "path": "tests/manual/plmpeg-stream/run_dascheck.ps1",
       "reason": "Windows diagnostic script outside the canonical WSL runtime.",
       "role": "plmpeg-windows-diagnostic",
       "status": "retire"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/run_end_to_end.sh",
+      "path": "tests/manual/plmpeg-stream/run_end_to_end.sh",
       "reason": "Requires fresh-output proof before it can be an acceptance gate.",
       "role": "plmpeg-e2e",
       "status": "known-red"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/transpile_canonical_graph.sh",
+      "path": "tests/manual/plmpeg-stream/transpile_canonical_graph.sh",
       "reason": "Writes generated output beside fixture source and is not an oracle.",
       "role": "plmpeg-transpile-helper",
       "status": "quarantined"

@@ -25,5 +25,5 @@ type, operation, and cause) and cannot be marked supported by absence of
 printed output.
 
 `plmpeg-stream` is the first known-red graph case. Run it explicitly with
-`--case plmpeg-stream`; its first canonical failure belongs in the real-world
+`--case plmpeg-stream`; its first canonical failure belongs in the corpus
 ledger and receives no readiness credit.

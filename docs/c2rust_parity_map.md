@@ -10,13 +10,13 @@ Fixes must target the owning layer below, not generated text symptoms.
 - No snapshot accept to hide semantic drift.
 - A failure must be assigned to its owning layer before code is changed.
 - Every vertical block must add or update an intermediate invariant test.
-- Real-world corpus drives priority; syntax tests are regression checks, not architecture.
+- The manual corpora drive priority; syntax tests are regression checks, not architecture.
 
-## Real-world driver
+## Corpus driver
 
 Primary:
 
-- `tests/manual/real-world-h264bsd-mp4`
+- `tests/manual/h264bsd-mp4`
 
 Next corpus candidates:
 
@@ -69,7 +69,7 @@ Current invariant:
 - A switch fallthrough edge to the after-switch continuation must not lower to top-level `break`.
 - CFG label emission must be deterministic and injective for reachable labels.
 
-Current real-world failure:
+Current corpus failure:
 
 - `minimp4_read` has `switch(nb)` fallthrough and no C `break`.
 - c2dascript emits a top-level daScript `break`, so the bug belongs to CFG exit classification.
@@ -277,7 +277,7 @@ Block:
 
 Reason:
 
-- `real-world-h264bsd-mp4/src/minimp4.das` fails because `minimp4_read` emits top-level
+- `h264bsd-mp4/src/minimp4.das` fails because `minimp4_read` emits top-level
   `break` for a C `switch(nb)` fallthrough construct that has no C `break`.
 
 Owning files:

@@ -242,7 +242,7 @@ fn canonical_abi_owns_storage_literals_bool_and_pointer_raw_conversions() {
 }
 
 #[test]
-fn real_world_driver_fixtures_are_present() {
+fn corpus_driver_fixtures_are_present() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workspace root");
@@ -250,13 +250,13 @@ fn real_world_driver_fixtures_are_present() {
     // compile_commands.json is machine-local (gitignored); the canonical runner generates its
     // own per case, so only the C graph entry points are required here.
     for fixture in [
-        "tests/manual/real-world-h264bsd-mp4/src/all.c",
-        "tests/manual/real-world-plmpeg-stream/src/all.c",
+        "tests/manual/h264bsd-mp4/src/all.c",
+        "tests/manual/plmpeg-stream/src/all.c",
     ] {
         let path = root.join(fixture);
         assert!(
             path.exists(),
-            "missing real-world driver fixture: {}",
+            "missing corpus driver fixture: {}",
             path.display()
         );
     }
@@ -267,7 +267,7 @@ fn plmpeg_target_graph_excludes_fixture_libc_and_reference_graph_keeps_it() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workspace root");
-    let fixture = root.join("tests/manual/real-world-plmpeg-stream");
+    let fixture = root.join("tests/manual/plmpeg-stream");
     let src = fixture.join("src");
     let all = std::fs::read_to_string(src.join("all.c")).expect("PLMPEG all.c");
     let reference =
@@ -387,7 +387,7 @@ fn variadic_macro_and_simd_boundaries_are_owned_before_printing() {
 }
 
 #[test]
-fn real_world_asm_simd_inventory_is_taken_from_typed_c_ast() {
+fn corpus_asm_simd_inventory_is_taken_from_typed_c_ast() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workspace root");
@@ -395,13 +395,13 @@ fn real_world_asm_simd_inventory_is_taken_from_typed_c_ast() {
         // Individual TUs are the compact ASM/SIMD inventory corpus.  PLMPEG's
         // `all.c` is separately validated as the canonical decoder graph;
         // this inventory stays per-TU so a new surface has a precise source.
-        "tests/manual/real-world-plmpeg-stream/src/module.c",
-        "tests/manual/real-world-plmpeg-stream/src/pl_mpeg.c",
-        "tests/manual/real-world-plmpeg-stream/src/shim.c",
-        "tests/manual/real-world-h264bsd-mp4/src/h264bsd.c",
-        "tests/manual/real-world-h264bsd-mp4/src/minimp4.c",
-        "tests/manual/real-world-h264bsd-mp4/src/module.c",
-        "tests/manual/real-world-h264bsd-mp4/src/shim.c",
+        "tests/manual/plmpeg-stream/src/module.c",
+        "tests/manual/plmpeg-stream/src/pl_mpeg.c",
+        "tests/manual/plmpeg-stream/src/shim.c",
+        "tests/manual/h264bsd-mp4/src/h264bsd.c",
+        "tests/manual/h264bsd-mp4/src/minimp4.c",
+        "tests/manual/h264bsd-mp4/src/module.c",
+        "tests/manual/h264bsd-mp4/src/shim.c",
     ] {
         let source = root.join(fixture);
         let (_temp, commands) = c2dascript_transpile::create_temp_compile_commands(&[source]);

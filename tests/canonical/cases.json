@@ -611,7 +611,7 @@
     {
       "id": "plmpeg-stream",
       "status": "ready",
-      "source_root": "tests/manual/real-world-plmpeg-stream",
+      "source_root": "tests/manual/plmpeg-stream",
       "translation_entry": "src/all.c",
       "c_graph": "plmpeg-target",
       "clang": {
@@ -629,7 +629,7 @@
         "exit_code": 0
       },
       "runtime": "required",
-      "real_world": {
+      "corpus": {
         "label": "pl_mpeg (MPEG-1 video decoder)",
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/sample.m1v",
@@ -660,7 +660,7 @@
     {
       "id": "h264bsd-mp4",
       "status": "ready",
-      "source_root": "tests/manual/real-world-h264bsd-mp4",
+      "source_root": "tests/manual/h264bsd-mp4",
       "translation_entry": "src/all.c",
       "c_graph": "h264bsd-mp4",
       "clang": {
@@ -678,7 +678,7 @@
         "exit_code": 0
       },
       "runtime": "required",
-      "real_world": {
+      "corpus": {
         "label": "h264bsd + minimp4 (H.264 baseline decoder, MP4 demuxer)",
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/sample.mp4",

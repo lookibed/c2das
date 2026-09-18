@@ -1,4 +1,4 @@
-# Manual and real-world corpus architecture
+# Manual corpus architecture
 
 Manual corpus directories preserve upstream source, provenance, local graph wrappers, reference
 oracles, and recorded blockers separately.  Upstream sources are versioned ordinary files: never

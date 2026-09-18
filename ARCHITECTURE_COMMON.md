@@ -13,5 +13,5 @@ The printer consumes typed daScript AST only; it never repairs C semantics after
 
 A supported path has all three: a source-level invariant, a distinguishing C fixture, and real
 `daslang` execution where executable.  A green diagnostic test proves fail-closed behaviour, not
-language support.  Real-world corpora are evidence only at their recorded revision and only when
+language support.  The manual corpora are evidence only at their recorded revision and only when
 their runner reaches the declared gate.

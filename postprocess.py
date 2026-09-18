@@ -1,7 +1,7 @@
 """Postprocess all.das: dedup structs (line-by-line brace tracking), fix .type_N refs."""
 import re
 
-path = "/mnt/d/Backups/Spider/tests/manual/real-world-h264bsd-mp4/src/all.das"
+path = "/mnt/d/Backups/Spider/tests/manual/h264bsd-mp4/src/all.das"
 with open(path) as f:
     lines = f.readlines()
 

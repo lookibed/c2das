@@ -134,9 +134,9 @@
       "c_graph": "plmpeg-target",
       "entrypoint": "graph-member",
       "expected_kind": "c-reference-then-das-output",
-      "glob": "tests/manual/real-world-plmpeg-stream/src/*.c",
+      "glob": "tests/manual/plmpeg-stream/src/*.c",
       "id": "plmpeg",
-      "owner": "real-world graph / aggregate ABI",
+      "owner": "corpus graph / aggregate ABI",
       "runtime": "required",
       "status": "known-red"
     },
@@ -144,9 +144,9 @@
       "c_graph": "h264bsd-mp4",
       "entrypoint": "graph-member",
       "expected_kind": "unregistered",
-      "glob": "tests/manual/real-world-h264bsd-mp4/src/*.c",
+      "glob": "tests/manual/h264bsd-mp4/src/*.c",
       "id": "h264bsd-mp4",
-      "owner": "real-world graph inventory",
+      "owner": "corpus graph inventory",
       "runtime": "unverified",
       "status": "inventory-only"
     },
@@ -199,7 +199,7 @@
         "-Isrc"
       ],
       "description": "Canonical PLMPEG translation graph, rooted at src/all.c.",
-      "entry": "tests/manual/real-world-plmpeg-stream/src/all.c",
+      "entry": "tests/manual/plmpeg-stream/src/all.c",
       "id": "plmpeg-target"
     },
     {
@@ -212,7 +212,7 @@
         "-Isrc"
       ],
       "description": "C reference graph for PLMPEG, rooted at src/all_reference.c.",
-      "entry": "tests/manual/real-world-plmpeg-stream/src/all_reference.c",
+      "entry": "tests/manual/plmpeg-stream/src/all_reference.c",
       "id": "plmpeg-reference"
     },
     {
@@ -225,7 +225,7 @@
         "-Isrc"
       ],
       "description": "Canonical H264BSD plus minimp4 translation graph, rooted at src/all.c; the C reference graph is src/all_reference.c under the same flags.",
-      "entry": "tests/manual/real-world-h264bsd-mp4/src/all.c",
+      "entry": "tests/manual/h264bsd-mp4/src/all.c",
       "id": "h264bsd-mp4"
     },
     {
@@ -401,37 +401,37 @@
       "status": "known-red"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/check_c_graph.sh",
+      "path": "tests/manual/plmpeg-stream/check_c_graph.sh",
       "reason": "Clang graph proof only.",
       "role": "plmpeg-c-graph",
       "status": "retained-non-e2e"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/run_end_to_end.sh",
+      "path": "tests/manual/plmpeg-stream/run_end_to_end.sh",
       "reason": "Requires fresh-output proof before it can be an acceptance gate.",
       "role": "plmpeg-e2e",
       "status": "known-red"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/transpile_canonical_graph.sh",
+      "path": "tests/manual/plmpeg-stream/transpile_canonical_graph.sh",
       "reason": "Writes generated output beside fixture source and is not an oracle.",
       "role": "plmpeg-transpile-helper",
       "status": "quarantined"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/check_backend_gates.sh",
+      "path": "tests/manual/plmpeg-stream/check_backend_gates.sh",
       "reason": "Historical diagnostic helper, not an end-to-end proof.",
       "role": "plmpeg-backend-helper",
       "status": "historical"
     },
     {
-      "path": "tests/manual/real-world-plmpeg-stream/run_dascheck.ps1",
+      "path": "tests/manual/plmpeg-stream/run_dascheck.ps1",
       "reason": "Windows diagnostic script outside the canonical WSL runtime.",
       "role": "plmpeg-windows-diagnostic",
       "status": "retire"
     },
     {
-      "path": "tests/manual/real-world-h264bsd-mp4/run_dascheck.ps1",
+      "path": "tests/manual/h264bsd-mp4/run_dascheck.ps1",
       "reason": "Windows diagnostic script that overwrites tracked reports.",
       "role": "h264-windows-diagnostic",
       "status": "retire"

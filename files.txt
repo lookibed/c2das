@@ -1,5 +1,5 @@
-Структура папок тома Новый том
-Серийный номер тома: 1020-3CC4
+я┐╜я┐╜я┐╜я┐╜я┐╜я┐╜я┐╜ я┐╜я┐╜я┐╜я┐╜я┐╜ томя┐╜ я┐╜я┐╜я┐╜я┐╜ том
+я┐╜я┐╜рийя┐╜я┐╜ я┐╜я┐╜я┐╜я┐╜я┐╜ томя┐╜: 1020-3CC4
 D:.
 |   .gitattributes
 |   .gitignore
@@ -13144,7 +13144,7 @@ D:.
 |   |               __init__.cpython-310.pyc
 |   |               
 |   +---manual
-|   |   +---real-world-h264bsd-mp4
+|   |   +---h264bsd-mp4
 |   |   |   |   compile_commands.json
 |   |   |   |   README.md
 |   |   |   |   README.spider.md
@@ -13470,7 +13470,7 @@ D:.
 |   |   |                   out_sequential_ref.mp4
 |   |   |                   out_slices_ref.mp4
 |   |   |                   
-|   |   +---real-world-plmpeg-stream
+|   |   +---plmpeg-stream
 |   |   |   |   all_daslang_after_ab.txt
 |   |   |   |   all_daslang_report.txt
 |   |   |   |   compile_commands.json

@@ -61,12 +61,12 @@ check_runtime_owners() {
     }
 }
 check_corpus_inventory() {
-    test -f "$root/docs/followups/real_world_status.md"
-    test -f "$root/tests/manual/real-world-h264bsd-mp4/UPSTREAM.md"
-    if find "$root/tests/manual/real-world-h264bsd-mp4/upstream" -type d -name .git -print -quit | grep -q .; then
+    test -f "$root/docs/followups/corpus_status.md"
+    test -f "$root/tests/manual/h264bsd-mp4/UPSTREAM.md"
+    if find "$root/tests/manual/h264bsd-mp4/upstream" -type d -name .git -print -quit | grep -q .; then
         echo 'nested Git metadata remains in versioned H264 fixture input' >&2; return 1
     fi
-    grep -Fq '| PLMPEG stream |' "$root/docs/followups/real_world_status.md"
+    grep -Fq '| PLMPEG stream |' "$root/docs/followups/corpus_status.md"
 }
 
 gate repository check_repository
@@ -78,18 +78,18 @@ gate changed-fixture-assertions check_changed_fixture_assertions
 gate runtime-owner-invariants check_runtime_owners
 gate canonical-c2das-runtime python3 "$root/scripts/run_c2das_cases.py" --all-ready
 gate isolated-exporter-known-red python3 "$root/scripts/run_c2das_cases.py" --all-exporter-failures
-gate plmpeg-c-graph bash "$root/tests/manual/real-world-plmpeg-stream/check_c_graph.sh"
+gate plmpeg-c-graph bash "$root/tests/manual/plmpeg-stream/check_c_graph.sh"
 
 if [[ "$mode" == full || "$mode" == extended ]]; then gate workspace-tests cargo test --workspace; fi
 if [[ "$mode" == extended ]]; then
-    gate real-world-ledger check_corpus_inventory
-    if grep -Fq '| PLMPEG stream | canonical repository graph | known red |' "$root/docs/followups/real_world_status.md"; then
+    gate corpus-ledger check_corpus_inventory
+    if grep -Fq '| PLMPEG stream | canonical repository graph | known red |' "$root/docs/followups/corpus_status.md"; then
         echo 'PLMPEG is explicitly known-red; refusing to label its runner a success.' >&2; exit 2
     fi
-    gate plmpeg-end-to-end bash "$root/tests/manual/real-world-plmpeg-stream/run_end_to_end.sh"
+    gate plmpeg-end-to-end bash "$root/tests/manual/plmpeg-stream/run_end_to_end.sh"
     # Every daslang run mode (interpreter, -jit, AOT, -exe) must still print the C
-    # reference's per-frame hashes, and docs/real-world-convergence.md must still
+    # reference's per-frame hashes, and docs/corpus-convergence.md must still
     # describe exactly that; regenerate it with `converge` (no --check) after review.
-    gate real-world-convergence python3 "$root/scripts/real_world_matrix.py" converge --check
+    gate corpus-convergence python3 "$root/scripts/corpus_matrix.py" converge --check
 fi
 printf '\n== c2das preflight %s: PASS ==\n' "$mode"

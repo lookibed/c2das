@@ -1,7 +1,7 @@
 # MPEG-1 decode performance: native C vs c2das vs a hand-written daslang port
 
-> Superseded for the repository fixtures by `docs/real-world-benchmark.md`, which
-> `python3 scripts/real_world_matrix.py bench` regenerates from the checked-in graphs
+> Superseded for the repository fixtures by `docs/corpus-benchmark.md`, which
+> `python3 scripts/corpus_matrix.py bench` regenerates from the checked-in graphs
 > and covers the interpreter, `-jit`, AOT and `-exe` against the C build. This page
 > keeps the 2026-09-10 interpreter-only measurement on the five larger streams and the
 > comparison with the hand-written port, which the matrix does not repeat.
@@ -12,7 +12,7 @@ Linux 6.12.107. All runs serial on an otherwise idle machine.
 Three implementations of the same decoder are compared on the same five MPEG-1 elementary
 streams:
 
-1. **C native** — upstream `pl_mpeg.h` (`tests/manual/real-world-plmpeg-stream/upstream/pl_mpeg.h`,
+1. **C native** — upstream `pl_mpeg.h` (`tests/manual/plmpeg-stream/upstream/pl_mpeg.h`,
    4439 lines), compiled with `clang-18` at `-O2` and at `-O0`.
 2. **c2das** — the same C translated to daScript by this repository's transpiler and run
    under the daslang interpreter.
@@ -57,7 +57,7 @@ The profiler flags (`--das-profiler`, `--das-profiler-time-unit`) do work; see
 ## The hash
 
 Copied verbatim from `decode_summary()` / `fold_bytes()` in
-`tests/manual/real-world-plmpeg-stream/src/module.c`, so the benchmark hash is the same
+`tests/manual/plmpeg-stream/src/module.c`, so the benchmark hash is the same
 number the fixture oracle computes. All arithmetic is wrapping 32-bit unsigned:
 
 ```c
@@ -585,7 +585,7 @@ non-obvious pieces — the `int64_t` address API in `bench_module.c` and the
 `reinterpret<uint8?>` byte feed in `bench_entry.das` — are quoted in full above, and
 `bench_c.c`'s timed loop and `bench_hash.das` are quoted in full as well, so the benchmark
 can be rebuilt from this document alone plus the fixture at
-`tests/manual/real-world-plmpeg-stream/`.
+`tests/manual/plmpeg-stream/`.
 
 ## Inlining tiny static functions
 

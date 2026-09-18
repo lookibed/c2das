@@ -1,5 +1,5 @@
-#include "../../real-world-miniz/upstream/miniz.h"
-#include "../../real-world-miniz/upstream/miniz_zip.h"
+#include "../../miniz/upstream/miniz.h"
+#include "../../miniz/upstream/miniz_zip.h"
 
 #include <stdint.h>
 
