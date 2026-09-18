@@ -19,13 +19,34 @@ built with the `stddlg` module the watchdog requires.
 
 Path conventions that follow from that:
 
-- `compile_check`, `lint`, `run_test`, `run_script`, `format_file`, `find_symbol`,
-  `goto_definition`, `find_references`, `type_of`: project-relative paths work
-  (`tests/syntax/t10_chain.das`), absolute paths work too.
-- `grep_usage` and `outline` resolve relative paths against the toolchain root, so always
-  pass absolute paths: `directory: <repo root>/tests/syntax`,
-  `file: <repo root>/tests/syntax/t10_chain.das`.
-- `cpp_grep_usage`, `cpp_outline`, `cpp_find_symbol` work on C/C++ sources: the C inputs
-  under `tests/` and the Clang exporter in `c2rust-ast-exporter/src`; pass absolute paths.
+Every statement below was confirmed by calling the tool against
+`tests/manual/tmp_ptr_reinterpret_check.das` (or the exporter sources) from this
+project; keep it that way when editing.
+
+- `compile_check`, `lint`, `type_of`, `goto_definition`, `find_references`,
+  `find_symbol`, `format_file`: project-relative paths work
+  (`tests/manual/tmp_ptr_reinterpret_check.das`), absolute paths work too.
+- `run_script`, `run_test`, `outline`, `grep_usage`, `cpp_outline`: relative paths are
+  joined onto the toolchain root (`/root/daScript`), not the server's cwd, so always
+  pass absolute paths: `directory: <repo root>/tests/manual`,
+  `file: <repo root>/tests/manual/tmp_ptr_reinterpret_check.das`. Observed with a
+  relative path: `run_script` and `run_test` fail with
+  `missing prerequisite '/root/daScript/tests/manual/...'`; `outline` returns no
+  output, `grep_usage` reports `0 matches in 0 files`, `cpp_outline` reports
+  `No C++ declarations found`. This is a daScript MCP server defect (`resolve_path`
+  in `utils/mcp/tools/common.das`), not a `.mcp.json` problem.
+- `run_script` needs an `[export] def main()`; the transpiler outputs under `tests/`
+  are plain modules, so it answers `function 'main' not found` for them (expected).
+- `cpp_grep_usage`, `cpp_outline`, `cpp_find_symbol` work on C/C++ sources: the C
+  inputs under `tests/` and the Clang exporter in `c2rust-ast-exporter/src`; pass
+  absolute paths. `cpp_goto_definition` (needs `file`, `symbol`, `line`, `column`)
+  answered `No definition found` for a class declared in the same file; prefer
+  `cpp_find_symbol` or `cpp_grep_usage`.
+- `cpp_compile_check` and `cpp_build_info` only know the toolchain's
+  `build/compile_commands.json`, so they answer `no compile DB entry` for c2das
+  sources; `cpp_format_file` is a no-op because `clang-format` is not installed
+  (`cpp_status` reports both).
+- Files outside `/root/c2das` (for example the session scratchpad) get a
+  CROSS-TREE WARNING from every file tool; the result is still produced.
 - The MCP results are development aids. `scripts/run_c2das_cases.py` with the real
   `daslang` and `cargo test` are authoritative.
