@@ -1095,7 +1095,7 @@
     {
       "c_graph": "h264bsd-mp4",
       "canonical_case": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/h264bsd-mp4/src/all.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1202,7 +1202,7 @@
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/h264bsd-mp4/src/h264bsd.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1228,7 +1228,7 @@
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/h264bsd-mp4/src/minimp4.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1254,7 +1254,7 @@
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/h264bsd-mp4/src/module.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1280,7 +1280,7 @@
     },
     {
       "c_graph": "h264bsd-mp4",
-      "checked_in_das": "tests/manual/h264bsd-mp4/src/shim.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1307,7 +1307,7 @@
     {
       "c_graph": "plmpeg-target",
       "canonical_case": "plmpeg-stream",
-      "checked_in_das": "tests/manual/plmpeg-stream/src/all.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1388,7 +1388,7 @@
     },
     {
       "c_graph": "plmpeg-target",
-      "checked_in_das": "tests/manual/plmpeg-stream/src/module.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1414,7 +1414,7 @@
     },
     {
       "c_graph": "plmpeg-target",
-      "checked_in_das": "tests/manual/plmpeg-stream/src/pl_mpeg.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -1518,7 +1518,7 @@
     },
     {
       "c_graph": "plmpeg-target",
-      "checked_in_das": "tests/manual/plmpeg-stream/src/shim.das",
+      "checked_in_das": null,
       "clang": {
         "compile_commands": null,
         "flags": [
@@ -7636,12 +7636,6 @@
       "status": "historical"
     },
     {
-      "path": "scripts/test_dascript.py",
-      "reason": "Old Windows path and fail-open runtime handling.",
-      "role": "legacy-dascript-runner",
-      "status": "retire"
-    },
-    {
       "path": "scripts/test_examples.py",
       "reason": "Inherited C2Rust example runner, not c2das runtime proof.",
       "role": "inherited-c2rust-examples",
@@ -7666,12 +7660,6 @@
       "status": "historical"
     },
     {
-      "path": "tests/manual/h264bsd-mp4/run_dascheck.ps1",
-      "reason": "Windows diagnostic script that overwrites tracked reports.",
-      "role": "h264-windows-diagnostic",
-      "status": "retire"
-    },
-    {
       "path": "tests/manual/plmpeg-stream/check_backend_gates.sh",
       "reason": "Historical diagnostic helper, not an end-to-end proof.",
       "role": "plmpeg-backend-helper",
@@ -7684,12 +7672,6 @@
       "status": "retained-non-e2e"
     },
     {
-      "path": "tests/manual/plmpeg-stream/run_dascheck.ps1",
-      "reason": "Windows diagnostic script outside the canonical WSL runtime.",
-      "role": "plmpeg-windows-diagnostic",
-      "status": "retire"
-    },
-    {
       "path": "tests/manual/plmpeg-stream/run_end_to_end.sh",
       "reason": "Requires fresh-output proof before it can be an acceptance gate.",
       "role": "plmpeg-e2e",
@@ -7700,24 +7682,6 @@
       "reason": "Writes generated output beside fixture source and is not an oracle.",
       "role": "plmpeg-transpile-helper",
       "status": "quarantined"
-    },
-    {
-      "path": "tests/run_all.bat",
-      "reason": "Old source path and copy pipeline.",
-      "role": "legacy-windows-batch-suite",
-      "status": "retire"
-    },
-    {
-      "path": "tests/run_all.ps1",
-      "reason": "Old source path, copy pipeline, and skipped outputs.",
-      "role": "legacy-windows-suite",
-      "status": "retire"
-    },
-    {
-      "path": "tests/run_bulk.ps1",
-      "reason": "Old Windows source path.",
-      "role": "legacy-windows-bulk",
-      "status": "retire"
     },
     {
       "path": "tests/syntax/check_abi_das.sh",

@@ -425,24 +425,6 @@
       "status": "historical"
     },
     {
-      "path": "tests/manual/plmpeg-stream/run_dascheck.ps1",
-      "reason": "Windows diagnostic script outside the canonical WSL runtime.",
-      "role": "plmpeg-windows-diagnostic",
-      "status": "retire"
-    },
-    {
-      "path": "tests/manual/h264bsd-mp4/run_dascheck.ps1",
-      "reason": "Windows diagnostic script that overwrites tracked reports.",
-      "role": "h264-windows-diagnostic",
-      "status": "retire"
-    },
-    {
-      "path": "scripts/test_dascript.py",
-      "reason": "Old Windows path and fail-open runtime handling.",
-      "role": "legacy-dascript-runner",
-      "status": "retire"
-    },
-    {
       "path": "scripts/test_translator.py",
       "reason": "C2Rust Rust-output harness; retained only as upstream parity material.",
       "role": "inherited-c2rust-translator-runner",
@@ -483,24 +465,6 @@
       "reason": "C2Rust integration suite retained as upstream corpus material.",
       "role": "inherited-c2rust-integration-suite",
       "status": "historical"
-    },
-    {
-      "path": "tests/run_all.ps1",
-      "reason": "Old source path, copy pipeline, and skipped outputs.",
-      "role": "legacy-windows-suite",
-      "status": "retire"
-    },
-    {
-      "path": "tests/run_bulk.ps1",
-      "reason": "Old Windows source path.",
-      "role": "legacy-windows-bulk",
-      "status": "retire"
-    },
-    {
-      "path": "tests/run_all.bat",
-      "reason": "Old source path and copy pipeline.",
-      "role": "legacy-windows-batch-suite",
-      "status": "retire"
     },
     {
       "path": ".github/workflows/c2das-runtime.yml",
