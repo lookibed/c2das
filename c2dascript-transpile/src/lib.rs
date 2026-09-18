@@ -96,6 +96,15 @@ pub struct TranspilerConfig {
     /// `translator/inline.rs`; the daslang interpreter pays one call dispatch
     /// per invocation, which dominates flat per-byte loops.
     pub inline_functions: bool,
+    /// Declare the output `module <file stem> public` (`--public-module`).
+    /// An anonymous module is enough for `require` and for the interpreter,
+    /// the JIT and `-exe`, but daslang's AOT generator keeps a module's
+    /// unexported functions only when the module is a named public one.
+    pub public_module: bool,
+    /// Extra `options <text>` lines after `options gen2` (`--das-option`,
+    /// repeatable), for target-specific module options such as
+    /// `disable_auto_inline` on an AOT build.
+    pub das_options: Vec<String>,
 }
 
 /// AST-level inventory for target-specific C surfaces.  These counts are
@@ -163,6 +172,8 @@ impl Default for TranspilerConfig {
             log_level: log::LevelFilter::Warn,
             edition: c2rust_rust_tools::RustEdition::Edition2021,
             inline_functions: true,
+            public_module: false,
+            das_options: vec![],
         }
     }
 }

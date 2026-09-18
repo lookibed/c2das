@@ -29,6 +29,8 @@ fn config(output_dir: &Path) -> TranspilerConfig {
         log_level: log::LevelFilter::Warn,
         edition: c2rust_rust_tools::RustEdition::Edition2021,
         inline_functions: true,
+        public_module: false,
+        das_options: vec![],
     }
 }
 

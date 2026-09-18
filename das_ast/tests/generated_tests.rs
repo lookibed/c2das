@@ -22,6 +22,7 @@ fn assert_output(name: &str, module: DaModule) {
 fn test_00_const() {
     let module = DaModule {
         name: None,
+        public: false,
         options: vec!["gen2".into()],
         requires: vec![],
         decls: vec![DaDecl::Function(DaFunction {

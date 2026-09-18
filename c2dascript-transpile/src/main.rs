@@ -7,7 +7,7 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--public-module] [--das-option <text>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
@@ -15,6 +15,13 @@ fn main() {
     // Opt out of substituting tiny `static` helpers at their call sites, so
     // the effect of that substitution can be measured against this build.
     let no_inline = take_flag(&mut args, "--no-inline");
+    // Module header the output declares: `module <stem> public` and extra
+    // `options` lines (see TranspilerConfig::public_module / das_options).
+    let public_module = take_flag(&mut args, "--public-module");
+    let mut das_options: Vec<String> = Vec::new();
+    while let Some(option) = take_option(&mut args, "--das-option") {
+        das_options.push(option.to_string_lossy().into_owned());
+    }
     let output_dir = take_option(&mut args, "--output-dir");
     if args.is_empty() {
         eprintln!("Expected compile_commands.json or --file <file.c>");
@@ -33,6 +40,8 @@ fn main() {
         log_level: log::LevelFilter::Warn,
         edition: c2rust_rust_tools::RustEdition::Edition2021,
         inline_functions: !no_inline,
+        public_module,
+        das_options,
     };
 
     let path = Path::new(&args[0]);
@@ -77,7 +86,7 @@ fn take_flag(args: &mut Vec<String>, flag: &str) -> bool {
 fn take_option(args: &mut Vec<String>, option: &str) -> Option<std::path::PathBuf> {
     let index = args.iter().position(|arg| arg == option)?;
     if index + 1 >= args.len() {
-        eprintln!("{option} requires a directory");
+        eprintln!("{option} requires a value");
         std::process::exit(1);
     }
     args.remove(index);

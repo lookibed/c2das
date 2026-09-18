@@ -3712,13 +3712,19 @@ fn translate_impl(
     ordered.extend(value_decls);
     module_decls.extend(global_order::order_value_declarations(ordered));
 
-    // Build the daScript module
+    // Build the daScript module.  The header is the caller's choice: an
+    // anonymous `options gen2` module by default, `module <stem> public` and
+    // extra `options` lines when the build that consumes the output asks
+    // for them (see TranspilerConfig::public_module / das_options).
+    let mut options: Vec<String> = vec!["gen2".into()];
+    options.extend(t.tcfg.das_options.iter().cloned());
     let module = DaModule {
         name: main_file
             .file_stem()
             .map(|s| s.to_string_lossy().to_string()),
+        public: t.tcfg.public_module,
         requires: vec![],
-        options: vec!["gen2".into()],
+        options,
         decls: module_decls,
     };
 

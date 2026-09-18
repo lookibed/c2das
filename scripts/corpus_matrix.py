@@ -26,13 +26,13 @@ daslang run modes ("interop" in the project's wording is the interpreter):
   aot      daslang -aot <module>.das <module>.cpp     C++ generated ahead of time,
            per module, compiled with the toolchain's own AOT flags, linked with
            scripts/corpus/aot_host.c against the daslang runtime; the host
-           compiles the script with policies.aot + fail_on_no_aot.  The driver
-           builds from private copies of the scripts with two lines added (see
-           aot_copy): `module <name> public`, without which daslang emits no AOT
-           body for an anonymous module's unexported functions, and
-           `options disable_auto_inline`, without which daslang's optimizer
-           splices callee locals into jump-rendered bodies and the C++ does not
-           compile.
+           compiles the script with policies.aot + fail_on_no_aot.  The graph is
+           translated a second time with `--public-module --das-option
+           disable_auto_inline` (see transpile_for_aot): without the module
+           declaration daslang emits no AOT body for an anonymous module's
+           unexported functions, and without the option daslang's optimizer
+           splices callee locals into jump-rendered bodies and the C++ does
+           not compile.  The entry gets the same option prepended to a copy.
   exe      daslang -exe entry.das -output <bin>       LLVM-compiled standalone
            executable linked against the daslang runtime shared library
 
@@ -253,46 +253,56 @@ def aot_compile_flags(das_root: Path) -> list[str]:
                                  f"-I{das_root / 'build/include'}"]
 
 
-def aot_copy(source: Path, destination: Path, module: bool) -> None:
-    """Write the AOT build's private copy of a script.
+AOT_TRANSLATION_FLAGS = ["--public-module", "--das-option", "disable_auto_inline"]
+AOT_ENTRY_OPTIONS = ["options disable_auto_inline\n"]
 
-    Two lines are inserted after the `options` header:
 
-    * `module <name> public` (generated modules only): daslang emits AOT bodies
-      for a module's functions only when the module is a named public one; an
-      anonymous module keeps nothing that is not exported or reached.
-    * `options disable_auto_inline` (every copy): daslang's optimizer splices
-      small same-module callees into their callers and declares the callee's
-      locals at the call site (`ast_inline.cpp`, `_inl*` temporaries).  In a
+def transpile_for_aot(p: Prepared, generated_dir: Path) -> list[Path]:
+    """Translate the case's C graph again, with the module header an AOT build needs.
+
+    The translator writes the header itself (`--public-module`, `--das-option`);
+    nothing edits generated text.  Two things differ from the plain translation:
+
+    * `module <name> public`: daslang emits AOT bodies for a module's functions
+      only when the module is a named public one; an anonymous module keeps
+      nothing that is not exported or reached.
+    * `options disable_auto_inline`: daslang's optimizer splices small
+      same-module callees into their callers and declares the callee's locals
+      at the call site (`ast_inline.cpp`, `_inl*` temporaries).  In a
       jump-rendered body that puts an initialised declaration between a `goto`
       and its label, which C++ rejects; the C++ compiler inlines those calls
       itself, so the AOT build loses nothing by leaving them as calls.
+
+    Everything else is byte-identical to the translation the other modes run,
+    because the translator is deterministic over the same C input and flags.
     """
-    lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
-    insert_at = 0
-    for index, line in enumerate(lines):
-        if line.startswith("options "):
-            insert_at = index + 1
-    inserted = ["options disable_auto_inline\n"]
-    if module and not any(line.startswith("module ") for line in lines):
-        inserted.insert(0, f"module {source.stem} public\n")
-    lines[insert_at:insert_at] = inserted
-    destination.write_text("".join(lines), encoding="utf-8")
+    entry = Path(p.case["translation_entry"])
+    sh(
+        ["cargo", "run", "-q", "-p", "c2dascript-transpile", "--", "--strict", *AOT_TRANSLATION_FLAGS,
+         "--output-dir", str(generated_dir), "--file", str(p.copied_root / entry), *p.flags],
+        cwd=ROOT, env=p.env, label="c2das transpilation (AOT header)",
+    )
+    modules = sorted(generated_dir.rglob("*.das"))
+    if not modules:
+        raise MatrixFailure(f"{p.case['id']}: AOT translation produced no module")
+    return modules
 
 
 def build_aot(p: Prepared, entry: Path, name: str) -> list[str]:
     das_root = p.daslang.parent.parent
     aot_dir = p.work / name
     aot_dir.mkdir()
-    # private copies (see aot_copy); the entry sits beside the modules so
-    # `require <module>` resolves against the copies, never the staged originals
-    modules: list[Path] = []
-    for staged in p.staged:
-        copy = aot_dir / staged.name
-        aot_copy(staged, copy, module=True)
-        modules.append(copy)
+    # the AOT translation of the graph, plus the fixture-owned entry beside it
+    # so `require <module>` resolves against these modules, never the staged
+    # ones; the entry is fixture source, so its one AOT option is prepended
+    # to a copy rather than edited in place
+    modules = transpile_for_aot(p, aot_dir / "generated")
     entry_copy = aot_dir / entry.name
-    aot_copy(entry, entry_copy, module=False)
+    entry_text = entry.read_text(encoding="utf-8")
+    entry_copy.write_text("".join(AOT_ENTRY_OPTIONS) + entry_text, encoding="utf-8")
+    for module in modules:
+        shutil.copyfile(module, aot_dir / module.name)
+    modules = [aot_dir / module.name for module in modules]
     objects: list[str] = []
     flags = aot_compile_flags(das_root)
     for script in modules + [entry_copy]:
@@ -582,7 +592,8 @@ def render_benchmark(results: list[dict[str, Any]], facts: dict[str, str], runs:
         "setup. **setup** is the measured `frames_begin()` call (runtime reset, sample copy, demuxer/decoder "
         "creation). **wall** is the whole process as seen by the driver, and **startup** = wall − decode − setup: what a "
         "mode spends before and after the work (loading the runtime, compiling the script, JIT codegen, teardown). "
-        "A row is printed only when its per-frame hashes equalled the C -O2 build's on every run.\n"
+        "A row is printed only when its per-frame hashes equalled the C -O2 build's on every run. "
+        "Every build and run command behind these rows is written out in `docs/corpus-build-recipe.md`.\n"
     )
     out.append("Run modes: " + "; ".join(f"**{m}** = {describe_mode(m, 'bench_entry.das')}" for m in MODES) + ".\n")
     for r in results:
