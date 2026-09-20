@@ -1,11 +1,14 @@
-/* C-reference entrypoint over a stream file named by the last argument.
+/* C entrypoint over a stream file named by the last argument.
  *
- * Prints exactly what `src/plmpeg_file_entry.das` prints: every decoded
- * frame's RGB hash.  The file goes into a static buffer, never into the
- * fixture's bump heap: `plmpeg_frames_begin_bytes` rewinds that heap through
- * c2da_rt_reset() before it takes its working copy.
+ * Prints every decoded frame's RGB hash.  It is both the C reference program
+ * of the file cases and, through `src/plmpeg_file_all.c`, a translation
+ * input under `--libc std`: the fixture's `include/stdio.h` declares the
+ * libc subset with the glibc ABI, so the same source links against the real
+ * libc and translates to daslang without edits.  The file goes into a static
+ * buffer, never into the fixture's bump heap: `plmpeg_frames_begin_bytes`
+ * rewinds that heap through c2da_rt_reset() before it takes its working copy.
  */
-#include <inttypes.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -17,7 +20,7 @@ int32_t plmpeg_frames_width(void);
 int32_t plmpeg_frames_height(void);
 int32_t plmpeg_frames_end(void);
 
-#define MAX_FILE_BYTES (16 * 1024 * 1024)
+#define MAX_FILE_BYTES (4 * 1024 * 1024)
 static uint8_t file_bytes[MAX_FILE_BYTES];
 
 static int32_t load_last_argument(int argc, char **argv) {
@@ -46,15 +49,15 @@ int main(int argc, char **argv) {
         printf("load=0\n");
         return 2;
     }
-    printf("bytes=%" PRId32 "\n", length);
+    printf("bytes=%d\n", (int)length);
     if (!plmpeg_frames_begin_bytes(file_bytes, length)) {
         printf("frames_begin=0\n");
         return 1;
     }
-    printf("width=%" PRId32 "\n", plmpeg_frames_width());
-    printf("height=%" PRId32 "\n", plmpeg_frames_height());
+    printf("width=%d\n", (int)plmpeg_frames_width());
+    printf("height=%d\n", (int)plmpeg_frames_height());
     while (plmpeg_frames_next()) {
-        printf("frame[%" PRId32 "]=%" PRId32 "\n", plmpeg_frames_index(), plmpeg_frames_hash());
+        printf("frame[%d]=%d\n", (int)plmpeg_frames_index(), (int)plmpeg_frames_hash());
         frames += 1;
     }
     plmpeg_frames_end();

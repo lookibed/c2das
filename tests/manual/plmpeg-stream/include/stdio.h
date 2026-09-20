@@ -1,11 +1,10 @@
-#ifndef H264MP4_STDIO_H
-#define H264MP4_STDIO_H
+#ifndef PLMPEG_STDIO_H
+#define PLMPEG_STDIO_H
 
-/* Fixture stdio: an opaque `FILE` for the decoder graph (which never touches
- * stdio) plus the subset the corpus entries use, declared with the glibc ABI
- * so the C build links against the real libc, and small enough for the
- * translator's `--libc std` table (printf, fopen, fread, fclose, fflush,
- * fseek, ftell, setvbuf, stdout/stderr). */
+/* Fixture stdio: the subset the corpus entries use, declared with the
+ * glibc ABI so the C build links against the real libc, and small enough
+ * for the translator's `--libc std` table (printf, fopen, fread, fclose,
+ * fflush, fseek, ftell, setvbuf, stdout/stderr).  `FILE` stays opaque. */
 #include <stddef.h>
 
 typedef struct FILE FILE;

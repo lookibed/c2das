@@ -8,6 +8,7 @@ must stay explicit in API names and result types.
 | `abi.rs` | raw address ↔ typed pointer/null and storage-byte ABI conversions |
 | `layout.rs` | canonical Clang-backed size, alignment, record offsets and diagnostics |
 | `runtime.rs` | the complete `c2da_rt_*` declaration registry and raw-memory calls |
+| `libc.rs` | the `--libc std` replacement table: `c2da_std_*` helpers, the standard streams and the `main` entry wrapper |
 | `object_memory.rs` | raw object addresses, field addresses, aligned/misaligned load/store |
 | `functions.rs` | C call classification and ABI-facing argument/result lowering |
 | `operators.rs` | typed C operators, including shifts and numeric coercion |

@@ -1,23 +1,17 @@
-/* C-reference entrypoint over an MP4 file named by the last argument.
+/* C entrypoint over an MP4 file named by the last argument.
  *
- * Prints exactly what `src/h264_file_entry.das` prints: every decoded
- * picture's YUV hash.  `-Iinclude` shadows <stdio.h> with the fixture's stub
- * (an opaque `FILE`), so the libc entrypoints used here are declared locally.
- * The file goes into a static buffer, never into the fixture's bump heap:
+ * Prints every decoded picture's YUV hash.  It is both the C reference
+ * program of the file cases and, through `src/h264_file_all.c`, a
+ * translation input under `--libc std`: the fixture's `include/stdio.h`
+ * declares the libc subset with the glibc ABI, so the same source links
+ * against the real libc and translates to daslang without edits.  The file
+ * goes into a static buffer, never into the fixture's bump heap:
  * `h264mp4_frames_begin_bytes` rewinds that heap and then demuxes the buffer
  * in place.
  */
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-
-extern FILE *stdout;
-
-int printf(const char *format, ...);
-int setvbuf(FILE *stream, char *buffer, int mode, size_t size);
-FILE *fopen(const char *path, const char *mode);
-size_t fread(void *buffer, size_t size, size_t count, FILE *stream);
-int fclose(FILE *stream);
 
 int32_t h264mp4_frames_begin_bytes(const uint8_t *bytes, int32_t length);
 int32_t h264mp4_frames_next(void);
@@ -27,7 +21,7 @@ int32_t h264mp4_frames_width(void);
 int32_t h264mp4_frames_height(void);
 int32_t h264mp4_frames_end(void);
 
-#define MAX_FILE_BYTES (16 * 1024 * 1024)
+#define MAX_FILE_BYTES (4 * 1024 * 1024)
 static uint8_t file_bytes[MAX_FILE_BYTES];
 
 static int32_t load_last_argument(int argc, char **argv) {
@@ -50,7 +44,7 @@ int main(int argc, char **argv) {
     int frames = 0;
     int32_t length = 0;
 
-    setvbuf(stdout, NULL, 2 /* _IONBF */, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
     length = load_last_argument(argc, argv);
     if (length <= 0) {
         printf("load=0\n");

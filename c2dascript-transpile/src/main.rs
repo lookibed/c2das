@@ -7,7 +7,7 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--public-module] [--das-option <text>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--public-module] [--das-option <text>]... [--libc nostd|std|ffi|all] [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
@@ -21,6 +21,35 @@ fn main() {
     let mut das_options: Vec<String> = Vec::new();
     while let Some(option) = take_option(&mut args, "--das-option") {
         das_options.push(option.to_string_lossy().into_owned());
+    }
+    // Which libc entry points the translated module may call. `nostd` is the
+    // default and the only mode that is fully implemented besides `std`.
+    let libc = match take_value(&mut args, "--libc") {
+        Some(text) => match c2dascript_transpile::LibcMode::parse(&text) {
+            Some(mode) => mode,
+            None => {
+                let modes: Vec<&str> = c2dascript_transpile::LibcMode::ALL
+                    .iter()
+                    .map(|mode| mode.as_str())
+                    .collect();
+                eprintln!(
+                    "unknown libc mode '{text}'; expected one of {}",
+                    modes.join(", ")
+                );
+                std::process::exit(1);
+            }
+        },
+        None => c2dascript_transpile::LibcMode::default(),
+    };
+    // A mode the translator cannot honour must stop before any output is
+    // written: a partially-honoured libc policy is indistinguishable from a
+    // wrong one in the generated module.
+    if matches!(
+        libc,
+        c2dascript_transpile::LibcMode::Ffi | c2dascript_transpile::LibcMode::All
+    ) {
+        eprintln!("libc mode '{libc}' is not implemented yet");
+        std::process::exit(2);
     }
     let output_dir = take_option(&mut args, "--output-dir");
     if args.is_empty() {
@@ -42,6 +71,7 @@ fn main() {
         inline_functions: !no_inline,
         public_module,
         das_options,
+        libc,
     };
 
     let path = Path::new(&args[0]);
@@ -84,13 +114,18 @@ fn take_flag(args: &mut Vec<String>, flag: &str) -> bool {
 }
 
 fn take_option(args: &mut Vec<String>, option: &str) -> Option<std::path::PathBuf> {
+    take_value(args, option).map(Into::into)
+}
+
+/// `take_option` for an option whose value is a word rather than a path.
+fn take_value(args: &mut Vec<String>, option: &str) -> Option<String> {
     let index = args.iter().position(|arg| arg == option)?;
     if index + 1 >= args.len() {
         eprintln!("{option} requires a value");
         std::process::exit(1);
     }
     args.remove(index);
-    Some(args.remove(index).into())
+    Some(args.remove(index))
 }
 
 fn run(config: c2dascript_transpile::TranspilerConfig, cc_db: &Path, extra: &[&str], strict: bool) {

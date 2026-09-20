@@ -26,6 +26,12 @@ which the entries read at run time.
   over an MP4 file named by the last command-line argument: the daslang entries
   read it with `daslib/fio`, the C entries with libc, and both hand the bytes to
   `h264mp4_frames_begin_bytes`, so a fixture's size never touches translation.
+- `src/h264_file_all.c` / `src/h264_file_bench_all.c` — the graph plus the C file
+  entry in one translation unit, for the `h264bsd-mp4-640x360-std` case: translated
+  with `--libc std`, the C entry's `printf`/`fopen`/`fread`/`clock_gettime`/`argv`
+  become daslib-backed helpers and the module runs as is, no daslang entry needed.
+  `include/stdio.h` and `include/time.h` declare that libc subset with the glibc
+  ABI for the C build.
 - `src/sample_mp4_data.h` — `fixtures/sample.mp4` as a C array, for the
   argument-less entries only.
 - `include/` — libc stubs that shadow the system headers for the whole graph.
@@ -38,6 +44,7 @@ of this directory and deletes any `.das` that is not one of the entries above.
 ```sh
 python3 scripts/run_c2das_cases.py --case h264bsd-mp4
 python3 scripts/run_c2das_cases.py --case h264bsd-mp4-640x360
-python3 scripts/corpus_matrix.py converge --case h264bsd-mp4-640x360
-python3 scripts/corpus_matrix.py bench --case h264bsd-mp4-640x360
+python3 scripts/run_c2das_cases.py --case h264bsd-mp4-640x360-std
+python3 scripts/corpus_matrix.py converge --case h264bsd-mp4-640x360-std
+python3 scripts/corpus_matrix.py bench --case h264bsd-mp4-640x360-std
 ```

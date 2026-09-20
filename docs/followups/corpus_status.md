@@ -7,6 +7,16 @@
 | PLMPEG stream, 320×240 | same pl_mpeg revision; `fixtures/testsrc2_320x240.m1v` synthesized with ffmpeg (command and sha256 in `UPSTREAM.md`) | ready | `plmpeg-stream-320x240`, same graph, file entries `src/plmpeg_file_*` reading the fixture at run time | RGB hash of every decoded frame (59 frames, 320×240, GOP 12, no B-frames), pinned in `cases.json` | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md` |
 | h264bsd + minimp4, 640×360 | same revisions; `fixtures/test_640x360.mp4` is upstream's `test/test_640x360.h264` muxed without re-encoding (`UPSTREAM.md`) | ready | `h264bsd-mp4-640x360`, same graph, file entries `src/h264_file_*` reading the fixture at run time | YUV hash of every decoded picture (73 pictures, 640×368 output, constrained baseline), pinned in `cases.json` | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md` |
 
+The two 320×240 / 640×360 rows exist twice in `cases.json`: once over a fixture-owned
+daslang entry (`plmpeg-stream-320x240`, `h264bsd-mp4-640x360`) and once as
+`plmpeg-stream-320x240-std` / `h264bsd-mp4-640x360-std`, where the C entry itself
+(`src/plmpeg_file_reference_entry.c`, `src/h264_file_reference_entry.c`, amalgamated with the
+graph in `src/*_file_all.c`) is the translation input under `--libc std`: the translator
+replaces `printf`/`fopen`/`fread`/`clock_gettime`/`argv` with daslib-backed helpers, so the
+same C source is the C reference and, after translation, the daslang program, with nothing
+written by hand in between.  The `-std` rows are the ones the benchmark and convergence
+documents call "no hand-written entry".
+
 Where the numbers live:
 
 - `docs/corpus-convergence.md` — per-frame equality of every daslang run mode

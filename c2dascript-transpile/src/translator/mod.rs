@@ -34,6 +34,7 @@ mod functions;
 mod global_order;
 mod inline;
 mod layout;
+mod libc;
 mod literals;
 mod macros;
 mod named_references;
@@ -1121,6 +1122,11 @@ impl<'c> Translation<'c> {
                 // is the value the call site bound for it.
                 if let Some(bound) = self.inline_binding(*decl_id) {
                     return Ok(WithStmts::new_val(bound));
+                }
+                // `--libc std` owns the three standard streams: they are the
+                // daslib handles, not module objects of this translation unit.
+                if let Some(stream) = self.std_stream_reference(*decl_id)? {
+                    return Ok(WithStmts::new_val(stream));
                 }
                 let decl = &self.ast_context[*decl_id];
                 let name = decl
@@ -3448,6 +3454,7 @@ fn translate_impl(
     // the module below.
     literals::reset_string_literals();
     builtins::reset_builtin_helpers();
+    libc::reset();
 
     // Prune unreachable system declarations (removes __-prefixed noise from system headers)
     t.ast_context.prune_unwanted_decls(false);
@@ -3582,6 +3589,12 @@ fn translate_impl(
         if !needs_export {
             continue;
         }
+        // `extern FILE *stdout;` and friends name a libc object this module
+        // does not own. In `--libc std` every reference to one is the daslib
+        // handle, so the module must not also declare an object of that name.
+        if t.is_std_stream_declaration(top_id) {
+            continue;
+        }
         let decl = &t.ast_context[top_id];
         match t.convert_decl(
             ExprContext {
@@ -3698,6 +3711,10 @@ fn translate_impl(
     // address — and before any initializer that points into it.
     module_decls.extend(literals::take_string_literal_declarations());
     module_decls.extend(builtins::take_builtin_helper_declarations());
+    // The `--libc std` replacement prelude, if this translation unit used any
+    // of it. In the default `nostd` mode this is empty and the module is
+    // unchanged.
+    module_decls.extend(libc::take_declarations());
     // Function-scope `static` storage lowered while pass 2 walked the bodies
     // joins the file-scope objects: both are module-level `var`s, and an
     // initializer in either group may name one in the other.
@@ -3711,6 +3728,9 @@ fn translate_impl(
     let mut ordered = t.take_hoisted_statics();
     ordered.extend(value_decls);
     module_decls.extend(global_order::order_value_declarations(ordered));
+    // The `std` entry wrapper calls the translated C `main`, so it comes after
+    // every translated function.
+    module_decls.extend(libc::take_entry_declarations());
 
     // Build the daScript module.  The header is the caller's choice: an
     // anonymous `options gen2` module by default, `module <stem> public` and
@@ -3723,7 +3743,10 @@ fn translate_impl(
             .file_stem()
             .map(|s| s.to_string_lossy().to_string()),
         public: t.tcfg.public_module,
-        requires: vec![],
+        // The only `require` lines the translator emits are the ones the
+        // `--libc std` prelude stands on, and only when a std helper is in
+        // the module.
+        requires: libc::module_requires(),
         options,
         decls: module_decls,
     };

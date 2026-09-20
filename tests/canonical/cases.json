@@ -747,8 +747,83 @@
       }
     },
     {
+      "id": "plmpeg-stream-320x240-std",
+      "status": "ready",
+      "source_root": "tests/manual/plmpeg-stream",
+      "translation_entry": "src/plmpeg_file_all.c",
+      "c_graph": "plmpeg-target",
+      "libc": "std",
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-std=c11", "-DPLM_NO_STDIO", "-Iinclude", "-Iupstream", "-Ifixtures", "-Isrc"]
+      },
+      "c_reference": {
+        "sources": ["src/all_reference.c", "src/plmpeg_file_reference_entry.c"]
+      },
+      "das_entrypoint": "main",
+      "program_args": ["fixtures/testsrc2_320x240.m1v"],
+      "expected": {
+        "stdout": "bytes=266389\nwidth=320\nheight=240\nframe[0]=2080594239\nframe[1]=-904390758\nframe[2]=1461645297\nframe[3]=1539982804\nframe[4]=623588667\nframe[5]=-1765815993\nframe[6]=-1494070985\nframe[7]=-449609455\nframe[8]=-325913787\nframe[9]=-2128453169\nframe[10]=-1235580503\nframe[11]=1802000697\nframe[12]=287698799\nframe[13]=1935224797\nframe[14]=1303317910\nframe[15]=1372615712\nframe[16]=1401004008\nframe[17]=-1007066222\nframe[18]=-277407008\nframe[19]=319614004\nframe[20]=-1862881085\nframe[21]=2055719117\nframe[22]=-1033507500\nframe[23]=111215887\nframe[24]=1281134054\nframe[25]=-1899287798\nframe[26]=1943369560\nframe[27]=1846002656\nframe[28]=306004653\nframe[29]=1621759265\nframe[30]=1977452275\nframe[31]=-600923365\nframe[32]=863854864\nframe[33]=-582048693\nframe[34]=1645563789\nframe[35]=-1149431541\nframe[36]=317748714\nframe[37]=336511136\nframe[38]=-1062741331\nframe[39]=1240690905\nframe[40]=1044969916\nframe[41]=235038244\nframe[42]=-82634331\nframe[43]=-1611655167\nframe[44]=-381904227\nframe[45]=364945951\nframe[46]=1134678093\nframe[47]=1233342172\nframe[48]=1206103609\nframe[49]=2138914229\nframe[50]=276146183\nframe[51]=-1648804799\nframe[52]=-619454652\nframe[53]=1221254317\nframe[54]=-899688588\nframe[55]=-1938702780\nframe[56]=582062858\nframe[57]=1552715773\nframe[58]=1092906375\nframes=59\n",
+        "exit_code": 0
+      },
+      "runtime": "required",
+      "corpus": {
+        "label": "pl_mpeg (MPEG-1 video decoder), 320×240 stream, C entry translated under --libc std",
+        "upstream": "UPSTREAM.md",
+        "fixture": "fixtures/testsrc2_320x240.m1v",
+        "bench_c_entry": "src/plmpeg_file_bench_entry.c",
+        "bench_translation_entry": "src/plmpeg_file_bench_all.c"
+      }
+    },
+    {
+      "id": "h264bsd-mp4-640x360-std",
+      "status": "ready",
+      "source_root": "tests/manual/h264bsd-mp4",
+      "translation_entry": "src/h264_file_all.c",
+      "c_graph": "h264bsd-mp4",
+      "libc": "std",
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-std=c11", "-w", "-Iinclude", "-Iupstream/h264bsd/src", "-Iupstream/minimp4", "-Isrc"]
+      },
+      "c_reference": {
+        "sources": ["src/all_reference.c", "src/h264_file_reference_entry.c"]
+      },
+      "das_entrypoint": "main",
+      "program_args": ["fixtures/test_640x360.mp4"],
+      "expected": {
+        "stdout": "bytes=232093\nframe[0]=-1342135010\nframe[1]=-1484115756\nframe[2]=1846930077\nframe[3]=1786896911\nframe[4]=-1673383725\nframe[5]=1114387089\nframe[6]=-230706274\nframe[7]=-1230993872\nframe[8]=-305153784\nframe[9]=1618713268\nframe[10]=-306467124\nframe[11]=-211361587\nframe[12]=73804660\nframe[13]=-1066107230\nframe[14]=806792847\nframe[15]=-1762291446\nframe[16]=-991481394\nframe[17]=-584000242\nframe[18]=1278918096\nframe[19]=-787536904\nframe[20]=308461837\nframe[21]=579451632\nframe[22]=555215459\nframe[23]=-596034963\nframe[24]=558404510\nframe[25]=1586868485\nframe[26]=-655559521\nframe[27]=966203928\nframe[28]=393385647\nframe[29]=-657272141\nframe[30]=1781413302\nframe[31]=-344889329\nframe[32]=345061549\nframe[33]=587697889\nframe[34]=-2097853685\nframe[35]=1163250967\nframe[36]=771050882\nframe[37]=-590963855\nframe[38]=2034726848\nframe[39]=-67655909\nframe[40]=-828367189\nframe[41]=-1309654961\nframe[42]=1446417533\nframe[43]=-1254048923\nframe[44]=141630226\nframe[45]=-1816989834\nframe[46]=-1956780273\nframe[47]=1792055606\nframe[48]=-68187846\nframe[49]=-1595715481\nframe[50]=2075948863\nframe[51]=-215625109\nframe[52]=1941278881\nframe[53]=-212594390\nframe[54]=-1478522065\nframe[55]=653422252\nframe[56]=-1319509171\nframe[57]=-1357939180\nframe[58]=-1022834645\nframe[59]=-2033518837\nframe[60]=-2121546495\nframe[61]=1941993800\nframe[62]=-610524791\nframe[63]=147641495\nframe[64]=11933643\nframe[65]=512755560\nframe[66]=-1040271860\nframe[67]=-1519637751\nframe[68]=1801451992\nframe[69]=-589671287\nframe[70]=-1355536444\nframe[71]=-1298744097\nframe[72]=2140026997\nwidth=640\nheight=368\nframes=73\n",
+        "exit_code": 0
+      },
+      "runtime": "required",
+      "corpus": {
+        "label": "h264bsd + minimp4, 640×360 upstream test vector, C entry translated under --libc std",
+        "upstream": "UPSTREAM.md",
+        "fixture": "fixtures/test_640x360.mp4",
+        "bench_c_entry": "src/h264_file_bench_entry.c",
+        "bench_translation_entry": "src/h264_file_bench_all.c"
+      }
+    },
+    {
       "id": "p71-static-inline-calls", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p71_static_inline_calls.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "static_inline_calls_runtime", "return_type": "int" }, "das_entrypoint": "static_inline_calls_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p72-std-file-io",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p72_std_file_io.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p72_std_file_io.bin"],
+      "expected": {
+        "stdout": "bytes=320\nsum=4231379540\n[sample|Z|-1234567|9007199254740993|beef|%|     pad|42    |00007]\nclock_ok=1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
     }
   ]
 }

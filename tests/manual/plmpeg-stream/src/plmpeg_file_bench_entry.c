@@ -1,12 +1,17 @@
-/* Benchmark entrypoint over a stream file named by the last argument (C build).
+/* Benchmark entrypoint over a stream file named by the last argument.
  *
- * Prints exactly what `src/plmpeg_file_bench_entry.das` prints; see
- * `plmpeg_bench_entry.c` for the line contract.  Reading the file is outside
- * every timed region, and the bytes live in a static buffer, never in the
- * fixture's bump heap (see plmpeg_file_reference_entry.c).
+ * Prints every decoded frame's RGB hash plus the time spent in
+ * `frames_begin_bytes()` (setup_us) and in the `frames_next()` loop
+ * (decode_us).  It is both the C benchmark program of the file cases and,
+ * through `src/plmpeg_file_bench_all.c`, a translation input under
+ * `--libc std`: the fixture's `include/stdio.h` and `include/time.h` declare
+ * the libc subset with the glibc ABI, so the same source links against the
+ * real libc and translates to daslang without edits.  Hashes are collected
+ * first and printed after the timed loop; reading the file happens before any
+ * timer starts; the bytes live in a static buffer, never in the fixture's
+ * bump heap (see plmpeg_file_reference_entry.c).
  */
-#define _POSIX_C_SOURCE 200809L
-#include <inttypes.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <time.h>
@@ -19,8 +24,9 @@ int32_t plmpeg_frames_height(void);
 int32_t plmpeg_frames_end(void);
 
 #define MAX_FRAMES 4096
-#define MAX_FILE_BYTES (16 * 1024 * 1024)
+#define MAX_FILE_BYTES (4 * 1024 * 1024)
 static uint8_t file_bytes[MAX_FILE_BYTES];
+static int32_t hashes[MAX_FRAMES];
 
 static int64_t now_us(void) {
     struct timespec ts;
@@ -45,7 +51,6 @@ static int32_t load_last_argument(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-    static int32_t hashes[MAX_FRAMES];
     int frames = 0;
     int i = 0;
     int32_t length = 0;
@@ -73,13 +78,13 @@ int main(int argc, char **argv) {
     }
     t2 = now_us();
     for (i = 0; i < frames && i < MAX_FRAMES; i++) {
-        printf("frame[%d]=%" PRId32 "\n", i, hashes[i]);
+        printf("frame[%d]=%d\n", i, (int)hashes[i]);
     }
     printf("frames=%d\n", frames);
-    printf("width=%" PRId32 "\n", plmpeg_frames_width());
-    printf("height=%" PRId32 "\n", plmpeg_frames_height());
+    printf("width=%d\n", (int)plmpeg_frames_width());
+    printf("height=%d\n", (int)plmpeg_frames_height());
     plmpeg_frames_end();
-    printf("setup_us=%" PRId64 "\n", t1 - t0);
-    printf("decode_us=%" PRId64 "\n", t2 - t1);
+    printf("setup_us=%lld\n", (long long)(t1 - t0));
+    printf("decode_us=%lld\n", (long long)(t2 - t1));
     return frames > 0 ? 0 : 1;
 }

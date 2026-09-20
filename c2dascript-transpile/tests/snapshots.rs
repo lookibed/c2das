@@ -31,6 +31,7 @@ fn config(output_dir: &Path) -> TranspilerConfig {
         inline_functions: true,
         public_module: false,
         das_options: vec![],
+        libc: c2dascript_transpile::LibcMode::NoStd,
     }
 }
 

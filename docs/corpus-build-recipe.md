@@ -190,6 +190,49 @@ refuses to run an entry that is not AOT-linked, and returns the script's `main` 
 The start-up cost of this variant (0.6–3.5 s) is that second compilation of the script
 inside the host; the decode loop itself runs the pre-compiled C++.
 
+## 6½. `--libc std`: the C entry is the translation input
+
+The `*-std` cases (`plmpeg-stream-320x240-std`, `h264bsd-mp4-640x360-std`) run no
+fixture-owned daslang entry at all.  Their translation input is an amalgamation of the
+graph and the very C entry the C builds use:
+
+```c
+/* src/plmpeg_file_bench_all.c */
+#include "all.c"
+#include "plmpeg_file_bench_entry.c"
+```
+
+translated with the libc replacement policy:
+
+```sh
+cargo run -q -p c2dascript-transpile -- --strict --libc std \
+    --output-dir <work>/generated_bench \
+    --file <work>/input/src/plmpeg_file_bench_all.c  <same clang flags as step 1>
+```
+
+Under `--libc std` the translator lowers the entry's `printf`, `fopen`, `fread`, `fclose`,
+`setvbuf`, `fflush`, `fseek`, `ftell`, `clock_gettime`, `exit` and the `stdout`/`stderr`/
+`stdin` streams to translator-emitted `c2da_std_*` helpers over `daslib/fio` and the
+daslang builtins (`translator/libc.rs`), and adds an exported zero-argument `main` that
+builds a C `argv` from `get_command_line_arguments()` and calls the translated
+`main(argc, argv)`.  The C side declares that libc subset in the fixture's `include/stdio.h`
+and `include/time.h` with the glibc ABI, so `clang -O2` links the same source against the
+real libc.  Nothing is written by hand on the daslang side: the module
+`generated_bench/plmpeg_file_bench_all.das` is the program.
+
+The four run modes then take that module exactly as steps 3–6 take the fixture entry:
+`daslang <module> -- <fixture>`, `daslang -jit <module> -- <fixture>`,
+`daslang -exe <module> -output ...`, and for AOT one more translation of the same
+amalgamation with `--libc std --das-option disable_auto_inline`, whose module already
+carries the option, so nothing is prepended to anything.  Note the difference from step
+6a: a module that is the program itself stays anonymous.  Declared `module ... public`,
+its exported `main` no longer AOT-links (the host reports `entry 'main' is not
+AOT-linked`); every function is reachable from `main`, so the anonymous module loses
+nothing.  A case declares
+this with `"libc": "std"` and `corpus.bench_translation_entry` in `cases.json`; the
+convergence side uses `translation_entry` = `src/plmpeg_file_all.c` (graph +
+`plmpeg_file_reference_entry.c`) the same way.
+
 ## 7. What is measured
 
 - Each variant is run once as a warm-up (page cache, `.jitted_scripts/`, module cache) and
@@ -214,6 +257,8 @@ inside the host; the decode loop itself runs the pre-compiled C++.
 | `h264bsd-mp4` | `h264_bench_entry.{c,das}` | `src/sample_mp4_data.h` (embedded `fixtures/sample.mp4`) | none |
 | `plmpeg-stream-320x240` | `plmpeg_file_bench_entry.{c,das}` | `fixtures/testsrc2_320x240.m1v` | last argument |
 | `h264bsd-mp4-640x360` | `h264_file_bench_entry.{c,das}` | `fixtures/test_640x360.mp4` | last argument |
+| `plmpeg-stream-320x240-std` | `plmpeg_file_bench_entry.c` only, translated via `plmpeg_file_bench_all.c` (`--libc std`) | `fixtures/testsrc2_320x240.m1v` | last argument |
+| `h264bsd-mp4-640x360-std` | `h264_file_bench_entry.c` only, translated via `h264_file_bench_all.c` (`--libc std`) | `fixtures/test_640x360.mp4` | last argument |
 
 The embedded-sample cases follow the same steps with no program argument; the h264bsd cases
 use the graph `src/all.c` = `shim.c` + `h264bsd.c` + `minimp4.c` + `module.c` and the

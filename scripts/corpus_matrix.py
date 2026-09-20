@@ -43,6 +43,14 @@ A case may carry `program_args` (fixture-root-relative paths): every program, C 
 daslang in any mode, receives them as its command-line arguments, which is how the
 `*_file_*` entries read a fixture file at run time instead of embedding it (see
 with_args for the per-launcher spelling).
+
+A case may carry `"libc": "std"`: the translator then replaces the libc calls of the
+translation unit (translator/libc.rs), the unit is expected to contain the C `main`,
+and the translated module itself is the program — no `das_program`, no
+`bench_das_entry`; `corpus.bench_translation_entry` names the C amalgamation (graph +
+C benchmark entry) the benchmark translates instead.  The C builds keep using
+`c_reference.sources` and `corpus.bench_c_entry` as before, so the same C entry is the
+reference and the translation input.
 """
 
 from __future__ import annotations
@@ -152,7 +160,15 @@ class Prepared:
         self.daslang = daslang
         self.env = env
         self.copied_root = work / "input"
-        self.das_program = self.copied_root / Path(case["das_program"])
+        # A nostd case runs a fixture-owned daslang entry (`das_program`) beside
+        # the translated graph; a std case's program is the translated graph
+        # itself, whose C `main` the translator lowers (see `translate`).
+        self.libc = case.get("libc", "nostd")
+        self.das_program = (
+            self.copied_root / Path(case["das_program"]) if "das_program" in case else None
+        )
+        self.translation_entry = self.copied_root / Path(case["translation_entry"])
+        self.program: Path | None = None
         self.flags = runner.copied_flags(case["clang"].get("flags", []), self.copied_root)
         self.compiler = case["clang"].get("compiler", "clang-18")
         self.staged: list[Path] = []
@@ -169,8 +185,18 @@ class Prepared:
         return self.case["corpus"]
 
     @property
-    def bench_das(self) -> Path:
+    def bench_das(self) -> Path | None:
+        """The fixture-owned daslang benchmark entry (nostd cases)."""
+        if "bench_das_entry" not in self.corpus:
+            return None
         return self.copied_root / Path(self.corpus["bench_das_entry"])
+
+    @property
+    def bench_translation_entry(self) -> Path | None:
+        """The C graph + C benchmark entry to translate as one module (std cases)."""
+        if "bench_translation_entry" not in self.corpus:
+            return None
+        return self.copied_root / Path(self.corpus["bench_translation_entry"])
 
     @property
     def bench_c(self) -> Path:
@@ -181,6 +207,21 @@ class Prepared:
         # the graph without its canonical entry, plus the requested entry
         graph = [s for s in sources if s.name != Path(self.case["c_reference"]["sources"][-1]).name]
         return graph + [entry]
+
+    def libc_flags(self) -> list[str]:
+        return [] if self.libc == "nostd" else ["--libc", self.libc]
+
+    def translate(self, c_entry: Path, out_dir: Path, extra: list[str] | None = None) -> Path:
+        """Strict translation of one C translation unit; returns the module it wrote."""
+        sh(
+            ["cargo", "run", "-q", "-p", "c2dascript-transpile", "--", "--strict", *(extra or []),
+             *self.libc_flags(), "--output-dir", str(out_dir), "--file", str(c_entry), *self.flags],
+            cwd=ROOT, env=self.env, label=f"c2das transpilation of {c_entry.name}",
+        )
+        module = out_dir / c_entry.with_suffix(".das").name
+        if not module.is_file():
+            raise MatrixFailure(f"{self.case['id']}: transpiler produced no fresh output for {c_entry.name}")
+        return module
 
 
 def prepare(case: dict[str, Any], daslang: Path) -> Prepared:
@@ -193,22 +234,21 @@ def prepare(case: dict[str, Any], daslang: Path) -> Prepared:
     shutil.copytree(prepared.source_root, prepared.copied_root)
     preserved = {prepared.copied_root / Path(p) for p in case.get("preserve_das", [])}
     for wrapper in (prepared.das_program, prepared.bench_das):
-        if wrapper not in preserved:
+        if wrapper is not None and wrapper not in preserved:
             raise MatrixFailure(f"{case['id']}: {wrapper.name} must be listed in preserve_das")
     if any(not p.is_file() for p in preserved):
         raise MatrixFailure(f"{case['id']}: a declared daScript wrapper is missing")
     runner.remove_copied_das(prepared.copied_root, preserved)
     runner.assert_no_stale_das(case, prepared.copied_root, preserved)
-    entry = Path(case["translation_entry"])
-    generated_dir = work / "generated"
-    sh(
-        ["cargo", "run", "-q", "-p", "c2dascript-transpile", "--", "--strict",
-         "--output-dir", str(generated_dir), "--file", str(prepared.copied_root / entry), *prepared.flags],
-        cwd=ROOT, env=env, label="c2das transpilation",
-    )
-    if not (generated_dir / entry.with_suffix(".das").name).is_file():
-        raise MatrixFailure(f"{case['id']}: transpiler produced no fresh output")
-    prepared.staged = runner.stage_generated_das(case, generated_dir, prepared.das_program.parent, preserved)
+    module = prepared.translate(prepared.translation_entry, work / "generated")
+    if prepared.das_program is not None:
+        prepared.staged = runner.stage_generated_das(
+            case, module.parent, prepared.das_program.parent, preserved
+        )
+        prepared.program = prepared.das_program
+    else:
+        prepared.staged = [module]
+        prepared.program = module
     return prepared
 
 
@@ -253,12 +293,18 @@ def aot_compile_flags(das_root: Path) -> list[str]:
                                  f"-I{das_root / 'build/include'}"]
 
 
-AOT_TRANSLATION_FLAGS = ["--public-module", "--das-option", "disable_auto_inline"]
+# A graph module that a separate entry `require`s must be a named public module
+# for daslang to emit AOT bodies for its unexported functions.  A module that is
+# the program itself (a `--libc std` translation carrying `main`) must stay
+# anonymous: declared public, its exported `main` no longer AOT-links
+# ("entry 'main' is not AOT-linked" from the host, verified 2026-09-21).
+AOT_GRAPH_FLAGS = ["--public-module", "--das-option", "disable_auto_inline"]
+AOT_PROGRAM_FLAGS = ["--das-option", "disable_auto_inline"]
 AOT_ENTRY_OPTIONS = ["options disable_auto_inline\n"]
 
 
-def transpile_for_aot(p: Prepared, generated_dir: Path) -> list[Path]:
-    """Translate the case's C graph again, with the module header an AOT build needs.
+def transpile_for_aot(p: Prepared, c_entry: Path, generated_dir: Path, flags: list[str]) -> list[Path]:
+    """Translate a C translation unit again, with the module header an AOT build needs.
 
     The translator writes the header itself (`--public-module`, `--das-option`);
     nothing edits generated text.  Two things differ from the plain translation:
@@ -276,33 +322,38 @@ def transpile_for_aot(p: Prepared, generated_dir: Path) -> list[Path]:
     Everything else is byte-identical to the translation the other modes run,
     because the translator is deterministic over the same C input and flags.
     """
-    entry = Path(p.case["translation_entry"])
-    sh(
-        ["cargo", "run", "-q", "-p", "c2dascript-transpile", "--", "--strict", *AOT_TRANSLATION_FLAGS,
-         "--output-dir", str(generated_dir), "--file", str(p.copied_root / entry), *p.flags],
-        cwd=ROOT, env=p.env, label="c2das transpilation (AOT header)",
-    )
+    p.translate(c_entry, generated_dir, flags)
     modules = sorted(generated_dir.rglob("*.das"))
     if not modules:
         raise MatrixFailure(f"{p.case['id']}: AOT translation produced no module")
     return modules
 
 
-def build_aot(p: Prepared, entry: Path, name: str) -> list[str]:
+def build_aot(p: Prepared, entry: Path, name: str, c_entry: Path | None) -> list[str]:
+    """`c_entry` is the C unit whose translation *is* the program (std cases);
+    `None` means `entry` is a fixture-owned daslang entry over the graph."""
     das_root = p.daslang.parent.parent
     aot_dir = p.work / name
     aot_dir.mkdir()
-    # the AOT translation of the graph, plus the fixture-owned entry beside it
-    # so `require <module>` resolves against these modules, never the staged
-    # ones; the entry is fixture source, so its one AOT option is prepended
-    # to a copy rather than edited in place
-    modules = transpile_for_aot(p, aot_dir / "generated")
-    entry_copy = aot_dir / entry.name
-    entry_text = entry.read_text(encoding="utf-8")
-    entry_copy.write_text("".join(AOT_ENTRY_OPTIONS) + entry_text, encoding="utf-8")
-    for module in modules:
-        shutil.copyfile(module, aot_dir / module.name)
-    modules = [aot_dir / module.name for module in modules]
+    if c_entry is not None:
+        # the program is the translated C unit; its header already carries the
+        # AOT options, so there is nothing to prepend
+        modules: list[Path] = []
+        entry_copy = transpile_for_aot(p, c_entry, aot_dir / "generated", AOT_PROGRAM_FLAGS)[0]
+        shutil.copyfile(entry_copy, aot_dir / entry_copy.name)
+        entry_copy = aot_dir / entry_copy.name
+    else:
+        # the AOT translation of the graph, plus the fixture-owned entry beside
+        # it so `require <module>` resolves against these modules, never the
+        # staged ones; the entry is fixture source, so its one AOT option is
+        # prepended to a copy rather than edited in place
+        modules = transpile_for_aot(p, p.translation_entry, aot_dir / "generated", AOT_GRAPH_FLAGS)
+        entry_copy = aot_dir / entry.name
+        entry_text = entry.read_text(encoding="utf-8")
+        entry_copy.write_text("".join(AOT_ENTRY_OPTIONS) + entry_text, encoding="utf-8")
+        for module in modules:
+            shutil.copyfile(module, aot_dir / module.name)
+        modules = [aot_dir / module.name for module in modules]
     objects: list[str] = []
     flags = aot_compile_flags(das_root)
     for script in modules + [entry_copy]:
@@ -320,7 +371,7 @@ def build_aot(p: Prepared, entry: Path, name: str) -> list[str]:
     return [str(binary), str(das_root), str(entry_copy), "main"]
 
 
-def build_mode(p: Prepared, mode: str, entry: Path, name: str) -> list[str]:
+def build_mode(p: Prepared, mode: str, entry: Path, name: str, c_entry: Path | None = None) -> list[str]:
     if mode == "interp":
         return [str(p.daslang), str(entry)]
     if mode == "jit":
@@ -328,7 +379,7 @@ def build_mode(p: Prepared, mode: str, entry: Path, name: str) -> list[str]:
     if mode == "exe":
         return build_exe(p, entry, f"{name}_exe")
     if mode == "aot":
-        return build_aot(p, entry, f"{name}_aot")
+        return build_aot(p, entry, f"{name}_aot", c_entry)
     raise MatrixFailure(f"unknown mode {mode}")
 
 
@@ -404,7 +455,8 @@ def median(values: list[float]) -> float:
 def converge_case(case: dict[str, Any], daslang: Path, keep: bool) -> dict[str, Any]:
     p = prepare(case, daslang)
     try:
-        entry = p.das_program
+        entry = p.program
+        c_entry = None if p.das_program is not None else p.translation_entry
         reference_cmd = build_c(p, p.copied_root / Path(case["c_reference"]["sources"][-1]), None, "c_reference")
         reference = run_once([*reference_cmd, *p.args], p.work, p.env)
         expected = case["expected"]
@@ -419,7 +471,7 @@ def converge_case(case: dict[str, Any], daslang: Path, keep: bool) -> dict[str, 
         for mode in MODES:
             row: dict[str, Any] = {"mode": mode, "build": describe_mode(mode, entry.name)}
             try:
-                cmd = with_args(build_mode(p, mode, entry, "canonical"), mode, p.args)
+                cmd = with_args(build_mode(p, mode, entry, "canonical", c_entry), mode, p.args)
                 run = run_once(cmd, p.work, p.env)
                 identical = run.program_stdout == reference.program_stdout
                 row["exit"] = run.result.returncode
@@ -484,7 +536,13 @@ def render_convergence(results: list[dict[str, Any]], facts: dict[str, str]) -> 
         size = f"{values.get('width', '?')}×{values.get('height', '?')}"
         out.append(f"- C reference: {len(r['reference'].stdout_lines)} stdout lines, exit {r['reference'].result.returncode}, "
                    f"{size}, {len(r['frames'])} decoded frames")
-        out.append(f"- Entry: `{case['das_program']}` (daslang) / `{case['c_reference']['sources'][-1]}` (C)\n")
+        if "das_program" in case:
+            out.append(f"- Entry: `{case['das_program']}` (daslang) / `{case['c_reference']['sources'][-1]}` (C)\n")
+        else:
+            out.append(
+                f"- Entry: the translated `{case['translation_entry']}` itself (`--libc {case.get('libc', 'nostd')}`, "
+                f"C `main` lowered by the translator) / `{case['c_reference']['sources'][-1]}` (C)\n"
+            )
         out.append("| mode | build | stdout identical to C | exit | note |")
         out.append("|---|---|---|---|---|")
         for row in r["rows"]:
@@ -556,11 +614,19 @@ def bench_case(case: dict[str, Any], daslang: Path, runs: int, keep: bool) -> di
             print(f"  {case['id']} C -O0: decode {m['decode_median']:.3f} ms")
         except MatrixFailure as error:
             variants.append({"name": "C clang-18 -O0", "build": "", "error": str(error).splitlines()[0]})
-        entry = p.bench_das
+        if p.bench_translation_entry is not None:
+            # std case: the benchmark program is the translated C graph + C entry
+            entry = p.translate(p.bench_translation_entry, p.work / "generated_bench")
+            c_entry: Path | None = p.bench_translation_entry
+        else:
+            entry = p.bench_das
+            c_entry = None
+        if entry is None:
+            raise MatrixFailure(f"{case['id']}: corpus block names neither bench_das_entry nor bench_translation_entry")
         for mode in MODES:
             name = f"daslang {mode}"
             try:
-                cmd = with_args(build_mode(p, mode, entry, "bench"), mode, p.args)
+                cmd = with_args(build_mode(p, mode, entry, "bench", c_entry), mode, p.args)
                 m = measure(cmd, p.work, p.env, runs, reference_frames)
                 variants.append({"name": name, "build": describe_mode(mode, entry.name), **m})
                 print(f"  {case['id']} {mode}: decode {m['decode_median']:.3f} ms, wall {m['wall_median']:.1f} ms")

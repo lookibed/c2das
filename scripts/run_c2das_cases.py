@@ -16,6 +16,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 CASE_FILE = ROOT / "tests/canonical/cases.json"
+# `--libc` policies the translator accepts. A case that omits the key is
+# translated with the translator's own default, which is `nostd`.
+LIBC_MODES = ("nostd", "std", "ffi", "all")
 
 
 class CaseFailure(RuntimeError):
@@ -73,6 +76,9 @@ def load_cases() -> list[dict[str, Any]]:
         for key in ("source_root", "translation_entry", "c_graph", "c_reference", "das_entrypoint", "expected"):
             if key not in case:
                 raise CaseFailure(f"{identifier}: missing {key}")
+        libc = case.get("libc")
+        if libc is not None and libc not in LIBC_MODES:
+            raise CaseFailure(f"{identifier}: unknown libc mode {libc!r}")
         if "expected_exporter_failure" in case:
             failure = case["expected_exporter_failure"]
             if not isinstance(failure, dict) or not all(
@@ -132,6 +138,16 @@ def stage_generated_das(
     if not staged:
         raise CaseFailure(f"{case['id']}: transpiler produced no module to stage in {destination}")
     return staged
+
+
+def libc_flags(case: dict[str, Any]) -> list[str]:
+    """The `--libc` policy this case is translated under.
+
+    A case without the key is translated exactly as before the flag existed:
+    the translator's own default, `nostd`.
+    """
+    mode = case.get("libc")
+    return ["--libc", mode] if mode else []
 
 
 def copied_flags(flags: list[str], copied_root: Path) -> list[str]:
@@ -210,7 +226,8 @@ def run_negative_translation(case: dict[str, Any], c_input: Path, env: dict[str,
         result = subprocess.run(
             [
                 "cargo", "run", "-q", "-p", "c2dascript-transpile", "--",
-                "--strict", "--output-dir", str(generated_dir), "--file", str(c_input), *flags,
+                "--strict", *libc_flags(case), "--output-dir", str(generated_dir),
+                "--file", str(c_input), *flags,
             ],
             cwd=ROOT, env=env, text=True, capture_output=True,
         )
@@ -320,6 +337,7 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
                 "c2dascript-transpile",
                 "--",
                 "--strict",
+                *libc_flags(case),
                 "--output-dir",
                 str(generated_dir),
                 "--file",

@@ -77,6 +77,60 @@ pub enum ExternCrate {
     Libc,
 }
 
+/// libc policy for a translation unit (`--libc`).
+///
+/// The mode decides what a call to a body-less external C function may become.
+/// It never relaxes the fail-closed rule: a symbol the selected mode does not
+/// know is still a `TranslationError` naming that symbol.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum LibcMode {
+    /// Only the canonical raw-memory runtime (`malloc`, `memcpy`, …) is
+    /// accepted, lowered to the translator-emitted `c2da_rt_*` helpers. Every
+    /// other external call is rejected. This is the default.
+    #[default]
+    NoStd,
+    /// Replacement: the libc entry points in `translator/libc.rs` are lowered
+    /// to daslib/daslang analogues through translator-emitted `c2da_std_*`
+    /// helpers, with the ABI adapters at the call boundary.
+    Std,
+    /// Foreign-function interface to the host libc. Not implemented.
+    Ffi,
+    /// Replacement where one exists, FFI otherwise. Not implemented.
+    All,
+}
+
+impl LibcMode {
+    /// The spelling `--libc` accepts, or `None` for an unknown mode.
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "nostd" => Some(Self::NoStd),
+            "std" => Some(Self::Std),
+            "ffi" => Some(Self::Ffi),
+            "all" => Some(Self::All),
+            _ => None,
+        }
+    }
+
+    /// The spelling this mode is written with on the command line.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NoStd => "nostd",
+            Self::Std => "std",
+            Self::Ffi => "ffi",
+            Self::All => "all",
+        }
+    }
+
+    /// Every spelling `--libc` accepts, in the order the usage text lists them.
+    pub const ALL: [Self; 4] = [Self::NoStd, Self::Std, Self::Ffi, Self::All];
+}
+
+impl std::fmt::Display for LibcMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Configuration settings for the translation process
 #[derive(Debug)]
 pub struct TranspilerConfig {
@@ -105,6 +159,9 @@ pub struct TranspilerConfig {
     /// repeatable), for target-specific module options such as
     /// `disable_auto_inline` on an AOT build.
     pub das_options: Vec<String>,
+    /// Which libc entry points this translation unit may call (`--libc`).
+    /// See [`LibcMode`]; `nostd` is the default and leaves output unchanged.
+    pub libc: LibcMode,
 }
 
 /// AST-level inventory for target-specific C surfaces.  These counts are
@@ -174,6 +231,7 @@ impl Default for TranspilerConfig {
             inline_functions: true,
             public_module: false,
             das_options: vec![],
+            libc: LibcMode::NoStd,
         }
     }
 }

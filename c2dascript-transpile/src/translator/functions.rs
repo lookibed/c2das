@@ -219,6 +219,14 @@ impl<'c> Translation<'c> {
                 f.annotations.push("export".into());
             }
         }
+        // A C `main(argc, argv)` is not a daslang entry point: daslang calls a
+        // zero-argument function. In `--libc std` the translator adds the
+        // wrapper that turns the daslang command line into a C `argv`; the
+        // translated `main` itself keeps the name the renamer gave it, so
+        // `nostd` naming is untouched.
+        if self.libc_std() && name == "main" && body.is_some() && !parameters.is_empty() {
+            super::libc::require_main_wrapper(&fn_name);
+        }
         Ok(func)
     }
 
@@ -296,12 +304,14 @@ impl<'c> Translation<'c> {
             &self.ast_context[func].kind
         {
             // libc allocation is represented by a compiler-owned runtime even
-            // when Clang classifies the source declaration as a builtin.
+            // when Clang classifies the source declaration as a builtin, and
+            // so is the `--libc std` replacement table.
             if self
                 .direct_call_name(*fexp)
                 .as_deref()
                 .and_then(canonical_runtime_function)
                 .is_none()
+                && self.std_libc_call(*fexp).is_none()
             {
                 return self.convert_builtin_call(ctx, *fexp, args);
             }
@@ -353,16 +363,22 @@ impl<'c> Translation<'c> {
                 _ => None,
             });
         let runtime = func_name.as_deref().and_then(canonical_runtime_function);
+        // The `--libc std` replacement is selected from the C declaration for
+        // the same reason, and never for a symbol the translation unit defines
+        // itself.
+        let std_libc = self.std_libc_call(func);
         let mut all_stmts = func_expr.stmts;
         let mut das_args = vec![];
         let mut variadic_tail = vec![];
         let arg_tys = self.call_arg_types(func);
         let is_variadic = self.is_variadic_callee(func);
         for (idx, &arg) in args.iter().enumerate() {
+            let std_arg = std_libc.and_then(|function| function.arg_kind(idx));
             let expected = arg_tys.get(idx).copied().filter(|_| {
                 self.libc_memory_arg_cast(func_name.as_deref(), idx)
                     .is_none()
                     && canonical_runtime_arg_type(runtime, idx).is_none()
+                    && std_arg.is_none()
             });
             let a = self.convert_expr(ctx, arg, expected)?;
             let a = if let Some(expected_ty) = expected {
@@ -398,6 +414,10 @@ impl<'c> Translation<'c> {
             if let Some(runtime_arg) = canonical_runtime_arg_type(runtime, idx) {
                 arg_val = self.lower_runtime_arg(arg_val, runtime_arg);
             }
+            // The std replacement helpers take the same raw-address ABI.
+            if let Some(std_arg) = std_arg {
+                arg_val = self.lower_runtime_arg(arg_val, std_arg);
+            }
             if is_variadic && idx >= arg_tys.len() {
                 variadic_tail.push((arg, arg_val));
             } else if let Some((stmts, lowered_arg)) = self.bool_to_integer_cast(arg_val.clone()) {
@@ -414,6 +434,9 @@ impl<'c> Translation<'c> {
         }
         let call = if let Some(function) = runtime {
             mk().call_expr(DaExpr::Var(function.target_name().to_owned()), das_args)
+        } else if let Some(function) = std_libc {
+            let helper = super::libc::require_function(function);
+            mk().call_expr(DaExpr::Var(helper.to_owned()), das_args)
         } else if indirect_callee.is_some() {
             // `invoke` is daScript's call-through-a-function-value operator.
             let mut invoke_args = vec![func_expr.val];
@@ -425,7 +448,9 @@ impl<'c> Translation<'c> {
         // The raw-memory runtime returns an address, not C's declared return
         // type. Materialize it once at the outermost pointer type demanded by
         // this expression: `(int *)malloc(...)` crosses as `uint64 -> int?`.
-        let runtime_pointer_result_ty = runtime.and_then(|_| {
+        let returns_raw_address =
+            runtime.is_some() || std_libc.map_or(false, |f| f.returns_raw_address());
+        let runtime_pointer_result_ty = returns_raw_address.then_some(()).and_then(|_| {
             override_ty
                 .filter(|ty| self.is_pointer_type(ty.ctype))
                 .or_else(|| {
@@ -649,6 +674,12 @@ impl<'c> Translation<'c> {
             return Ok(());
         };
         if body.is_some() || canonical_runtime_function(name).is_some() {
+            return Ok(());
+        }
+        // `--libc std` replaces a fixed table of libc entry points with
+        // translator-emitted daslang helpers. Everything outside that table is
+        // still an unsupported external call, in every mode.
+        if self.std_libc_call(func).is_some() {
             return Ok(());
         }
         // The compiler-owned runtime is part of every generated module, so a

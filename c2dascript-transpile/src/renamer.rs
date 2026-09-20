@@ -252,6 +252,33 @@ pub const DASCRIPT_PRELUDE_VALUE_NAMESPACE: &[&str] = &[
     "bool",
 ];
 
+/// Type names the `--libc std` prelude's `require` lines bring into scope.
+///
+/// daslang reports a use of an ambiguous type name as an error ("undefined
+/// make type declaration type FILE ... candidates are: FILE, fio_core::FILE"),
+/// so a C record that happens to share a name with one of these has to be
+/// renamed. Reserving the names here is how the renamer — the one layer that
+/// owns C-to-daScript naming — hears about it.
+///
+/// These names are reserved only in `--libc std`; `nostd` output is unchanged.
+#[rustfmt::skip]
+pub const DASCRIPT_STD_LIBC_TYPE_NAMESPACE: &[&str] = &[
+    // fio_core handled types and daslib/fio aliases
+    "FILE",
+    "FStat",
+    "DiskSpaceInfo",
+    "SubProcess",
+    "clock",
+    "file",
+    "process",
+    "df_header",
+    "fs_result_bool",
+    "fs_result_int64",
+    "fs_result_string",
+    // strings
+    "StringBuilderWriter",
+];
+
 pub struct Renamer<T> {
     scopes: Vec<Scope<T>>,
     next_fresh: u64,
@@ -278,6 +305,16 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
 
     pub fn type_namespace() -> Self {
         Renamer::new(&[DASCRIPT_KEYWORDS, DASCRIPT_PRELUDE_TYPE_NAMESPACE])
+    }
+
+    /// The type namespace of a `--libc std` module, which also `require`s the
+    /// modules the std prelude stands on.
+    pub fn std_libc_type_namespace() -> Self {
+        Renamer::new(&[
+            DASCRIPT_KEYWORDS,
+            DASCRIPT_PRELUDE_TYPE_NAMESPACE,
+            DASCRIPT_STD_LIBC_TYPE_NAMESPACE,
+        ])
     }
 
     pub fn value_namespace() -> Self {
