@@ -1,0 +1,26 @@
+{
+  "name": "rust-lsp",
+  "description": "rust-analyzer for the c2das workspace (the rustup proxy resolves it to the toolchain pinned in rust-toolchain.toml) - diagnostics after every edit, plus definition/hover/references/symbols for the translator crates",
+  "lspServers": {
+    "rust": {
+      "command": "rust-analyzer",
+      "args": [],
+      "extensionToLanguage": {
+        ".rs": "rust"
+      },
+      "initializationOptions": {
+        "checkOnSave": {
+          "extraArgs": ["--target-dir", ".ra-target"]
+        },
+        "cargo": {
+          "buildScripts": {
+            "enable": true
+          }
+        },
+        "procMacro": {
+          "enable": true
+        }
+      }
+    }
+  }
+}

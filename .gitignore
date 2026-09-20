@@ -7,6 +7,8 @@
 # ignore rust build dirs everywhere
 **/target/
 /.c2das-target
+# rust-analyzer's own check target dir (never contend with the case runner's lock)
+/.ra-target
 **/instrument.target/
 **/tests/
 /build
