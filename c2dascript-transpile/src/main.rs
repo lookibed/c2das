@@ -89,15 +89,24 @@ fn main() {
             .collect();
         let (temp_dir, cc_db) =
             c2dascript_transpile::create_temp_compile_commands(&[c_file.to_owned()]);
-        run(config, &cc_db, &extra, strict);
+        let status = run(config, &cc_db, &extra, strict);
+        // The temporary compile database must be removed on failure too:
+        // `process::exit` runs no destructors, so the exit happens only after
+        // the explicit drop.
         drop(temp_dir);
+        if status != 0 {
+            std::process::exit(status);
+        }
     } else if path.exists() && path.extension().map(|s| s == "json").unwrap_or(false) {
         let extra: Vec<&str> = args[1..]
             .iter()
             .map(|s| s.as_str())
             .filter(|s| *s != "--")
             .collect();
-        run(config, path, &extra, strict);
+        let status = run(config, path, &extra, strict);
+        if status != 0 {
+            std::process::exit(status);
+        }
     } else {
         eprintln!("Expected compile_commands.json or --file <file.c>");
         std::process::exit(1);
@@ -128,19 +137,23 @@ fn take_value(args: &mut Vec<String>, option: &str) -> Option<String> {
     Some(args.remove(index))
 }
 
-fn run(config: c2dascript_transpile::TranspilerConfig, cc_db: &Path, extra: &[&str], strict: bool) {
+/// Translates and returns the process exit status: 0, or 2 for a failed
+/// translation.  It never exits itself, so the caller can release the
+/// temporary compile database first.
+fn run(config: c2dascript_transpile::TranspilerConfig, cc_db: &Path, extra: &[&str], strict: bool) -> i32 {
     // A failed translation is a failure in both modes. The two differ only in
     // whether the remaining translation units are still attempted; neither may
     // report success for a file that produced no output.
     if strict {
         if let Err(error) = c2dascript_transpile::transpile_checked(config, cc_db, extra) {
             eprintln!("translation failed: {error}");
-            std::process::exit(2);
+            return 2;
         }
     } else if let Err(errors) = c2dascript_transpile::transpile(config, cc_db, extra) {
         for error in &errors {
             eprintln!("translation failed: {error}");
         }
-        std::process::exit(2);
+        return 2;
     }
+    0
 }
