@@ -23,8 +23,32 @@ Already fine without changes: `__builtin_clz`, `__builtin_ctz`, `__builtin_popco
 transparent.  Noted for later: daslang has no byte-swap builtin, so
 `__builtin_bswap16/32/64` (compiled out on little-endian here) would need shifts.
 
-Status: generic fixes for all four, each with a canonical case, are being drafted;
-the corpus is not registered as a canonical case until the translated module runs.
-When they land, this page keeps the *decision* for each row (the chosen lowering
-and why), and the wasm3 rows join `docs/corpus-convergence.md` /
-`docs/corpus-benchmark.md` like the decoders.
+## Status 2026-09-21: fixes landed, decisions still open
+
+Commit `066b30e1b` fixes all four generically, each with a canonical case
+(`p73-indirect-call-expression`, `p74-musttail-return` + `n09-unknown-statement-attribute`,
+`p75-va-list-parameter`, `p76-std-strings`), and five more defects the same graph
+exposed on the way (`p77`–`p80`: scalar brace initializer, `_Bool` value semantics,
+typedef order / parameter-const / `@@f` init dependency, VLA sizing).  The
+translated `src/all_host.c` (39 114 lines) then runs under `daslang -jit`
+byte-identical to the native C program (`fib[24]=46368`, `count=7`), with no
+stack overflow at this wasm call depth.
+
+Two things remain, and this page owns them:
+
+- **The plain interpreter stops** with `EXCEPTION: internal binding error: typed
+  eval on wrong extern return kind, i_das_ptr_add` after the first line.  It is a
+  daslang-side extern binding error (`include/daScript/simulate/interop.h`,
+  `ext_wrong_slot`), reduced to a 9-line pure-daslang repro:
+  `var a : uint64 = unsafe(reinterpret<uint64>(unsafe(p + int(4))))` throws in the
+  interpreter and prints `0x4` under `-jit`.  Not a c2das defect; the corpus stays out
+  of the canonical set until the interpreter path runs or the case is declared
+  jit/exe/aot-only.
+- **The decision per row** the user asked for is still due: (1) every non-direct
+  callee goes through `invoke`, decided by type — keep; (2) `musttail` is dropped and
+  the flat-stack guarantee is not preserved — measure the overflow depth per mode on
+  this corpus before calling it acceptable; (3) the `va_list` cursor crosses by
+  reference next to the caller's argument array — keep unless a callee stores the
+  cursor beyond the call; (4) `errno` is a cell in the raw heap behind
+  `__errno_location`, with `ERANGE`/`EINVAL` set by `strto*` — keep, and extend
+  when the next corpus needs more of `errno.h`.
