@@ -192,7 +192,7 @@ inside the host; the decode loop itself runs the pre-compiled C++.
 
 ## 6½. `--libc std`: the C entry is the translation input
 
-The `*-std` cases (`plmpeg-stream-320x240-std`, `h264bsd-mp4-640x360-std`) run no
+The `*-std` cases (`plmpeg-stream-320x240-std`, `h264bsd-mp4-640x360-std`, `wasm3-fib32-std`) run no
 fixture-owned daslang entry at all.  Their translation input is an amalgamation of the
 graph and the very C entry the C builds use:
 
@@ -259,6 +259,16 @@ convergence side uses `translation_entry` = `src/plmpeg_file_all.c` (graph +
 | `h264bsd-mp4-640x360` | `h264_file_bench_entry.{c,das}` | `fixtures/test_640x360.mp4` | last argument |
 | `plmpeg-stream-320x240-std` | `plmpeg_file_bench_entry.c` only, translated via `plmpeg_file_bench_all.c` (`--libc std`) | `fixtures/testsrc2_320x240.m1v` | last argument |
 | `h264bsd-mp4-640x360-std` | `h264_file_bench_entry.c` only, translated via `h264_file_bench_all.c` (`--libc std`) | `fixtures/test_640x360.mp4` | last argument |
+| `wasm3-fib32-std` | `host_bench.c` only, translated via `all_host_bench.c` (`--libc std`, `--das-option "stack = 4194304"`) | `fixtures/fib32.wasm` | last argument |
+
+`wasm3-fib32-std` is the one case whose translation carries a daslang option beyond the AOT
+header: the case's `das_options` key becomes `--das-option "stack = 4194304"` on every
+translation (interp, jit, exe and the AOT one alike), so the module header reads `options
+stack = 4194304`.  Only the interpreter uses it: wasm3's dispatch recurses one translated
+call per executed opcode on the simulated stack, and daslang's default overflows around
+`fib(20)`; jit, exe and aot recurse on the native stack.  Its C builds are the single
+translation unit `src/all_host_bench.c` (`-std=c11 -Iinclude -Iupstream/wasm3/source -Isrc`),
+and its "frames" are the seven `fib[n]=` lines.
 
 The embedded-sample cases follow the same steps with no program argument; the h264bsd cases
 use the graph `src/all.c` = `shim.c` + `h264bsd.c` + `minimp4.c` + `module.c` and the

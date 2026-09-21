@@ -2244,6 +2244,10 @@
     },
     {
       "c_graph": "wasm3",
+      "canonical_case": "wasm3-fib32-std",
+      "canonical_cases": [
+        "wasm3-fib32-std"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -2254,17 +2258,20 @@
           "-Isrc"
         ]
       },
-      "entrypoint": "graph-member",
+      "entrypoint": "main",
       "expected": {
-        "kind": "unregistered",
-        "value": "unregistered"
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "bytes=62\nfib[1]=1\nfib[2]=1\nfib[5]=5\nfib[10]=55\nfib[15]=610\nfib[20]=6765\nfib[24]=46368\ncount=7\n"
+        }
       },
       "family": "wasm3",
       "id": "tests--manual--wasm3--src--all_host",
       "owner": "corpus graph inventory",
-      "runtime": "unverified",
+      "runtime": "required",
       "source": "tests/manual/wasm3/src/all_host.c",
-      "status": "inventory-only"
+      "status": "supported"
     },
     {
       "c_graph": "wasm3",
@@ -5817,6 +5824,62 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p83_std_main_void.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p84-struct-definition-order",
+      "canonical_cases": [
+        "p84-struct-definition-order"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "struct_definition_order_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p84_struct_definition_order",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p84_struct_definition_order.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p85-pointer-sum-compare",
+      "canonical_cases": [
+        "p85-pointer-sum-compare"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "pointer_sum_compare_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p85_pointer_sum_compare",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p85_pointer_sum_compare.c",
       "status": "supported"
     },
     {

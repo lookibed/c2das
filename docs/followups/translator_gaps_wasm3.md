@@ -89,16 +89,56 @@ None of the three daslang issues is a dependency: the translator-side avoidances
 are to be implemented regardless, and the issues are recorded here so that the
 avoidances can be revisited when daslang changes.
 
-Two things remain, and this page owns them:
+## Status 2026-09-21: both avoidances landed, the interpreter path runs
 
-- **The plain interpreter stops** with `EXCEPTION: internal binding error: typed
-  eval on wrong extern return kind, i_das_ptr_add` after the first line.  It is a
-  daslang-side extern binding error (`include/daScript/simulate/interop.h`,
-  `ext_wrong_slot`), reduced to a 9-line pure-daslang repro:
-  `var a : uint64 = unsafe(reinterpret<uint64>(unsafe(p + int(4))))` throws in the
-  interpreter and prints `0x4` under `-jit`.  Not a c2das defect; the corpus stays out
-  of the canonical set until the interpreter path runs or the case is declared
-  jit/exe/aot-only.
+Both are generic passes with a canonical case each.
+
+- **Record emission order** (`translator/global_order.rs
+  order_record_declarations`, canonical case `p84-struct-definition-order`,
+  invariant test `c2dascript-transpile/tests/record_order_tests.rs`).  The
+  module's record declarations are topologically ordered over *by-value* edges
+  only — a field's own type, an array's element type, and whatever a `typedef`
+  resolves to; a pointer member stops the walk, which is what lets the cycle
+  exist.  Aliases keep their slots, so `order_type_aliases` is unaffected, and
+  a record field naming a later `typedef` is accepted by daslang and by its
+  AOT alike.  wasm3's type section comes out `M3Memory` before `M3Module`,
+  `M3CompilationScope`/`M3Compilation` before `M3Runtime`, and `daslang -aot`'s
+  C++ compiles with `clang++-18` and the toolchain's own AOT flags, with no
+  hand reorder.
+- **Raw address of a pointer sum** (`translator/abi.rs named_pointer_value`,
+  canonical case `p85-pointer-sum-compare`).  A pointer value is given a name —
+  `var t : T? = unsafe(p + int(4))` — before `reinterpret<uint64>` reads it,
+  whenever the value is pointer arithmetic, including behind a
+  pointer-to-pointer `reinterpret` that daslang folds away
+  (`reinterpret<uint64>(reinterpret<uint8?>(p + n))` throws exactly like the
+  bare form).  Three crossings route through it: the pointer comparison
+  operand (`operators.rs`), the explicit and implicit pointer-to-integer cast
+  (`translator/mod.rs`), and the raw-address argument of a runtime/std helper
+  (`functions.rs lower_runtime_arg`, which is how `memmove(sp + returnSlots,
+  sp + stackOffset, n)` in wasm3's `op_ReturnCall*` reached it).  A translation
+  that never takes the raw address of a pointer sum is byte-identical to
+  before: over `tests/syntax/*.c` in `nostd`, 2 of 142 modules differ, both on
+  that shape.
+
+`tests/manual/wasm3/src/all_host.c` under `--libc std` now prints
+`bytes=62 … fib[24]=46368 … count=7` under the **plain interpreter** and
+byte-identically under `-jit`.  The interpreter needs a larger simulated stack
+than daslang's default: its `invoke` recursion lives there, and the default
+overflows in `op_Entry` around fib(20) — the same depth story the table above
+measures per mode.  Measured on the registered translation: the default
+overflows, `stack = 1048576` (1 MiB) already runs fib(24), and 4, 16 and 64 MiB
+run identically (15–21 s each, dominated by the interpreter, not the stack).
+The corpus is registered as `wasm3-fib32-std` with `das_options: ["stack =
+4194304"]`, a new case key the runner and the corpus driver pass to the
+translator as `--das-option`, i.e. the module header carries `options stack =
+4194304` and nothing edits generated text.  One `reinterpret<uint64>` of pointer
+arithmetic remains in the tree, in `p54-address-taken`
+(`object_memory.rs raw_byte_address`): there the address is handed straight
+back to `reinterpret<T?>`, never read as an integer, and the case passes in
+every mode.
+
+One thing remains, and this page owns it:
+
 - **The decision per row** the user asked for is still due: (1) every non-direct
   callee goes through `invoke`, decided by type — keep; (2) `musttail` is dropped and
   the flat-stack guarantee is not preserved — measure the overflow depth per mode on

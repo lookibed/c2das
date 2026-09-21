@@ -79,6 +79,11 @@ def load_cases() -> list[dict[str, Any]]:
         libc = case.get("libc")
         if libc is not None and libc not in LIBC_MODES:
             raise CaseFailure(f"{identifier}: unknown libc mode {libc!r}")
+        das_options = case.get("das_options", [])
+        if not isinstance(das_options, list) or not all(
+            isinstance(option, str) and option.strip() for option in das_options
+        ):
+            raise CaseFailure(f"{identifier}: das_options must be a list of option strings")
         if "expected_exporter_failure" in case:
             failure = case["expected_exporter_failure"]
             if not isinstance(failure, dict) or not all(
@@ -141,13 +146,23 @@ def stage_generated_das(
 
 
 def libc_flags(case: dict[str, Any]) -> list[str]:
-    """The `--libc` policy this case is translated under.
+    """The translator policy flags this case is translated under.
 
-    A case without the key is translated exactly as before the flag existed:
-    the translator's own default, `nostd`.
+    `libc`: the `--libc` policy; a case without the key is translated exactly
+    as before the flag existed, the translator's own default, `nostd`.
+
+    `das_options`: daslang `options` the translator writes into the module
+    header (`--das-option`), one per entry, e.g. `"stack = 16777216"` for a
+    program whose interpreter-mode call depth exceeds daslang's default
+    simulated stack.  It is a per-program resource setting declared by the
+    case, the way a linker script sets a C program's stack; nothing edits
+    generated text.
     """
     mode = case.get("libc")
-    return ["--libc", mode] if mode else []
+    flags = ["--libc", mode] if mode else []
+    for option in case.get("das_options", []):
+        flags += ["--das-option", option]
+    return flags
 
 
 def copied_flags(flags: list[str], copied_root: Path) -> list[str]:

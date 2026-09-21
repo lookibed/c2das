@@ -211,7 +211,8 @@ class Prepared:
         return graph + [entry]
 
     def libc_flags(self) -> list[str]:
-        return [] if self.libc == "nostd" else ["--libc", self.libc]
+        """`--libc` and `--das-option` exactly as the canonical runner passes them."""
+        return runner.libc_flags(self.case)
 
     def translate(self, c_entry: Path, out_dir: Path, extra: list[str] | None = None) -> Path:
         """Strict translation of one C translation unit; returns the module it wrote."""

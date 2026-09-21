@@ -380,23 +380,139 @@ impl<'c> Translation<'c> {
         null_pointer(pointer)
     }
 
-    pub(crate) fn abi_pointer_comparison_operand(&self, expr: DaExpr, is_pointer: bool) -> DaExpr {
-        if matches!(expr, DaExpr::ConstNull) {
-            return DaExpr::Cast {
-                kind: das_ast::CastKind::Cast,
-                expr: Box::new(DaExpr::ConstInt(0)),
-                to: DaType::uint64(),
-            };
-        }
-        if is_pointer {
-            self.pointer_to_raw_address(expr)
-        } else {
-            DaExpr::Cast {
-                kind: das_ast::CastKind::Cast,
-                expr: Box::new(expr),
-                to: DaType::uint64(),
+    /// One operand of a C pointer comparison, as the `uint64` raw address the
+    /// two sides are compared on, together with the statements that operand
+    /// needs evaluated first.
+    ///
+    /// C compares pointers by address, and only `==`/`!=` between two pointers
+    /// of the same daScript type can be spelled directly; every other mixed or
+    /// relational comparison crosses to the raw-address ABI here.
+    ///
+    /// The operand is named before it is read whenever it is *pointer
+    /// arithmetic* — see [`Translation::named_pointer_value`] for why.
+    pub(crate) fn abi_pointer_comparison_operand(
+        &self,
+        value: WithStmts<DaExpr>,
+        is_pointer: bool,
+        pointer_type: Option<&DaType>,
+    ) -> WithStmts<DaExpr> {
+        value.and_then(|expr| {
+            if matches!(expr, DaExpr::ConstNull) {
+                return WithStmts::new_val(DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(DaExpr::ConstInt(0)),
+                    to: DaType::uint64(),
+                });
             }
+            if !is_pointer {
+                return WithStmts::new_val(DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(expr),
+                    to: DaType::uint64(),
+                });
+            }
+            self.named_pointer_value(expr, pointer_type)
+                .map(|pointer| self.pointer_to_raw_address(pointer))
+        })
+    }
+
+    /// Give a pointer value a name when its raw address is about to be read as
+    /// an integer and the value is pointer arithmetic.
+    ///
+    /// daslang lowers `p + n` and `p - n` to the bound externs `i_das_ptr_add`
+    /// and `i_das_ptr_sub`, which return a pointer.  Reading that result
+    /// through an integer slot — which is what `reinterpret<uint64>` of it
+    /// asks for — is a binding the daslang *interpreter* does not have:
+    ///
+    /// ```text
+    /// var a : uint64 = unsafe(reinterpret<uint64>(unsafe(p + int(4))))
+    /// EXCEPTION: internal binding error: typed eval on wrong extern return
+    ///            kind, i_das_ptr_add
+    /// ```
+    ///
+    /// The JIT, `-exe` and the AOT C++ all run the same text.  Reported as
+    /// <https://github.com/lookibed/daScript/issues/3> with a pure repro; the
+    /// avoidance here stands on its own and is kept whatever that issue does.
+    ///
+    /// Naming the pointer first — `var t : T? = unsafe(p + int(4))`, then
+    /// `reinterpret<uint64>(t)` — runs in every mode, needs nothing known
+    /// about the pointee at the site, and changes no evaluation order: the
+    /// operand was already evaluated exactly once, at this point in the
+    /// statement.  Every other pointer shape — a variable, a field, `addr(…)`,
+    /// a call — is read in place as before, so a translation that never takes
+    /// the raw address of a pointer sum is unchanged.
+    ///
+    /// The caller names the pointer's daScript type when the C operand has
+    /// one; otherwise it is inferred from the expression, and a pointer whose
+    /// type neither gives keeps the inline spelling, because a `var` cannot be
+    /// declared without a type.
+    pub(crate) fn named_pointer_value(
+        &self,
+        pointer: DaExpr,
+        pointer_type: Option<&DaType>,
+    ) -> WithStmts<DaExpr> {
+        if !is_pointer_arithmetic(&pointer) {
+            return WithStmts::new_val(pointer);
         }
+        let declared = pointer_type
+            .cloned()
+            .or_else(|| Self::infer_type(&pointer))
+            .map(super::writable_type);
+        let Some(declared) = declared else {
+            return WithStmts::new_val(pointer);
+        };
+        // Only a pointer gets a name here: a numeric alias reaching this point
+        // would mean the value is not a pointer at all, and declaring it as
+        // one would be the sort of quiet repair this translator forbids.
+        if !matches!(declared.kind, DaTypeKind::Pointer(_) | DaTypeKind::Named(_))
+            || declared.is_numeric()
+        {
+            return WithStmts::new_val(pointer);
+        }
+        let tmp = self.renamer.borrow_mut().fresh();
+        WithStmts::new(
+            vec![DaStmt::Var {
+                name: tmp.clone(),
+                var_type: declared,
+                init: Some(pointer),
+            }],
+            DaExpr::Var(tmp),
+        )
+    }
+}
+
+/// True when a pointer-valued expression *is* pointer arithmetic, as far as
+/// daslang's own reader is concerned.
+///
+/// The translator spells every C pointer offset as `unsafe(p + n)` — pointer
+/// subtraction included, because daslang's `i_das_ptr_sub` takes its pointer
+/// by reference and a chained `p - a - b` then has no overload, so
+/// `convert_subtraction` emits `p + (-n)`.  A `-` is still matched here: the
+/// property being tested is "the value came out of daslang's pointer
+/// arithmetic externs", and both spellings do.
+///
+/// A pointer-to-pointer `reinterpret` in between does not change that value,
+/// and daslang folds it away, so it is peeled too: C's `(u8 *)(p + n)` as a
+/// comparison operand is the same `i_das_ptr_add` result read through an
+/// integer slot, and throws the same way
+/// (`unsafe(reinterpret<uint64>(unsafe(reinterpret<uint8?>(unsafe(p + int(4))))))`,
+/// verified against daslang 0.6.4).  A `reinterpret` *to* a pointer whose
+/// operand is integer arithmetic peels to the same shape and is named too;
+/// that costs one temporary and is equally correct.
+pub(crate) fn is_pointer_arithmetic(expr: &DaExpr) -> bool {
+    match expr {
+        DaExpr::Unsafe(inner) => is_pointer_arithmetic(inner),
+        DaExpr::Cast {
+            kind: das_ast::CastKind::Reinterpret,
+            expr: inner,
+            to,
+        } if matches!(to.kind, DaTypeKind::Pointer(_) | DaTypeKind::Named(_))
+            && !to.is_numeric() =>
+        {
+            is_pointer_arithmetic(inner)
+        }
+        DaExpr::Op2 { op, .. } => matches!(*op, "+" | "-"),
+        _ => false,
     }
 }
 

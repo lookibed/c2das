@@ -922,6 +922,40 @@
         "exit_code": 0
       },
       "runtime": "required"
+    },
+    {
+      "id": "p84-struct-definition-order", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p84_struct_definition_order.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "struct_definition_order_runtime", "return_type": "int" }, "das_entrypoint": "struct_definition_order_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required",
+      "rust_assertion": "record_order_tests::records_precede_the_records_that_embed_them"
+    },
+    {
+      "id": "p85-pointer-sum-compare", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p85_pointer_sum_compare.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "pointer_sum_compare_runtime", "return_type": "int" }, "das_entrypoint": "pointer_sum_compare_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "wasm3-fib32-std",
+      "status": "ready",
+      "source_root": "tests/manual/wasm3",
+      "translation_entry": "src/all_host.c",
+      "c_graph": "wasm3",
+      "libc": "std",
+      "das_options": ["stack = 4194304"],
+      "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-Iinclude", "-Iupstream/wasm3/source", "-Isrc"] },
+      "c_reference": { "sources": ["src/all_host.c"] },
+      "das_entrypoint": "main",
+      "program_args": ["fixtures/fib32.wasm"],
+      "expected": {
+        "stdout": "bytes=62\nfib[1]=1\nfib[2]=1\nfib[5]=5\nfib[10]=55\nfib[15]=610\nfib[20]=6765\nfib[24]=46368\ncount=7\n",
+        "exit_code": 0
+      },
+      "runtime": "required",
+      "corpus": {
+        "label": "wasm3 (WebAssembly interpreter core, no WASI), fib32 module, C entry translated under --libc std",
+        "upstream": "UPSTREAM.md",
+        "fixture": "fixtures/fib32.wasm",
+        "bench_c_entry": "src/all_host_bench.c",
+        "bench_translation_entry": "src/all_host_bench.c"
+      }
     }
   ]
 }

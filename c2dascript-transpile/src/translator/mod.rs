@@ -1365,21 +1365,33 @@ impl<'c> Translation<'c> {
                     let cast = if matches!(cast_kind, CastKind::IntegralToPointer)
                         && matches!(target_type.kind, DaTypeKind::Pointer(_))
                     {
-                        self.raw_address_to_pointer(inner.val, target_type)
+                        WithStmts::new_val(self.raw_address_to_pointer(inner.val, target_type))
                     } else if matches!(cast_kind, CastKind::PointerToIntegral)
                         && matches!(target_type.kind, DaTypeKind::UInt64)
                     {
-                        self.pointer_to_raw_address(inner.val)
+                        // `(uintptr_t)(p + n)` reads the raw address of a
+                        // pointer sum, which the daslang interpreter cannot do
+                        // in place; the pointer is named first.  Its daScript
+                        // type comes from the C operand, because a pointer
+                        // sum's own shape does not name one.
+                        let operand_type = self.ast_context[*expr]
+                            .kind
+                            .get_qual_type()
+                            .map(|qty| self.convert_type(qty))
+                            .transpose()?
+                            .map(writable_type);
+                        self.named_pointer_value(inner.val, operand_type.as_ref())
+                            .map(|pointer| self.pointer_to_raw_address(pointer))
                     } else if matches!(target_type.kind, DaTypeKind::Pointer(_)) {
-                        self.abi_pointer_cast(inner.val, target_type)
+                        WithStmts::new_val(self.abi_pointer_cast(inner.val, target_type))
                     } else {
-                        DaExpr::Unsafe(Box::new(DaExpr::Cast {
+                        WithStmts::new_val(DaExpr::Unsafe(Box::new(DaExpr::Cast {
                             kind: das_ast::CastKind::Reinterpret,
                             expr: Box::new(inner.val),
                             to: target_type,
-                        }))
+                        })))
                     };
-                    return Ok(WithStmts::new_val(cast)
+                    return Ok(cast
                         .prepend_stmts(inner.stmts)
                         .merge_unsafe(inner.is_unsafe));
                 }
@@ -1530,18 +1542,34 @@ impl<'c> Translation<'c> {
                     cast_kind,
                     CastKind::BitCast | CastKind::IntegralToPointer | CastKind::PointerToIntegral
                 ) {
-                    DaExpr::Cast {
+                    // `(uintptr_t)(p + n)` reads the raw address of a pointer
+                    // sum, which the daslang interpreter cannot do in place;
+                    // the pointer is named first.  Its daScript type comes
+                    // from the C operand, because a pointer sum's own shape
+                    // does not name one.
+                    let pointer = if matches!(cast_kind, CastKind::PointerToIntegral) {
+                        let operand_type = self.ast_context[*expr]
+                            .kind
+                            .get_qual_type()
+                            .map(|qty| self.convert_type(qty))
+                            .transpose()?
+                            .map(writable_type);
+                        self.named_pointer_value(inner.val, operand_type.as_ref())
+                    } else {
+                        WithStmts::new_val(inner.val)
+                    };
+                    pointer.map(|pointer| DaExpr::Cast {
                         kind: das_ast::CastKind::Reinterpret,
-                        expr: Box::new(inner.val),
+                        expr: Box::new(pointer),
                         to: target_type,
-                    }
+                    })
                 } else {
                     // Everything left is a value conversion in C — including
                     // `(some_enum_t)n`, which daScript can only express as a
                     // reinterpretation.  `cast_to_type` decides which.
-                    self.cast_to_type(inner.val, target_type)
+                    WithStmts::new_val(self.cast_to_type(inner.val, target_type))
                 };
-                Ok(WithStmts::new_val(value)
+                Ok(value
                     .prepend_stmts(inner.stmts)
                     .merge_unsafe(inner.is_unsafe))
             }
@@ -3798,13 +3826,18 @@ fn translate_impl(
     // A `typedef` whose body names another typedef has to be declared after
     // it, or daScript resolves the alias to a type that no longer compares
     // equal to the same alias written the other way round.
-    module_decls.extend(global_order::order_type_aliases(type_decls));
+    let mut type_section = global_order::order_type_aliases(type_decls);
     // A C record declared inside a function body has no daScript equivalent at
     // that scope. Pass 2 hoisted the ones the top-level type pass never
     // reached; they belong in the same type section, before every object that
     // builds one — a hoisted function-scope `static` of such a record among
     // them.
-    module_decls.extend(t.take_hoisted_types());
+    type_section.extend(t.take_hoisted_types());
+    // A record that embeds another by value has to be declared after it, or
+    // the C++ `daslang -aot` prints has a field of incomplete type.  The whole
+    // type section is ordered at once, so a file-scope record may be reached
+    // by a hoisted one and the other way round.
+    module_decls.extend(global_order::order_record_declarations(type_section));
     // An enumeration constant is a module-level variable here, and a global
     // initializer may only read a global declared before it, so the constants
     // precede the objects — a hoisted `static const` table keyed by enum

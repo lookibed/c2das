@@ -186,23 +186,20 @@ impl<'c> Translation<'c> {
                     .zip(rhs_val)
                     .map(|(l, r)| DaExpr::Unsafe(Box::new(mk().binary_op(das_op, l, r)))))
             }
-            EqualEqual | NotEqual if any_ptr => {
+            EqualEqual | NotEqual | Less | Greater | LessEqual | GreaterEqual if any_ptr => {
                 let das_op = convert_binop(op).map_err(TranslationError::generic)?;
+                // Each operand crosses to the raw-address ABI on its own, and
+                // may need a statement of its own to get there, so the two
+                // sides are lowered before they are joined.
+                let lhs_val =
+                    self.abi_pointer_comparison_operand(lhs_val, lhs_is_ptr, lhs_da.as_ref());
+                let rhs_val =
+                    self.abi_pointer_comparison_operand(rhs_val, rhs_is_ptr, rhs_da.as_ref());
                 Ok(lhs_val.zip(rhs_val).map(|(l, r)| {
                     DaExpr::Unsafe(Box::new(DaExpr::Op2 {
                         op: das_op,
-                        left: Box::new(self.abi_pointer_comparison_operand(l, lhs_is_ptr)),
-                        right: Box::new(self.abi_pointer_comparison_operand(r, rhs_is_ptr)),
-                    }))
-                }))
-            }
-            Less | Greater | LessEqual | GreaterEqual if any_ptr => {
-                let das_op = convert_binop(op).map_err(TranslationError::generic)?;
-                Ok(lhs_val.zip(rhs_val).map(|(l, r)| {
-                    DaExpr::Unsafe(Box::new(DaExpr::Op2 {
-                        op: das_op,
-                        left: Box::new(self.abi_pointer_comparison_operand(l, lhs_is_ptr)),
-                        right: Box::new(self.abi_pointer_comparison_operand(r, rhs_is_ptr)),
+                        left: Box::new(l),
+                        right: Box::new(r),
                     }))
                 }))
             }

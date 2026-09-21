@@ -11,8 +11,10 @@ import nothing, so the graph is the interpreter proper: `m3_host_none.h` for the
 layer, no `m3_api_wasi.c`, no `m3_api_libc.c`.  See `src/all.c` for the configuration and
 why each define is set.
 
-The corpus carries no case in `tests/canonical/cases.json` yet, because the graph does not
-translate: see "Translation status" below.
+The corpus is the canonical case `wasm3-fib32-std` in `tests/canonical/cases.json`:
+`src/all_host.c` translated under `--libc std`, run against `fixtures/fib32.wasm` in every
+daslang mode by `scripts/corpus_matrix.py` (see "Translation status" below for how it got
+there).
 
 ## Layout
 
@@ -94,7 +96,18 @@ rather than trap before it.
 
 ## Translation status
 
-`src/all_host.c` does not translate under `--libc std`.  The first stop is a translator
+`src/all_host.c` translates under `--libc std` and runs byte-identically to the native
+program in the interpreter, under `-jit`, as an AOT build and as an `-exe` binary
+(`docs/corpus-convergence.md`; timings in `docs/corpus-benchmark.md`).  The case declares
+one daslang option, `stack = 4194304`: wasm3's continuation-passing dispatch recurses one
+translated call per executed opcode, and daslang's default simulated stack overflows in the
+interpreter around `fib(20)` (1 MiB is enough for `fib(24)`; the other modes recurse on the
+native stack and ignore the option).  `docs/followups/translator_gaps_wasm3.md` records what
+the translation exposed, the per-mode measurements and the two daslang-side issues that are
+avoided translator-side.
+
+What follows is the record of the first attempt, kept because each stop became a canonical
+case.  At that time `src/all_host.c` did not translate.  The first stop was a translator
 panic on wasm3's `__attribute__((musttail))`:
 
 ```

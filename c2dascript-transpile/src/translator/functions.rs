@@ -469,11 +469,15 @@ impl<'c> Translation<'c> {
             // Canonical runtime ABI is raw-address/uint64 based.  This cast is
             // constructed before the daScript AST reaches the printer.
             if let Some(runtime_arg) = canonical_runtime_arg_type(runtime, idx) {
-                arg_val = self.lower_runtime_arg(arg_val, runtime_arg);
+                let lowered = self.lower_runtime_arg(arg_val, runtime_arg);
+                all_stmts.extend(lowered.stmts);
+                arg_val = lowered.val;
             }
             // The std replacement helpers take the same raw-address ABI.
             if let Some(std_arg) = std_arg {
-                arg_val = self.lower_runtime_arg(arg_val, std_arg);
+                let lowered = self.lower_runtime_arg(arg_val, std_arg);
+                all_stmts.extend(lowered.stmts);
+                arg_val = lowered.val;
             }
             if is_variadic && idx >= arg_tys.len() {
                 variadic_tail.push((arg, arg_val));
@@ -608,11 +612,21 @@ impl<'c> Translation<'c> {
     /// The only source-call boundary conversions for the canonical raw-memory
     /// runtime.  Keeping them here prevents type repair from leaking to the
     /// printer or into each individual libc special case.
-    fn lower_runtime_arg(&self, arg: DaExpr, kind: RuntimeArgKind) -> DaExpr {
+    fn lower_runtime_arg(&self, arg: DaExpr, kind: RuntimeArgKind) -> WithStmts<DaExpr> {
         match kind {
-            RuntimeArgKind::UInt64 => self.integer_literal_for_type(arg, DaType::uint64()),
-            RuntimeArgKind::RawAddress => self.pointer_to_raw_address(arg),
-            RuntimeArgKind::UInt8 => self.integer_literal_for_type(arg, DaType::uint8()),
+            RuntimeArgKind::UInt64 => {
+                WithStmts::new_val(self.integer_literal_for_type(arg, DaType::uint64()))
+            }
+            // `memmove(sp + returnSlots, sp + stackOffset, n)`: the raw address
+            // of a pointer sum is read as an integer, which the daslang
+            // interpreter cannot do in place, so the pointer is named first
+            // (see `Translation::named_pointer_value`).
+            RuntimeArgKind::RawAddress => self
+                .named_pointer_value(arg, None)
+                .map(|pointer| self.pointer_to_raw_address(pointer)),
+            RuntimeArgKind::UInt8 => {
+                WithStmts::new_val(self.integer_literal_for_type(arg, DaType::uint8()))
+            }
         }
     }
 

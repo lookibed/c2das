@@ -336,6 +336,183 @@ fn collect_decl(decl: &DaDecl, out: &mut Vec<String>) {
     }
 }
 
+/// Reorder the module's record declarations so that a record is declared after
+/// every record it embeds *by value*.
+///
+/// daslang itself accepts the two in either order — a module-level `struct` is
+/// a name resolved after the whole module is parsed.  `daslang -aot` is a
+/// fourth back end of the same text: it prints the module as C++, where a
+/// field of a struct type needs that struct *complete*, so the declarations
+/// have to come out in an order C++ accepts.  daslang's AOT emitter sorts
+/// by-value members ahead of their container itself, but gives up when the
+/// embedded record also points back at the container — exactly the shape an
+/// interpreter's runtime/module/memory triangle has:
+///
+/// ```c
+/// typedef struct Outer Outer;          // C names Outer first …
+/// typedef struct Inner { Outer *owner; } Inner;
+/// struct Outer { Inner embedded; };    // … and defines it last
+/// ```
+///
+/// ```text
+/// order_cycle.cpp:93:31: error: field has incomplete type 'struct Inner'
+/// ```
+///
+/// Reported with a pure repro as
+/// <https://github.com/lookibed/daScript/issues/2>; this pass stands on its own
+/// and is kept whatever that issue does.
+///
+/// Our incoming order is the Clang export's, which is the order C *first
+/// names* a type — a forward `typedef struct Outer Outer;` puts the container
+/// first.  C's *definition* order has the complete-before-by-value-use
+/// property by construction, and so does any topological order over by-value
+/// edges alone: a pointer member never needs its pointee complete, which is
+/// what lets a cycle exist at all.  This is that topological order.
+///
+/// Only records move, and only into the slots records already occupy, so
+/// aliases keep their incoming position and [`order_type_aliases`] stays
+/// independent of this pass.  A record field may name an alias that a later
+/// `typedef` declares, which daslang and its AOT both accept, so nothing here
+/// constrains the two orders against each other.
+pub(crate) fn order_record_declarations(decls: Vec<DaDecl>) -> Vec<DaDecl> {
+    let slots: Vec<usize> = decls
+        .iter()
+        .enumerate()
+        .filter(|(_, decl)| matches!(decl, DaDecl::Structure(_) | DaDecl::Enumeration(_)))
+        .map(|(i, _)| i)
+        .collect();
+    if slots.len() < 2 {
+        return decls;
+    }
+    let mut record_slot: HashMap<&str, usize> = HashMap::new();
+    for (slot, &i) in slots.iter().enumerate() {
+        let name = match &decls[i] {
+            DaDecl::Structure(s) => s.name.as_str(),
+            DaDecl::Enumeration(e) => e.name.as_str(),
+            _ => unreachable!("slot is a record"),
+        };
+        record_slot.entry(name).or_insert(slot);
+    }
+    // A field may reach a record through a `typedef`: `va_list` is
+    // `c2da___va_list_tag[1]`, an array of a record *by value*, and an alias
+    // to `T?` is a pointer and reaches nothing.
+    let mut alias_body: HashMap<&str, &das_ast::DaType> = HashMap::new();
+    for decl in &decls {
+        if let DaDecl::Alias(alias) = decl {
+            alias_body.entry(alias.name.as_str()).or_insert(&alias.aliased_type);
+        }
+    }
+
+    let deps: Vec<Vec<usize>> = slots
+        .iter()
+        .enumerate()
+        .map(|(slot, &i)| {
+            let mut found: Vec<usize> = Vec::new();
+            if let DaDecl::Structure(structure) = &decls[i] {
+                let mut seen: HashSet<&str> = HashSet::new();
+                for field in &structure.fields {
+                    collect_value_records(
+                        &field.field_type,
+                        &alias_body,
+                        &record_slot,
+                        &mut seen,
+                        &mut found,
+                    );
+                }
+            }
+            found.retain(|&other| other != slot);
+            found.sort_unstable();
+            found.dedup();
+            found
+        })
+        .collect();
+
+    const UNVISITED: u8 = 0;
+    const ON_STACK: u8 = 1;
+    const DONE: u8 = 2;
+    let mut state = vec![UNVISITED; slots.len()];
+    let mut order: Vec<usize> = Vec::with_capacity(slots.len());
+    // Iterative post-order, entered in the incoming order, so a record moves
+    // only as far forward as a container requires.  A by-value cycle is a C
+    // program that cannot exist; if one is ever built, the slot that closes it
+    // stays where the walk reached it rather than looping.
+    for start in 0..slots.len() {
+        if state[start] != UNVISITED {
+            continue;
+        }
+        let mut stack = vec![(start, 0usize)];
+        state[start] = ON_STACK;
+        while let Some((slot, next)) = stack.pop() {
+            if next < deps[slot].len() {
+                stack.push((slot, next + 1));
+                let child = deps[slot][next];
+                if state[child] == UNVISITED {
+                    state[child] = ON_STACK;
+                    stack.push((child, 0));
+                }
+                continue;
+            }
+            state[slot] = DONE;
+            order.push(slot);
+        }
+    }
+
+    let mut records: Vec<Option<DaDecl>> = Vec::with_capacity(slots.len());
+    let mut decls = decls;
+    for &i in &slots {
+        records.push(Some(std::mem::replace(
+            &mut decls[i],
+            DaDecl::Alias(das_ast::DaAlias {
+                name: String::new(),
+                aliased_type: das_ast::DaType::auto(),
+            }),
+        )));
+    }
+    for (position, slot) in order.into_iter().enumerate() {
+        let record = records[slot].take().expect("each record is placed once");
+        decls[slots[position]] = record;
+    }
+    decls
+}
+
+/// The records a field's type needs *complete*: the type itself when it is a
+/// record, an array's element type, and whatever an alias resolves to.
+///
+/// A pointer stops the walk: C++ — and C — need only a forward declaration for
+/// a pointer member, which is what makes the container/pointee cycle legal in
+/// the first place.  A `function<…>` type is a single daScript type *name*
+/// that no record declaration of this module owns, so it resolves to nothing.
+fn collect_value_records<'a>(
+    field_type: &'a das_ast::DaType,
+    alias_body: &HashMap<&'a str, &'a das_ast::DaType>,
+    record_slot: &HashMap<&str, usize>,
+    seen: &mut HashSet<&'a str>,
+    out: &mut Vec<usize>,
+) {
+    use das_ast::DaTypeKind::*;
+    match &field_type.kind {
+        Pointer(_) => {}
+        Array(inner) | FixedArray(inner, _) => {
+            collect_value_records(inner, alias_body, record_slot, seen, out)
+        }
+        Named(name) => {
+            if let Some(&slot) = record_slot.get(name.as_str()) {
+                out.push(slot);
+                return;
+            }
+            let Some(body) = alias_body.get(name.as_str()) else {
+                return;
+            };
+            // A `typedef` chain cannot loop in C; the guard keeps a malformed
+            // module from looping here anyway.
+            if seen.insert(name.as_str()) {
+                collect_value_records(body, alias_body, record_slot, seen, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Reorder the module's `typedef` declarations so that every alias is declared
 /// after the aliases its own type names.
 ///
@@ -450,6 +627,140 @@ pub(crate) fn order_type_aliases(decls: Vec<DaDecl>) -> Vec<DaDecl> {
         decls[slots[position]] = alias;
     }
     decls
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use das_ast::{DaAlias, DaField, DaStructure, DaType};
+
+    fn structure(name: &str, fields: &[(&str, DaType)]) -> DaDecl {
+        DaDecl::Structure(DaStructure {
+            name: name.to_string(),
+            fields: fields
+                .iter()
+                .map(|(field, field_type)| DaField {
+                    name: field.to_string(),
+                    field_type: field_type.clone(),
+                    default: None,
+                })
+                .collect(),
+            annotations: vec![],
+        })
+    }
+
+    fn alias(name: &str, aliased_type: DaType) -> DaDecl {
+        DaDecl::Alias(DaAlias {
+            name: name.to_string(),
+            aliased_type,
+        })
+    }
+
+    fn names(decls: &[DaDecl]) -> Vec<String> {
+        decls
+            .iter()
+            .map(|decl| match decl {
+                DaDecl::Structure(s) => format!("struct {}", s.name),
+                DaDecl::Alias(a) => format!("typedef {}", a.name),
+                DaDecl::Enumeration(e) => format!("enum {}", e.name),
+                _ => "?".to_string(),
+            })
+            .collect()
+    }
+
+    /// The wasm3 shape: the container is declared first because C names it
+    /// first, and the record it embeds by value points back at it.
+    #[test]
+    fn a_by_value_member_is_declared_before_its_container() {
+        let decls = vec![
+            structure(
+                "Outer",
+                &[
+                    ("next", DaType::named("OuterRef")),
+                    ("embedded", DaType::named("Inner")),
+                ],
+            ),
+            structure(
+                "Inner",
+                &[("owner", DaType::pointer(DaType::named("Outer")))],
+            ),
+            alias("OuterRef", DaType::pointer(DaType::named("Outer"))),
+        ];
+        let ordered = order_record_declarations(decls);
+        assert_eq!(
+            names(&ordered),
+            vec!["struct Inner", "struct Outer", "typedef OuterRef"],
+            "the pointer member must not constrain the order, the value member must"
+        );
+    }
+
+    /// One pass of "move the member ahead of its container" is not enough.
+    #[test]
+    fn a_chain_of_by_value_members_is_ordered_transitively() {
+        let decls = vec![
+            structure("Trunk", &[("middle", DaType::named("Middle"))]),
+            structure(
+                "Middle",
+                &[
+                    ("leaf", DaType::named("Leaf")),
+                    ("up", DaType::pointer(DaType::named("Trunk"))),
+                ],
+            ),
+            structure(
+                "Leaf",
+                &[("up", DaType::pointer(DaType::named("Middle")))],
+            ),
+        ];
+        let ordered = order_record_declarations(decls);
+        assert_eq!(
+            names(&ordered),
+            vec!["struct Leaf", "struct Middle", "struct Trunk"]
+        );
+    }
+
+    /// An array of a record, and a record reached through a `typedef`, both
+    /// constrain the order exactly as a plain member does.
+    #[test]
+    fn arrays_and_aliases_carry_the_by_value_edge() {
+        let decls = vec![
+            structure(
+                "Grove",
+                &[
+                    ("leaves", DaType::fixed_array(DaType::named("Leaf"), 3)),
+                    ("log", DaType::named("LeafList")),
+                ],
+            ),
+            alias(
+                "LeafList",
+                DaType::array(DaType::named("Stem")),
+            ),
+            structure("Leaf", &[("value", DaType::int())]),
+            structure("Stem", &[("value", DaType::int())]),
+        ];
+        let ordered = order_record_declarations(decls);
+        assert_eq!(
+            names(&ordered),
+            vec![
+                "struct Leaf",
+                "typedef LeafList",
+                "struct Stem",
+                "struct Grove"
+            ],
+            "records move only into the slots records already occupy"
+        );
+    }
+
+    /// A record nothing embeds keeps its incoming position.
+    #[test]
+    fn independent_records_keep_their_incoming_order() {
+        let decls = vec![
+            structure("A", &[("x", DaType::int())]),
+            structure("B", &[("x", DaType::int())]),
+            structure("C", &[("x", DaType::int())]),
+        ];
+        let ordered = order_record_declarations(decls);
+        assert_eq!(names(&ordered), vec!["struct A", "struct B", "struct C"]);
+    }
 }
 
 /// True when `name` occurs in `text` as a whole identifier.
