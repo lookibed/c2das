@@ -8,6 +8,18 @@ use crate::format_translation_err;
 
 const VA_ARGS_PARAM: &str = "c2da_va_args";
 
+/// The cursor index a `va_list` object carries between `va_start`/`va_copy`
+/// and its matching `va_end`: the first promoted argument this cursor has not
+/// consumed yet.
+const VA_CURSOR_FIRST: i64 = 0;
+
+/// The cursor index `va_end` leaves behind.  C99 7.15.1.3 ends the object's
+/// lifetime there — any later `va_arg` is undefined — so the cursor is poisoned
+/// with an index no argument array can hold.  A use after `va_end` then fails
+/// as a located daScript "array index out of range" instead of reading whatever
+/// the cursor happened to point at.
+const VA_CURSOR_ENDED: i64 = -1;
+
 #[derive(Copy, Clone, Debug)]
 pub enum VaPart {
     Start(CDeclId),
@@ -101,6 +113,56 @@ impl<'c> Translation<'c> {
         VA_ARGS_PARAM.into()
     }
 
+    /// Rejects a `va_list` object whose *address* outlives the frame it was
+    /// created in.
+    ///
+    /// This is a lifetime check, not an address-taken check.  A cursor crosses
+    /// a call as the `var` record it is declared to be, i.e. by reference, so
+    /// `&ap` handed straight to a callee — musl's
+    /// `printf_core(…, va_list *ap, …)`, picolibc's struct wrapper — names
+    /// storage that is alive for the whole call, and is the one forwarding
+    /// shape C itself defines (C99 7.15.1p1 exempts "a function that receives a
+    /// pointer to the object").  Storing that address anywhere else — a global,
+    /// a struct field, the heap, a return value — hands out a reference that
+    /// daScript cannot keep alive past the call, and today it also
+    /// reinterprets a 4-byte cursor as a pointer to a 24-byte
+    /// `struct __va_list_tag`.  That fails closed here, at the C source
+    /// location of the `&`.
+    pub(crate) fn check_va_list_address_lifetimes(&self, body: CStmtId) -> TranslationResult<()> {
+        let mut passed_to_call: IndexSet<CExprId> = IndexSet::new();
+        for node in DFExpr::new(&self.ast_context, body.into()) {
+            let SomeId::Expr(expr) = node else { continue };
+            if let CExprKind::Call(_, _, args) = &self.ast_context[expr].kind {
+                for arg in args {
+                    let arg = super::functions::strip_implicit_casts(&self.ast_context, *arg);
+                    if self.va_list_address_operand(arg).is_some() {
+                        passed_to_call.insert(arg);
+                    }
+                }
+            }
+        }
+        for node in DFExpr::new(&self.ast_context, body.into()) {
+            let SomeId::Expr(expr) = node else { continue };
+            if self.va_list_address_operand(expr).is_some() && !passed_to_call.contains(&expr) {
+                return Err(format_translation_err!(
+                    self.ast_context.display_loc(&self.ast_context[expr].loc),
+                    "va_list address escapes its frame: the address of a va_list object may only be passed directly as a call argument"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// The `va_list` declaration `expr` takes the address of, if `expr` is
+    /// `&<va_list object>`.
+    fn va_list_address_operand(&self, expr: CExprId) -> Option<CDeclId> {
+        let CExprKind::Unary(_, CUnOp::AddressOf, target, _) = self.ast_context[expr].kind else {
+            return None;
+        };
+        let id = self.va_decl_from_expr(target)?;
+        self.is_va_decl(id).then_some(id)
+    }
+
     pub(crate) fn va_decl_from_expr(&self, mut expr: CExprId) -> Option<CDeclId> {
         while let CExprKind::ImplicitCast(_, inner, _, _, _) = &self.ast_context[expr].kind {
             expr = *inner;
@@ -143,7 +205,7 @@ impl<'c> Translation<'c> {
             annotations: vec![],
             init: Some(DaExpr::MakeStruct {
                 type_name: "C2daVaCursor".into(),
-                fields: vec![("index".into(), DaExpr::ConstInt(0))],
+                fields: vec![("index".into(), DaExpr::ConstInt(VA_CURSOR_FIRST))],
             }),
         }))
     }
@@ -151,13 +213,25 @@ impl<'c> Translation<'c> {
     pub(crate) fn va_cursor_initializer(&self) -> DaExpr {
         DaExpr::MakeStruct {
             type_name: "C2daVaCursor".into(),
-            fields: vec![("index".into(), DaExpr::ConstInt(0))],
+            fields: vec![("index".into(), DaExpr::ConstInt(VA_CURSOR_FIRST))],
         }
     }
 
     pub(crate) fn cursor_expr(&self, id: CDeclId) -> TranslationResult<DaExpr> {
         let CDeclKind::Variable { ident, .. } = &self.ast_context[id].kind else { return Err(TranslationError::generic("unsupported va_list declaration")); };
         Ok(DaExpr::Var(self.declare_value_name(id, ident)))
+    }
+
+    /// `<cursor>.index = <index>` — the only write the canonical model makes to
+    /// a cursor outside `va_arg`.
+    fn set_cursor_index(&self, id: CDeclId, index: i64) -> TranslationResult<DaStmt> {
+        Ok(DaStmt::Expr(DaExpr::Assign(
+            Box::new(DaExpr::Field(
+                Box::new(self.cursor_expr(id)?),
+                "index".into(),
+            )),
+            Box::new(DaExpr::ConstInt(index)),
+        )))
     }
 
     /// The daScript argument a call passes for a C `va_list` parameter.
@@ -203,7 +277,24 @@ impl<'c> Translation<'c> {
 
     pub fn convert_vapart(&self, part: VaPart) -> TranslationResult<WithStmts<DaExpr>> {
         match part {
-            VaPart::Start(_) | VaPart::End(_) => Ok(WithStmts::new_val(DaExpr::ConstInt(0))),
+            // C99 7.15.1.4p1: `va_start` *initialises* the object for
+            // subsequent use, so a second `va_start` on the same `va_list`
+            // rewinds it to the first variadic argument — the two-pass
+            // "measure, then format" shape depends on exactly that.  The
+            // declaration-site initialiser covers only the first `va_start`,
+            // so every one of them rewinds the cursor here.
+            VaPart::Start(id) => Ok(WithStmts::new(
+                vec![self.set_cursor_index(id, VA_CURSOR_FIRST)?],
+                DaExpr::ConstInt(0),
+            )),
+            // C99 7.15.1.3p2: the object may not be used again until a new
+            // `va_start`/`va_copy` initialises it.  Poisoning the cursor turns
+            // a use after `va_end` into a located daScript range error rather
+            // than a silent read of a stale index.
+            VaPart::End(id) => Ok(WithStmts::new(
+                vec![self.set_cursor_index(id, VA_CURSOR_ENDED)?],
+                DaExpr::ConstInt(0),
+            )),
             VaPart::Copy(dst, src) => Ok(WithStmts::new(
                 vec![DaStmt::Expr(DaExpr::Assign(
                     Box::new(self.cursor_expr(dst)?),

@@ -3499,6 +3499,36 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "n10-va-list-address-escapes",
+      "canonical_cases": [
+        "n10-va-list-address-escapes"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "va_list address escapes its frame: the address of a va_list object may only be passed directly as a call argument",
+          "location": "n10_va_list_address_escapes.c",
+          "operation": "top-level declaration lowering",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n10_va_list_address_escapes",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n10_va_list_address_escapes.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-p01-ptr-deref",
       "canonical_cases": [
         "legacy-p01-ptr-deref"
@@ -5880,6 +5910,90 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p85_pointer_sum_compare.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p86-va-start-rewind",
+      "canonical_cases": [
+        "p86-va-start-rewind"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "va_start_rewind_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p86_va_start_rewind",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p86_va_start_rewind.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p87-va-list-shared-cursor",
+      "canonical_cases": [
+        "p87-va-list-shared-cursor"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "va_list_shared_cursor_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p87_va_list_shared_cursor",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p87_va_list_shared_cursor.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p88-va-list-forwarding-chain",
+      "canonical_cases": [
+        "p88-va-list-forwarding-chain"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "va_list_forwarding_chain_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p88_va_list_forwarding_chain",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p88_va_list_forwarding_chain.c",
       "status": "supported"
     },
     {

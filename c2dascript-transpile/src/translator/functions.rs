@@ -126,6 +126,14 @@ impl<'c> Translation<'c> {
         let variadic_arg_name = (is_variadic || !va_list_params.is_empty())
             .then(|| body.map(|body_id| self.register_va_decls(body_id, &va_list_params)))
             .flatten();
+        // The cursors are known now, so the one thing the by-reference model
+        // cannot represent — a `va_list` address that outlives the frame — is
+        // diagnosed before any of the body is lowered.
+        if variadic_arg_name.is_some() {
+            if let Some(body_id) = body {
+                self.check_va_list_address_lifetimes(body_id)?;
+            }
+        }
 
         // Convert return type for function signature
         let ret_type = ret_ctype
@@ -932,7 +940,7 @@ impl<'c> Translation<'c> {
 }
 
 /// Drop the implicit conversions Clang records around an expression.
-fn strip_implicit_casts(ast_context: &TypedAstContext, expr: CExprId) -> CExprId {
+pub(crate) fn strip_implicit_casts(ast_context: &TypedAstContext, expr: CExprId) -> CExprId {
     let mut current = expr;
     while let CExprKind::ImplicitCast(_, inner, _, _, _) = &ast_context[current].kind {
         current = *inner;
