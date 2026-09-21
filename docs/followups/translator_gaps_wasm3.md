@@ -34,6 +34,48 @@ translated `src/all_host.c` (39 114 lines) then runs under `daslang -jit`
 byte-identical to the native C program (`fib[24]=46368`, `count=7`), with no
 stack overflow at this wasm call depth.
 
+Measured the same day on a frozen copy of `becdefa42` (`src/all_host_bench.c` on
+`fixtures/fib32.wasm`, warm-up + 5 runs, medians of `decode_us`, the fib call loop):
+
+| variant | output | decode_us | ÷ C -O2 | wall |
+|---|---|---|---|---|
+| C `clang-18 -O2` | `fib[24]=46368 count=7` | 1790 | 1.00× | 5.6 ms |
+| C `clang-18 -O0` | identical | 4168 | 2.33× | 7.8 ms |
+| daslang interp | fails (below) | — | — | 6.0 s to the throw |
+| daslang `-jit` | identical | 5067 | 2.83× | 686 ms |
+| daslang `-exe` | identical | 4899 | 2.74× | 26.5 ms |
+| daslang aot | identical | 2802 | 1.57× | 2.13 s |
+
+The dropped `musttail` is bounded, not fatal: live native depth is (wasm call depth) ×
+(ops per activation), and a wasm return unwinds it.  No mode crashed up to
+`fib(36)`; bisecting `ulimit -s` gives ≈ 751 B per wasm frame under `-exe` (n_max ≈
+10 900 at 8 MiB), ≈ 205 B under `-jit` (≈ 39 700), ≈ 239 B under aot (≈ 34 100),
+against ≈ 614 B for the C `-O0 -DM3_HAS_TAIL_CALL=0` control.  `options stack = N`
+changes nothing under `-jit`/`-exe` (they recurse on the native stack; exhaustion is
+a bare SIGSEGV because `d_m3MaxNativeStack 0` removed wasm3's own guard); the
+interpreter's `invoke` recursion lives on the simulated stack and does scale with it.
+
+Two more translator findings from that run, both generic:
+
+- **Struct emission order.** `daslang -aot`'s C++ does not compile out of the
+  translator: four `field has incomplete type` errors (`M3Module` embeds `M3Memory`
+  by value but is emitted first).  The translator emits records in C's *first-name*
+  order; daslang tolerates it, C++ needs *definition* order for by-value members.
+  The aot row above needed a hand reorder in a scratch copy.  Fix: order record
+  declarations by by-value containment (pointer members do not constrain), like
+  `global_order` already does for aliases and initializers.
+- **Interpreter blocker, translator-side avoidance.** The throwing shape
+  `unsafe(reinterpret<uint64>(unsafe(p + N)))` is emitted at exactly one site,
+  `abi.rs pointer_to_raw_address()` (pointer comparison operands).  The daslang
+  defect is in `ext_slot_cast` (`interop.h`): a bound extern returning a pointer
+  (`i_das_ptr_add`/`i_das_ptr_sub`) cannot be read through an integer slot; element
+  type, offset spelling and `-no-optimization` do not matter.  Hoisting the pointer
+  expression into an untyped temporary (`var t = unsafe(p + N)`) and reinterpreting
+  the temporary runs in the interpreter (verified in isolation), needs no pointee
+  knowledge at the site, and is a legitimate generic lowering choice.  Also noted:
+  `reinterpret<uint>` (32-bit) of a pointer breaks the JIT's codegen
+  (`Trunc only operates on integer`).
+
 Two things remain, and this page owns them:
 
 - **The plain interpreter stops** with `EXCEPTION: internal binding error: typed
