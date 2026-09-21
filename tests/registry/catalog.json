@@ -151,6 +151,16 @@
       "status": "inventory-only"
     },
     {
+      "c_graph": "wasm3",
+      "entrypoint": "graph-member",
+      "expected_kind": "unregistered",
+      "glob": "tests/manual/wasm3/src/*.c",
+      "id": "wasm3",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "status": "inventory-only"
+    },
+    {
       "c_graph": "single-tu",
       "entrypoint": "unregistered",
       "expected_kind": "unregistered",
@@ -227,6 +237,17 @@
       "description": "Canonical H264BSD plus minimp4 translation graph, rooted at src/all.c; the C reference graph is src/all_reference.c under the same flags.",
       "entry": "tests/manual/h264bsd-mp4/src/all.c",
       "id": "h264bsd-mp4"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-Iinclude",
+        "-Iupstream/wasm3/source",
+        "-Isrc"
+      ],
+      "description": "Canonical wasm3 interpreter translation graph, rooted at src/all_host.c; src/all_host_bench.c is the same graph with the timing entry.",
+      "entry": "tests/manual/wasm3/src/all_host.c",
+      "id": "wasm3"
     },
     {
       "compile_commands": "tests/production/real-archive-secret/cc_all.json",

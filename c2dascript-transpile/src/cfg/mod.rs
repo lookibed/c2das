@@ -983,6 +983,33 @@ impl CfgBuilder {
                 Ok(None)
             }
 
+            // A statement attribute is a promise about how the statement is
+            // *compiled*, never about what it means: `fallthrough` documents a
+            // `switch` edge C takes anyway, and `musttail` demands a machine
+            // tail call for a `return` of a call that already returns that
+            // call.  Both are therefore dropped and the substatement is
+            // converted on its own — with `musttail` the generated module
+            // recurses where the C program iterated (see `Attribute::MustTail`).
+            // An attribute this translator does not model reaches the user as a
+            // source-located diagnostic instead.
+            CStmtKind::Attributed {
+                attributes,
+                substatement,
+            } => {
+                if let Some(Attribute::UnknownStatement(name)) = attributes
+                    .iter()
+                    .find(|attr| matches!(attr, Attribute::UnknownStatement(_)))
+                {
+                    return Err(crate::format_translation_err!(
+                        tr.ast_context.display_loc(&tr.ast_context[sid].loc),
+                        "unsupported statement attribute: {}",
+                        name,
+                    ));
+                }
+                let substatement = *substatement;
+                self.convert_stmt(tr, ctx, substatement, in_tail, entry, ret_ty)
+            }
+
             // Inline asm has no CFG-neutral scalar substitute. Route it to
             // translator/assembly.rs so the user receives its source-located
             // ABI diagnostic instead of a generic CFG failure.

@@ -2908,6 +2908,19 @@ pub enum Attribute {
     Visibility(String),
     /// __attribute__((fallthrough, __fallthrough__))
     Fallthrough,
+    /// `__attribute__((musttail)) return f(...);`
+    ///
+    /// A guarantee about the *machine* call sequence, not about C semantics: the
+    /// statement means the same thing without it.  The translation therefore
+    /// drops it and the `return` of a call stays a `return` of a call — the
+    /// tail-call guarantee itself is **not** preserved, so a C program that
+    /// relies on it to iterate without growing the stack (an interpreter
+    /// dispatch loop, say) recurses in the generated module.
+    MustTail,
+    /// A statement attribute this translator does not model, carried into the C
+    /// AST by name so the statement's own owner can fail closed with a source
+    /// location instead of panicking here.
+    UnknownStatement(String),
 }
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]

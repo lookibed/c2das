@@ -824,6 +824,55 @@
         "exit_code": 0
       },
       "runtime": "required"
+    },
+    {
+      "id": "p73-indirect-call-expression", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p73_indirect_call_expression.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "indirect_call_expression_runtime", "return_type": "int" }, "das_entrypoint": "indirect_call_expression_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p74-musttail-return", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p74_musttail_return.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "musttail_return_runtime", "return_type": "int" }, "das_entrypoint": "musttail_return_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "n09-unknown-statement-attribute", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n09_unknown_statement_attribute.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "n09_unknown_statement_attribute.c", "cause": "unsupported statement attribute: nomerge" }, "runtime": "not-applicable"
+    },
+    {
+      "id": "p75-va-list-parameter", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p75_va_list_parameter.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "va_list_parameter_runtime", "return_type": "int" }, "das_entrypoint": "va_list_parameter_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p76-std-strings",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p76_std_strings.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "std_strings_runtime", "return_type": "int" },
+      "das_entrypoint": "std_strings_runtime",
+      "expected": {
+        "stdout": "strlen=5,0,11\nstrcmp=0,-1,1,-1\nstrncmp=0,-1,0\nstrcpy=[hello] len=5\nstrcat=[hello, world] len=12\nstrncpy=abc...ZZ\nstrncpy_trunc=[abcd]\nstrchr=4,-1,19\nstrrchr=17,0,-1\nstrstr=10,0,-1,0\nstrtoll_hex=-31 end=7 errno=0\nstrtoll_tail=123 end=3 errno=0\nstrtoll_none=0 end=0 errno=0\nstrtoll_bare=0 end=1 errno=0\nstrtoll_bases=493,255,35,2024\nstrtoll_over=9223372036854775807 erange=1\nstrtoll_under=-9223372036854775808 erange=1\nstrtoull_over=18446744073709551615 erange=1\nstrtoull_max=18446744073709551615 errno=0\nstrtoll_base37=0 einval=1\nstrtol=-2147483648,4294967296,-42\nisspace=1110\nisdigit=10 isalpha=10 isalnum=10\nisupper=10 islower=10 isprint=10 isxdigit=110\ncase=qqQ7\nsnprintf=[n=42/ok] n=7\nsnprintf_trunc=[abc] n=8 tail=Z\nsnprintf_size0=4\nvsnprintf=[[v|-7|00042]] n=12\nputs-line\nfputs-no-newline|\nfprintf=out/5\nabcd\nfwrite=5\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p77-scalar-brace-initializer", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p77_scalar_brace_initializer.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "scalar_brace_initializer_runtime", "return_type": "int" }, "das_entrypoint": "scalar_brace_initializer_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p78-bool-value-semantics", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p78_bool_value_semantics.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "bool_value_semantics_runtime", "return_type": "int" }, "das_entrypoint": "bool_value_semantics_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p79-dispatch-table-cycle", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p79_dispatch_table_cycle.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "dispatch_table_cycle_runtime", "return_type": "int" }, "das_entrypoint": "dispatch_table_cycle_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p80-variable-length-array", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p80_variable_length_array.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "variable_length_array_runtime", "return_type": "int" }, "das_entrypoint": "variable_length_array_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
     }
   ]
 }

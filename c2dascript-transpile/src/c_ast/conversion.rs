@@ -1170,8 +1170,24 @@ impl ConversionContext {
                         Some("fallthrough") | Some("__fallthrough__") => {
                             attributes.push(Attribute::Fallthrough)
                         }
-                        Some(str) => panic!("Unknown statement attribute: {}", str),
-                        None => panic!("Invalid statement attribute"),
+                        // `musttail` is a code-generation guarantee about the
+                        // machine call sequence; the statement it decorates
+                        // means exactly the same thing in C without it, so the
+                        // C AST records the attribute and the translation drops
+                        // it (see `Attribute::MustTail`).
+                        Some("musttail") | Some("__musttail__") => {
+                            attributes.push(Attribute::MustTail)
+                        }
+                        // Every other statement attribute is carried by name
+                        // rather than panicking: unsupported C must fail closed
+                        // with a source location, which only the statement's
+                        // translator owner can produce.
+                        Some(other) => {
+                            attributes.push(Attribute::UnknownStatement(other.to_owned()))
+                        }
+                        None => {
+                            attributes.push(Attribute::UnknownStatement("<unnamed>".to_owned()))
+                        }
                     };
 
                     let astmt = CStmtKind::Attributed {

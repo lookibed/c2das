@@ -200,6 +200,30 @@ impl<'c> Translation<'c> {
     /// the printer sees only a target type and cannot tell a conversion from a
     /// reinterpretation.
     pub(crate) fn cast_to_type(&self, expr: DaExpr, target: DaType) -> DaExpr {
+        // daScript has no `bool(...)` conversion function of any kind — not
+        // from an integer, not from another `bool`.  C's conversion to `_Bool`
+        // is not a truncation either: C11 6.3.1.2 makes it "compares unequal
+        // to zero", which is exactly what a `bool` target is lowered to here.
+        if matches!(target.kind, DaTypeKind::Bool) {
+            let actual = Self::infer_type(&expr);
+            if super::is_boolean_expression(&expr)
+                || actual
+                    .as_ref()
+                    .map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+            {
+                return expr;
+            }
+            return match actual {
+                Some(ty) => self.value_is_truthy(expr, &ty),
+                // The value's own type is not derivable from its shape; C's
+                // rule for every arithmetic type is the same comparison.
+                None => DaExpr::Op2 {
+                    op: "!=",
+                    left: Box::new(expr),
+                    right: Box::new(DaExpr::ConstInt(0)),
+                },
+            };
+        }
         if matches!(target.kind, DaTypeKind::Named(_)) && !target.is_numeric() {
             return DaExpr::Unsafe(Box::new(DaExpr::Cast {
                 kind: das_ast::CastKind::Reinterpret,
@@ -237,10 +261,17 @@ impl<'c> Translation<'c> {
     pub(crate) fn bool_to_integer_cast(&self, expr: DaExpr) -> Option<(Vec<DaStmt>, DaExpr)> {
         let DaExpr::Cast { kind, expr, to } = expr else { return None; };
         let bool_expr = unwrap_numeric_casts(expr);
+        // The operand is a `bool` either because its daScript type says so or
+        // because its *shape* does: C types `!x`, `a < b` and `a && b` as
+        // `int`, but every one of them is a daScript `bool`, and `int64(bool)`
+        // is not a conversion daScript has.
+        let is_bool = Self::infer_type(&bool_expr)
+            .map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+            || super::is_boolean_expression(&bool_expr);
         if kind != das_ast::CastKind::Cast
             || !to.is_numeric()
             || matches!(to.kind, DaTypeKind::Bool)
-            || !Self::infer_type(&bool_expr).map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+            || !is_bool
         {
             return None;
         }

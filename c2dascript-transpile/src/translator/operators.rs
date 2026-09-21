@@ -1220,6 +1220,7 @@ impl<'c> Translation<'c> {
                 // materializes it at its own use-site (`lower_to_c_value`).
                 if Self::infer_type(&val.val)
                     .map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+                    || super::is_boolean_expression(&val.val)
                 {
                     return Ok(val.map(|v| mk().unary_op("!", v)));
                 }
@@ -1233,6 +1234,14 @@ impl<'c> Translation<'c> {
                         }));
                     }
                     let resolved_kind = self.ast_context.resolve_type(qty.ctype).kind.clone();
+                    // C counts `_Bool` among the integral types, but the value
+                    // daScript holds for one *is* a `bool`, and `bool == 0` is
+                    // not a comparison daScript has.  `infer_type` catches this
+                    // only when the operand's shape reveals its type; the C
+                    // declaration always does.
+                    if matches!(resolved_kind, CTypeKind::Bool) {
+                        return Ok(val.map(|v| mk().unary_op("!", v)));
+                    }
                     if resolved_kind.is_integral_type() {
                         return Ok(val.map(|v| DaExpr::Op2 {
                             op: "==",

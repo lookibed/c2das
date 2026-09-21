@@ -15,8 +15,10 @@
 //! transitive through calls: an initializer written as `var G = ginit_G()`
 //! inherits every global `ginit_G`'s body names, and a genuine cycle among
 //! those names is rejected outright (`error[31104]: global variable
-//! initialization loop`).  Taking a function's address with `@@f` is *not* an
-//! initialization dependency, only calling one is.
+//! initialization loop`).  Taking a function's address with `@@f` is followed
+//! the same way a call is: a table of `@@op_*` inherits everything those
+//! bodies read, which is how an interpreter's two mutually recursive dispatch
+//! tables end up on one cycle.
 //!
 //! Our declaration order is whatever order the Clang export produced, which is
 //! neither C source order nor a dependency order.  This pass reorders the
@@ -218,16 +220,20 @@ fn resolve_dependencies(
 
 /// Every name an expression reads, in no particular order.
 ///
-/// `@@f` is deliberately not collected: daScript treats a function's address
-/// as a link-time constant, so a table of function pointers imposes no
-/// ordering on the functions or on the globals their bodies read.
+/// `@@f` is collected like a call: daScript's own initialization check follows
+/// a function's address into its body and on to the globals that body reads.
+/// An interpreter's two mutually recursive dispatch tables — wasm3's
+/// `c_operations` of `@@op_*` and `c_compilers` of `@@Compile_*`, each reached
+/// from the other's bodies — are a cycle through nothing but `@@`, and
+/// daScript rejects it (`error[31104]: global variable initialization loop`)
+/// unless one of the two is routed through `[init]`.
 fn collect_names(expr: &DaExpr, out: &mut Vec<String>) {
     use DaExpr::*;
     match expr {
         ConstInt(_) | ConstUInt(_) | ConstFloat(_) | ConstDouble(_) | ConstBool(_)
-        | ConstString(_) | ConstNull | Break | Continue | Goto(_) | Label(_) | FuncRef(_)
+        | ConstString(_) | ConstNull | Break | Continue | Goto(_) | Label(_)
         | DefaultValue(_) | TypeInfo { .. } => {}
-        Var(name) => out.push(name.clone()),
+        Var(name) | FuncRef(name) => out.push(name.clone()),
         Field(e, _) | SafeField(e, _) => collect_names(e, out),
         Index(a, b) | SafeIndex(a, b) | Assign(a, b) | Pipe(a, b) | While(a, b) => {
             collect_names(a, out);
@@ -328,4 +334,141 @@ fn collect_decl(decl: &DaDecl, out: &mut Vec<String>) {
         DaDecl::Variable(DaVariable { init: Some(e), .. }) => collect_names(e, out),
         _ => {}
     }
+}
+
+/// Reorder the module's `typedef` declarations so that every alias is declared
+/// after the aliases its own type names.
+///
+/// daScript resolves an alias whose body names a *later* alias to a type that
+/// is structurally right but carries different mutability flags on the
+/// resolved components.  The two spellings then stop comparing equal:
+///
+/// ```text
+/// typedef Fn = function<(var a:pc_t; var b:sp_t):ret_t>   // pc_t not declared yet
+/// typedef pc_t = uint8? const?
+/// …
+/// error[30915]: can't initialize field ops;
+///   function<(var a:uint8? const?; var b:uint?):uint8?> aka Fn[2]
+/// = function<(var a:pc_t -const; var b:sp_t -const):ret_t> aka Fn[2]
+/// not the same type
+/// ```
+///
+/// C already requires a typedef to be declared before it is used, so the
+/// source order is always orderable; what this undoes is the Clang export's
+/// own declaration order, which is neither source order nor dependency order.
+/// Only aliases move, and only into the slots aliases already occupy, so
+/// records and enumerations keep their incoming position.
+pub(crate) fn order_type_aliases(decls: Vec<DaDecl>) -> Vec<DaDecl> {
+    let slots: Vec<usize> = decls
+        .iter()
+        .enumerate()
+        .filter(|(_, decl)| matches!(decl, DaDecl::Alias(_)))
+        .map(|(i, _)| i)
+        .collect();
+    if slots.len() < 2 {
+        return decls;
+    }
+    // The alias names this module declares, so a dependency is only ever on
+    // another alias of this module and never on a record or a builtin type.
+    let names: Vec<&str> = slots
+        .iter()
+        .map(|&i| match &decls[i] {
+            DaDecl::Alias(alias) => alias.name.as_str(),
+            _ => unreachable!("slot is an alias"),
+        })
+        .collect();
+    let mut position: HashMap<&str, usize> = HashMap::new();
+    for (slot, name) in names.iter().enumerate() {
+        position.entry(*name).or_insert(slot);
+    }
+    // A daScript function type is a single `function<…>` *name*, so the type's
+    // rendered text is what names its components.  Matching on identifier
+    // boundaries keeps `pc_t` from being found inside `my_pc_t`.
+    let deps: Vec<Vec<usize>> = slots
+        .iter()
+        .enumerate()
+        .map(|(slot, &i)| {
+            let DaDecl::Alias(alias) = &decls[i] else {
+                unreachable!("slot is an alias")
+            };
+            let text = alias.aliased_type.to_string();
+            let mut found: Vec<usize> = names
+                .iter()
+                .filter(|name| mentions_identifier(&text, name))
+                .filter_map(|name| position.get(*name).copied())
+                .filter(|&other| other != slot)
+                .collect();
+            found.sort_unstable();
+            found.dedup();
+            found
+        })
+        .collect();
+
+    const UNVISITED: u8 = 0;
+    const ON_STACK: u8 = 1;
+    const DONE: u8 = 2;
+    let mut state = vec![UNVISITED; slots.len()];
+    let mut order: Vec<usize> = Vec::with_capacity(slots.len());
+    // Iterative post-order, entered in the incoming order, so a slot moves
+    // only as far forward as its dependencies require.  A cycle — which C
+    // cannot express between typedefs — leaves the closing slot where the walk
+    // reached it rather than looping.
+    for start in 0..slots.len() {
+        if state[start] != UNVISITED {
+            continue;
+        }
+        let mut stack = vec![(start, 0usize)];
+        state[start] = ON_STACK;
+        while let Some((slot, next)) = stack.pop() {
+            if next < deps[slot].len() {
+                stack.push((slot, next + 1));
+                let child = deps[slot][next];
+                if state[child] == UNVISITED {
+                    state[child] = ON_STACK;
+                    stack.push((child, 0));
+                }
+                continue;
+            }
+            state[slot] = DONE;
+            order.push(slot);
+        }
+    }
+
+    let mut aliases: Vec<Option<DaDecl>> = Vec::with_capacity(slots.len());
+    let mut decls = decls;
+    for &i in &slots {
+        aliases.push(Some(std::mem::replace(
+            &mut decls[i],
+            DaDecl::Alias(das_ast::DaAlias {
+                name: String::new(),
+                aliased_type: das_ast::DaType::auto(),
+            }),
+        )));
+    }
+    for (position, slot) in order.into_iter().enumerate() {
+        let alias = aliases[slot].take().expect("each alias is placed once");
+        decls[slots[position]] = alias;
+    }
+    decls
+}
+
+/// True when `name` occurs in `text` as a whole identifier.
+fn mentions_identifier(text: &str, name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let bytes = text.as_bytes();
+    let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut from = 0usize;
+    while let Some(found) = text[from..].find(name) {
+        let start = from + found;
+        let end = start + name.len();
+        let before_ok = start == 0 || !is_word(bytes[start - 1]);
+        let after_ok = end == bytes.len() || !is_word(bytes[end]);
+        if before_ok && after_ok {
+            return true;
+        }
+        from = start + 1;
+    }
+    false
 }

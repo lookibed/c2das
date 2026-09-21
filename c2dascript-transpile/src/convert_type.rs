@@ -145,24 +145,26 @@ impl TypeConverter {
 /// Does a parameter of a C function *type* have to be spelled `var`?
 ///
 /// This must stay the exact mirror of how `Translation::convert_function`
-/// declares the parameters of a function *definition* (`param_mut` for a
-/// pointer or a non-`const` parameter, read-only for everything else, with a
-/// by-value record parameter taken read-only so the callee's writes cannot
-/// escape into the caller's object).  daScript's function-type identity
-/// ignores parameter *names* but not their `var`-ness, so any divergence here
-/// makes `@@f` fail to match the callback typedef that `f` implements.
-fn function_type_param_is_var(ctxt: &TypedAstContext, param: CQualTypeId) -> bool {
-    let is_const = param.qualifiers.is_const;
-    let resolved = &ctxt.resolve_type(param.ctype).kind;
-    // `Translation::is_by_value_record_param`: a mutable record parameter is
-    // received read-only and copied into a local of its own.
-    if !is_const
-        && !ctxt.is_va_list(param.ctype)
-        && matches!(resolved, CTypeKind::Struct(_) | CTypeKind::Union(_))
-    {
-        return false;
+/// declares the parameters of a function *definition*: a record parameter is
+/// received read-only — by value, so the callee's writes cannot escape into
+/// the caller's object — and everything else is `var`.  daScript's
+/// function-type identity ignores parameter *names* but not their `var`-ness,
+/// so any divergence here makes `@@f` fail to match the callback typedef that
+/// `f` implements.
+///
+/// The parameter's own `const` takes no part in the answer, because C11
+/// 6.7.6.3p15 takes a parameter "as having the unqualified version of its
+/// declared type": the qualifier is not part of the function type at all.
+/// Clang records it on some function types and not on others, so reading it
+/// here made one C declaration's callback type differ from another's.
+pub(crate) fn function_type_param_is_var(ctxt: &TypedAstContext, param: CQualTypeId) -> bool {
+    if ctxt.is_va_list(param.ctype) {
+        return true;
     }
-    matches!(resolved, CTypeKind::Pointer(_)) || !is_const
+    !matches!(
+        ctxt.resolve_type(param.ctype).kind,
+        CTypeKind::Struct(_) | CTypeKind::Union(_)
+    )
 }
 
 // ====== Translation convenience methods ======
@@ -205,7 +207,18 @@ impl<'c> Translation<'c> {
             if index > 0 {
                 rendered.push(';');
             }
-            let param_type = self.convert_type(*param)?;
+            // C11 6.7.6.3p15 takes a parameter "as having the unqualified
+            // version of its declared type", so a parameter's *top-level*
+            // qualifier is no part of the function type.  Clang records it on
+            // some function types and not on others — `M3Result (*)(…,
+            // cbytes_t)` kept it where `cbytes_t` is `const u8 *const`, an
+            // otherwise identical declaration elsewhere did not — and the two
+            // spellings then stop comparing equal to each other and to the
+            // definition that implements them.  Dropping it here and in
+            // `convert_function` makes every spelling the same one.
+            let mut unqualified = *param;
+            unqualified.qualifiers.is_const = false;
+            let param_type = self.convert_type(unqualified)?;
             if function_type_param_is_var(&self.ast_context, *param) {
                 rendered.push_str("var ");
             }

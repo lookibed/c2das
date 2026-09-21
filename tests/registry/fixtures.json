@@ -2219,6 +2219,126 @@
       "status": "historical"
     },
     {
+      "c_graph": "wasm3",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/wasm3/source",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "wasm3",
+      "id": "tests--manual--wasm3--src--all",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/wasm3/src/all.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "wasm3",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/wasm3/source",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "wasm3",
+      "id": "tests--manual--wasm3--src--all_host",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/wasm3/src/all_host.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "wasm3",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/wasm3/source",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "wasm3",
+      "id": "tests--manual--wasm3--src--all_host_bench",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/wasm3/src/all_host_bench.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "wasm3",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/wasm3/source",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "wasm3",
+      "id": "tests--manual--wasm3--src--host",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/wasm3/src/host.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "wasm3",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/wasm3/source",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "wasm3",
+      "id": "tests--manual--wasm3--src--host_bench",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/wasm3/src/host_bench.c",
+      "status": "inventory-only"
+    },
+    {
       "c_graph": "archive-secret",
       "checked_in_das": "tests/production/real-archive-secret/src/all.das",
       "clang": {
@@ -3338,6 +3458,36 @@
       "owner": "diagnostic boundary",
       "runtime": "not-applicable",
       "source": "tests/syntax/n08_unsupported_field_type.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "n09-unknown-statement-attribute",
+      "canonical_cases": [
+        "n09-unknown-statement-attribute"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "unsupported statement attribute: nomerge",
+          "location": "n09_unknown_statement_attribute.c",
+          "operation": "top-level declaration lowering",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n09_unknown_statement_attribute",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n09_unknown_statement_attribute.c",
       "status": "supported"
     },
     {
@@ -5359,6 +5509,230 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p72_std_file_io.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p73-indirect-call-expression",
+      "canonical_cases": [
+        "p73-indirect-call-expression"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "indirect_call_expression_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p73_indirect_call_expression",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p73_indirect_call_expression.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p74-musttail-return",
+      "canonical_cases": [
+        "p74-musttail-return"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "musttail_return_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p74_musttail_return",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p74_musttail_return.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p75-va-list-parameter",
+      "canonical_cases": [
+        "p75-va-list-parameter"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "va_list_parameter_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p75_va_list_parameter",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p75_va_list_parameter.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p76-std-strings",
+      "canonical_cases": [
+        "p76-std-strings"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "std_strings_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "strlen=5,0,11\nstrcmp=0,-1,1,-1\nstrncmp=0,-1,0\nstrcpy=[hello] len=5\nstrcat=[hello, world] len=12\nstrncpy=abc...ZZ\nstrncpy_trunc=[abcd]\nstrchr=4,-1,19\nstrrchr=17,0,-1\nstrstr=10,0,-1,0\nstrtoll_hex=-31 end=7 errno=0\nstrtoll_tail=123 end=3 errno=0\nstrtoll_none=0 end=0 errno=0\nstrtoll_bare=0 end=1 errno=0\nstrtoll_bases=493,255,35,2024\nstrtoll_over=9223372036854775807 erange=1\nstrtoll_under=-9223372036854775808 erange=1\nstrtoull_over=18446744073709551615 erange=1\nstrtoull_max=18446744073709551615 errno=0\nstrtoll_base37=0 einval=1\nstrtol=-2147483648,4294967296,-42\nisspace=1110\nisdigit=10 isalpha=10 isalnum=10\nisupper=10 islower=10 isprint=10 isxdigit=110\ncase=qqQ7\nsnprintf=[n=42/ok] n=7\nsnprintf_trunc=[abc] n=8 tail=Z\nsnprintf_size0=4\nvsnprintf=[[v|-7|00042]] n=12\nputs-line\nfputs-no-newline|\nfprintf=out/5\nabcd\nfwrite=5\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p76_std_strings",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p76_std_strings.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p77-scalar-brace-initializer",
+      "canonical_cases": [
+        "p77-scalar-brace-initializer"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "scalar_brace_initializer_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p77_scalar_brace_initializer",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p77_scalar_brace_initializer.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p78-bool-value-semantics",
+      "canonical_cases": [
+        "p78-bool-value-semantics"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "bool_value_semantics_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p78_bool_value_semantics",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p78_bool_value_semantics.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p79-dispatch-table-cycle",
+      "canonical_cases": [
+        "p79-dispatch-table-cycle"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "dispatch_table_cycle_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p79_dispatch_table_cycle",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p79_dispatch_table_cycle.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p80-variable-length-array",
+      "canonical_cases": [
+        "p80-variable-length-array"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "variable_length_array_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p80_variable_length_array",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p80_variable_length_array.c",
       "status": "supported"
     },
     {
@@ -8204,6 +8578,17 @@
       "description": "Canonical H264BSD plus minimp4 translation graph, rooted at src/all.c; the C reference graph is src/all_reference.c under the same flags.",
       "entry": "tests/manual/h264bsd-mp4/src/all.c",
       "id": "h264bsd-mp4"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-Iinclude",
+        "-Iupstream/wasm3/source",
+        "-Isrc"
+      ],
+      "description": "Canonical wasm3 interpreter translation graph, rooted at src/all_host.c; src/all_host_bench.c is the same graph with the timing entry.",
+      "entry": "tests/manual/wasm3/src/all_host.c",
+      "id": "wasm3"
     },
     {
       "compile_commands": "tests/production/real-archive-secret/cc_all.json",

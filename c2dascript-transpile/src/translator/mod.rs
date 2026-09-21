@@ -1547,6 +1547,33 @@ impl<'c> Translation<'c> {
                 Ok(WithStmts::new_val(zero_for_datype(&das_type)))
             }
             InitList(ty, ref init_ids, union_field, _syntactic) => {
+                // C11 6.7.9p11: "The initializer for a scalar shall be a
+                // single expression, optionally enclosed in braces."  So
+                // `const char *p = { "text" };` initializes a pointer, not an
+                // aggregate — wasm3 declares its whole error-string table that
+                // way.  The braces are dropped here rather than becoming a
+                // daScript array literal of the wrong type.
+                if !matches!(
+                    self.ast_context.resolve_type(ty.ctype).kind,
+                    CTypeKind::ConstantArray(..)
+                        | CTypeKind::IncompleteArray(_)
+                        | CTypeKind::VariableArray(..)
+                        | CTypeKind::Struct(_)
+                        | CTypeKind::Union(_)
+                        | CTypeKind::Vector(..)
+                        | CTypeKind::Complex(_)
+                ) {
+                    return match init_ids.first() {
+                        Some(&element) => {
+                            self.convert_expr(ctx, element, override_ty.or(Some(*ty)))
+                        }
+                        // GNU C's `= { }` on a scalar is its zero.
+                        None => {
+                            let das_type = self.convert_type(*ty)?;
+                            Ok(WithStmts::new_val(zero_for_datype(&das_type)))
+                        }
+                    };
+                }
                 if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
                     let fields: Vec<CExprId> = init_ids.clone();
                     let value =
@@ -1851,19 +1878,10 @@ impl<'c> Translation<'c> {
 
     /// A daScript condition slot only accepts a boolean *expression*; a bare
     /// `bool` value has to be spelled as one.
+    ///
+    /// See [`is_boolean_expression`] for what already counts as one.
     pub(crate) fn as_bool_condition(&self, value: DaExpr) -> DaExpr {
-        fn is_condition(expr: &DaExpr) -> bool {
-            match expr {
-                DaExpr::ConstBool(_) | DaExpr::Op1 { op: "!", .. } => true,
-                DaExpr::Op2 { op, .. } => matches!(
-                    *op,
-                    "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||"
-                ),
-                DaExpr::Unsafe(inner) => is_condition(inner),
-                _ => false,
-            }
-        }
-        if is_condition(&value) {
+        if is_boolean_expression(&value) {
             value
         } else {
             DaExpr::Op2 {
@@ -2441,15 +2459,11 @@ impl<'c> Translation<'c> {
             }));
         }
         if ty.kind.is_integral_type() {
-            // If the expression is already boolean (Op2 comparison), skip adding `!= 0`.
-            // Our !ptr fix generates `ptr == null` which is bool, but C type is `int`.
-            if matches!(
-                val.val,
-                DaExpr::Op2 {
-                    op: "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||",
-                    ..
-                }
-            ) {
+            // If the expression is already boolean, skip adding `!= 0`: C
+            // types a comparison and a `!` as `int`, but the daScript value is
+            // a `bool` (`!p` on a pointer comes out as `p == null`, and `!b`
+            // on a C `_Bool` as `!b`).
+            if is_boolean_expression(&val.val) {
                 return self.normalize_condition_comparison(expr_id, val);
             }
             return Ok(val.map(|v| DaExpr::Op2 {
@@ -2666,6 +2680,22 @@ impl<'c> Translation<'c> {
                     init: Some(default_init),
                 };
 
+                // A C variable-length array is an object whose extent is the
+                // value of an expression evaluated where the declaration
+                // stands.  The daScript `array<T>` that holds it is sized
+                // there, by that very expression; leaving it empty — which is
+                // what the type's default value is — would make every element
+                // access silently out of range.
+                if let Some(sizing) = self.vla_sizing_statements(&rust_name, typ.ctype, ctx)? {
+                    let mut decl_and_assign = vec![decl_stmt.clone()];
+                    decl_and_assign.extend(sizing.clone());
+                    return Ok(crate::cfg::DeclStmtInfo::new(
+                        vec![decl_stmt],
+                        sizing,
+                        decl_and_assign,
+                    ));
+                }
+
                 let has_self_reference = initializer
                     .map(|expr_id| self.has_decl_reference(decl_id, expr_id))
                     .unwrap_or(false);
@@ -2800,6 +2830,52 @@ impl<'c> Translation<'c> {
             }),
             _ => None,
         }
+    }
+
+    /// The statements that give a local C variable-length array its extent, or
+    /// `None` when the declaration is not a VLA.
+    ///
+    /// C evaluates the size expression once, where the declaration stands, and
+    /// the object lives until the block ends; a daScript `array<T>` reproduces
+    /// both, so the lowering is a `resize` at that point.  A VLA whose element
+    /// type is itself a VLA has no such single extent and fails closed rather
+    /// than losing a dimension.
+    fn vla_sizing_statements(
+        &self,
+        name: &str,
+        ctype: CTypeId,
+        ctx: ExprContext,
+    ) -> TranslationResult<Option<Vec<DaStmt>>> {
+        let CTypeKind::VariableArray(element, size) = self.ast_context.resolve_type(ctype).kind
+        else {
+            return Ok(None);
+        };
+        let loc = self.ast_context[ctype].loc;
+        let Some(size) = size else {
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&loc),
+                "unsupported variable-length array without a size expression",
+            ));
+        };
+        if matches!(
+            self.ast_context.resolve_type(element).kind,
+            CTypeKind::VariableArray(..)
+        ) {
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&loc),
+                "unsupported multidimensional variable-length array",
+            ));
+        }
+        let extent = self.convert_expr(ctx.used(), size, None)?;
+        let mut stmts = extent.stmts;
+        stmts.push(DaStmt::Expr(DaExpr::Call(
+            Box::new(DaExpr::Var("resize".to_owned())),
+            vec![
+                DaExpr::Var(name.to_owned()),
+                self.cast_to_type(extent.val, DaType::int()),
+            ],
+        )));
+        Ok(Some(stmts))
     }
 
     pub(crate) fn default_initializer_for_ctype(&self, ty: CTypeId) -> TranslationResult<DaExpr> {
@@ -2954,6 +3030,24 @@ fn unqualified_type(ty: &DaType) -> DaType {
         out.kind = DaTypeKind::Pointer(Box::new(pointee));
     }
     out
+}
+
+/// True when this daScript expression already *is* a boolean, whatever the C
+/// type of the construct it came from says.
+///
+/// C types a comparison, `!`, `&&` and `||` as `int`, but daScript's own
+/// operators yield a `bool` for every one of them, and `bool != 0` is not a
+/// comparison daScript has.  Every site that would otherwise append C's
+/// `!= 0` truthiness test asks this first.
+pub(crate) fn is_boolean_expression(expr: &DaExpr) -> bool {
+    match expr {
+        DaExpr::ConstBool(_) | DaExpr::Op1 { op: "!", .. } => true,
+        DaExpr::Op2 { op, .. } => {
+            matches!(*op, "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||")
+        }
+        DaExpr::Unsafe(inner) => is_boolean_expression(inner),
+        _ => false,
+    }
 }
 
 fn zero_for_datype(ty: &DaType) -> DaExpr {
@@ -3694,7 +3788,10 @@ fn translate_impl(
     // T[N] = fixed_array<T>(T(...), ...)` written above `struct T` fails with
     // "T = T, not the same type".  The C record declarations therefore come
     // before every module-level object that builds one.
-    module_decls.extend(type_decls);
+    // A `typedef` whose body names another typedef has to be declared after
+    // it, or daScript resolves the alias to a type that no longer compares
+    // equal to the same alias written the other way round.
+    module_decls.extend(global_order::order_type_aliases(type_decls));
     // A C record declared inside a function body has no daScript equivalent at
     // that scope. Pass 2 hoisted the ones the top-level type pass never
     // reached; they belong in the same type section, before every object that

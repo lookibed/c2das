@@ -49,8 +49,66 @@ const ARG_I64: &str = "c2da_std_arg_i64";
 const ARG_U64: &str = "c2da_std_arg_u64";
 const ARG_F64: &str = "c2da_std_arg_f64";
 const PAD: &str = "c2da_std_pad";
+const VFORMAT: &str = "c2da_std_vformat";
 const FORMAT: &str = "c2da_std_format";
 const PRINTF: &str = "c2da_std_printf";
+const RAW_BYTE: &str = "c2da_std_raw_byte";
+const RAW_PUT: &str = "c2da_std_raw_put";
+const RAW_STRING: &str = "c2da_std_raw_string";
+const STORE_ADDR: &str = "c2da_std_store_addr";
+const WRITE: &str = "c2da_std_write";
+const PLACE: &str = "c2da_std_place";
+const STRLEN: &str = "c2da_std_strlen";
+const STRCMP: &str = "c2da_std_strcmp";
+const STRNCMP: &str = "c2da_std_strncmp";
+const STRCPY: &str = "c2da_std_strcpy";
+const STRNCPY: &str = "c2da_std_strncpy";
+const STRCAT: &str = "c2da_std_strcat";
+const STRCHR: &str = "c2da_std_strchr";
+const STRRCHR: &str = "c2da_std_strrchr";
+const STRSTR: &str = "c2da_std_strstr";
+const DIGIT: &str = "c2da_std_digit";
+const STRTO: &str = "c2da_std_strto";
+const STRTOLL: &str = "c2da_std_strtoll";
+const STRTOULL: &str = "c2da_std_strtoull";
+const ATOI: &str = "c2da_std_atoi";
+const ERRNO_CELL: &str = "c2da_std_errno_cell";
+const ERRNO_LOCATION: &str = "c2da_std_errno_location";
+const SET_ERRNO: &str = "c2da_std_set_errno";
+const ABORT: &str = "c2da_std_abort";
+const PUTS: &str = "c2da_std_puts";
+const FPUTS: &str = "c2da_std_fputs";
+const PUTCHAR: &str = "c2da_std_putchar";
+const FPRINTF: &str = "c2da_std_fprintf";
+const SNPRINTF: &str = "c2da_std_snprintf";
+const VSNPRINTF: &str = "c2da_std_vsnprintf";
+const FWRITE: &str = "c2da_std_fwrite";
+const ISSPACE: &str = "c2da_std_isspace";
+const ISDIGIT: &str = "c2da_std_isdigit";
+const ISALPHA: &str = "c2da_std_isalpha";
+const ISALNUM: &str = "c2da_std_isalnum";
+const ISUPPER: &str = "c2da_std_isupper";
+const ISLOWER: &str = "c2da_std_islower";
+const ISPRINT: &str = "c2da_std_isprint";
+const ISXDIGIT: &str = "c2da_std_isxdigit";
+const TOLOWER: &str = "c2da_std_tolower";
+const TOUPPER: &str = "c2da_std_toupper";
+
+/// `errno` values the `strto*` family reports, spelled as glibc defines them
+/// so a translated program's `#include <errno.h>` comparison still matches.
+const ERANGE: i64 = 34;
+const EINVAL: i64 = 22;
+
+/// The signed and unsigned magnitude caps the shared `strto*` engine clamps to.
+/// C's `long` is 64 bits on every target this translator supports, so
+/// `strtol`/`strtoll` and `strtoul`/`strtoull` share one implementation.
+const INT64_MAX_MAGNITUDE: u64 = 0x7fff_ffff_ffff_ffff;
+const INT64_MIN_MAGNITUDE: u64 = 0x8000_0000_0000_0000;
+const UINT64_MAX_MAGNITUDE: u64 = 0xffff_ffff_ffff_ffff;
+
+/// The exit status `abort()` leaves behind: 128 + SIGABRT, which is what a
+/// shell reports for a C program that really aborted.
+const ABORT_STATUS: i64 = 134;
 const FILE_OF: &str = "c2da_std_file";
 const FOPEN: &str = "c2da_std_fopen";
 const FCLOSE: &str = "c2da_std_fclose";
@@ -82,6 +140,39 @@ pub(crate) enum StdFunction {
     Setvbuf,
     ClockGettime,
     Exit,
+    Abort,
+    Strlen,
+    Strcmp,
+    Strncmp,
+    Strcpy,
+    Strncpy,
+    Strcat,
+    Strchr,
+    Strrchr,
+    Strstr,
+    /// `strtol` and `strtoll` alike: C's `long` is 64 bits here.
+    Strtol,
+    /// `strtoul` and `strtoull` alike.
+    Strtoul,
+    Atoi,
+    Puts,
+    Fputs,
+    Putchar,
+    Fprintf,
+    Snprintf,
+    Vsnprintf,
+    Fwrite,
+    Isspace,
+    Isdigit,
+    Isalpha,
+    Isalnum,
+    Isupper,
+    Islower,
+    Isprint,
+    Isxdigit,
+    Tolower,
+    Toupper,
+    ErrnoLocation,
 }
 
 impl StdFunction {
@@ -97,6 +188,37 @@ impl StdFunction {
             Self::Setvbuf => SETVBUF,
             Self::ClockGettime => CLOCK_GETTIME,
             Self::Exit => EXIT,
+            Self::Abort => ABORT,
+            Self::Strlen => STRLEN,
+            Self::Strcmp => STRCMP,
+            Self::Strncmp => STRNCMP,
+            Self::Strcpy => STRCPY,
+            Self::Strncpy => STRNCPY,
+            Self::Strcat => STRCAT,
+            Self::Strchr => STRCHR,
+            Self::Strrchr => STRRCHR,
+            Self::Strstr => STRSTR,
+            Self::Strtol => STRTOLL,
+            Self::Strtoul => STRTOULL,
+            Self::Atoi => ATOI,
+            Self::Puts => PUTS,
+            Self::Fputs => FPUTS,
+            Self::Putchar => PUTCHAR,
+            Self::Fprintf => FPRINTF,
+            Self::Snprintf => SNPRINTF,
+            Self::Vsnprintf => VSNPRINTF,
+            Self::Fwrite => FWRITE,
+            Self::Isspace => ISSPACE,
+            Self::Isdigit => ISDIGIT,
+            Self::Isalpha => ISALPHA,
+            Self::Isalnum => ISALNUM,
+            Self::Isupper => ISUPPER,
+            Self::Islower => ISLOWER,
+            Self::Isprint => ISPRINT,
+            Self::Isxdigit => ISXDIGIT,
+            Self::Tolower => TOLOWER,
+            Self::Toupper => TOUPPER,
+            Self::ErrnoLocation => ERRNO_LOCATION,
         }
     }
 
@@ -105,11 +227,35 @@ impl StdFunction {
     /// is a raw `uint64` address, exactly like the raw-memory runtime.
     pub(crate) fn arg_kind(self, index: usize) -> Option<RuntimeArgKind> {
         let raw = match self {
-            Self::Printf | Self::Fopen | Self::Exit => &[][..],
+            Self::Printf | Self::Fopen | Self::Exit | Self::Abort | Self::Putchar => &[][..],
+            Self::Isspace
+            | Self::Isdigit
+            | Self::Isalpha
+            | Self::Isalnum
+            | Self::Isupper
+            | Self::Islower
+            | Self::Isprint
+            | Self::Isxdigit
+            | Self::Tolower
+            | Self::Toupper
+            | Self::ErrnoLocation => &[][..],
             Self::Fread => &[0usize, 3][..],
+            Self::Fwrite => &[0, 3][..],
             Self::Fclose | Self::Fflush | Self::Fseek | Self::Ftell => &[0][..],
             Self::Setvbuf => &[0, 1][..],
             Self::ClockGettime => &[1][..],
+            // The NUL-terminated string family reads and writes the module's
+            // raw memory, exactly like the `mem*` runtime: every C `char *`
+            // crosses as the address it is.
+            Self::Strlen | Self::Strchr | Self::Strrchr | Self::Atoi | Self::Puts => &[0][..],
+            Self::Strcmp | Self::Strcpy | Self::Strcat | Self::Strstr | Self::Fputs => &[0, 1][..],
+            Self::Strncmp | Self::Strncpy => &[0, 1][..],
+            // `nptr` and the `char **endptr` the conversion stores through.
+            Self::Strtol | Self::Strtoul => &[0, 1][..],
+            // The format string itself stays a typed C pointer, as `printf`'s
+            // does; only the stream handle and the output buffer are addresses.
+            Self::Fprintf => &[0][..],
+            Self::Snprintf | Self::Vsnprintf => &[0][..],
         };
         raw.contains(&index).then_some(RuntimeArgKind::RawAddress)
     }
@@ -117,7 +263,17 @@ impl StdFunction {
     /// True when the helper returns an address the call site has to materialize
     /// as the C pointer type the call expression demands.
     pub(crate) fn returns_raw_address(self) -> bool {
-        matches!(self, Self::Fopen)
+        matches!(
+            self,
+            Self::Fopen
+                | Self::Strcpy
+                | Self::Strncpy
+                | Self::Strcat
+                | Self::Strchr
+                | Self::Strrchr
+                | Self::Strstr
+                | Self::ErrnoLocation
+        )
     }
 }
 
@@ -135,6 +291,44 @@ pub(crate) fn std_function(name: &str) -> Option<StdFunction> {
         "setvbuf" => Some(StdFunction::Setvbuf),
         "clock_gettime" => Some(StdFunction::ClockGettime),
         "exit" | "__builtin_exit" => Some(StdFunction::Exit),
+        "abort" | "__builtin_abort" => Some(StdFunction::Abort),
+        "strlen" | "__builtin_strlen" => Some(StdFunction::Strlen),
+        "strcmp" | "__builtin_strcmp" => Some(StdFunction::Strcmp),
+        "strncmp" | "__builtin_strncmp" => Some(StdFunction::Strncmp),
+        "strcpy" | "__builtin_strcpy" => Some(StdFunction::Strcpy),
+        "strncpy" | "__builtin_strncpy" => Some(StdFunction::Strncpy),
+        "strcat" | "__builtin_strcat" => Some(StdFunction::Strcat),
+        "strchr" | "__builtin_strchr" => Some(StdFunction::Strchr),
+        "strrchr" | "__builtin_strrchr" => Some(StdFunction::Strrchr),
+        "strstr" | "__builtin_strstr" => Some(StdFunction::Strstr),
+        // `long` and `long long` are both 64 bits on every supported target.
+        "strtol" | "strtoll" | "__builtin_strtol" | "__builtin_strtoll" => {
+            Some(StdFunction::Strtol)
+        }
+        "strtoul" | "strtoull" | "__builtin_strtoul" | "__builtin_strtoull" => {
+            Some(StdFunction::Strtoul)
+        }
+        "atoi" | "__builtin_atoi" => Some(StdFunction::Atoi),
+        "puts" | "__builtin_puts" => Some(StdFunction::Puts),
+        "fputs" | "__builtin_fputs" => Some(StdFunction::Fputs),
+        "putchar" | "__builtin_putchar" => Some(StdFunction::Putchar),
+        "fprintf" | "__builtin_fprintf" => Some(StdFunction::Fprintf),
+        "snprintf" | "__builtin_snprintf" => Some(StdFunction::Snprintf),
+        "vsnprintf" | "__builtin_vsnprintf" => Some(StdFunction::Vsnprintf),
+        "fwrite" => Some(StdFunction::Fwrite),
+        "isspace" => Some(StdFunction::Isspace),
+        "isdigit" => Some(StdFunction::Isdigit),
+        "isalpha" => Some(StdFunction::Isalpha),
+        "isalnum" => Some(StdFunction::Isalnum),
+        "isupper" => Some(StdFunction::Isupper),
+        "islower" => Some(StdFunction::Islower),
+        "isprint" => Some(StdFunction::Isprint),
+        "isxdigit" => Some(StdFunction::Isxdigit),
+        "tolower" => Some(StdFunction::Tolower),
+        "toupper" => Some(StdFunction::Toupper),
+        // glibc's `errno` *is* this function: the data symbol is
+        // `GLIBC_PRIVATE`, so no C program can reach the variable directly.
+        "__errno_location" => Some(StdFunction::ErrnoLocation),
         _ => None,
     }
 }
@@ -231,10 +425,30 @@ pub(crate) fn require_main_wrapper(translated_main: &str) {
 fn dependencies(name: &str) -> &'static [&'static str] {
     match name {
         STRING => &[BYTE],
-        FORMAT => &[BYTE, STRING, PAD, ARG_I64, ARG_U64, ARG_F64],
+        VFORMAT => &[BYTE, STRING, PAD, ARG_I64, ARG_U64, ARG_F64],
+        FORMAT => &[VFORMAT],
         PRINTF => &[FORMAT],
         FOPEN => &[STRING],
-        FCLOSE | FFLUSH | FREAD | FSEEK | FTELL => &[FILE_OF],
+        FCLOSE | FFLUSH | FREAD | FSEEK | FTELL | FWRITE => &[FILE_OF],
+        RAW_STRING => &[RAW_BYTE],
+        WRITE => &[FILE_OF],
+        PLACE => &[RAW_PUT],
+        STRLEN | STRCHR | STRRCHR | STRSTR => &[RAW_BYTE],
+        STRCMP | STRNCMP => &[RAW_BYTE],
+        STRCPY | STRNCPY => &[RAW_BYTE, RAW_PUT],
+        STRCAT => &[RAW_BYTE, RAW_PUT, STRLEN, STRCPY],
+        STRTO => &[RAW_BYTE, DIGIT, ISSPACE, STORE_ADDR, SET_ERRNO],
+        STRTOLL | STRTOULL | ATOI => &[STRTO],
+        ERRNO_LOCATION => &[ERRNO_CELL, RAW_PUT],
+        SET_ERRNO => &[ERRNO_LOCATION],
+        ABORT => &[WRITE, STDERR],
+        PUTS => &[RAW_STRING, WRITE, STDOUT],
+        PUTCHAR => &[WRITE, STDOUT],
+        FPUTS => &[RAW_STRING, WRITE],
+        FPRINTF => &[FORMAT, WRITE],
+        SNPRINTF => &[FORMAT, PLACE],
+        VSNPRINTF => &[VFORMAT, PLACE],
+        ISALNUM => &[ISALPHA, ISDIGIT],
         _ => &[],
     }
 }
@@ -248,8 +462,57 @@ fn build(name: &str) -> DaDecl {
         ARG_U64 => build_arg_u64(),
         ARG_F64 => build_arg_f64(),
         PAD => build_pad(),
+        VFORMAT => build_vformat(),
         FORMAT => build_format(),
         PRINTF => build_printf(),
+        RAW_BYTE => build_raw_byte(),
+        RAW_PUT => build_raw_put(),
+        RAW_STRING => build_raw_string(),
+        STORE_ADDR => build_store_addr(),
+        WRITE => build_write(),
+        PLACE => build_place(),
+        STRLEN => build_strlen(),
+        STRCMP => build_strcmp(),
+        STRNCMP => build_strncmp(),
+        STRCPY => build_strcpy(),
+        STRNCPY => build_strncpy(),
+        STRCAT => build_strcat(),
+        STRCHR => build_strchr(),
+        STRRCHR => build_strrchr(),
+        STRSTR => build_strstr(),
+        DIGIT => build_digit(),
+        STRTO => build_strto(),
+        STRTOLL => build_strtoll(),
+        STRTOULL => build_strtoull(),
+        ATOI => build_atoi(),
+        ERRNO_CELL => build_errno_cell(),
+        ERRNO_LOCATION => build_errno_location(),
+        SET_ERRNO => build_set_errno(),
+        ABORT => build_abort(),
+        PUTS => build_puts(),
+        FPUTS => build_fputs(),
+        PUTCHAR => build_putchar(),
+        FPRINTF => build_fprintf(),
+        SNPRINTF => build_snprintf(),
+        VSNPRINTF => build_vsnprintf(),
+        FWRITE => build_fwrite(),
+        ISSPACE => build_isspace(),
+        ISDIGIT => build_ctype(ISDIGIT, in_range(48, 57)),
+        ISALPHA => build_ctype(ISALPHA, letter()),
+        ISALNUM => build_isalnum(),
+        ISUPPER => build_ctype(ISUPPER, in_range(65, 90)),
+        ISLOWER => build_ctype(ISLOWER, in_range(97, 122)),
+        ISPRINT => build_ctype(ISPRINT, in_range(32, 126)),
+        ISXDIGIT => build_ctype(
+            ISXDIGIT,
+            op2(
+                "||",
+                in_range(48, 57),
+                op2("||", in_range(97, 102), in_range(65, 70)),
+            ),
+        ),
+        TOLOWER => build_tolower(),
+        TOUPPER => build_toupper(),
         FILE_OF => build_file_of(),
         FOPEN => build_fopen(),
         FCLOSE => build_fclose(),
@@ -770,13 +1033,32 @@ fn is_byte(name: &str, code: i64) -> DaExpr {
     op2("==", var(name), DaExpr::ConstInt(code))
 }
 
-/// `def c2da_std_format(f : int8 const?; args : array<C2daVaArg>) : string`
+/// `def c2da_std_format(f : int8 const?; args : array<C2daVaArg>) : string` —
+/// the whole promoted-argument array, from its first element.
+fn build_format() -> DaDecl {
+    helper(
+        FORMAT,
+        vec![param("f", c_string_type()), param("args", va_args_type())],
+        DaType::string(),
+        vec![ret(call(
+            VFORMAT,
+            vec![var("f"), var("args"), DaExpr::ConstInt(0)],
+        ))],
+    )
+}
+
+/// `def c2da_std_vformat(f : int8 const?; args : array<C2daVaArg>; start : int) : string`
 ///
 /// One C conversion specification at a time: flags, width, precision and the
 /// length modifier are read off the C format, then re-spelled as a daslang
 /// `fmt` specification over the promoted variadic value. A specification this
 /// function cannot place is copied out verbatim and consumes no argument.
-fn build_format() -> DaDecl {
+///
+/// `start` is the index the first conversion reads, which is what makes the
+/// `v*printf` family work: a forwarded `va_list` is a cursor into this very
+/// array (see `variadic.rs`), and the cursor's index is where its arguments
+/// begin.
+fn build_vformat() -> DaDecl {
     // %d %i — signed, narrowed to C `int` unless the spec carried a length
     // modifier, because the canonical payload always promotes to 64 bits.
     let signed_arm = vec![
@@ -987,7 +1269,7 @@ fn build_format() -> DaDecl {
             vec![ret(var("out"))],
         ),
         local("i", DaType::int(), DaExpr::ConstInt(0)),
-        local("next", DaType::int(), DaExpr::ConstInt(0)),
+        local("next", DaType::int(), var("start")),
         while_true(vec![
             let_("ch", format_byte("i")),
             if_then(is_byte("ch", 0), vec![DaStmt::Expr(DaExpr::Break)]),
@@ -1054,8 +1336,12 @@ fn build_format() -> DaDecl {
     ];
 
     helper(
-        FORMAT,
-        vec![param("f", c_string_type()), param("args", va_args_type())],
+        VFORMAT,
+        vec![
+            param("f", c_string_type()),
+            param("args", va_args_type()),
+            param("start", DaType::int()),
+        ],
         DaType::string(),
         body,
     )
@@ -1459,6 +1745,1178 @@ fn build_main_wrapper(translated_main: &str) -> DaDecl {
     })
 }
 
+// ── raw-memory access ────────────────────────────────────────────────
+//
+// The NUL-terminated string family works on the same raw addresses as the
+// `c2da_rt_mem*` runtime: a C `char *` crosses as the address it is, and the
+// helpers below are the only place these helpers touch a byte.
+
+/// `unsafe(reinterpret<uint8?>(base))[index]` — one byte of the raw heap.
+fn raw_slot(base: DaExpr, index: DaExpr) -> DaExpr {
+    DaExpr::Unsafe(Box::new(DaExpr::Index(
+        Box::new(reinterpret(base, DaType::pointer(DaType::uint8()))),
+        Box::new(cast(index, DaType::int())),
+    )))
+}
+
+fn ret_void() -> DaStmt {
+    DaStmt::Expr(DaExpr::Return(None))
+}
+
+/// `name = name + 1` over a `uint64` cursor.
+fn advance_u64(name: &str) -> DaStmt {
+    assign(var(name), op2("+", var(name), uint64_const(1)))
+}
+
+fn u64_param(name: &str) -> DaStmt {
+    param(name, DaType::uint64())
+}
+
+fn byte_of(base: &str, index: DaExpr) -> DaExpr {
+    call(RAW_BYTE, vec![var(base), index])
+}
+
+/// `def c2da_std_raw_byte(base : uint64; index : uint64) : int`
+///
+/// C compares and classifies string bytes as `unsigned char`, so the byte is
+/// widened, never sign-extended. A null address reads as the terminator, which
+/// keeps every loop below finite on a C program that passes `NULL`.
+fn build_raw_byte() -> DaDecl {
+    helper(
+        RAW_BYTE,
+        vec![u64_param("base"), u64_param("index")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("==", var("base"), uint64_const(0)),
+                vec![ret(DaExpr::ConstInt(0))],
+            ),
+            ret(op2(
+                "&",
+                cast(raw_slot(var("base"), var("index")), DaType::int()),
+                DaExpr::ConstInt(255),
+            )),
+        ],
+    )
+}
+
+/// `def c2da_std_raw_put(base : uint64; index : uint64; value : int)`
+fn build_raw_put() -> DaDecl {
+    helper(
+        RAW_PUT,
+        vec![
+            u64_param("base"),
+            u64_param("index"),
+            param("value", DaType::int()),
+        ],
+        DaType::void(),
+        vec![
+            if_then(op2("==", var("base"), uint64_const(0)), vec![ret_void()]),
+            assign(
+                raw_slot(var("base"), var("index")),
+                cast(
+                    op2("&", var("value"), DaExpr::ConstInt(255)),
+                    DaType::uint8(),
+                ),
+            ),
+        ],
+    )
+}
+
+/// `def c2da_std_raw_string(base : uint64) : string` — NUL-terminated raw
+/// bytes as a daslang string, for the helpers that hand a whole string to
+/// daslib.
+fn build_raw_string() -> DaDecl {
+    helper(
+        RAW_STRING,
+        vec![u64_param("base")],
+        DaType::string(),
+        vec![
+            local("out", DaType::string(), text("")),
+            if_then(
+                op2("==", var("base"), uint64_const(0)),
+                vec![ret(var("out"))],
+            ),
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_true(vec![
+                let_("b", byte_of("base", var("i"))),
+                if_then(
+                    op2("==", var("b"), DaExpr::ConstInt(0)),
+                    vec![DaStmt::Expr(DaExpr::Break)],
+                ),
+                append("out", call("to_char", vec![var("b")])),
+                advance_u64("i"),
+            ]),
+            ret(var("out")),
+        ],
+    )
+}
+
+/// `def c2da_std_store_addr(cell : uint64; value : uint64)` — one C pointer
+/// written through a `T **`, the same eight raw bytes the `main` wrapper
+/// writes an `argv` slot with.
+fn build_store_addr() -> DaDecl {
+    helper(
+        STORE_ADDR,
+        vec![u64_param("cell"), u64_param("value")],
+        DaType::void(),
+        vec![
+            if_then(op2("==", var("cell"), uint64_const(0)), vec![ret_void()]),
+            assign(
+                DaExpr::Unsafe(Box::new(DaExpr::Index(
+                    Box::new(reinterpret(var("cell"), DaType::pointer(DaType::uint64()))),
+                    Box::new(DaExpr::ConstInt(0)),
+                ))),
+                var("value"),
+            ),
+        ],
+    )
+}
+
+/// `def c2da_std_write(handle : uint64; body : string)` — every byte a C
+/// program prints leaves through here.
+///
+/// `fprint` and the builtin `print` share one stdout, in order (measured), so
+/// routing `printf` through `print` and `fputs(…, stdout)` through `fprint`
+/// cannot reorder a program's output.
+fn build_write() -> DaDecl {
+    helper(
+        WRITE,
+        vec![u64_param("handle"), param("body", DaType::string())],
+        DaType::void(),
+        vec![
+            if_then(op2("==", var("handle"), uint64_const(0)), vec![ret_void()]),
+            DaStmt::Expr(call(
+                "fprint",
+                vec![call(FILE_OF, vec![var("handle")]), var("body")],
+            )),
+        ],
+    )
+}
+
+/// `def c2da_std_place(dst : uint64; size : uint64; body : string) : int`
+///
+/// The `snprintf` truncation rule: at most `size - 1` bytes plus a NUL are
+/// written, `size == 0` writes nothing at all, and the return value is the
+/// length the whole conversion *would* have had.
+fn build_place() -> DaDecl {
+    helper(
+        PLACE,
+        vec![
+            u64_param("dst"),
+            u64_param("size"),
+            param("body", DaType::string()),
+        ],
+        DaType::int(),
+        vec![
+            local("n", DaType::int(), call("length", vec![var("body")])),
+            if_then(
+                op2(
+                    "&&",
+                    op2("!=", var("size"), uint64_const(0)),
+                    op2("!=", var("dst"), uint64_const(0)),
+                ),
+                vec![
+                    local(
+                        "cap",
+                        DaType::int(),
+                        op2("-", cast(var("size"), DaType::int()), DaExpr::ConstInt(1)),
+                    ),
+                    local("i", DaType::int(), DaExpr::ConstInt(0)),
+                    while_(
+                        op2(
+                            "&&",
+                            op2("<", var("i"), var("n")),
+                            op2("<", var("i"), var("cap")),
+                        ),
+                        vec![
+                            DaStmt::Expr(call(
+                                RAW_PUT,
+                                vec![
+                                    var("dst"),
+                                    cast(var("i"), DaType::uint64()),
+                                    call("character_at", vec![var("body"), var("i")]),
+                                ],
+                            )),
+                            advance("i"),
+                        ],
+                    ),
+                    DaStmt::Expr(call(
+                        RAW_PUT,
+                        vec![
+                            var("dst"),
+                            cast(var("i"), DaType::uint64()),
+                            DaExpr::ConstInt(0),
+                        ],
+                    )),
+                ],
+            ),
+            ret(var("n")),
+        ],
+    )
+}
+
+// ── the NUL-terminated string family ─────────────────────────────────
+
+/// `def c2da_std_strlen(s : uint64) : uint64`
+fn build_strlen() -> DaDecl {
+    helper(
+        STRLEN,
+        vec![u64_param("s")],
+        DaType::uint64(),
+        vec![
+            local("n", DaType::uint64(), uint64_const(0)),
+            while_(
+                op2("!=", byte_of("s", var("n")), DaExpr::ConstInt(0)),
+                vec![advance_u64("n")],
+            ),
+            ret(var("n")),
+        ],
+    )
+}
+
+/// The `-1 / 0 / +1` answer C's `strcmp` family gives for two `unsigned char`
+/// values that already differ.
+fn order_of(left: DaExpr, right: DaExpr) -> Vec<DaStmt> {
+    vec![
+        if_then(op2("<", left, right), vec![ret(DaExpr::ConstInt(-1))]),
+        ret(DaExpr::ConstInt(1)),
+    ]
+}
+
+/// `def c2da_std_strcmp(a : uint64; b : uint64) : int`
+fn build_strcmp() -> DaDecl {
+    helper(
+        STRCMP,
+        vec![u64_param("a"), u64_param("b")],
+        DaType::int(),
+        vec![
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_true(vec![
+                let_("ca", byte_of("a", var("i"))),
+                let_("cb", byte_of("b", var("i"))),
+                if_then(
+                    op2("!=", var("ca"), var("cb")),
+                    order_of(var("ca"), var("cb")),
+                ),
+                if_then(
+                    op2("==", var("ca"), DaExpr::ConstInt(0)),
+                    vec![ret(DaExpr::ConstInt(0))],
+                ),
+                advance_u64("i"),
+            ]),
+            ret(DaExpr::ConstInt(0)),
+        ],
+    )
+}
+
+/// `def c2da_std_strncmp(a : uint64; b : uint64; n : uint64) : int`
+fn build_strncmp() -> DaDecl {
+    helper(
+        STRNCMP,
+        vec![u64_param("a"), u64_param("b"), u64_param("n")],
+        DaType::int(),
+        vec![
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_(
+                op2("<", var("i"), var("n")),
+                vec![
+                    let_("ca", byte_of("a", var("i"))),
+                    let_("cb", byte_of("b", var("i"))),
+                    if_then(
+                        op2("!=", var("ca"), var("cb")),
+                        order_of(var("ca"), var("cb")),
+                    ),
+                    if_then(
+                        op2("==", var("ca"), DaExpr::ConstInt(0)),
+                        vec![ret(DaExpr::ConstInt(0))],
+                    ),
+                    advance_u64("i"),
+                ],
+            ),
+            ret(DaExpr::ConstInt(0)),
+        ],
+    )
+}
+
+/// `def c2da_std_strcpy(dst : uint64; src : uint64) : uint64`
+fn build_strcpy() -> DaDecl {
+    helper(
+        STRCPY,
+        vec![u64_param("dst"), u64_param("src")],
+        DaType::uint64(),
+        vec![
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_true(vec![
+                let_("c", byte_of("src", var("i"))),
+                DaStmt::Expr(call(RAW_PUT, vec![var("dst"), var("i"), var("c")])),
+                if_then(
+                    op2("==", var("c"), DaExpr::ConstInt(0)),
+                    vec![DaStmt::Expr(DaExpr::Break)],
+                ),
+                advance_u64("i"),
+            ]),
+            ret(var("dst")),
+        ],
+    )
+}
+
+/// `def c2da_std_strncpy(dst : uint64; src : uint64; n : uint64) : uint64`
+///
+/// C's rule in full: at most `n` bytes are copied, the destination is *not*
+/// terminated when the source is longer, and the remainder is padded with NUL.
+fn build_strncpy() -> DaDecl {
+    helper(
+        STRNCPY,
+        vec![u64_param("dst"), u64_param("src"), u64_param("n")],
+        DaType::uint64(),
+        vec![
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_(
+                op2("<", var("i"), var("n")),
+                vec![
+                    let_("c", byte_of("src", var("i"))),
+                    DaStmt::Expr(call(RAW_PUT, vec![var("dst"), var("i"), var("c")])),
+                    if_then(
+                        op2("==", var("c"), DaExpr::ConstInt(0)),
+                        vec![DaStmt::Expr(DaExpr::Break)],
+                    ),
+                    advance_u64("i"),
+                ],
+            ),
+            while_(
+                op2("<", var("i"), var("n")),
+                vec![
+                    DaStmt::Expr(call(
+                        RAW_PUT,
+                        vec![var("dst"), var("i"), DaExpr::ConstInt(0)],
+                    )),
+                    advance_u64("i"),
+                ],
+            ),
+            ret(var("dst")),
+        ],
+    )
+}
+
+/// `def c2da_std_strcat(dst : uint64; src : uint64) : uint64`
+fn build_strcat() -> DaDecl {
+    helper(
+        STRCAT,
+        vec![u64_param("dst"), u64_param("src")],
+        DaType::uint64(),
+        vec![
+            DaStmt::Expr(call(
+                STRCPY,
+                vec![
+                    op2("+", var("dst"), call(STRLEN, vec![var("dst")])),
+                    var("src"),
+                ],
+            )),
+            ret(var("dst")),
+        ],
+    )
+}
+
+/// `def c2da_std_strchr(s : uint64; ch : int) : uint64` — C searches for
+/// `(char)ch`, and the terminating NUL is part of the string it searches.
+fn build_strchr() -> DaDecl {
+    helper(
+        STRCHR,
+        vec![u64_param("s"), param("ch", DaType::int())],
+        DaType::uint64(),
+        vec![
+            if_then(
+                op2("==", var("s"), uint64_const(0)),
+                vec![ret(uint64_const(0))],
+            ),
+            local(
+                "target",
+                DaType::int(),
+                op2("&", var("ch"), DaExpr::ConstInt(255)),
+            ),
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_true(vec![
+                let_("b", byte_of("s", var("i"))),
+                if_then(
+                    op2("==", var("b"), var("target")),
+                    vec![ret(op2("+", var("s"), var("i")))],
+                ),
+                if_then(
+                    op2("==", var("b"), DaExpr::ConstInt(0)),
+                    vec![DaStmt::Expr(DaExpr::Break)],
+                ),
+                advance_u64("i"),
+            ]),
+            ret(uint64_const(0)),
+        ],
+    )
+}
+
+/// `def c2da_std_strrchr(s : uint64; ch : int) : uint64`
+fn build_strrchr() -> DaDecl {
+    helper(
+        STRRCHR,
+        vec![u64_param("s"), param("ch", DaType::int())],
+        DaType::uint64(),
+        vec![
+            if_then(
+                op2("==", var("s"), uint64_const(0)),
+                vec![ret(uint64_const(0))],
+            ),
+            local(
+                "target",
+                DaType::int(),
+                op2("&", var("ch"), DaExpr::ConstInt(255)),
+            ),
+            local("found", DaType::uint64(), uint64_const(0)),
+            local("seen", DaType::bool(), DaExpr::ConstBool(false)),
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_true(vec![
+                let_("b", byte_of("s", var("i"))),
+                if_then(
+                    op2("==", var("b"), var("target")),
+                    vec![
+                        assign(var("found"), op2("+", var("s"), var("i"))),
+                        assign(var("seen"), DaExpr::ConstBool(true)),
+                    ],
+                ),
+                if_then(
+                    op2("==", var("b"), DaExpr::ConstInt(0)),
+                    vec![DaStmt::Expr(DaExpr::Break)],
+                ),
+                advance_u64("i"),
+            ]),
+            if_then(not(var("seen")), vec![ret(uint64_const(0))]),
+            ret(var("found")),
+        ],
+    )
+}
+
+/// `def c2da_std_strstr(h : uint64; n : uint64) : uint64` — an empty needle
+/// matches at the front, as C says it does.
+fn build_strstr() -> DaDecl {
+    helper(
+        STRSTR,
+        vec![u64_param("h"), u64_param("n")],
+        DaType::uint64(),
+        vec![
+            if_then(
+                op2("==", var("h"), uint64_const(0)),
+                vec![ret(uint64_const(0))],
+            ),
+            if_then(
+                op2("==", byte_of("n", uint64_const(0)), DaExpr::ConstInt(0)),
+                vec![ret(var("h"))],
+            ),
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_(
+                op2("!=", byte_of("h", var("i")), DaExpr::ConstInt(0)),
+                vec![
+                    local("j", DaType::uint64(), uint64_const(0)),
+                    while_(
+                        op2(
+                            "&&",
+                            op2("!=", byte_of("n", var("j")), DaExpr::ConstInt(0)),
+                            op2(
+                                "==",
+                                byte_of("h", op2("+", var("i"), var("j"))),
+                                byte_of("n", var("j")),
+                            ),
+                        ),
+                        vec![advance_u64("j")],
+                    ),
+                    if_then(
+                        op2("==", byte_of("n", var("j")), DaExpr::ConstInt(0)),
+                        vec![ret(op2("+", var("h"), var("i")))],
+                    ),
+                    advance_u64("i"),
+                ],
+            ),
+            ret(uint64_const(0)),
+        ],
+    )
+}
+
+// ── string → integer ─────────────────────────────────────────────────
+
+/// `def c2da_std_digit(ch : int; base : int) : int` — the value of one digit
+/// in `base`, or `-1` when the byte is not one.
+fn build_digit() -> DaDecl {
+    helper(
+        DIGIT,
+        vec![param("ch", DaType::int()), param("base", DaType::int())],
+        DaType::int(),
+        vec![
+            local("v", DaType::int(), DaExpr::ConstInt(-1)),
+            if_chain(
+                between("ch", 48, 57),
+                vec![assign(var("v"), op2("-", var("ch"), DaExpr::ConstInt(48)))],
+                vec![
+                    (
+                        between("ch", 97, 122),
+                        vec![assign(
+                            var("v"),
+                            op2(
+                                "+",
+                                op2("-", var("ch"), DaExpr::ConstInt(97)),
+                                DaExpr::ConstInt(10),
+                            ),
+                        )],
+                    ),
+                    (
+                        between("ch", 65, 90),
+                        vec![assign(
+                            var("v"),
+                            op2(
+                                "+",
+                                op2("-", var("ch"), DaExpr::ConstInt(65)),
+                                DaExpr::ConstInt(10),
+                            ),
+                        )],
+                    ),
+                ],
+                None,
+            ),
+            if_then(
+                op2(
+                    "||",
+                    op2("<", var("v"), DaExpr::ConstInt(0)),
+                    op2(">=", var("v"), var("base")),
+                ),
+                vec![ret(DaExpr::ConstInt(-1))],
+            ),
+            ret(var("v")),
+        ],
+    )
+}
+
+/// `def c2da_std_strto(nptr : uint64; endptr : uint64; base : int;
+///                     pos_limit : uint64; neg_limit : uint64) : uint64`
+///
+/// The one C `strto*` conversion, as the standard spells it: leading
+/// whitespace, an optional sign, the `0x`/`0` base prefix when `base` is 0 or
+/// 16, digits in `base`, `*endptr` left at the first unconverted byte (or at
+/// `nptr` when nothing converted), `EINVAL` for a base outside 2..36 and
+/// `ERANGE` plus the saturated limit on overflow.
+///
+/// The result is the raw 64 bits; the signed wrapper reinterprets them, which
+/// is why the negative limit is passed separately — `|LONG_MIN|` is one more
+/// than `LONG_MAX`.
+fn build_strto() -> DaDecl {
+    let limit_over = op2("/", var("limit"), var("radix"));
+    helper(
+        STRTO,
+        vec![
+            u64_param("nptr"),
+            u64_param("endptr"),
+            param("base", DaType::int()),
+            u64_param("pos_limit"),
+            u64_param("neg_limit"),
+        ],
+        DaType::uint64(),
+        vec![
+            // An unusable base is rejected before anything is stored through
+            // `endptr`, which is what glibc does: the caller's pointer keeps
+            // whatever it held.
+            if_then(
+                op2(
+                    "&&",
+                    op2("!=", var("base"), DaExpr::ConstInt(0)),
+                    op2(
+                        "||",
+                        op2("<", var("base"), DaExpr::ConstInt(2)),
+                        op2(">", var("base"), DaExpr::ConstInt(36)),
+                    ),
+                ),
+                vec![
+                    DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(EINVAL)])),
+                    ret(uint64_const(0)),
+                ],
+            ),
+            DaStmt::Expr(call(STORE_ADDR, vec![var("endptr"), var("nptr")])),
+            if_then(
+                op2("==", var("nptr"), uint64_const(0)),
+                vec![ret(uint64_const(0))],
+            ),
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_(
+                op2(
+                    "!=",
+                    call(ISSPACE, vec![byte_of("nptr", var("i"))]),
+                    DaExpr::ConstInt(0),
+                ),
+                vec![advance_u64("i")],
+            ),
+            local("neg", DaType::bool(), DaExpr::ConstBool(false)),
+            let_("sign", byte_of("nptr", var("i"))),
+            if_chain(
+                op2("==", var("sign"), DaExpr::ConstInt(45)),
+                vec![
+                    assign(var("neg"), DaExpr::ConstBool(true)),
+                    advance_u64("i"),
+                ],
+                vec![(
+                    op2("==", var("sign"), DaExpr::ConstInt(43)),
+                    vec![advance_u64("i")],
+                )],
+                None,
+            ),
+            local("radix", DaType::uint64(), uint64_const(10)),
+            // `0x` only introduces hexadecimal when a hexadecimal digit really
+            // follows; otherwise C converts the `0` and stops.
+            if_chain(
+                op2(
+                    "&&",
+                    op2(
+                        "||",
+                        op2("==", var("base"), DaExpr::ConstInt(0)),
+                        op2("==", var("base"), DaExpr::ConstInt(16)),
+                    ),
+                    op2(
+                        "&&",
+                        op2("==", byte_of("nptr", var("i")), DaExpr::ConstInt(48)),
+                        op2(
+                            "&&",
+                            op2(
+                                "==",
+                                op2(
+                                    "|",
+                                    byte_of("nptr", op2("+", var("i"), uint64_const(1))),
+                                    DaExpr::ConstInt(32),
+                                ),
+                                DaExpr::ConstInt(120),
+                            ),
+                            op2(
+                                ">=",
+                                call(
+                                    DIGIT,
+                                    vec![
+                                        byte_of("nptr", op2("+", var("i"), uint64_const(2))),
+                                        DaExpr::ConstInt(16),
+                                    ],
+                                ),
+                                DaExpr::ConstInt(0),
+                            ),
+                        ),
+                    ),
+                ),
+                vec![
+                    assign(var("i"), op2("+", var("i"), uint64_const(2))),
+                    assign(var("radix"), uint64_const(16)),
+                ],
+                vec![
+                    (
+                        op2("!=", var("base"), DaExpr::ConstInt(0)),
+                        vec![assign(var("radix"), cast(var("base"), DaType::uint64()))],
+                    ),
+                    (
+                        op2("==", byte_of("nptr", var("i")), DaExpr::ConstInt(48)),
+                        vec![assign(var("radix"), uint64_const(8))],
+                    ),
+                ],
+                None,
+            ),
+            local("limit", DaType::uint64(), var("pos_limit")),
+            if_then(var("neg"), vec![assign(var("limit"), var("neg_limit"))]),
+            local("acc", DaType::uint64(), uint64_const(0)),
+            local("any", DaType::bool(), DaExpr::ConstBool(false)),
+            local("over", DaType::bool(), DaExpr::ConstBool(false)),
+            while_true(vec![
+                let_(
+                    "d",
+                    call(
+                        DIGIT,
+                        vec![byte_of("nptr", var("i")), cast(var("radix"), DaType::int())],
+                    ),
+                ),
+                if_then(
+                    op2("<", var("d"), DaExpr::ConstInt(0)),
+                    vec![DaStmt::Expr(DaExpr::Break)],
+                ),
+                assign(var("any"), DaExpr::ConstBool(true)),
+                let_("dv", cast(var("d"), DaType::uint64())),
+                if_chain(
+                    op2(
+                        "||",
+                        op2(">", var("acc"), limit_over.clone()),
+                        op2(
+                            "&&",
+                            op2("==", var("acc"), limit_over),
+                            op2(">", var("dv"), op2("%", var("limit"), var("radix"))),
+                        ),
+                    ),
+                    vec![assign(var("over"), DaExpr::ConstBool(true))],
+                    vec![],
+                    Some(vec![assign(
+                        var("acc"),
+                        op2("+", op2("*", var("acc"), var("radix")), var("dv")),
+                    )]),
+                ),
+                advance_u64("i"),
+            ]),
+            if_then(not(var("any")), vec![ret(uint64_const(0))]),
+            DaStmt::Expr(call(
+                STORE_ADDR,
+                vec![var("endptr"), op2("+", var("nptr"), var("i"))],
+            )),
+            if_then(
+                var("over"),
+                vec![
+                    DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(ERANGE)])),
+                    ret(var("limit")),
+                ],
+            ),
+            if_then(var("neg"), vec![ret(op2("-", uint64_const(0), var("acc")))]),
+            ret(var("acc")),
+        ],
+    )
+}
+
+fn strto_call(signed: bool) -> DaExpr {
+    let (pos, neg) = if signed {
+        (INT64_MAX_MAGNITUDE, INT64_MIN_MAGNITUDE)
+    } else {
+        (UINT64_MAX_MAGNITUDE, UINT64_MAX_MAGNITUDE)
+    };
+    call(
+        STRTO,
+        vec![
+            var("nptr"),
+            var("endptr"),
+            var("base"),
+            uint64_const(pos),
+            uint64_const(neg),
+        ],
+    )
+}
+
+fn strto_params() -> Vec<DaStmt> {
+    vec![
+        u64_param("nptr"),
+        u64_param("endptr"),
+        param("base", DaType::int()),
+    ]
+}
+
+/// `def c2da_std_strtoll(nptr : uint64; endptr : uint64; base : int) : int64`
+/// — also C's `strtol`, whose `long` is 64 bits here.
+fn build_strtoll() -> DaDecl {
+    helper(
+        STRTOLL,
+        strto_params(),
+        DaType::int64(),
+        vec![ret(cast(strto_call(true), DaType::int64()))],
+    )
+}
+
+/// `def c2da_std_strtoull(nptr : uint64; endptr : uint64; base : int) : uint64`
+fn build_strtoull() -> DaDecl {
+    helper(
+        STRTOULL,
+        strto_params(),
+        DaType::uint64(),
+        vec![ret(strto_call(false))],
+    )
+}
+
+/// `def c2da_std_atoi(nptr : uint64) : int` — `(int)strtol(nptr, NULL, 10)`,
+/// which is what C says `atoi` is.
+fn build_atoi() -> DaDecl {
+    helper(
+        ATOI,
+        vec![u64_param("nptr")],
+        DaType::int(),
+        vec![ret(cast(
+            cast(
+                call(
+                    STRTO,
+                    vec![
+                        var("nptr"),
+                        uint64_const(0),
+                        DaExpr::ConstInt(10),
+                        uint64_const(INT64_MAX_MAGNITUDE),
+                        uint64_const(INT64_MIN_MAGNITUDE),
+                    ],
+                ),
+                DaType::int64(),
+            ),
+            DaType::int(),
+        ))],
+    )
+}
+
+// ── errno ────────────────────────────────────────────────────────────
+
+/// `var c2da_std_errno_cell : uint64 = 0x0` — the address of the module's one
+/// `errno` object, allocated on first use.
+fn build_errno_cell() -> DaDecl {
+    DaDecl::Variable(DaVariable {
+        name: ERRNO_CELL.to_owned(),
+        var_type: DaType::uint64(),
+        init: Some(uint64_const(0)),
+        annotations: vec![],
+    })
+}
+
+/// `def c2da_std_errno_location() : uint64`
+///
+/// glibc's `errno` *is* `*__errno_location()`, so the translated program reads
+/// and writes this cell through an ordinary C `int *`. The address is rounded
+/// up to eight bytes because the raw-memory runtime is a bump allocator that
+/// makes no alignment promise of its own.
+fn build_errno_location() -> DaDecl {
+    let zero_byte = |index: u64| {
+        DaStmt::Expr(call(
+            RAW_PUT,
+            vec![var("aligned"), uint64_const(index), DaExpr::ConstInt(0)],
+        ))
+    };
+    helper(
+        ERRNO_LOCATION,
+        vec![],
+        DaType::uint64(),
+        vec![
+            if_then(
+                op2("==", var(ERRNO_CELL), uint64_const(0)),
+                vec![
+                    local(
+                        "raw",
+                        DaType::uint64(),
+                        call("c2da_rt_malloc", vec![uint64_const(16)]),
+                    ),
+                    if_then(
+                        op2("==", var("raw"), uint64_const(0)),
+                        vec![ret(uint64_const(0))],
+                    ),
+                    local(
+                        "aligned",
+                        DaType::uint64(),
+                        op2(
+                            "*",
+                            op2("/", op2("+", var("raw"), uint64_const(7)), uint64_const(8)),
+                            uint64_const(8),
+                        ),
+                    ),
+                    zero_byte(0),
+                    zero_byte(1),
+                    zero_byte(2),
+                    zero_byte(3),
+                    assign(var(ERRNO_CELL), var("aligned")),
+                ],
+            ),
+            ret(var(ERRNO_CELL)),
+        ],
+    )
+}
+
+/// `def c2da_std_set_errno(code : int)`
+fn build_set_errno() -> DaDecl {
+    helper(
+        SET_ERRNO,
+        vec![param("code", DaType::int())],
+        DaType::void(),
+        vec![
+            local("cell", DaType::uint64(), call(ERRNO_LOCATION, vec![])),
+            if_then(op2("==", var("cell"), uint64_const(0)), vec![ret_void()]),
+            assign(
+                DaExpr::Unsafe(Box::new(DaExpr::Index(
+                    Box::new(reinterpret(var("cell"), DaType::pointer(DaType::int()))),
+                    Box::new(DaExpr::ConstInt(0)),
+                ))),
+                var("code"),
+            ),
+        ],
+    )
+}
+
+// ── output and abnormal termination ──────────────────────────────────
+
+/// `def c2da_std_abort()` — `exit` after the diagnostic C's `abort` leaves on
+/// stderr. The process status is 128 + SIGABRT; a daslang module cannot raise
+/// a real signal, so the *status* is reproduced rather than the mechanism.
+fn build_abort() -> DaDecl {
+    helper(
+        ABORT,
+        vec![],
+        DaType::void(),
+        vec![
+            DaStmt::Expr(call(WRITE, vec![call(STDERR, vec![]), text("abort()\n")])),
+            DaStmt::Expr(DaExpr::Unsafe(Box::new(call(
+                "exit",
+                vec![DaExpr::ConstInt(ABORT_STATUS)],
+            )))),
+        ],
+    )
+}
+
+/// `def c2da_std_puts(s : uint64) : int`
+fn build_puts() -> DaDecl {
+    helper(
+        PUTS,
+        vec![u64_param("s")],
+        DaType::int(),
+        vec![
+            DaStmt::Expr(call(
+                WRITE,
+                vec![
+                    call(STDOUT, vec![]),
+                    op2("+", call(RAW_STRING, vec![var("s")]), text("\n")),
+                ],
+            )),
+            ret(DaExpr::ConstInt(0)),
+        ],
+    )
+}
+
+/// `def c2da_std_fputs(s : uint64; handle : uint64) : int`
+fn build_fputs() -> DaDecl {
+    helper(
+        FPUTS,
+        vec![u64_param("s"), u64_param("handle")],
+        DaType::int(),
+        vec![
+            DaStmt::Expr(call(
+                WRITE,
+                vec![var("handle"), call(RAW_STRING, vec![var("s")])],
+            )),
+            ret(DaExpr::ConstInt(0)),
+        ],
+    )
+}
+
+/// `def c2da_std_putchar(c : int) : int` — C returns the byte it wrote.
+fn build_putchar() -> DaDecl {
+    helper(
+        PUTCHAR,
+        vec![param("c", DaType::int())],
+        DaType::int(),
+        vec![
+            local(
+                "byte",
+                DaType::int(),
+                op2("&", var("c"), DaExpr::ConstInt(255)),
+            ),
+            DaStmt::Expr(call(
+                WRITE,
+                vec![call(STDOUT, vec![]), call("to_char", vec![var("byte")])],
+            )),
+            ret(var("byte")),
+        ],
+    )
+}
+
+/// `def c2da_std_fprintf(handle : uint64; f : int8 const?; args : array<C2daVaArg>) : int`
+fn build_fprintf() -> DaDecl {
+    helper(
+        FPRINTF,
+        vec![
+            u64_param("handle"),
+            param("f", c_string_type()),
+            param("args", va_args_type()),
+        ],
+        DaType::int(),
+        vec![
+            local(
+                "body",
+                DaType::string(),
+                call(FORMAT, vec![var("f"), var("args")]),
+            ),
+            DaStmt::Expr(call(WRITE, vec![var("handle"), var("body")])),
+            ret(call("length", vec![var("body")])),
+        ],
+    )
+}
+
+/// `def c2da_std_snprintf(dst : uint64; size : uint64; f : int8 const?; args : array<C2daVaArg>) : int`
+fn build_snprintf() -> DaDecl {
+    helper(
+        SNPRINTF,
+        vec![
+            u64_param("dst"),
+            u64_param("size"),
+            param("f", c_string_type()),
+            param("args", va_args_type()),
+        ],
+        DaType::int(),
+        vec![ret(call(
+            PLACE,
+            vec![
+                var("dst"),
+                var("size"),
+                call(FORMAT, vec![var("f"), var("args")]),
+            ],
+        ))],
+    )
+}
+
+/// `def c2da_std_vsnprintf(dst : uint64; size : uint64; f : int8 const?;
+///                         ap : C2daVaCursor; args : array<C2daVaArg>) : int`
+///
+/// The forwarded `va_list` is a cursor into `args` (see `variadic.rs`), which
+/// the call site passes alongside it; the conversion therefore starts at the
+/// cursor's own index.
+fn build_vsnprintf() -> DaDecl {
+    helper(
+        VSNPRINTF,
+        vec![
+            u64_param("dst"),
+            u64_param("size"),
+            param("f", c_string_type()),
+            param("ap", DaType::named("C2daVaCursor")),
+            param("args", va_args_type()),
+        ],
+        DaType::int(),
+        vec![ret(call(
+            PLACE,
+            vec![
+                var("dst"),
+                var("size"),
+                call(
+                    VFORMAT,
+                    vec![
+                        var("f"),
+                        var("args"),
+                        DaExpr::Field(Box::new(var("ap")), "index".into()),
+                    ],
+                ),
+            ],
+        ))],
+    )
+}
+
+/// `def c2da_std_fwrite(src : uint64; size : uint64; count : uint64; handle : uint64) : uint64`
+fn build_fwrite() -> DaDecl {
+    helper(
+        FWRITE,
+        vec![
+            u64_param("src"),
+            u64_param("size"),
+            u64_param("count"),
+            u64_param("handle"),
+        ],
+        DaType::uint64(),
+        vec![
+            if_then(
+                op2(
+                    "||",
+                    op2("==", var("handle"), uint64_const(0)),
+                    op2("==", var("src"), uint64_const(0)),
+                ),
+                vec![ret(uint64_const(0))],
+            ),
+            local(
+                "total",
+                DaType::uint64(),
+                op2("*", var("size"), var("count")),
+            ),
+            if_then(
+                op2("==", var("total"), uint64_const(0)),
+                vec![ret(uint64_const(0))],
+            ),
+            local(
+                "buffer",
+                DaType::pointer(DaType::uint8()),
+                reinterpret(var("src"), DaType::pointer(DaType::uint8())),
+            ),
+            local(
+                "wrote",
+                DaType::int(),
+                DaExpr::Unsafe(Box::new(call(
+                    "_builtin_write",
+                    vec![
+                        call(FILE_OF, vec![var("handle")]),
+                        var("buffer"),
+                        cast(var("total"), DaType::int()),
+                    ],
+                ))),
+            ),
+            if_then(
+                op2("<=", var("wrote"), DaExpr::ConstInt(0)),
+                vec![ret(uint64_const(0))],
+            ),
+            ret(op2("/", cast(var("wrote"), DaType::uint64()), var("size"))),
+        ],
+    )
+}
+
+// ── ctype, in the C locale ───────────────────────────────────────────
+
+fn between(name: &str, lo: i64, hi: i64) -> DaExpr {
+    op2(
+        "&&",
+        op2(">=", var(name), DaExpr::ConstInt(lo)),
+        op2("<=", var(name), DaExpr::ConstInt(hi)),
+    )
+}
+
+fn in_range(lo: i64, hi: i64) -> DaExpr {
+    between("c", lo, hi)
+}
+
+fn letter() -> DaExpr {
+    op2("||", in_range(65, 90), in_range(97, 122))
+}
+
+/// `def c2da_std_is…(c : int) : int` — the C locale, which is the only locale
+/// a translated module has.
+fn build_ctype(name: &str, cond: DaExpr) -> DaDecl {
+    helper(
+        name,
+        vec![param("c", DaType::int())],
+        DaType::int(),
+        vec![
+            if_then(cond, vec![ret(DaExpr::ConstInt(1))]),
+            ret(DaExpr::ConstInt(0)),
+        ],
+    )
+}
+
+fn build_isspace() -> DaDecl {
+    build_ctype(
+        ISSPACE,
+        op2(
+            "||",
+            op2("==", var("c"), DaExpr::ConstInt(32)),
+            in_range(9, 13),
+        ),
+    )
+}
+
+fn build_isalnum() -> DaDecl {
+    build_ctype(
+        ISALNUM,
+        op2(
+            "||",
+            op2("!=", call(ISALPHA, vec![var("c")]), DaExpr::ConstInt(0)),
+            op2("!=", call(ISDIGIT, vec![var("c")]), DaExpr::ConstInt(0)),
+        ),
+    )
+}
+
+fn build_case_shift(name: &str, lo: i64, hi: i64, delta: i64) -> DaDecl {
+    helper(
+        name,
+        vec![param("c", DaType::int())],
+        DaType::int(),
+        vec![
+            if_then(
+                in_range(lo, hi),
+                vec![ret(op2("+", var("c"), DaExpr::ConstInt(delta)))],
+            ),
+            ret(var("c")),
+        ],
+    )
+}
+
+fn build_tolower() -> DaDecl {
+    build_case_shift(TOLOWER, 65, 90, 32)
+}
+
+fn build_toupper() -> DaDecl {
+    build_case_shift(TOUPPER, 97, 122, -32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1476,11 +2934,48 @@ mod tests {
             ("setvbuf", SETVBUF),
             ("clock_gettime", CLOCK_GETTIME),
             ("exit", EXIT),
+            ("abort", ABORT),
+            ("strlen", STRLEN),
+            ("strcmp", STRCMP),
+            ("strncmp", STRNCMP),
+            ("strcpy", STRCPY),
+            ("strncpy", STRNCPY),
+            ("strcat", STRCAT),
+            ("strchr", STRCHR),
+            ("strrchr", STRRCHR),
+            ("strstr", STRSTR),
+            // `long` and `long long` are the same 64-bit type here, so the
+            // four conversions share two helpers.
+            ("strtol", STRTOLL),
+            ("strtoll", STRTOLL),
+            ("strtoul", STRTOULL),
+            ("strtoull", STRTOULL),
+            ("atoi", ATOI),
+            ("puts", PUTS),
+            ("fputs", FPUTS),
+            ("putchar", PUTCHAR),
+            ("fprintf", FPRINTF),
+            ("snprintf", SNPRINTF),
+            ("vsnprintf", VSNPRINTF),
+            ("fwrite", FWRITE),
+            ("isspace", ISSPACE),
+            ("isdigit", ISDIGIT),
+            ("isalpha", ISALPHA),
+            ("isalnum", ISALNUM),
+            ("isupper", ISUPPER),
+            ("islower", ISLOWER),
+            ("isprint", ISPRINT),
+            ("isxdigit", ISXDIGIT),
+            ("tolower", TOLOWER),
+            ("toupper", TOUPPER),
+            ("__errno_location", ERRNO_LOCATION),
         ] {
             let function = std_function(source).expect("registered std symbol");
             assert_eq!(function.target_name(), target);
         }
         assert_eq!(std_function("qsort"), None);
+        assert_eq!(std_function("strtod"), None);
+        assert_eq!(std_function("__ctype_b_loc"), None);
     }
 
     #[test]
@@ -1501,6 +2996,24 @@ mod tests {
         );
         assert!(StdFunction::Fopen.returns_raw_address());
         assert!(!StdFunction::Ftell.returns_raw_address());
+        // The string family reads and writes raw addresses; a `size_t` count
+        // and a `ctype` code point do not.
+        assert_eq!(
+            StdFunction::Strncmp.arg_kind(1),
+            Some(RuntimeArgKind::RawAddress)
+        );
+        assert_eq!(StdFunction::Strncmp.arg_kind(2), None);
+        assert_eq!(StdFunction::Isspace.arg_kind(0), None);
+        assert_eq!(StdFunction::Strchr.arg_kind(1), None);
+        // `fprintf`'s format string stays a typed C pointer, as `printf`'s is.
+        assert_eq!(
+            StdFunction::Fprintf.arg_kind(0),
+            Some(RuntimeArgKind::RawAddress)
+        );
+        assert_eq!(StdFunction::Fprintf.arg_kind(1), None);
+        assert!(StdFunction::Strchr.returns_raw_address());
+        assert!(StdFunction::ErrnoLocation.returns_raw_address());
+        assert!(!StdFunction::Strlen.returns_raw_address());
     }
 
     #[test]
@@ -1521,6 +3034,37 @@ mod tests {
             STDERR,
             STDIN,
             STORE,
+            ABORT,
+            STRLEN,
+            STRCMP,
+            STRNCMP,
+            STRCPY,
+            STRNCPY,
+            STRCAT,
+            STRCHR,
+            STRRCHR,
+            STRSTR,
+            STRTOLL,
+            STRTOULL,
+            ATOI,
+            PUTS,
+            FPUTS,
+            PUTCHAR,
+            FPRINTF,
+            SNPRINTF,
+            VSNPRINTF,
+            FWRITE,
+            ISSPACE,
+            ISDIGIT,
+            ISALPHA,
+            ISALNUM,
+            ISUPPER,
+            ISLOWER,
+            ISPRINT,
+            ISXDIGIT,
+            TOLOWER,
+            TOUPPER,
+            ERRNO_LOCATION,
         ] {
             require(name);
         }

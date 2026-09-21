@@ -31,8 +31,36 @@ impl<'c> Translation<'c> {
             .map_or(false, |ids| ids.contains(&decl_id))
     }
 
-    pub fn register_va_decls(&self, body: CStmtId) -> String {
-        let mut decls = IndexSet::new();
+    /// True for a C function parameter that receives a `va_list`.
+    ///
+    /// On x86-64 `va_list` is `struct __va_list_tag[1]`, so a parameter of that
+    /// type has already decayed to a pointer by the time Clang records it;
+    /// `is_va_list` accounts for the decay, which is why the parameter must be
+    /// recognized by *type* rather than by the declaration's spelling.
+    pub(crate) fn is_va_list_param(&self, param_id: CDeclId) -> bool {
+        match self.ast_context[param_id].kind {
+            CDeclKind::Variable { typ, .. } => self.ast_context.is_va_list(typ.ctype),
+            _ => false,
+        }
+    }
+
+    /// The `va_list` parameters of a C function, in declaration order.
+    pub(crate) fn va_list_params(&self, parameters: &[CDeclId]) -> Vec<CDeclId> {
+        parameters
+            .iter()
+            .copied()
+            .filter(|id| self.is_va_list_param(*id))
+            .collect()
+    }
+
+    /// Records this function's canonical variadic context: the name of the
+    /// promoted-argument array parameter and every declaration that is a cursor
+    /// over it.
+    ///
+    /// `va_list_params` are the cursors the *caller* owns and this function
+    /// received; the body's own `va_list` declarations are found by walking it.
+    pub fn register_va_decls(&self, body: CStmtId, va_list_params: &[CDeclId]) -> String {
+        let mut decls: IndexSet<CDeclId> = va_list_params.iter().copied().collect();
         for node in DFExpr::new(&self.ast_context, body.into()) {
             if let SomeId::Stmt(stmt) = node {
                 if let CStmtKind::Decls(ids) = &self.ast_context[stmt].kind {
@@ -73,7 +101,7 @@ impl<'c> Translation<'c> {
         VA_ARGS_PARAM.into()
     }
 
-    fn va_decl_from_expr(&self, mut expr: CExprId) -> Option<CDeclId> {
+    pub(crate) fn va_decl_from_expr(&self, mut expr: CExprId) -> Option<CDeclId> {
         while let CExprKind::ImplicitCast(_, inner, _, _, _) = &self.ast_context[expr].kind {
             expr = *inner;
         }
@@ -127,9 +155,50 @@ impl<'c> Translation<'c> {
         }
     }
 
-    fn cursor_expr(&self, id: CDeclId) -> TranslationResult<DaExpr> {
+    pub(crate) fn cursor_expr(&self, id: CDeclId) -> TranslationResult<DaExpr> {
         let CDeclKind::Variable { ident, .. } = &self.ast_context[id].kind else { return Err(TranslationError::generic("unsupported va_list declaration")); };
         Ok(DaExpr::Var(self.declare_value_name(id, ident)))
+    }
+
+    /// The daScript argument a call passes for a C `va_list` parameter.
+    ///
+    /// C hands the callee the caller's cursor, and glibc's `va_list` is an
+    /// array type, so what the callee advances is the caller's own cursor.  The
+    /// canonical model reproduces that exactly: the cursor record crosses as
+    /// the `var` parameter it is declared to be, which daScript passes by
+    /// reference.  A program that wants an independent cursor writes `va_copy`,
+    /// which copies the record.
+    pub(crate) fn va_list_call_argument(&self, arg: CExprId) -> TranslationResult<DaExpr> {
+        let Some(id) = self.va_decl_from_expr(arg) else {
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&self.ast_context[arg].loc),
+                "unsupported va_list argument: not a va_list object"
+            ));
+        };
+        if !self.is_va_decl(id) {
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&self.ast_context[arg].loc),
+                "va_list argument is neither started by va_start nor a va_list parameter"
+            ));
+        }
+        self.cursor_expr(id)
+    }
+
+    /// The promoted-argument array a call that forwards a `va_list` passes
+    /// alongside the cursor.
+    ///
+    /// A cursor is an index into exactly one such array, so the caller has to
+    /// hand its own array over too; only a variadic function or a function that
+    /// itself received a `va_list` has one.
+    pub(crate) fn forwarded_va_args(&self, at: CExprId) -> TranslationResult<DaExpr> {
+        let name = self.function_context.borrow().va_list_arg_name.clone();
+        let Some(name) = name else {
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&self.ast_context[at].loc),
+                "va_list forwarded from a function that has no variadic arguments"
+            ));
+        };
+        Ok(DaExpr::Var(name))
     }
 
     pub fn convert_vapart(&self, part: VaPart) -> TranslationResult<WithStmts<DaExpr>> {

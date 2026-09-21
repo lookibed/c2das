@@ -118,8 +118,13 @@ impl<'c> Translation<'c> {
         self.function_context
             .borrow_mut()
             .set_return_type(ret_ctype);
-        let variadic_arg_name = is_variadic
-            .then(|| body.map(|body_id| self.register_va_decls(body_id)))
+        // A `va_list` parameter is the caller's cursor over the caller's own
+        // promoted-argument array, so a function that receives one takes the
+        // canonical `array<C2daVaArg>` parameter exactly as a variadic function
+        // does: the cursor alone would index nothing.
+        let va_list_params = self.va_list_params(parameters);
+        let variadic_arg_name = (is_variadic || !va_list_params.is_empty())
+            .then(|| body.map(|body_id| self.register_va_decls(body_id, &va_list_params)))
             .flatten();
 
         // Convert return type for function signature
@@ -134,9 +139,39 @@ impl<'c> Translation<'c> {
         let mut unnamed_idx = 0u32;
         for param_id in parameters {
             if let CDeclKind::Variable { ref ident, typ, .. } = self.ast_context[*param_id].kind {
-                let das_ty = self.convert_type(typ.clone())?;
-                let is_const = typ.qualifiers.is_const;
-                let is_ptr = self.is_pointer_type(typ.ctype);
+                // A `va_list` parameter is a cursor record, not the pointer the
+                // platform ABI decayed it to: it crosses as `var`, which is how
+                // daScript passes a record by reference, so the callee's
+                // `va_arg` advances the caller's cursor exactly as C does.
+                if self.ast_context.is_va_list(typ.ctype) {
+                    let pname = self.declare_value_name(*param_id, ident);
+                    self.function_context
+                        .borrow_mut()
+                        .add_param_alias(ident, &pname);
+                    params.push(mk().param_mut(pname, self.va_cursor_type(), None));
+                    continue;
+                }
+                // C11 6.7.6.3p15: in determining type compatibility, "each
+                // parameter declared with qualified type is taken as having
+                // the unqualified version of its declared type" — a
+                // parameter's *top-level* qualifier is not part of the
+                // function type.  Clang follows that rule in the function type
+                // and keeps the qualifier on the defining declaration, so a
+                // `cbytes_t` (`const u8 *const`) parameter came out as
+                // `cbytes_t const` in the definition and as plain `cbytes_t`
+                // in the callback typedef the definition implements, and
+                // daScript stopped accepting the one for the other.  The
+                // parameter's *type* therefore drops the qualifier; whether it
+                // is spelled `var` is decided from the C declaration below,
+                // exactly as `convert_type::function_type_param_is_var`
+                // decides it for the function type.
+                let mut unqualified = typ;
+                unqualified.qualifiers.is_const = false;
+                let das_ty = self.convert_type(unqualified)?;
+                let is_record = matches!(
+                    self.ast_context.resolve_type(typ.ctype).kind,
+                    CTypeKind::Struct(_) | CTypeKind::Union(_)
+                );
                 let pname = if ident.is_empty() || ident == "__" {
                     unnamed_idx += 1;
                     self.declare_value_name(*param_id, &format!("c2da_arg{}", unnamed_idx))
@@ -158,10 +193,13 @@ impl<'c> Translation<'c> {
                     let incoming = self.renamer.borrow_mut().fresh();
                     params.push(mk().param(incoming.clone(), das_ty.clone(), None));
                     by_value_records.push((pname, incoming, typ, das_ty));
-                } else if is_ptr || !is_const {
-                    params.push(mk().param_mut(pname, das_ty, None));
-                } else {
+                } else if is_record {
+                    // A `const` record parameter cannot be written at all, so
+                    // it needs no copy — and it stays read-only, which is what
+                    // `function_type_param_is_var` answers for it too.
                     params.push(mk().param(pname, das_ty, None));
+                } else {
+                    params.push(mk().param_mut(pname, das_ty, None));
                 }
             }
         }
@@ -372,7 +410,20 @@ impl<'c> Translation<'c> {
         let mut variadic_tail = vec![];
         let arg_tys = self.call_arg_types(func);
         let is_variadic = self.is_variadic_callee(func);
+        // Forwarding a `va_list` (`vprintf`-style) crosses the canonical
+        // variadic ABI, not C's: the callee receives the caller's cursor and,
+        // with it, the caller's own promoted-argument array.
+        let forwards_va_list = arg_tys
+            .iter()
+            .any(|ty| self.ast_context.is_va_list(ty.ctype));
         for (idx, &arg) in args.iter().enumerate() {
+            if arg_tys
+                .get(idx)
+                .map_or(false, |ty| self.ast_context.is_va_list(ty.ctype))
+            {
+                das_args.push(self.va_list_call_argument(arg)?);
+                continue;
+            }
             let std_arg = std_libc.and_then(|function| function.arg_kind(idx));
             let expected = arg_tys.get(idx).copied().filter(|_| {
                 self.libc_memory_arg_cast(func_name.as_deref(), idx)
@@ -431,6 +482,8 @@ impl<'c> Translation<'c> {
             das_args.push(DaExpr::MakeArray(
                 self.pack_variadic_call_tail(0, variadic_tail)?,
             ));
+        } else if forwards_va_list {
+            das_args.push(self.forwarded_va_args(func)?);
         }
         let call = if let Some(function) = runtime {
             mk().call_expr(DaExpr::Var(function.target_name().to_owned()), das_args)
@@ -475,6 +528,13 @@ impl<'c> Translation<'c> {
                 call
             } else if matches!(ret_ty.kind, DaTypeKind::Pointer(_)) {
                 self.abi_pointer_cast(call, ret_ty)
+            } else if self.convert_type(call_expr_ty).ok().as_ref() == Some(&ret_ty) {
+                // The callee already returns this very type, so C asks for no
+                // conversion at all.  Emitting one anyway is at best noise and
+                // at worst impossible: a C `_Bool` function reaching a `_Bool`
+                // use-site would come out as `bool(f())`, and daScript has no
+                // `bool` conversion function of any kind.
+                call
             } else {
                 // A C enumeration return type crossing into an enumeration
                 // use-site is a reinterpretation, not a conversion; every
@@ -607,23 +667,36 @@ impl<'c> Translation<'c> {
     /// daScript's `function<…>` *is* the value, so every one of those layers is
     /// an identity.  Returns the expression that actually holds the function
     /// value, or `None` when this is not a function-pointer callee at all.
+    ///
+    /// What decides the answer is the *type* the callee expression carries,
+    /// never how many identity layers were peeled off it.  daScript calls a
+    /// `function<…>` value only through `invoke`, so every callee that is not a
+    /// direct function declaration has to reach that operator — a variable, a
+    /// dereference, a cast (`((Op)(*pc))(…)`, an interpreter's whole dispatch),
+    /// a struct field, an array element or a conditional alike.  Requiring a
+    /// peel here once made an unpeeled callee such as a cast or a conditional
+    /// come out as a call by juxtaposition, which daScript cannot parse.
     fn function_value_operand(&self, func: CExprId) -> Option<CExprId> {
         let mut current = func;
-        let mut peeled = false;
         loop {
             match &self.ast_context[current].kind {
                 CExprKind::ImplicitCast(_, inner, CastKind::FunctionToPointerDecay, _, _)
                 | CExprKind::ImplicitCast(_, inner, CastKind::LValueToRValue, _, _) => {
                     current = *inner;
-                    peeled = true;
                 }
-                CExprKind::Unary(_, CUnOp::Deref, inner, _) => {
+                // `*f` is an identity only when it yields a *function*: that is
+                // C's rule that dereferencing a function pointer gives back the
+                // function designator, which is why `f`, `(*f)` and `(**f)` all
+                // call the same object.  A dereference that yields another
+                // pointer — `Unary *slot; (*slot)(x)` — is a real load out of
+                // the caller's memory and has to be lowered as one.
+                CExprKind::Unary(_, CUnOp::Deref, inner, _)
+                    if self.yields_function_designator(current) =>
+                {
                     current = *inner;
-                    peeled = true;
                 }
                 CExprKind::Paren(_, inner) => {
                     current = *inner;
-                    peeled = true;
                 }
                 _ => break,
             }
@@ -635,7 +708,21 @@ impl<'c> Translation<'c> {
             .get_qual_type()
             .map(|ty| self.is_callable_type(ty.ctype))
             .unwrap_or(false);
-        (peeled && is_callable).then_some(current)
+        is_callable.then_some(current)
+    }
+
+    /// True when this expression's own C type is a function type, i.e. it is a
+    /// function designator rather than a pointer to one.
+    fn yields_function_designator(&self, expr: CExprId) -> bool {
+        self.ast_context[expr]
+            .kind
+            .get_qual_type()
+            .map_or(false, |ty| {
+                matches!(
+                    self.ast_context.resolve_type(ty.ctype).kind,
+                    CTypeKind::Function(..)
+                )
+            })
     }
 
     /// True for a C function type or a pointer to one.
@@ -865,6 +952,13 @@ pub(crate) fn normalize_array_initializer_for_type(expr: DaExpr, ty: &DaType) ->
 /// otherwise the type's zero.  Shared with `cfg::labels`, which hoists the
 /// statement lowering's site temporaries the same way.
 pub(crate) fn default_initializer_for_datype(ty: &DaType) -> DaExpr {
+    // A daScript function value is spelled `function<…>`, which is a named
+    // *type expression* and not a constructible record: `function<…>()` is a
+    // syntax error.  Its null value is `default<function<…>>`, which
+    // `zero_for_datype` already knows how to spell.
+    if crate::convert_type::is_function_value_type(ty) {
+        return zero_for_datype(ty);
+    }
     match &ty.kind {
         DaTypeKind::Named(name) => DaExpr::Call(Box::new(DaExpr::Var(name.clone())), vec![]),
         _ => zero_for_datype(ty),
