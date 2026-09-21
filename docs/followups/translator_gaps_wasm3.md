@@ -174,8 +174,11 @@ Per dispatch: C `-O2` 1.34 ns; aot 2.14 (+0.80); `-exe` 4.05 (+2.72); `-jit` 4.2
   exe 0.55).  wasm3's handlers read no globals, so it does not show there; translated
   C whose hot loop touches file-scope variables will pay it.  Translator-side hoisting
   is unsound (any pointer may alias a global); the AOT emitter has `das_global_solid`
-  and uses it only for initialisers — a daslang-side issue to file after measuring
-  the decoder `-std` cases.
+  and uses it only for initialisers.  Filed with a pure repro (loop with an opaque
+  call reading two globals vs a local copy: aot 4.1×, `-jit` 2.2×, `-exe` 2.6×, and
+  the generated `das_global<T,mnh>` line) as
+  [lookibed/daScript#5](https://github.com/lookibed/daScript/issues/5); the decoder
+  `-std` cases are still to be measured for it.
 
 ### 2. `musttail`: drop it with a source-located warning (`-Wmust-tail`).
 
@@ -205,8 +208,13 @@ Per dispatch: C `-O2` 1.34 ns; aot 2.14 (+0.80); `-exe` 4.05 (+2.72); `-jit` 4.2
 - **daslang side**: no tail-call notion at all.  `LLVMSetTailCallKind` is bound
   (`modules/dasLLVM/bindings/llvm_func.das`) and never called; the site is
   `make_call` in `llvm_jit.das`, blocked by the epilogue emitted between the call and
-  `ret`.  To be filed on the fork as a proposal (JIT musttail, `[[clang::musttail]]`
-  in the AOT printer, a diagnosed annotation); not a dependency.
+  `ret`.  Filed as [lookibed/daScript#4](https://github.com/lookibed/daScript/issues/4)
+  with two pure repros (an 8-handler indirect dispatch chain: interp exception and
+  `-jit`/`-exe` SIGSEGV at 100 000, aot fine at 10 000 000 with 7 sibling calls in its
+  object against 0 in `-exe`'s; and direct self recursion, which LLVM's own
+  tail-recursion elimination handles under `-jit`/aot while the interpreter
+  segfaults natively at 1 000 000 despite `options stack`); proposals: JIT musttail,
+  `[[clang::musttail]]` in the AOT printer, a diagnosed annotation.  Not a dependency.
 - **Work**: `Attribute::MustTail` is parsed and read nowhere.  Add
   `Diagnostic::MustTail` and warn at the drop site with the statement span; louder
   wording when the attributed call is self- or SCC-recursive.  Correct
