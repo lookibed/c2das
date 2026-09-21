@@ -2,7 +2,7 @@
 //! Pipeline: C statements → CfgBuilder → Cfg → relooper → structures → DaStmt
 
 use crate::c_ast::*;
-use crate::diagnostics::TranslationResult;
+use crate::diagnostics::{diag, Diagnostic, TranslationResult};
 use crate::translator::*;
 use crate::with_stmts::WithStmts;
 use crate::translator::value_lowering::ValueSite;
@@ -376,6 +376,36 @@ struct CfgBuilder {
     prelude: Vec<DaStmt>,
     currently_live: Vec<IndexSet<CDeclId>>,
     next: u64,
+}
+
+/// The name of the function a `__attribute__((musttail)) return f(…);`
+/// statement calls, when the callee is a direct reference to a declared
+/// function.  `musttail` also accepts an indirect call (wasm3's dispatch is
+/// one), and for those there is no name to report; nothing here resolves a
+/// call target, so a `None` means "not a plain direct call", never "not
+/// recursive".
+fn direct_tail_callee(ast_context: &TypedAstContext, substatement: CStmtId) -> Option<&str> {
+    let CStmtKind::Return(Some(value)) = ast_context[substatement].kind else {
+        return None;
+    };
+    // `musttail` requires the callee's return type to match the caller's, so
+    // a conversion cannot appear between the two; parentheses and the
+    // lvalue-to-rvalue step can.
+    let mut expr = value;
+    loop {
+        match ast_context[expr].kind {
+            CExprKind::Paren(_, inner) => expr = inner,
+            CExprKind::ImplicitCast(_, inner, CastKind::LValueToRValue, _, _) => expr = inner,
+            _ => break,
+        }
+    }
+    let CExprKind::Call(_, callee, _) = ast_context[expr].kind else {
+        return None;
+    };
+    match ast_context.fn_declref_decl(callee) {
+        Some(CDeclKind::Function { name, .. }) => Some(name),
+        _ => None,
+    }
 }
 
 /// A WIP block under construction.
@@ -990,6 +1020,9 @@ impl CfgBuilder {
             // call.  Both are therefore dropped and the substatement is
             // converted on its own — with `musttail` the generated module
             // recurses where the C program iterated (see `Attribute::MustTail`).
+            // Dropping a guarantee is not free, so this is the one drop that
+            // reports itself: `-Wmust-tail`, once per attributed statement,
+            // with that statement's own source location.
             // An attribute this translator does not model reaches the user as a
             // source-located diagnostic instead.
             CStmtKind::Attributed {
@@ -1007,6 +1040,39 @@ impl CfgBuilder {
                     ));
                 }
                 let substatement = *substatement;
+                if attributes.contains(&Attribute::MustTail) {
+                    let location = tr
+                        .ast_context
+                        .display_loc(&tr.ast_context[sid].loc)
+                        .map(|loc| loc.to_string())
+                        .unwrap_or_else(|| "<no source location>".to_owned());
+                    // Self-recursion is the shape whose depth the C program
+                    // itself does not bound, and it costs one decl lookup to
+                    // see.  Mutual recursion needs an SCC over the call graph
+                    // and is deliberately not reported.
+                    let enclosing = tr.function_context.borrow().get_name().to_owned();
+                    let self_recursive =
+                        direct_tail_callee(&tr.ast_context, substatement) == Some(&enclosing);
+                    if self_recursive {
+                        diag!(
+                            Diagnostic::MustTail,
+                            "{}: musttail dropped: daslang gives no tail-call guarantee; \
+                             this return will recurse where C iterated (stack depth is bounded \
+                             by the run mode) — self-recursive tail call into `{}`: the \
+                             recursion depth is unbounded",
+                            location,
+                            enclosing,
+                        );
+                    } else {
+                        diag!(
+                            Diagnostic::MustTail,
+                            "{}: musttail dropped: daslang gives no tail-call guarantee; \
+                             this return will recurse where C iterated (stack depth is bounded \
+                             by the run mode)",
+                            location,
+                        );
+                    }
+                }
                 self.convert_stmt(tr, ctx, substatement, in_tail, entry, ret_ty)
             }
 

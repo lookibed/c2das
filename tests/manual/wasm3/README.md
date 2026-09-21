@@ -79,13 +79,19 @@ wasm3 dispatches one opcode to the next by returning into it —
 optimisation, so it holds at `-O0` as well: an op ends in `jmp *%rax` at both `-O0` and
 `-O2`, and the native stack stays flat across a dispatch.
 
-Without it (`-DM3_HAS_TAIL_CALL=0`, which empties `M3_MUSTTAIL` and clears
-`M3_GUARANTEED_TAIL_CALL`) the same op ends in `call *%rax` and returns, so the native
-stack grows with the *Wasm call depth* times the ops executed per function body — not with
-the total ops executed, because a Wasm return unwinds the whole chain behind it.  `fib` at
-n = 24 nests 24 Wasm frames of roughly a dozen ops, a few tens of KiB of native stack, so
-all four combinations of `-O0`/`-O2` and tail calls on/off run the fixture correctly.  What
-is lost without the guarantee is `return_call` being iterative, which these fixtures do not
+What the attribute is worth depends entirely on the optimisation level, and only `-O0`
+needs it.  Measured on the two objects (`docs/followups/translator_gaps_wasm3.md`,
+decision 2): at `-O2` clang sibling-calls **all 474 dispatch sites with or without the
+attribute** — 474 indirect `jmp` in both objects — so `-DM3_HAS_TAIL_CALL=0` (which
+empties `M3_MUSTTAIL` and clears `M3_GUARANTEED_TAIL_CALL`) changes neither the
+instruction nor the flatness of the native stack there.  At `-O0` without the attribute
+the same op ends in `call *%rax` and returns: 0 indirect `jmp` against 479 indirect
+`call`.  Where the call sequence does grow the stack, it grows with the *Wasm call
+depth* times the ops executed per function body — not with the total ops executed,
+because a Wasm return unwinds the whole chain behind it.  `fib` at n = 24 nests 24 Wasm
+frames of roughly a dozen ops, a few tens of KiB of native stack, so all four
+combinations of `-O0`/`-O2` and tail calls on/off run the fixture correctly.  What is
+lost without the guarantee is `return_call` being iterative, which these fixtures do not
 use.
 
 Under `m3_host_none.h`, `m3_HostStackBase()` answers NULL, so nothing measures the real
@@ -105,6 +111,17 @@ interpreter around `fib(20)` (1 MiB is enough for `fib(24)`; the other modes rec
 native stack and ignore the option).  `docs/followups/translator_gaps_wasm3.md` records what
 the translation exposed, the per-mode measurements and the two daslang-side issues that are
 avoided translator-side.
+
+The translation prints **489 `-Wmust-tail` warnings** and that is expected, not a
+regression: daslang has no tail-call notion, so every `M3_MUSTTAIL return` is dropped and
+each drop reports itself once, with the source location of the statement it dropped it
+from.  The 489 statements share only 204 distinct locations because wasm3 builds its ops
+out of macros in `upstream/wasm3/source/m3_exec.h` (488 of the warnings) and
+`m3_exec_defs.h` (1), and every expansion of one macro reports that macro's line.  The
+dispatch keeps working — a dropped `musttail` changes how deep the run goes, never what it
+computes — which is why the case runs byte-identically in all four modes and why it
+declares `stack = 4194304`.  `-Wno-must-tail` silences the warnings when the noise is in
+the way; it changes nothing about the output.
 
 What follows is the record of the first attempt, kept because each stop became a canonical
 case.  At that time `src/all_host.c` did not translate.  The first stop was a translator

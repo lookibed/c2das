@@ -17,7 +17,11 @@
  * the recursion here is shallow on purpose; an interpreter that relies on
  * `musttail` to run an unbounded instruction stream in constant stack would
  * not survive translation, and that is a known limit, not a bug this case
- * hides.
+ * hides.  Dropping the guarantee is therefore reported: each of the five
+ * attributed statements below produces one `-Wmust-tail` warning carrying its
+ * own source location, and `countdown`'s says that the tail call is
+ * self-recursive.  `diagnostic_tests.rs` pins the wording and the
+ * `-Wno-must-tail` spelling that silences it.
  *
  * An attribute the translator does not model is a source-located
  * `TranslationError` instead; `n09-unknown-statement-attribute` pins that.

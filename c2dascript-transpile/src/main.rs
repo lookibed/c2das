@@ -1,5 +1,9 @@
+use std::collections::HashSet;
 use std::env;
 use std::path::Path;
+use std::str::FromStr;
+
+use c2dascript_transpile::Diagnostic;
 
 fn main() {
     let mut args: Vec<String> = env::args().skip(1).collect();
@@ -7,7 +11,7 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--public-module] [--das-option <text>]... [--libc nostd|std|ffi|all] [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--public-module] [--das-option <text>]... [--libc nostd|std|ffi|all] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
@@ -22,6 +26,9 @@ fn main() {
     while let Some(option) = take_option(&mut args, "--das-option") {
         das_options.push(option.to_string_lossy().into_owned());
     }
+    // The translator's own diagnostic switches, e.g. `-Wno-must-tail`.  Every
+    // other `-W…` argument is clang's and is left in `args`.
+    let (enabled_warnings, disabled_warnings) = take_warning_switches(&mut args);
     // Which libc entry points the translated module may call. `nostd` is the
     // default and the only mode that is fully implemented besides `std`.
     let libc = match take_value(&mut args, "--libc") {
@@ -72,6 +79,8 @@ fn main() {
         public_module,
         das_options,
         libc,
+        enabled_warnings,
+        disabled_warnings,
     };
 
     let path = Path::new(&args[0]);
@@ -120,6 +129,45 @@ fn take_flag(args: &mut Vec<String>, flag: &str) -> bool {
     } else {
         false
     }
+}
+
+/// Diagnostic names that clang spells as a `-W` warning of its own.  An
+/// argument with one of these names belongs to the C compiler and is
+/// forwarded untouched: swallowing `-Wall` here would change how the input is
+/// parsed without saying so.  The translator's remaining diagnostics have
+/// names no clang warning uses.
+const CLANG_SHADOWED_DIAGNOSTICS: &[&str] = &["all", "comments"];
+
+/// Removes the translator's own `-W<name>` / `-Wno-<name>` switches and
+/// returns the enabled and the disabled set.  Every other `-W…` argument
+/// stays in `args` and reaches clang.
+fn take_warning_switches(args: &mut Vec<String>) -> (HashSet<Diagnostic>, HashSet<Diagnostic>) {
+    let mut enabled = HashSet::new();
+    let mut disabled = HashSet::new();
+    args.retain(|arg| {
+        let Some(name) = arg.strip_prefix("-W") else {
+            return true;
+        };
+        let (name, enable) = match name.strip_prefix("no-") {
+            Some(rest) => (rest, false),
+            None => (name, true),
+        };
+        if CLANG_SHADOWED_DIAGNOSTICS.contains(&name) {
+            return true;
+        }
+        match Diagnostic::from_str(name) {
+            Ok(diagnostic) => {
+                if enable {
+                    enabled.insert(diagnostic);
+                } else {
+                    disabled.insert(diagnostic);
+                }
+                false
+            }
+            Err(_) => true,
+        }
+    });
+    (enabled, disabled)
 }
 
 fn take_option(args: &mut Vec<String>, option: &str) -> Option<std::path::PathBuf> {

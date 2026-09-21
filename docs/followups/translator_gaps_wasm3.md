@@ -215,12 +215,17 @@ Per dispatch: C `-O2` 1.34 ns; aot 2.14 (+0.80); `-exe` 4.05 (+2.72); `-jit` 4.2
   tail-recursion elimination handles under `-jit`/aot while the interpreter
   segfaults natively at 1 000 000 despite `options stack`); proposals: JIT musttail,
   `[[clang::musttail]]` in the AOT printer, a diagnosed annotation.  Not a dependency.
-- **Work**: `Attribute::MustTail` is parsed and read nowhere.  Add
-  `Diagnostic::MustTail` and warn at the drop site with the statement span; louder
-  wording when the attributed call is self- or SCC-recursive.  Correct
-  `tests/manual/wasm3/README.md` (the `call *%rax` claim holds at `-O0` only) and
-  record the depth table and the 4 MiB ceiling next to `das_options` in
-  `docs/corpus-build-recipe.md`.
+- **Work** (done): `Diagnostic::MustTail` is a default-on warning emitted at the drop
+  site in `cfg::CfgBuilder::convert_stmt`, once per attributed statement, with that
+  statement's source location; a *direct* self-recursive tail call says so (mutual
+  recursion does not — no call-graph SCC is computed).  `-Wno-must-tail` switches it
+  off (`TranspilerConfig::disabled_warnings`; a `-W…` name the translator does not
+  own still reaches clang).  wasm3 reports 489 drops over 204 distinct locations —
+  its ops are macro expansions.  `p74-musttail-return` and
+  `c2dascript-transpile/tests/diagnostic_tests.rs` pin the wording, the per-statement
+  count and the off switch.  `tests/manual/wasm3/README.md` (the `call *%rax` claim
+  holds at `-O0` only) and the depth table plus the 4 MiB ceiling in
+  `docs/corpus-build-recipe.md` are corrected.
 
 ### 3. `va_list` parameters: keep by-reference; fix two live defects; escape check.
 

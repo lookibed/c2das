@@ -162,6 +162,12 @@ pub struct TranspilerConfig {
     /// Which libc entry points this translation unit may call (`--libc`).
     /// See [`LibcMode`]; `nostd` is the default and leaves output unchanged.
     pub libc: LibcMode,
+    /// Translator diagnostics switched on beyond the default set
+    /// (`-W<name>`); [`Diagnostic::All`] switches on every one of them.
+    pub enabled_warnings: HashSet<Diagnostic>,
+    /// Translator diagnostics switched off (`-Wno-<name>`). A name here wins
+    /// over both the default set and `-Wall`.
+    pub disabled_warnings: HashSet<Diagnostic>,
 }
 
 /// AST-level inventory for target-specific C surfaces.  These counts are
@@ -232,6 +238,8 @@ impl Default for TranspilerConfig {
             public_module: false,
             das_options: vec![],
             libc: LibcMode::NoStd,
+            enabled_warnings: HashSet::new(),
+            disabled_warnings: HashSet::new(),
         }
     }
 }
@@ -280,7 +288,11 @@ pub fn transpile(
     cc_db: &Path,
     extra_clang_args: &[&str],
 ) -> Result<Vec<PathBuf>, Vec<TranspileError>> {
-    diagnostics::init(HashSet::new(), tcfg.log_level);
+    diagnostics::init(
+        tcfg.enabled_warnings.clone(),
+        tcfg.disabled_warnings.clone(),
+        tcfg.log_level,
+    );
 
     let lcmds = match get_compile_commands(cc_db, &tcfg.filter) {
         Ok(l) => l,
@@ -318,7 +330,11 @@ pub fn transpile_checked(
     cc_db: &Path,
     extra_clang_args: &[&str],
 ) -> Result<Vec<PathBuf>, TranspileError> {
-    diagnostics::init(HashSet::new(), tcfg.log_level);
+    diagnostics::init(
+        tcfg.enabled_warnings.clone(),
+        tcfg.disabled_warnings.clone(),
+        tcfg.log_level,
+    );
     let lcmds = get_compile_commands(cc_db, &tcfg.filter)
         .map_err(|error| TranspileError::CompileCommands(error.to_string()))?;
     let mut outputs = Vec::new();

@@ -12,7 +12,9 @@ use strum_macros::{Display, EnumString};
 use crate::c_ast::{ClangAstParseErrorKind, DisplaySrcSpan};
 use c2rust_ast_exporter::get_clang_major_version;
 
-const DEFAULT_WARNINGS: &[Diagnostic] = &[Diagnostic::ClangAst];
+/// Diagnostics that are on unless the caller switches them off: a dropped C
+/// guarantee must reach the user without being asked for.
+const DEFAULT_WARNINGS: &[Diagnostic] = &[Diagnostic::ClangAst, Diagnostic::MustTail];
 
 #[derive(PartialEq, Eq, Hash, Debug, Display, EnumString, Clone)]
 #[strum(serialize_all = "kebab-case")]
@@ -20,6 +22,10 @@ pub enum Diagnostic {
     All,
     Comments,
     ClangAst,
+    /// `__attribute__((musttail))` was dropped: the translation keeps what the
+    /// attributed `return` *means* and loses the machine tail call it demands.
+    /// See `cfg::CfgBuilder::convert_stmt`, `CStmtKind::Attributed`.
+    MustTail,
 }
 
 macro_rules! diag {
@@ -28,8 +34,21 @@ macro_rules! diag {
 
 pub(crate) use diag;
 
-pub fn init(mut enabled_warnings: HashSet<Diagnostic>, log_level: log::LevelFilter) {
+/// Install the translator's logger.
+///
+/// `enabled_warnings` switches on diagnostics that are off by default,
+/// `disabled_warnings` switches off diagnostics that are on by default —
+/// including the ones `DEFAULT_WARNINGS` and `Diagnostic::All` turn on, so
+/// that an explicit `-Wno-<name>` always wins over a blanket enable.
+pub fn init(
+    mut enabled_warnings: HashSet<Diagnostic>,
+    disabled_warnings: HashSet<Diagnostic>,
+    log_level: log::LevelFilter,
+) {
     enabled_warnings.extend(DEFAULT_WARNINGS.iter().cloned());
+    for disabled in &disabled_warnings {
+        enabled_warnings.remove(disabled);
+    }
 
     let colors = ColoredLevelConfig::new();
     let (max_level, logger) = fern::Dispatch::new()
@@ -55,12 +74,15 @@ pub fn init(mut enabled_warnings: HashSet<Diagnostic>, log_level: log::LevelFilt
         })
         .level(log_level)
         .filter(move |metadata| {
-            if enabled_warnings.contains(&Diagnostic::All) {
+            // A record whose target is not a diagnostic name is ordinary
+            // logging and is governed by the level alone.
+            let Ok(diagnostic) = Diagnostic::from_str(metadata.target()) else {
                 return true;
+            };
+            if disabled_warnings.contains(&diagnostic) {
+                return false;
             }
-            Diagnostic::from_str(metadata.target())
-                .map(|d| enabled_warnings.contains(&d))
-                .unwrap_or(true)
+            enabled_warnings.contains(&Diagnostic::All) || enabled_warnings.contains(&diagnostic)
         })
         .chain(io::stderr())
         .into_log();

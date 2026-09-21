@@ -270,6 +270,27 @@ call per executed opcode on the simulated stack, and daslang's default overflows
 translation unit `src/all_host_bench.c` (`-std=c11 -Iinclude -Iupstream/wasm3/source -Isrc`),
 and its "frames" are the seven `fib[n]=` lines.
 
+**4 MiB is a ceiling, not a starting point.**  The translation drops wasm3's
+`__attribute__((musttail))` (`-Wmust-tail`, 489 warnings on this graph), so a dispatch
+chain that iterated in C recurses here, and how deep a run may go is a per-mode fact.
+Measured on plain wasm recursion with an 8 MiB native stack
+(`docs/followups/translator_gaps_wasm3.md`, decision 2):
+
+| mode | `n_max` | bytes per wasm frame |
+|---|---|---|
+| C `-O2` | 130 940 | 64 |
+| aot | 74 774 | 112 |
+| `-exe` | 16 891 | 497 |
+| `-jit` | 15 386 | 545 |
+| interp | 6 704 | 1251 (a catchable daslang exception) |
+
+Only the interpreter's limit is `options stack`'s to give, and it does not give it:
+raising the option from 4 MiB to 32 MiB does **not** raise the interpreter's `n_max` and
+turns its catchable exception into a SIGSEGV.  `stack = 4194304` must therefore not be
+raised — a larger value buys no depth and converts a diagnosable overflow into a crash.
+The compiled modes recurse on the native stack and answer to `ulimit -s` instead
+(doubling it doubles `-exe`'s `n_max` exactly).
+
 The embedded-sample cases follow the same steps with no program argument; the h264bsd cases
 use the graph `src/all.c` = `shim.c` + `h264bsd.c` + `minimp4.c` + `module.c` and the
 `h264mp4_frames_*` probes.
