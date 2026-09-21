@@ -506,7 +506,7 @@ impl<'c> Translation<'c> {
         let call = if let Some(function) = runtime {
             mk().call_expr(DaExpr::Var(function.target_name().to_owned()), das_args)
         } else if let Some(function) = std_libc {
-            let helper = self.require_std_function(function)?;
+            let helper = self.require_std_function(function, func)?;
             mk().call_expr(DaExpr::Var(helper.to_owned()), das_args)
         } else if indirect_callee.is_some() {
             // `invoke` is daScript's call-through-a-function-value operator.

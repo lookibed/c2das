@@ -839,6 +839,11 @@
       "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "n09_unknown_statement_attribute.c", "cause": "unsupported statement attribute: nomerge" }, "runtime": "not-applicable"
     },
     {
+      "id": "n11-std-unsupported-libc-consumer", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n11_std_unsupported_libc_consumer.c", "c_graph": "single-tu", "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "n11_std_unsupported_libc_consumer.c", "cause": "unsupported external call: strerror_l" }, "runtime": "not-applicable"
+    },
+    {
       "id": "p75-va-list-parameter", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p75_va_list_parameter.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "va_list_parameter_runtime", "return_type": "int" }, "das_entrypoint": "va_list_parameter_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
     },
@@ -948,6 +953,103 @@
       "id": "n10-va-list-address-escapes", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n10_va_list_address_escapes.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "n10_va_list_address_escapes.c", "cause": "va_list address escapes its frame: the address of a va_list object may only be passed directly as a call argument" }, "runtime": "not-applicable"
+    },
+    {
+      "id": "p89-std-errno-idioms",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p89_std_errno_idioms.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "over=9223372036854775807 erange=1\nok=42 errno=0\nsticky=34 same=1\nsaved=0 clobbered=34 restored=0\nstable=1\nthrough_ptr=13\nthrough_macro=21\nbase37=0 einval=1\nuover=18446744073709551615 erange=1\nreread=5\nkept_ptr=1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p90-std-errno-real-headers",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p90_std_errno_real_headers.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "over=9223372036854775807 erange=1 ERANGE=34 EINVAL=22 ENOMEM=12\nbase37=0 einval=1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p91-std-strerror-perror",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p91_std_strerror_perror.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "1=[Operation not permitted]\n2=[No such file or directory]\n4=[Interrupted system call]\n5=[Input/output error]\n9=[Bad file descriptor]\n11=[Resource temporarily unavailable]\n12=[Cannot allocate memory]\n13=[Permission denied]\n16=[Device or resource busy]\n17=[File exists]\n21=[Is a directory]\n22=[Invalid argument]\n28=[No space left on device]\n29=[Illegal seek]\n34=[Numerical result out of range]\n75=[Value too large for defined data type]\nunknown=[Unknown error 4242]\nfailed=1 saved=2 text=[No such file or directory]\nafter_strerror=1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p92-std-stream-error-flags",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p92_std_stream_error_flags.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "write_err=0\nfresh eof=0 err=0 errno=0\ngot=8 eof=0 err=0\ngot=2 eof=1 err=0\ngot=0 eof=1 err=0\ncleared eof=0 err=0\nbefore_close err=0\nstdout eof=0 err=0\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p93-std-fopen-errno",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p93_std_fopen_errno.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p93_std_fopen_errno.c"],
+      "expected": {
+        "stdout": "missing null=1 enoent=1\nbadmode null=1 einval=1\ndir_write null=1 eisdir=1\nopened=1 kept=1\nclosed=1 kept=1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p94-std-va-forward-libc",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p94_std_va_forward_libc.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "n=7 buf=[7/mid/9]\nbuf=[11] tail=22\na=[11] b=[22]\none=[31] two=[31]\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
     },
     {
       "id": "wasm3-fib32-std",

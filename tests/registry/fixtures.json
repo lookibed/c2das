@@ -3529,6 +3529,36 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "n11-std-unsupported-libc-consumer",
+      "canonical_cases": [
+        "n11-std-unsupported-libc-consumer"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "unsupported external call: strerror_l",
+          "location": "n11_std_unsupported_libc_consumer.c",
+          "operation": "top-level declaration lowering",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n11_std_unsupported_libc_consumer",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n11_std_unsupported_libc_consumer.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-p01-ptr-deref",
       "canonical_cases": [
         "legacy-p01-ptr-deref"
@@ -5994,6 +6024,174 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p88_va_list_forwarding_chain.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p89-std-errno-idioms",
+      "canonical_cases": [
+        "p89-std-errno-idioms"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "over=9223372036854775807 erange=1\nok=42 errno=0\nsticky=34 same=1\nsaved=0 clobbered=34 restored=0\nstable=1\nthrough_ptr=13\nthrough_macro=21\nbase37=0 einval=1\nuover=18446744073709551615 erange=1\nreread=5\nkept_ptr=1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p89_std_errno_idioms",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p89_std_errno_idioms.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p90-std-errno-real-headers",
+      "canonical_cases": [
+        "p90-std-errno-real-headers"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "over=9223372036854775807 erange=1 ERANGE=34 EINVAL=22 ENOMEM=12\nbase37=0 einval=1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p90_std_errno_real_headers",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p90_std_errno_real_headers.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p91-std-strerror-perror",
+      "canonical_cases": [
+        "p91-std-strerror-perror"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "1=[Operation not permitted]\n2=[No such file or directory]\n4=[Interrupted system call]\n5=[Input/output error]\n9=[Bad file descriptor]\n11=[Resource temporarily unavailable]\n12=[Cannot allocate memory]\n13=[Permission denied]\n16=[Device or resource busy]\n17=[File exists]\n21=[Is a directory]\n22=[Invalid argument]\n28=[No space left on device]\n29=[Illegal seek]\n34=[Numerical result out of range]\n75=[Value too large for defined data type]\nunknown=[Unknown error 4242]\nfailed=1 saved=2 text=[No such file or directory]\nafter_strerror=1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p91_std_strerror_perror",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p91_std_strerror_perror.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p92-std-stream-error-flags",
+      "canonical_cases": [
+        "p92-std-stream-error-flags"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "write_err=0\nfresh eof=0 err=0 errno=0\ngot=8 eof=0 err=0\ngot=2 eof=1 err=0\ngot=0 eof=1 err=0\ncleared eof=0 err=0\nbefore_close err=0\nstdout eof=0 err=0\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p92_std_stream_error_flags",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p92_std_stream_error_flags.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p93-std-fopen-errno",
+      "canonical_cases": [
+        "p93-std-fopen-errno"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "missing null=1 enoent=1\nbadmode null=1 einval=1\ndir_write null=1 eisdir=1\nopened=1 kept=1\nclosed=1 kept=1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p93_std_fopen_errno",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p93_std_fopen_errno.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p94-std-va-forward-libc",
+      "canonical_cases": [
+        "p94-std-va-forward-libc"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "n=7 buf=[7/mid/9]\nbuf=[11] tail=22\na=[11] b=[22]\none=[31] two=[31]\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p94_std_va_forward_libc",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p94_std_va_forward_libc.c",
       "status": "supported"
     },
     {

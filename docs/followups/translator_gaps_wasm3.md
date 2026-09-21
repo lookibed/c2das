@@ -295,3 +295,64 @@ Per dispatch: C `-O2` 1.34 ns; aot 2.14 (+0.80); `-exe` 4.05 (+2.72); `-jit` 4.2
   as "statement expression has no final value" and gates SQLite.
 
 Nothing on this page is now undecided.  The open items are the work lists above.
+
+## Status 2026-09-21: decision 4 implemented, with the std part of decision 3
+
+The `errno` work list above is done, and with it the shim half of decision 3.
+Canonical cases `p89`–`p94` and `n11`; every one of them is the C program's own
+output as the oracle.
+
+- **The cell** (`libc.rs build_cell_alloc`, `build_errno_cell`).  Allocated
+  eagerly in the module's globals — the raw-memory runtime's own globals are
+  declared ahead of the std prelude, so the arena is usable at that point — and
+  `c2da_std_errno_location()` is now a getter with no branch.  The arena cannot
+  hand out four bytes only if a 64 MiB reserve is exhausted at start-up, which
+  is not a state a C program can be handed a null `errno` for: the allocator
+  panics instead, because the *read* happens in the translated C, where the
+  translator can no longer guard.  Case `p89` (the ten idioms), `p90` (the same
+  unit through the system's own `<errno.h>`).
+- **The numbering is a target fact** (`ErrnoNumbering`, in `StdLayout`).  The
+  discriminator is the Clang-exported target triple, which the pipeline already
+  carries as `TypedAstContext::target`; `ErrnoNumbering::of_target` answers
+  `AsmGeneric` for Linux except the four architectures with a numbering of their
+  own (alpha, mips, parisc, sparc), and `Unknown` otherwise.  A `std` helper
+  that has to write a code for an `Unknown` target is refused at
+  `require_std_function` with the C call's own source location.  `strerror`'s
+  catalogue is shipped explicitly as glibc's, in `STRERROR_CATALOGUE`.
+- **The std `FILE`'s own state.**  The std `FILE *` is unchanged — the daslib
+  handle, reinterpreted — and what C carries and daslib does not (a sticky error
+  indicator, one `ungetc` byte, a descriptor number) lives in a side table keyed
+  by that address.  `clearerr` clears the host's end-of-file the way C itself
+  guarantees, by seeking to the current position, since daslib exposes no
+  `clearerr`.  Case `p92`, including Lua's `clearerr(f); errno = 0;` prologue
+  and the `ferror` sample taken before `fclose`.
+- **Grown table**: `strerror`, `perror`, `feof`, `ferror`, `clearerr`,
+  `getenv`, `strtod`/`strtold`/`strtof`, `remove`, `rename`, `fgets`,
+  `fgetc`/`getc`, `fputc`/`putc`, `ungetc`, `rewind`, `fileno`, `vprintf`,
+  `vfprintf`.  `fopen` now says *why* it failed (`ENOENT`/`EISDIR`/`EACCES`,
+  from `fexist`/`stat`), `fseek` reports the two `EINVAL` cases it can decide,
+  `fclose` reports `EBADF`, and `fread`/`fwrite` raise the sticky error flag.
+  Cases `p91` and `p93`.
+- **The v-shims take the cursor by reference** (decision 3's shim half).
+  `c2da_std_vformat`'s start index is `var start : int&` and every `v*` shim
+  writes the advance back, so forwarding to libc is the same shared-cursor model
+  as forwarding to translated C.  Found on the way, and worth recording next to
+  the ABI decision: in daScript `var x : int` is a *mutable copy*, and only
+  `int&` is the caller's slot — a `var` record parameter aliases, a `var` scalar
+  one does not, and neither does a field of a `var` record passed on its own.
+  Case `p94` (gap-3 idioms i10, i18, i19, plus `va_copy`).
+
+Known divergences, deliberate and documented at their helpers: `strtod` does not
+report `ERANGE` for a result that rounds to a *subnormal* (the format cannot
+tell afterwards, and daslang's `to_double` answers zero for both overflow and
+underflow, so the direction comes from the parsed decimal exponent); hexadecimal
+floating constants and `inf`/`nan` are refused, at translation time for a
+literal subject and by panic for a computed one; `fileno` answers a synthetic
+descriptor for a stream that is not one of the three standard ones, the host's
+being unreachable from daslib.
+
+With that, nothing on this page is open: decision 1 needs no translator work,
+decision 2's `-Wmust-tail` warning and decision 3's `va_start` rewind, `va_end`
+poison and escape check landed in the same day's commits (cases `p86`–`p88`,
+`n10`).  What remains are the two daslang-side issues on the fork (#4 tail calls,
+#5 global reads in AOT), which nothing here depends on.

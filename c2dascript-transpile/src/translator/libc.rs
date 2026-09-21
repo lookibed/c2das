@@ -40,13 +40,16 @@ thread_local! {
 /// `pointer` is the layout of a C data pointer — an `argv` slot, and the
 /// alignment every raw block the helpers allocate is rounded to. `timespec`
 /// is the byte offset and width of `struct timespec`'s two fields, in the
-/// order C declares them, and is only consulted by `clock_gettime`.
+/// order C declares them, and is only consulted by `clock_gettime`. `errno`
+/// is the target's `errno` numbering, which is as much a target fact as the
+/// pointer width and is discovered the same way.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct StdLayout {
     pointer_size: u64,
     pointer_align: u64,
     timespec_sec: (u64, u64),
     timespec_nsec: (u64, u64),
+    errno: ErrnoNumbering,
 }
 
 impl StdLayout {
@@ -61,11 +64,117 @@ impl StdLayout {
         pointer_align: 0,
         timespec_sec: (0, 0),
         timespec_nsec: (0, 0),
+        errno: ErrnoNumbering::Unknown,
     };
+}
+
+/// The `errno` numbering of the translation unit's target.
+///
+/// A C program takes its `ERANGE` from its own `<errno.h>`; the helper side
+/// has to produce the same integers, and which integers those are is a
+/// property of the target, not of glibc. One numbering is implemented:
+/// Linux's `asm-generic` UAPI values, which every Linux architecture except
+/// alpha, mips, parisc and sparc uses. A target whose numbering this
+/// translator does not know refuses the helpers that would have to write a
+/// code, with a source-located diagnostic, rather than writing a wrong one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ErrnoNumbering {
+    Unknown,
+    AsmGeneric,
+}
+
+/// The `errno` codes the std helpers report. The set is closed: a helper that
+/// needs a code names it here, and the numbering translates it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Errno {
+    Eperm,
+    Enoent,
+    Eintr,
+    Eio,
+    Ebadf,
+    /// `EAGAIN` and `EWOULDBLOCK` are the same value on Linux.
+    Eagain,
+    Enomem,
+    Eacces,
+    Ebusy,
+    Eexist,
+    Eisdir,
+    Einval,
+    Enospc,
+    Espipe,
+    Erange,
+    Eoverflow,
+}
+
+impl ErrnoNumbering {
+    /// The target's value for `code`.
+    ///
+    /// `Unknown` never reaches a helper body: `require_std_function` refuses
+    /// every helper that writes or reads a code before one can be built (see
+    /// `StdFunction::needs_errno_numbering`), exactly as `build` refuses a
+    /// name that is not in the table.
+    fn code(self, code: Errno) -> i64 {
+        match self {
+            Self::Unknown => {
+                unreachable!("--libc std: an errno-carrying helper was built for an unknown target")
+            }
+            // Linux UAPI `asm-generic/errno-base.h` and `asm-generic/errno.h`.
+            Self::AsmGeneric => match code {
+                Errno::Eperm => 1,
+                Errno::Enoent => 2,
+                Errno::Eintr => 4,
+                Errno::Eio => 5,
+                Errno::Ebadf => 9,
+                Errno::Eagain => 11,
+                Errno::Enomem => 12,
+                Errno::Eacces => 13,
+                Errno::Ebusy => 16,
+                Errno::Eexist => 17,
+                Errno::Eisdir => 21,
+                Errno::Einval => 22,
+                Errno::Enospc => 28,
+                Errno::Espipe => 29,
+                Errno::Erange => 34,
+                Errno::Eoverflow => 75,
+            },
+        }
+    }
+
+    /// The numbering a Clang target triple implies, or `Unknown`.
+    ///
+    /// The Clang facts carry the triple the unit was parsed for
+    /// (`TypedAstContext::target`), which is the authoritative discriminator;
+    /// the architectures Linux gives a numbering of its own are named rather
+    /// than assumed away.
+    fn of_target(triple: &str) -> Self {
+        let mut parts = triple.split('-');
+        let arch = parts.next().unwrap_or_default();
+        let is_linux = triple.split('-').any(|part| part.starts_with("linux"));
+        let own_numbering = matches!(arch, "alpha")
+            || arch.starts_with("mips")
+            || arch.starts_with("sparc")
+            || arch.starts_with("hppa")
+            || arch.starts_with("parisc");
+        if is_linux && !own_numbering {
+            Self::AsmGeneric
+        } else {
+            Self::Unknown
+        }
+    }
 }
 
 fn layout() -> StdLayout {
     LAYOUT.with(|facts| facts.get())
+}
+
+/// The target's integer for an `errno` code, as a daScript `int` constant.
+fn errno_const(code: Errno) -> DaExpr {
+    DaExpr::ConstInt(layout().errno.code(code))
+}
+
+/// `c2da_std_set_errno(<code>)` — the one way a helper writes the cell.
+fn set_errno(code: Errno) -> DaStmt {
+    DaStmt::Expr(call(SET_ERRNO, vec![errno_const(code)]))
 }
 
 /// Module names the std prelude stands on. They are added to the generated
@@ -120,8 +229,24 @@ const STRTOLL: &str = "c2da_std_strtoll";
 const STRTOULL: &str = "c2da_std_strtoull";
 const ATOI: &str = "c2da_std_atoi";
 const ERRNO_CELL: &str = "c2da_std_errno_cell";
+const CELL_ALLOC: &str = "c2da_std_cell_alloc";
 const ERRNO_LOCATION: &str = "c2da_std_errno_location";
 const SET_ERRNO: &str = "c2da_std_set_errno";
+const GET_ERRNO: &str = "c2da_std_get_errno";
+const STRERROR: &str = "c2da_std_strerror";
+const STRERROR_TEXT: &str = "c2da_std_strerror_text";
+const PERROR: &str = "c2da_std_perror";
+const OWN_TEXT: &str = "c2da_std_own_text";
+const TEXT_CELLS: &str = "c2da_std_text_cells";
+const TEXT_CAPS: &str = "c2da_std_text_caps";
+/// The `c2da_std_own_text` slot each string-returning helper owns. C lets
+/// `strerror` and `getenv` each answer one buffer that the next call to the
+/// *same* function may reuse, so one slot per helper is exactly the contract.
+const TEXT_SLOT_STRERROR: i64 = 0;
+const TEXT_SLOT_GETENV: i64 = 1;
+/// One raw byte the single-byte stream helpers read and write through.
+const IO_BYTE: &str = "c2da_std_io_byte";
+const HUGE: &str = "c2da_std_huge";
 const ABORT: &str = "c2da_std_abort";
 const PUTS: &str = "c2da_std_puts";
 const FPUTS: &str = "c2da_std_fputs";
@@ -129,6 +254,8 @@ const PUTCHAR: &str = "c2da_std_putchar";
 const FPRINTF: &str = "c2da_std_fprintf";
 const SNPRINTF: &str = "c2da_std_snprintf";
 const VSNPRINTF: &str = "c2da_std_vsnprintf";
+const VPRINTF: &str = "c2da_std_vprintf";
+const VFPRINTF: &str = "c2da_std_vfprintf";
 const FWRITE: &str = "c2da_std_fwrite";
 const ISSPACE: &str = "c2da_std_isspace";
 const ISDIGIT: &str = "c2da_std_isdigit";
@@ -140,12 +267,6 @@ const ISPRINT: &str = "c2da_std_isprint";
 const ISXDIGIT: &str = "c2da_std_isxdigit";
 const TOLOWER: &str = "c2da_std_tolower";
 const TOUPPER: &str = "c2da_std_toupper";
-
-/// `errno` values the `strto*` family reports, spelled as glibc defines them
-/// so a translated program's `#include <errno.h>` comparison still matches.
-const ERANGE: i64 = 34;
-const EINVAL: i64 = 22;
-const ENOMEM: i64 = 12;
 
 /// The signed and unsigned magnitude caps the shared `strto*` engine clamps to.
 /// C's `long` is 64 bits on every target this translator supports, so
@@ -170,6 +291,34 @@ const EXIT: &str = "c2da_std_exit";
 const STDOUT: &str = "c2da_std_stdout";
 const STDERR: &str = "c2da_std_stderr";
 const STDIN: &str = "c2da_std_stdin";
+
+// The std `FILE` side table: the state C attaches to a stream that daslib's
+// own handle does not carry (see `build_stream_slot`).
+const STREAM_KEYS: &str = "c2da_std_stream_keys";
+const STREAM_FLAGS: &str = "c2da_std_stream_flags";
+const STREAM_PUSH: &str = "c2da_std_stream_push";
+const STREAM_FD: &str = "c2da_std_stream_fd";
+const STREAM_NEXT_FD: &str = "c2da_std_stream_next_fd";
+const STREAM_SLOT: &str = "c2da_std_stream_slot";
+const STREAM_OPEN: &str = "c2da_std_stream_open";
+const STREAM_FAIL: &str = "c2da_std_stream_fail";
+const STREAM_TAKE_PUSH: &str = "c2da_std_stream_take_push";
+const FEOF: &str = "c2da_std_feof";
+const FERROR: &str = "c2da_std_ferror";
+const CLEARERR: &str = "c2da_std_clearerr";
+const FOPEN_ERRNO: &str = "c2da_std_fopen_errno";
+const PATH_ERRNO: &str = "c2da_std_path_errno";
+const GETENV: &str = "c2da_std_getenv";
+const STRTOD: &str = "c2da_std_strtod";
+const STRTOF: &str = "c2da_std_strtof";
+const REMOVE: &str = "c2da_std_remove";
+const RENAME: &str = "c2da_std_rename";
+const FGETS: &str = "c2da_std_fgets";
+const FGETC: &str = "c2da_std_fgetc";
+const FPUTC: &str = "c2da_std_fputc";
+const UNGETC: &str = "c2da_std_ungetc";
+const REWIND: &str = "c2da_std_rewind";
+const FILENO: &str = "c2da_std_fileno";
 
 /// A C library entry point the `std` policy replaces.
 ///
@@ -209,7 +358,26 @@ pub(crate) enum StdFunction {
     Fprintf,
     Snprintf,
     Vsnprintf,
+    Vprintf,
+    Vfprintf,
     Fwrite,
+    Strerror,
+    Perror,
+    Feof,
+    Ferror,
+    Clearerr,
+    Getenv,
+    /// `strtod`; `strtold` shares it, C's `long double` being `double` here.
+    Strtod,
+    Strtof,
+    Remove,
+    Rename,
+    Fgets,
+    Fgetc,
+    Fputc,
+    Ungetc,
+    Rewind,
+    Fileno,
     Isspace,
     Isdigit,
     Isalpha,
@@ -255,7 +423,25 @@ impl StdFunction {
             Self::Fprintf => FPRINTF,
             Self::Snprintf => SNPRINTF,
             Self::Vsnprintf => VSNPRINTF,
+            Self::Vprintf => VPRINTF,
+            Self::Vfprintf => VFPRINTF,
             Self::Fwrite => FWRITE,
+            Self::Strerror => STRERROR,
+            Self::Perror => PERROR,
+            Self::Feof => FEOF,
+            Self::Ferror => FERROR,
+            Self::Clearerr => CLEARERR,
+            Self::Getenv => GETENV,
+            Self::Strtod => STRTOD,
+            Self::Strtof => STRTOF,
+            Self::Remove => REMOVE,
+            Self::Rename => RENAME,
+            Self::Fgets => FGETS,
+            Self::Fgetc => FGETC,
+            Self::Fputc => FPUTC,
+            Self::Ungetc => UNGETC,
+            Self::Rewind => REWIND,
+            Self::Fileno => FILENO,
             Self::Isspace => ISSPACE,
             Self::Isdigit => ISDIGIT,
             Self::Isalpha => ISALPHA,
@@ -292,6 +478,21 @@ impl StdFunction {
             Self::Fclose | Self::Fflush | Self::Fseek | Self::Ftell => &[0][..],
             Self::Setvbuf => &[0, 1][..],
             Self::ClockGettime => &[1][..],
+            // `strerror` takes an `int`; the string it answers is an address.
+            Self::Strerror => &[][..],
+            Self::Perror | Self::Getenv | Self::Remove => &[0][..],
+            Self::Rename => &[0, 1][..],
+            Self::Feof | Self::Ferror | Self::Clearerr | Self::Rewind | Self::Fileno => &[0][..],
+            Self::Fgetc => &[0][..],
+            // `fputc`/`ungetc` take the byte first and the stream second.
+            Self::Fputc | Self::Ungetc => &[1][..],
+            // `fgets(char *s, int n, FILE *stream)`.
+            Self::Fgets => &[0, 2][..],
+            Self::Strtod | Self::Strtof => &[0, 1][..],
+            // A forwarded `va_list` call keeps its format string typed, as
+            // `printf`'s is; only `vfprintf`'s stream is an address.
+            Self::Vprintf => &[][..],
+            Self::Vfprintf => &[0][..],
             // The NUL-terminated string family reads and writes the module's
             // raw memory, exactly like the `mem*` runtime: every C `char *`
             // crosses as the address it is.
@@ -321,6 +522,45 @@ impl StdFunction {
                 | Self::Fopen
                 | Self::Fread
                 | Self::ClockGettime
+                | Self::Strtod
+                | Self::Strtof
+                | Self::Perror
+                | Self::Remove
+                | Self::Rename
+                | Self::Fseek
+                | Self::Fclose
+                | Self::Fileno
+                // The single-byte stream helpers read and write through a
+                // raw-heap cell of the same alignment as the `errno` one.
+                | Self::Fgets
+                | Self::Fgetc
+                | Self::Fputc
+        )
+    }
+
+    /// True when the helper, or one it calls, has to spell an `errno` code.
+    ///
+    /// The numbering is a target fact (`ErrnoNumbering`); a unit whose target
+    /// this translator has no numbering for is refused here rather than given
+    /// another target's integers.
+    fn needs_errno_numbering(self) -> bool {
+        matches!(
+            self,
+            Self::Strtol
+                | Self::Strtoul
+                | Self::Atoi
+                | Self::Strtod
+                | Self::Strtof
+                | Self::Fopen
+                | Self::Fread
+                | Self::Fseek
+                | Self::Fclose
+                | Self::ClockGettime
+                | Self::Strerror
+                | Self::Perror
+                | Self::Remove
+                | Self::Rename
+                | Self::Fileno
         )
     }
 
@@ -328,8 +568,8 @@ impl StdFunction {
     /// arguments, for the conversions this engine checks at translation time.
     fn format_argument(self) -> Option<usize> {
         match self {
-            Self::Printf => Some(0),
-            Self::Fprintf => Some(1),
+            Self::Printf | Self::Vprintf => Some(0),
+            Self::Fprintf | Self::Vfprintf => Some(1),
             Self::Snprintf | Self::Vsnprintf => Some(2),
             _ => None,
         }
@@ -348,6 +588,9 @@ impl StdFunction {
                 | Self::Strrchr
                 | Self::Strstr
                 | Self::ErrnoLocation
+                | Self::Strerror
+                | Self::Getenv
+                | Self::Fgets
         )
     }
 }
@@ -390,7 +633,31 @@ pub(crate) fn std_function(name: &str) -> Option<StdFunction> {
         "fprintf" | "__builtin_fprintf" => Some(StdFunction::Fprintf),
         "snprintf" | "__builtin_snprintf" => Some(StdFunction::Snprintf),
         "vsnprintf" | "__builtin_vsnprintf" => Some(StdFunction::Vsnprintf),
+        "vprintf" | "__builtin_vprintf" => Some(StdFunction::Vprintf),
+        "vfprintf" | "__builtin_vfprintf" => Some(StdFunction::Vfprintf),
         "fwrite" => Some(StdFunction::Fwrite),
+        "strerror" | "__builtin_strerror" => Some(StdFunction::Strerror),
+        "perror" | "__builtin_perror" => Some(StdFunction::Perror),
+        "feof" => Some(StdFunction::Feof),
+        "ferror" => Some(StdFunction::Ferror),
+        "clearerr" => Some(StdFunction::Clearerr),
+        "getenv" | "__builtin_getenv" => Some(StdFunction::Getenv),
+        // C's `long double` is `double` on every target this translator
+        // supports, so `strtold` is the same conversion.
+        "strtod" | "strtold" | "__builtin_strtod" | "__builtin_strtold" => {
+            Some(StdFunction::Strtod)
+        }
+        "strtof" | "__builtin_strtof" => Some(StdFunction::Strtof),
+        "remove" => Some(StdFunction::Remove),
+        "rename" => Some(StdFunction::Rename),
+        "fgets" | "__builtin_fgets" => Some(StdFunction::Fgets),
+        // `getc`/`putc` are the same functions as `fgetc`/`fputc`; C only
+        // permits the macro forms to evaluate the stream more than once.
+        "fgetc" | "getc" => Some(StdFunction::Fgetc),
+        "fputc" | "putc" => Some(StdFunction::Fputc),
+        "ungetc" => Some(StdFunction::Ungetc),
+        "rewind" => Some(StdFunction::Rewind),
+        "fileno" => Some(StdFunction::Fileno),
         "isspace" => Some(StdFunction::Isspace),
         "isdigit" => Some(StdFunction::Isdigit),
         "isalpha" => Some(StdFunction::Isalpha),
@@ -524,12 +791,49 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         ],
         FORMAT => &[VFORMAT],
         PRINTF => &[FORMAT, LOST_CELL],
-        FOPEN => &[STRING, SET_ERRNO],
+        FOPEN => &[STRING, SET_ERRNO, FOPEN_ERRNO, STREAM_OPEN],
+        FOPEN_ERRNO => &[STRING, SET_ERRNO, PATH_ERRNO],
+        PATH_ERRNO => &[SET_ERRNO],
         FFLUSH => &[FILE_OF, STDOUT, STDERR],
         SETVBUF => &[FILE_OF],
         CLOCK_GETTIME => &[SET_ERRNO],
-        FREAD => &[FILE_OF, SET_ERRNO],
-        FCLOSE | FSEEK | FTELL | FWRITE => &[FILE_OF],
+        FREAD => &[FILE_OF, SET_ERRNO, STREAM_FAIL, STREAM_TAKE_PUSH, RAW_PUT],
+        FTELL => &[FILE_OF],
+        FSEEK => &[FILE_OF, SET_ERRNO, STREAM_SLOT],
+        FCLOSE => &[FILE_OF, SET_ERRNO, STREAM_SLOT],
+        FWRITE => &[FILE_OF, STREAM_FAIL],
+        STREAM_SLOT => &[
+            STREAM_KEYS,
+            STREAM_FLAGS,
+            STREAM_PUSH,
+            STREAM_FD,
+            STREAM_NEXT_FD,
+        ],
+        STREAM_OPEN | STREAM_FAIL | STREAM_TAKE_PUSH => &[STREAM_SLOT],
+        FEOF => &[FILE_OF, STREAM_SLOT],
+        FERROR => &[STREAM_SLOT],
+        CLEARERR => &[FILE_OF, STREAM_SLOT],
+        FILENO => &[STREAM_SLOT, SET_ERRNO, STDIN, STDOUT, STDERR],
+        REWIND => &[FILE_OF, STREAM_SLOT],
+        FGETC => &[
+            FILE_OF,
+            STREAM_SLOT,
+            STREAM_FAIL,
+            STREAM_TAKE_PUSH,
+            RAW_BYTE,
+            IO_BYTE,
+        ],
+        FPUTC => &[FILE_OF, STREAM_FAIL, RAW_PUT, IO_BYTE],
+        UNGETC => &[STREAM_SLOT],
+        FGETS => &[FGETC, RAW_PUT],
+        OWN_TEXT => &[RAW_PUT, TEXT_CELLS, TEXT_CAPS],
+        STRERROR => &[OWN_TEXT, STRERROR_TEXT],
+        STRERROR_TEXT => &[UTOA],
+        PERROR => &[STRERROR_TEXT, GET_ERRNO, RAW_STRING, WRITE, STDERR],
+        GETENV => &[OWN_TEXT, RAW_STRING],
+        REMOVE | RENAME => &[RAW_STRING, PATH_ERRNO],
+        STRTOD => &[RAW_BYTE, ISSPACE, DIGIT, STORE_ADDR, SET_ERRNO, HUGE],
+        STRTOF => &[STRTOD, SET_ERRNO],
         RAW_STRING => &[RAW_BYTE],
         WRITE => &[FILE_OF],
         PLACE => &[RAW_PUT],
@@ -539,8 +843,10 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         STRCAT => &[RAW_BYTE, RAW_PUT, STRLEN, STRCPY],
         STRTO => &[RAW_BYTE, DIGIT, ISSPACE, STORE_ADDR, SET_ERRNO],
         STRTOLL | STRTOULL | ATOI => &[STRTO],
-        ERRNO_LOCATION => &[ERRNO_CELL, RAW_PUT],
-        SET_ERRNO => &[ERRNO_LOCATION],
+        ERRNO_CELL | IO_BYTE => &[CELL_ALLOC],
+        CELL_ALLOC => &[RAW_PUT],
+        ERRNO_LOCATION => &[ERRNO_CELL],
+        SET_ERRNO | GET_ERRNO => &[ERRNO_LOCATION],
         ABORT => &[WRITE, STDERR],
         PUTS => &[RAW_STRING, WRITE, STDOUT],
         PUTCHAR => &[WRITE, STDOUT],
@@ -548,6 +854,8 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         FPRINTF => &[FORMAT, WRITE, LOST_CELL],
         SNPRINTF => &[FORMAT, PLACE, LOST_CELL],
         VSNPRINTF => &[VFORMAT, PLACE, LOST_CELL],
+        VPRINTF => &[VFORMAT, LOST_CELL],
+        VFPRINTF => &[VFORMAT, WRITE, LOST_CELL],
         ISALNUM => &[ISALPHA, ISDIGIT],
         _ => &[],
     }
@@ -590,9 +898,24 @@ fn build(name: &str) -> DaDecl {
         STRTOLL => build_strtoll(),
         STRTOULL => build_strtoull(),
         ATOI => build_atoi(),
-        ERRNO_CELL => build_errno_cell(),
+        ERRNO_CELL => build_cell(ERRNO_CELL),
+        IO_BYTE => build_cell(IO_BYTE),
+        CELL_ALLOC => build_cell_alloc(),
         ERRNO_LOCATION => build_errno_location(),
         SET_ERRNO => build_set_errno(),
+        GET_ERRNO => build_get_errno(),
+        OWN_TEXT => build_own_text(),
+        TEXT_CELLS | TEXT_CAPS => build_stream_table(name, DaType::uint64()),
+        HUGE => build_huge(),
+        STRERROR_TEXT => build_strerror_text(),
+        STRERROR => build_strerror(),
+        PERROR => build_perror(),
+        GETENV => build_getenv(),
+        STRTOD => build_strtod(),
+        STRTOF => build_strtof(),
+        REMOVE => build_remove(),
+        RENAME => build_rename(),
+        PATH_ERRNO => build_path_errno(),
         ABORT => build_abort(),
         PUTS => build_puts(),
         FPUTS => build_fputs(),
@@ -600,6 +923,8 @@ fn build(name: &str) -> DaDecl {
         FPRINTF => build_fprintf(),
         SNPRINTF => build_snprintf(),
         VSNPRINTF => build_vsnprintf(),
+        VPRINTF => build_vprintf(),
+        VFPRINTF => build_vfprintf(),
         FWRITE => build_fwrite(),
         ISSPACE => build_isspace(),
         ISDIGIT => build_ctype(ISDIGIT, in_range(48, 57)),
@@ -631,6 +956,23 @@ fn build(name: &str) -> DaDecl {
         STDOUT => build_stream(STDOUT, "fstdout"),
         STDERR => build_stream(STDERR, "fstderr"),
         STDIN => build_stream(STDIN, "fstdin"),
+        STREAM_KEYS => build_stream_table(STREAM_KEYS, DaType::uint64()),
+        STREAM_FLAGS | STREAM_PUSH | STREAM_FD => build_stream_table(name, DaType::int()),
+        STREAM_NEXT_FD => build_stream_next_fd(),
+        STREAM_SLOT => build_stream_slot(),
+        STREAM_OPEN => build_stream_open(),
+        STREAM_FAIL => build_stream_fail(),
+        STREAM_TAKE_PUSH => build_stream_take_push(),
+        FEOF => build_feof(),
+        FERROR => build_ferror(),
+        CLEARERR => build_clearerr(),
+        FILENO => build_fileno(),
+        REWIND => build_rewind(),
+        FGETC => build_fgetc(),
+        FPUTC => build_fputc(),
+        UNGETC => build_ungetc(),
+        FGETS => build_fgets(),
+        FOPEN_ERRNO => build_fopen_errno(),
         other => unreachable!("unregistered std helper: {other}"),
     }
 }
@@ -672,7 +1014,14 @@ impl<'c> Translation<'c> {
             pointer_align: pointer.align_bytes,
             timespec_sec,
             timespec_nsec,
+            errno: self.errno_numbering(),
         })
+    }
+
+    /// The `errno` numbering of the target this translation unit was parsed
+    /// for, read off the Clang-exported triple.
+    fn errno_numbering(&self) -> ErrnoNumbering {
+        ErrnoNumbering::of_target(&self.ast_context.target)
     }
 
     /// `struct timespec`'s two fields as (offset, width) pairs, or zeroes when
@@ -719,21 +1068,42 @@ impl<'c> Translation<'c> {
 
     /// Registers the helper a `std` call lowers to, and returns its daScript
     /// name.
+    ///
+    /// `at` is the callee expression the replacement was selected from, so a
+    /// refusal names the C source line that asked for it.
     pub(crate) fn require_std_function(
         &self,
         function: StdFunction,
+        at: CExprId,
     ) -> TranslationResult<&'static str> {
         let facts = match self.std_layout_facts() {
             Ok(facts) => facts,
             // A helper that reads no C object — `exit`, the ctype table, the
             // pure string comparisons — needs no layout fact at all, so a unit
-            // that declares no pointer type still translates.
-            Err(_) if !function.reads_c_layout() => StdLayout::UNKNOWN,
+            // that declares no pointer type still translates. The `errno`
+            // numbering is a property of the target rather than of the unit's
+            // own types, so it survives that fallback.
+            Err(_) if !function.reads_c_layout() => StdLayout {
+                errno: self.errno_numbering(),
+                ..StdLayout::UNKNOWN
+            },
             Err(error) => return Err(error),
         };
         if function == StdFunction::ClockGettime && facts.timespec_sec.1 == 0 {
             return Err(TranslationError::generic(
                 "--libc std: clock_gettime needs the C declaration of struct timespec",
+            ));
+        }
+        // A helper that has to write an `errno` code for a target whose
+        // numbering this translator does not know fails closed: the wrong
+        // integer would compare equal to the wrong `<errno.h>` constant in
+        // the program's own error path.
+        if function.needs_errno_numbering() && facts.errno == ErrnoNumbering::Unknown {
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&self.ast_context[at].loc),
+                "--libc std: no errno numbering for target `{}`, which `{}` has to report",
+                self.ast_context.target,
+                function.target_name()
             ));
         }
         Ok(require_function_with(facts, function))
@@ -810,6 +1180,7 @@ impl<'c> Translation<'c> {
         function: Option<StdFunction>,
         args: &[CExprId],
     ) -> TranslationResult<()> {
+        self.check_std_strtod(function, args)?;
         let Some(index) = function.and_then(StdFunction::format_argument) else {
             return Ok(());
         };
@@ -827,6 +1198,38 @@ impl<'c> Translation<'c> {
             ));
         }
         Ok(())
+    }
+
+    /// Fails closed on a literal `strtod` subject `c2da_std_strtod` does not
+    /// implement.
+    ///
+    /// The engine's grammar is C89's: whitespace, a sign, digits with at most
+    /// one point, and an `e` exponent. C99's two additions — a hexadecimal
+    /// floating constant and the `inf`/`nan` words — are not implemented, and
+    /// a constant subject that uses one is a translation-time failure rather
+    /// than a run-time panic in a program that would otherwise have run.
+    fn check_std_strtod(
+        &self,
+        function: Option<StdFunction>,
+        args: &[CExprId],
+    ) -> TranslationResult<()> {
+        if !matches!(function, Some(StdFunction::Strtod | StdFunction::Strtof)) {
+            return Ok(());
+        }
+        let Some(&arg) = args.first() else {
+            return Ok(());
+        };
+        let Some(bytes) = self.string_literal_bytes(arg) else {
+            return Ok(());
+        };
+        let Some(spelled) = unsupported_float_subject(&bytes) else {
+            return Ok(());
+        };
+        Err(format_translation_err!(
+            self.ast_context.display_loc(&self.ast_context[arg].loc),
+            "--libc std: strtod does not implement the `{}` form",
+            spelled
+        ))
     }
 
     /// The bytes of a narrow C string literal, through the casts that decay it
@@ -957,6 +1360,39 @@ fn unsupported_conversion(format: &[u8]) -> Option<String> {
         if !accepted {
             return Some(String::from_utf8_lossy(&format[start..i]).into_owned());
         }
+    }
+    None
+}
+
+/// The C99 floating form in `subject` that `c2da_std_strtod` does not
+/// implement, spelled as the source spells it, or `None`.
+///
+/// Only the prefix decides: C's `strtod` converts the longest initial
+/// subsequence that matches the grammar, so a trailing `0x` or `nan` is not
+/// part of the conversion at all.
+fn unsupported_float_subject(subject: &[u8]) -> Option<String> {
+    let mut i = 0;
+    while i < subject.len() && matches!(subject[i], b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+        i += 1;
+    }
+    if i < subject.len() && matches!(subject[i], b'+' | b'-') {
+        i += 1;
+    }
+    let rest = &subject[i..];
+    let lower = |n: usize| {
+        rest.iter()
+            .take(n)
+            .map(u8::to_ascii_lowercase)
+            .collect::<Vec<_>>()
+    };
+    if lower(2) == b"0x" {
+        return Some("0x".into());
+    }
+    if lower(3) == b"inf" {
+        return Some("inf".into());
+    }
+    if lower(3) == b"nan" {
+        return Some("nan".into());
     }
     None
 }
@@ -1099,6 +1535,18 @@ fn param(name: &str, param_type: DaType) -> DaStmt {
         param_type,
         default: None,
         is_mutable: false,
+    }
+}
+
+/// `var name : type` — a mutable parameter. For a record type that is the
+/// caller's own object; for a scalar, pass `DaType::…().ref_()`, because a
+/// `var` scalar parameter is a copy the callee may write.
+fn var_param(name: &str, param_type: DaType) -> DaStmt {
+    DaStmt::Param {
+        name: name.to_owned(),
+        param_type,
+        default: None,
+        is_mutable: true,
     }
 }
 
@@ -1664,15 +2112,18 @@ fn is_byte(name: &str, code: i64) -> DaExpr {
 
 /// `def c2da_std_format(f : int8 const?; args : array<C2daVaArg>) : string` —
 /// the whole promoted-argument array, from its first element.
+///
+/// `c2da_std_vformat` advances the cursor it is given, and a variadic call has
+/// no cursor to advance, so the start index is a local this helper owns.
 fn build_format() -> DaDecl {
     helper(
         FORMAT,
         vec![param("f", c_string_type()), param("args", va_args_type())],
         DaType::string(),
-        vec![ret(call(
-            VFORMAT,
-            vec![var("f"), var("args"), DaExpr::ConstInt(0)],
-        ))],
+        vec![
+            local("from", DaType::int(), DaExpr::ConstInt(0)),
+            ret(call(VFORMAT, vec![var("f"), var("args"), var("from")])),
+        ],
     )
 }
 
@@ -2206,6 +2657,10 @@ fn build_vformat() -> DaDecl {
             conversion,
             assign(var("i"), op2("+", var("j"), DaExpr::ConstInt(1))),
         ]),
+        // The caller's cursor ends where this conversion stopped reading: a
+        // `va_list` handed to `vsnprintf` is advanced by the call, exactly as
+        // it would be by a translated C callee.
+        assign(var("start"), var("next")),
         ret(var("out")),
     ];
 
@@ -2214,7 +2669,9 @@ fn build_vformat() -> DaDecl {
         vec![
             param("f", c_string_type()),
             param("args", va_args_type()),
-            param("start", DaType::int()),
+            // `var x : int` is a mutable *copy* in daScript; only `int&` is
+            // the caller's own slot, which is what the write-back needs.
+            var_param("start", DaType::int().ref_()),
         ],
         DaType::string(),
         body,
@@ -2271,10 +2728,7 @@ fn build_fopen() -> DaDecl {
                 call("length", vec![var("spelled")]),
                 DaExpr::ConstInt(0),
             ),
-            vec![
-                DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(EINVAL)])),
-                ret(uint64_const(0)),
-            ],
+            vec![set_errno(Errno::Einval), ret(uint64_const(0))],
         ),
         let_(
             "head",
@@ -2290,10 +2744,7 @@ fn build_fopen() -> DaDecl {
                     op2("!=", var("head"), DaExpr::ConstInt(97)),
                 ),
             ),
-            vec![
-                DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(EINVAL)])),
-                ret(uint64_const(0)),
-            ],
+            vec![set_errno(Errno::Einval), ret(uint64_const(0))],
         ),
         local(
             "accepted",
@@ -2336,11 +2787,25 @@ fn build_fopen() -> DaDecl {
                 vec![call(STRING, vec![var("path")]), var("accepted")],
             ),
         ),
+        // daslib answers a bare null. C's `fopen` also says *why*, and the
+        // reason is the first thing a program's error path prints.
         if_then(
             op2("==", var("opened"), DaExpr::ConstNull),
-            vec![ret(uint64_const(0))],
+            vec![
+                DaStmt::Expr(call(FOPEN_ERRNO, vec![var("path")])),
+                ret(uint64_const(0)),
+            ],
         ),
-        ret(reinterpret(var("opened"), DaType::uint64())),
+        local(
+            "handle",
+            DaType::uint64(),
+            reinterpret(var("opened"), DaType::uint64()),
+        ),
+        // A fresh stream has no error, no end-of-file pushback and a
+        // descriptor of its own, whatever the previous owner of this address
+        // left behind.
+        DaStmt::Expr(call(STREAM_OPEN, vec![var("handle")])),
+        ret(var("handle")),
     ]);
     helper(
         FOPEN,
@@ -2361,14 +2826,36 @@ fn null_handle_guard(fallback: DaExpr) -> DaStmt {
 }
 
 /// `def c2da_std_fclose(handle : uint64) : int`
+///
+/// C's `fclose(NULL)` is undefined; glibc's answer to a stream it cannot use
+/// is `EOF` with `EBADF`, which is the observable a program checks. daslib's
+/// own `fclose` reports nothing, so a real close never fails here; the side
+/// table entry is released either way, because the host may hand the same
+/// address back to the next `fopen`.
 fn build_fclose() -> DaDecl {
     helper(
         FCLOSE,
         vec![param("handle", DaType::uint64())],
         DaType::int(),
         vec![
-            null_handle_guard(DaExpr::ConstInt(-1)),
+            if_then(
+                op2("==", var("handle"), uint64_const(0)),
+                vec![set_errno(Errno::Ebadf), ret(DaExpr::ConstInt(-1))],
+            ),
             DaStmt::Expr(call("fclose", vec![call(FILE_OF, vec![var("handle")])])),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            assign(
+                DaExpr::Index(Box::new(var(STREAM_FLAGS)), Box::new(var("slot"))),
+                DaExpr::ConstInt(0),
+            ),
+            assign(
+                DaExpr::Index(Box::new(var(STREAM_PUSH)), Box::new(var("slot"))),
+                DaExpr::ConstInt(-1),
+            ),
+            assign(
+                DaExpr::Index(Box::new(var(STREAM_FD)), Box::new(var("slot"))),
+                DaExpr::ConstInt(-1),
+            ),
             ret(DaExpr::ConstInt(0)),
         ],
     )
@@ -2407,10 +2894,7 @@ fn build_fflush() -> DaDecl {
 /// rather than wrapping into a short read. The transfer itself goes through
 /// daslib's 64-bit `_builtin_read64`, so a count past 2GiB is a real read.
 fn build_fread() -> DaDecl {
-    let too_large = vec![
-        DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(ENOMEM)])),
-        ret(uint64_const(0)),
-    ];
+    let too_large = vec![set_errno(Errno::Enomem), ret(uint64_const(0))];
     helper(
         FREAD,
         vec![
@@ -2456,10 +2940,36 @@ fn build_fread() -> DaDecl {
                 op2(">", var("total"), uint64_const(INT64_MAX_MAGNITUDE)),
                 too_large,
             ),
+            // A byte handed back by `ungetc` is the next byte read, so it is
+            // placed first and the host is asked for one fewer.
+            local(
+                "pushed",
+                DaType::int(),
+                call(STREAM_TAKE_PUSH, vec![var("handle")]),
+            ),
+            local("head", DaType::uint64(), uint64_const(0)),
+            if_then(
+                op2(">=", var("pushed"), DaExpr::ConstInt(0)),
+                vec![
+                    DaStmt::Expr(call(
+                        RAW_PUT,
+                        vec![var("dst"), uint64_const(0), var("pushed")],
+                    )),
+                    assign(var("head"), uint64_const(1)),
+                    assign(var("total"), op2("-", var("total"), uint64_const(1))),
+                ],
+            ),
+            if_then(
+                op2("==", var("total"), uint64_const(0)),
+                vec![ret(op2("/", var("head"), var("size")))],
+            ),
             local(
                 "buffer",
                 DaType::pointer(DaType::uint8()),
-                reinterpret(var("dst"), DaType::pointer(DaType::uint8())),
+                reinterpret(
+                    op2("+", var("dst"), var("head")),
+                    DaType::pointer(DaType::uint8()),
+                ),
             ),
             local(
                 "got",
@@ -2473,11 +2983,20 @@ fn build_fread() -> DaDecl {
                     ],
                 ))),
             ),
+            // A short read is end-of-file, which C does not call an error; a
+            // negative one is the read error `ferror` reports.
             if_then(
-                op2("<=", var("got"), int64_const(0)),
-                vec![ret(uint64_const(0))],
+                op2("<", var("got"), int64_const(0)),
+                vec![
+                    DaStmt::Expr(call(STREAM_FAIL, vec![var("handle")])),
+                    ret(op2("/", var("head"), var("size"))),
+                ],
             ),
-            ret(op2("/", cast(var("got"), DaType::uint64()), var("size"))),
+            ret(op2(
+                "/",
+                op2("+", var("head"), cast(var("got"), DaType::uint64())),
+                var("size"),
+            )),
         ],
     )
 }
@@ -2494,6 +3013,35 @@ fn build_fseek() -> DaDecl {
         DaType::int(),
         vec![
             null_handle_guard(DaExpr::ConstInt(-1)),
+            // Two failures C's `fseek` reports with `EINVAL` are decidable
+            // here, before the host is asked: a `whence` that is not one of
+            // the three, and an absolute seek to a negative offset. Every
+            // other failure daslib reports is a host answer this helper
+            // cannot attribute, and it leaves `errno` alone rather than
+            // inventing a reason.
+            if_then(
+                op2(
+                    "||",
+                    op2("<", var("whence"), DaExpr::ConstInt(0)),
+                    op2(">", var("whence"), DaExpr::ConstInt(2)),
+                ),
+                vec![set_errno(Errno::Einval), ret(DaExpr::ConstInt(-1))],
+            ),
+            if_then(
+                op2(
+                    "&&",
+                    op2("==", var("whence"), DaExpr::ConstInt(0)),
+                    op2("<", var("offset"), int64_const(0)),
+                ),
+                vec![set_errno(Errno::Einval), ret(DaExpr::ConstInt(-1))],
+            ),
+            // A successful seek clears the end-of-file condition and the one
+            // byte a program may have pushed back.
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            assign(
+                DaExpr::Index(Box::new(var(STREAM_PUSH)), Box::new(var("slot"))),
+                DaExpr::ConstInt(-1),
+            ),
             // C's SEEK_SET/SEEK_CUR/SEEK_END are 0/1/2; daslib names its own
             // constants, and the mapping is spelled out rather than assumed.
             local("mode", DaType::int(), var("seek_set")),
@@ -2655,10 +3203,7 @@ fn build_clock_gettime() -> DaDecl {
         vec![
             if_then(
                 op2("==", var("ts"), uint64_const(0)),
-                vec![
-                    DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(EINVAL)])),
-                    ret(DaExpr::ConstInt(-1)),
-                ],
+                vec![set_errno(Errno::Einval), ret(DaExpr::ConstInt(-1))],
             ),
             if_chain(
                 // CLOCK_MONOTONIC, CLOCK_MONOTONIC_RAW, CLOCK_MONOTONIC_COARSE
@@ -2666,10 +3211,7 @@ fn build_clock_gettime() -> DaDecl {
                 one_of(&[1, 4, 6, 7]),
                 monotonic,
                 vec![(one_of(&[0, 5]), realtime)],
-                Some(vec![
-                    DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(EINVAL)])),
-                    ret(DaExpr::ConstInt(-1)),
-                ]),
+                Some(vec![set_errno(Errno::Einval), ret(DaExpr::ConstInt(-1))]),
             ),
             ret(DaExpr::ConstInt(-1)),
         ],
@@ -2705,6 +3247,1149 @@ fn build_stream(name: &str, daslib_name: &str) -> DaDecl {
         vec![
             local("stream", das_file_type(), call(daslib_name, vec![])),
             ret(reinterpret(var("stream"), DaType::uint64())),
+        ],
+    )
+}
+
+// ── the std `FILE`'s own state ───────────────────────────────────────
+//
+// A C `FILE` carries more than the host handle daslib hands out: a sticky
+// error indicator, one byte of `ungetc` pushback, and a descriptor number.
+// daslib exposes none of them and the handle is opaque, so the std `FILE`
+// stays exactly what it was — the daslib handle, reinterpreted as the address
+// a C `FILE *` holds — and the extra state lives in a side table keyed by
+// that address. Nothing about the C pointer changes, and a stream the module
+// never opened (the three standard ones) gets an entry the first time it is
+// asked about.
+//
+// The table is four parallel arrays rather than a record array so that no new
+// type name enters the module's namespace; the number of open streams in a C
+// program is small, and the lookup is linear on purpose.
+
+fn build_stream_table(name: &str, element: DaType) -> DaDecl {
+    DaDecl::Variable(DaVariable {
+        name: name.to_owned(),
+        var_type: DaType::array(element),
+        init: None,
+        annotations: vec![],
+    })
+}
+
+/// `var c2da_std_stream_next_fd : int = 3` — 0, 1 and 2 belong to the three
+/// standard streams, as they do on every hosted C implementation.
+fn build_stream_next_fd() -> DaDecl {
+    DaDecl::Variable(DaVariable {
+        name: STREAM_NEXT_FD.to_owned(),
+        var_type: DaType::int(),
+        init: Some(DaExpr::ConstInt(3)),
+        annotations: vec![],
+    })
+}
+
+/// The `index`th entry of one of the side tables.
+fn slot_of(table: &str, index: DaExpr) -> DaExpr {
+    DaExpr::Index(Box::new(var(table)), Box::new(index))
+}
+
+fn slot_entry(table: &str) -> DaExpr {
+    slot_of(table, var("slot"))
+}
+
+/// `def c2da_std_stream_slot(handle : uint64) : int` — this stream's entry,
+/// creating it if the module has not seen the address before.
+fn build_stream_slot() -> DaDecl {
+    helper(
+        STREAM_SLOT,
+        vec![u64_param("handle")],
+        DaType::int(),
+        vec![
+            local("i", DaType::int(), DaExpr::ConstInt(0)),
+            while_(
+                op2("<", var("i"), call("length", vec![var(STREAM_KEYS)])),
+                vec![
+                    if_then(
+                        op2("==", slot_of(STREAM_KEYS, var("i")), var("handle")),
+                        vec![ret(var("i"))],
+                    ),
+                    advance("i"),
+                ],
+            ),
+            DaStmt::Expr(call("push", vec![var(STREAM_KEYS), var("handle")])),
+            DaStmt::Expr(call("push", vec![var(STREAM_FLAGS), DaExpr::ConstInt(0)])),
+            DaStmt::Expr(call("push", vec![var(STREAM_PUSH), DaExpr::ConstInt(-1)])),
+            DaStmt::Expr(call("push", vec![var(STREAM_FD), var(STREAM_NEXT_FD)])),
+            assign(
+                var(STREAM_NEXT_FD),
+                op2("+", var(STREAM_NEXT_FD), DaExpr::ConstInt(1)),
+            ),
+            ret(var("i")),
+        ],
+    )
+}
+
+/// `def c2da_std_stream_open(handle : uint64)` — the state a freshly opened
+/// stream starts from, whatever a previous owner of this address left.
+fn build_stream_open() -> DaDecl {
+    helper(
+        STREAM_OPEN,
+        vec![u64_param("handle")],
+        DaType::void(),
+        vec![
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            assign(slot_entry(STREAM_FLAGS), DaExpr::ConstInt(0)),
+            assign(slot_entry(STREAM_PUSH), DaExpr::ConstInt(-1)),
+            assign(slot_entry(STREAM_FD), var(STREAM_NEXT_FD)),
+            assign(
+                var(STREAM_NEXT_FD),
+                op2("+", var(STREAM_NEXT_FD), DaExpr::ConstInt(1)),
+            ),
+        ],
+    )
+}
+
+/// `def c2da_std_stream_fail(handle : uint64)` — C's error indicator is
+/// sticky: only `clearerr`, `rewind` and a reopen put it back.
+fn build_stream_fail() -> DaDecl {
+    helper(
+        STREAM_FAIL,
+        vec![u64_param("handle")],
+        DaType::void(),
+        vec![
+            if_then(op2("==", var("handle"), uint64_const(0)), vec![ret_void()]),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            assign(slot_entry(STREAM_FLAGS), DaExpr::ConstInt(1)),
+        ],
+    )
+}
+
+/// `def c2da_std_stream_take_push(handle : uint64) : int` — the pushed-back
+/// byte, consumed, or -1.
+fn build_stream_take_push() -> DaDecl {
+    helper(
+        STREAM_TAKE_PUSH,
+        vec![u64_param("handle")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("==", var("handle"), uint64_const(0)),
+                vec![ret(DaExpr::ConstInt(-1))],
+            ),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            local("pushed", DaType::int(), slot_entry(STREAM_PUSH)),
+            assign(slot_entry(STREAM_PUSH), DaExpr::ConstInt(-1)),
+            ret(var("pushed")),
+        ],
+    )
+}
+
+/// `def c2da_std_feof(handle : uint64) : int`
+///
+/// daslib's `feof` throws on a null handle; C's `feof(NULL)` is undefined and
+/// every implementation answers rather than crashing, so the guard is here. A
+/// byte handed back by `ungetc` is the next byte to be read, so the stream is
+/// by definition not at end-of-file while one is held.
+fn build_feof() -> DaDecl {
+    helper(
+        FEOF,
+        vec![u64_param("handle")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("==", var("handle"), uint64_const(0)),
+                vec![ret(DaExpr::ConstInt(0))],
+            ),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            if_then(
+                op2(">=", slot_entry(STREAM_PUSH), DaExpr::ConstInt(0)),
+                vec![ret(DaExpr::ConstInt(0))],
+            ),
+            if_then(
+                call("feof", vec![call(FILE_OF, vec![var("handle")])]),
+                vec![ret(DaExpr::ConstInt(1))],
+            ),
+            ret(DaExpr::ConstInt(0)),
+        ],
+    )
+}
+
+/// `def c2da_std_ferror(handle : uint64) : int`
+fn build_ferror() -> DaDecl {
+    helper(
+        FERROR,
+        vec![u64_param("handle")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("==", var("handle"), uint64_const(0)),
+                vec![ret(DaExpr::ConstInt(0))],
+            ),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            ret(slot_entry(STREAM_FLAGS)),
+        ],
+    )
+}
+
+/// `def c2da_std_clearerr(handle : uint64)`
+///
+/// C clears both indicators. The module owns the error one; the host owns
+/// end-of-file, and daslib exposes no `clearerr`, so it is cleared the way C
+/// itself guarantees — a seek to the current position clears end-of-file
+/// (C7.21.9.2p5). A stream that cannot report a position (a pipe, a terminal)
+/// keeps its end-of-file condition, which is the one case this cannot reach.
+fn build_clearerr() -> DaDecl {
+    helper(
+        CLEARERR,
+        vec![u64_param("handle")],
+        DaType::void(),
+        vec![
+            if_then(op2("==", var("handle"), uint64_const(0)), vec![ret_void()]),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            assign(slot_entry(STREAM_FLAGS), DaExpr::ConstInt(0)),
+            assign(slot_entry(STREAM_PUSH), DaExpr::ConstInt(-1)),
+            let_("stream", call(FILE_OF, vec![var("handle")])),
+            local("at", DaType::int64(), call("ftell", vec![var("stream")])),
+            if_then(
+                op2(">=", var("at"), int64_const(0)),
+                vec![DaStmt::Expr(call(
+                    "fseek",
+                    vec![var("stream"), var("at"), var("seek_set")],
+                ))],
+            ),
+        ],
+    )
+}
+
+/// `def c2da_std_rewind(handle : uint64)` — `fseek(f, 0, SEEK_SET)` plus
+/// `clearerr`, which is what C says `rewind` is.
+fn build_rewind() -> DaDecl {
+    helper(
+        REWIND,
+        vec![u64_param("handle")],
+        DaType::void(),
+        vec![
+            if_then(op2("==", var("handle"), uint64_const(0)), vec![ret_void()]),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            assign(slot_entry(STREAM_FLAGS), DaExpr::ConstInt(0)),
+            assign(slot_entry(STREAM_PUSH), DaExpr::ConstInt(-1)),
+            DaStmt::Expr(call(
+                "fseek",
+                vec![
+                    call(FILE_OF, vec![var("handle")]),
+                    int64_const(0),
+                    var("seek_set"),
+                ],
+            )),
+        ],
+    )
+}
+
+/// `def c2da_std_fileno(handle : uint64) : int`
+///
+/// The three standard streams answer 0, 1 and 2, which is the only part of
+/// `fileno` a portable C program may rely on. Every other stream answers a
+/// descriptor this module invented when the stream was opened: the host
+/// descriptor is not reachable from daslib, and a C program that hands the
+/// number to a POSIX call is outside the std policy's scope either way. The
+/// numbers are unique among live streams and never 0, 1 or 2.
+fn build_fileno() -> DaDecl {
+    let standard = |stream: &'static str, fd: i64| {
+        (
+            op2("==", var("handle"), call(stream, vec![])),
+            vec![ret(DaExpr::ConstInt(fd))],
+        )
+    };
+    helper(
+        FILENO,
+        vec![u64_param("handle")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("==", var("handle"), uint64_const(0)),
+                vec![set_errno(Errno::Ebadf), ret(DaExpr::ConstInt(-1))],
+            ),
+            if_chain(
+                op2("==", var("handle"), call(STDIN, vec![])),
+                vec![ret(DaExpr::ConstInt(0))],
+                vec![standard(STDOUT, 1), standard(STDERR, 2)],
+                None,
+            ),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            local("fd", DaType::int(), slot_entry(STREAM_FD)),
+            if_then(
+                op2("<", var("fd"), DaExpr::ConstInt(0)),
+                vec![set_errno(Errno::Ebadf), ret(DaExpr::ConstInt(-1))],
+            ),
+            ret(var("fd")),
+        ],
+    )
+}
+
+/// `def c2da_std_fgetc(handle : uint64) : int` — also C's `getc`.
+fn build_fgetc() -> DaDecl {
+    helper(
+        FGETC,
+        vec![u64_param("handle")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("==", var("handle"), uint64_const(0)),
+                vec![ret(DaExpr::ConstInt(-1))],
+            ),
+            local(
+                "pushed",
+                DaType::int(),
+                call(STREAM_TAKE_PUSH, vec![var("handle")]),
+            ),
+            if_then(
+                op2(">=", var("pushed"), DaExpr::ConstInt(0)),
+                vec![ret(var("pushed"))],
+            ),
+            local(
+                "buffer",
+                DaType::pointer(DaType::uint8()),
+                reinterpret(var(IO_BYTE), DaType::pointer(DaType::uint8())),
+            ),
+            local(
+                "got",
+                DaType::int64(),
+                DaExpr::Unsafe(Box::new(call(
+                    "_builtin_read64",
+                    vec![
+                        call(FILE_OF, vec![var("handle")]),
+                        var("buffer"),
+                        int64_const(1),
+                    ],
+                ))),
+            ),
+            if_then(
+                op2("<", var("got"), int64_const(0)),
+                vec![
+                    DaStmt::Expr(call(STREAM_FAIL, vec![var("handle")])),
+                    ret(DaExpr::ConstInt(-1)),
+                ],
+            ),
+            if_then(
+                op2("==", var("got"), int64_const(0)),
+                vec![ret(DaExpr::ConstInt(-1))],
+            ),
+            // C answers the byte as an `unsigned char`, never sign-extended.
+            ret(call(RAW_BYTE, vec![var(IO_BYTE), uint64_const(0)])),
+        ],
+    )
+}
+
+/// `def c2da_std_fputc(ch : int; handle : uint64) : int` — also C's `putc`.
+fn build_fputc() -> DaDecl {
+    helper(
+        FPUTC,
+        vec![param("ch", DaType::int()), u64_param("handle")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("==", var("handle"), uint64_const(0)),
+                vec![ret(DaExpr::ConstInt(-1))],
+            ),
+            DaStmt::Expr(call(
+                RAW_PUT,
+                vec![var(IO_BYTE), uint64_const(0), var("ch")],
+            )),
+            local(
+                "buffer",
+                DaType::pointer(DaType::uint8()),
+                reinterpret(var(IO_BYTE), DaType::pointer(DaType::uint8())),
+            ),
+            local(
+                "wrote",
+                DaType::int(),
+                DaExpr::Unsafe(Box::new(call(
+                    "_builtin_write",
+                    vec![
+                        call(FILE_OF, vec![var("handle")]),
+                        var("buffer"),
+                        DaExpr::ConstInt(1),
+                    ],
+                ))),
+            ),
+            if_then(
+                op2("!=", var("wrote"), DaExpr::ConstInt(1)),
+                vec![
+                    DaStmt::Expr(call(STREAM_FAIL, vec![var("handle")])),
+                    ret(DaExpr::ConstInt(-1)),
+                ],
+            ),
+            ret(op2("&", var("ch"), DaExpr::ConstInt(255))),
+        ],
+    )
+}
+
+/// `def c2da_std_ungetc(ch : int; handle : uint64) : int`
+///
+/// C guarantees exactly one byte of pushback, and that is what the side table
+/// holds: a second `ungetc` without an intervening read fails, as C permits.
+/// Pushing `EOF` back is a no-op failure, and the pushed byte clears the
+/// stream's end-of-file condition.
+fn build_ungetc() -> DaDecl {
+    helper(
+        UNGETC,
+        vec![param("ch", DaType::int()), u64_param("handle")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2(
+                    "||",
+                    op2("==", var("handle"), uint64_const(0)),
+                    op2("<", var("ch"), DaExpr::ConstInt(0)),
+                ),
+                vec![ret(DaExpr::ConstInt(-1))],
+            ),
+            let_("slot", call(STREAM_SLOT, vec![var("handle")])),
+            if_then(
+                op2(">=", slot_entry(STREAM_PUSH), DaExpr::ConstInt(0)),
+                vec![ret(DaExpr::ConstInt(-1))],
+            ),
+            assign(
+                slot_entry(STREAM_PUSH),
+                op2("&", var("ch"), DaExpr::ConstInt(255)),
+            ),
+            ret(op2("&", var("ch"), DaExpr::ConstInt(255))),
+        ],
+    )
+}
+
+/// `def c2da_std_fgets(dst : uint64; n : int; handle : uint64) : uint64`
+///
+/// Byte at a time, which is what C's own rule needs: at most `n - 1` bytes,
+/// stopping after a newline, and the newline is kept. daslib's own `fgets`
+/// reads a whole line into a 16 KiB buffer and would consume bytes past `n`.
+fn build_fgets() -> DaDecl {
+    helper(
+        FGETS,
+        vec![
+            u64_param("dst"),
+            param("n", DaType::int()),
+            u64_param("handle"),
+        ],
+        DaType::uint64(),
+        vec![
+            if_then(
+                op2(
+                    "||",
+                    op2("==", var("dst"), uint64_const(0)),
+                    op2(
+                        "||",
+                        op2("==", var("handle"), uint64_const(0)),
+                        op2("<=", var("n"), DaExpr::ConstInt(0)),
+                    ),
+                ),
+                vec![ret(uint64_const(0))],
+            ),
+            local("i", DaType::int(), DaExpr::ConstInt(0)),
+            while_(
+                op2("<", var("i"), op2("-", var("n"), DaExpr::ConstInt(1))),
+                vec![
+                    let_("b", call(FGETC, vec![var("handle")])),
+                    if_then(
+                        op2("<", var("b"), DaExpr::ConstInt(0)),
+                        vec![DaStmt::Expr(DaExpr::Break)],
+                    ),
+                    DaStmt::Expr(call(
+                        RAW_PUT,
+                        vec![var("dst"), cast(var("i"), DaType::uint64()), var("b")],
+                    )),
+                    advance("i"),
+                    if_then(
+                        op2("==", var("b"), DaExpr::ConstInt(10)),
+                        vec![DaStmt::Expr(DaExpr::Break)],
+                    ),
+                ],
+            ),
+            // End of file or an error before the first byte: C answers null
+            // and leaves the buffer alone.
+            if_then(
+                op2("==", var("i"), DaExpr::ConstInt(0)),
+                vec![ret(uint64_const(0))],
+            ),
+            DaStmt::Expr(call(
+                RAW_PUT,
+                vec![
+                    var("dst"),
+                    cast(var("i"), DaType::uint64()),
+                    DaExpr::ConstInt(0),
+                ],
+            )),
+            ret(var("dst")),
+        ],
+    )
+}
+
+// ── errno consumers and the file-system calls ────────────────────────
+
+/// `def c2da_std_get_errno() : int` — the cell's value, for the helpers that
+/// report it rather than set it.
+fn build_get_errno() -> DaDecl {
+    helper(
+        GET_ERRNO,
+        vec![],
+        DaType::int(),
+        vec![
+            local("cell", DaType::uint64(), call(ERRNO_LOCATION, vec![])),
+            ret(DaExpr::Unsafe(Box::new(DaExpr::Index(
+                Box::new(reinterpret(var("cell"), DaType::pointer(DaType::int()))),
+                Box::new(DaExpr::ConstInt(0)),
+            )))),
+        ],
+    )
+}
+
+/// `def c2da_std_own_text(slot : int; body : string) : uint64`
+///
+/// One raw-heap C string per string-returning helper, reallocated only when a
+/// longer answer needs it. C lets `strerror` and `getenv` each point into
+/// storage the next call to the same function may overwrite, and that is
+/// exactly the lifetime here: valid until the same helper is called again.
+fn build_own_text() -> DaDecl {
+    helper(
+        OWN_TEXT,
+        vec![
+            param("slot", DaType::int()),
+            param("body", DaType::string()),
+        ],
+        DaType::uint64(),
+        vec![
+            while_(
+                op2("<=", call("length", vec![var(TEXT_CELLS)]), var("slot")),
+                vec![
+                    DaStmt::Expr(call("push", vec![var(TEXT_CELLS), uint64_const(0)])),
+                    DaStmt::Expr(call("push", vec![var(TEXT_CAPS), uint64_const(0)])),
+                ],
+            ),
+            local(
+                "need",
+                DaType::uint64(),
+                op2(
+                    "+",
+                    cast(call("length", vec![var("body")]), DaType::uint64()),
+                    uint64_const(1),
+                ),
+            ),
+            if_then(
+                op2("<", slot_entry(TEXT_CAPS), var("need")),
+                vec![
+                    local(
+                        "raw",
+                        DaType::uint64(),
+                        call("c2da_rt_malloc", vec![var("need")]),
+                    ),
+                    if_then(
+                        op2("==", var("raw"), uint64_const(0)),
+                        vec![ret(uint64_const(0))],
+                    ),
+                    assign(slot_entry(TEXT_CELLS), var("raw")),
+                    assign(slot_entry(TEXT_CAPS), var("need")),
+                ],
+            ),
+            local("base", DaType::uint64(), slot_entry(TEXT_CELLS)),
+            local("i", DaType::int(), DaExpr::ConstInt(0)),
+            while_(
+                op2("<", var("i"), call("length", vec![var("body")])),
+                vec![
+                    DaStmt::Expr(call(
+                        RAW_PUT,
+                        vec![
+                            var("base"),
+                            cast(var("i"), DaType::uint64()),
+                            call("character_at", vec![var("body"), var("i")]),
+                        ],
+                    )),
+                    advance("i"),
+                ],
+            ),
+            DaStmt::Expr(call(
+                RAW_PUT,
+                vec![
+                    var("base"),
+                    cast(var("i"), DaType::uint64()),
+                    DaExpr::ConstInt(0),
+                ],
+            )),
+            ret(var("base")),
+        ],
+    )
+}
+
+/// The `strerror` catalogue, verbatim from glibc.
+///
+/// C says only that `strerror` returns "a string"; every byte of it is
+/// implementation-defined, and a program that prints it is reproducing its C
+/// library's wording. These are glibc's, deliberately and explicitly: the
+/// translated program's output is compared against a glibc-linked C reference.
+/// The codes are the target's (`ErrnoNumbering`), so the match is on the same
+/// integers the program's own `<errno.h>` gave it.
+const STRERROR_CATALOGUE: &[(Errno, &str)] = &[
+    (Errno::Eperm, "Operation not permitted"),
+    (Errno::Enoent, "No such file or directory"),
+    (Errno::Eintr, "Interrupted system call"),
+    (Errno::Eio, "Input/output error"),
+    (Errno::Ebadf, "Bad file descriptor"),
+    (Errno::Eagain, "Resource temporarily unavailable"),
+    (Errno::Enomem, "Cannot allocate memory"),
+    (Errno::Eacces, "Permission denied"),
+    (Errno::Ebusy, "Device or resource busy"),
+    (Errno::Eexist, "File exists"),
+    (Errno::Eisdir, "Is a directory"),
+    (Errno::Einval, "Invalid argument"),
+    (Errno::Enospc, "No space left on device"),
+    (Errno::Espipe, "Illegal seek"),
+    (Errno::Erange, "Numerical result out of range"),
+    (Errno::Eoverflow, "Value too large for defined data type"),
+];
+
+/// `def c2da_std_strerror_text(code : int) : string`
+fn build_strerror_text() -> DaDecl {
+    let arm = |entry: &(Errno, &str)| {
+        (
+            op2("==", var("code"), errno_const(entry.0)),
+            vec![ret(text(entry.1))],
+        )
+    };
+    let mut arms = STRERROR_CATALOGUE.iter().map(arm);
+    let first = arms.next().expect("the catalogue is not empty");
+    helper(
+        STRERROR_TEXT,
+        vec![param("code", DaType::int())],
+        DaType::string(),
+        vec![
+            if_chain(first.0, first.1, arms.collect(), None),
+            // glibc's fallback, sign and all.
+            if_then(
+                op2("<", var("code"), DaExpr::ConstInt(0)),
+                vec![ret(op2(
+                    "+",
+                    text("Unknown error -"),
+                    call(
+                        UTOA,
+                        vec![
+                            cast(op2("-", DaExpr::ConstInt(0), var("code")), DaType::uint64()),
+                            DaExpr::ConstInt(10),
+                            DaExpr::ConstBool(false),
+                        ],
+                    ),
+                ))],
+            ),
+            ret(op2(
+                "+",
+                text("Unknown error "),
+                call(
+                    UTOA,
+                    vec![
+                        cast(var("code"), DaType::uint64()),
+                        DaExpr::ConstInt(10),
+                        DaExpr::ConstBool(false),
+                    ],
+                ),
+            )),
+        ],
+    )
+}
+
+/// `def c2da_std_strerror(code : int) : uint64`
+fn build_strerror() -> DaDecl {
+    helper(
+        STRERROR,
+        vec![param("code", DaType::int())],
+        DaType::uint64(),
+        vec![ret(call(
+            OWN_TEXT,
+            vec![
+                DaExpr::ConstInt(TEXT_SLOT_STRERROR),
+                call(STRERROR_TEXT, vec![var("code")]),
+            ],
+        ))],
+    )
+}
+
+/// `def c2da_std_perror(s : uint64)`
+///
+/// `s: <strerror(errno)>` on stderr, or the description alone when `s` is
+/// null or empty — C7.21.10.4p2. It reads the cell and never writes it.
+fn build_perror() -> DaDecl {
+    helper(
+        PERROR,
+        vec![u64_param("s")],
+        DaType::void(),
+        vec![
+            local(
+                "body",
+                DaType::string(),
+                call(STRERROR_TEXT, vec![call(GET_ERRNO, vec![])]),
+            ),
+            local("prefix", DaType::string(), call(RAW_STRING, vec![var("s")])),
+            if_then(
+                op2(
+                    "!=",
+                    call("length", vec![var("prefix")]),
+                    DaExpr::ConstInt(0),
+                ),
+                vec![assign(
+                    var("body"),
+                    op2("+", op2("+", var("prefix"), text(": ")), var("body")),
+                )],
+            ),
+            DaStmt::Expr(call(
+                WRITE,
+                vec![call(STDERR, vec![]), op2("+", var("body"), text("\n"))],
+            )),
+        ],
+    )
+}
+
+/// `def c2da_std_path_errno(path : string)` — why a file-system call on
+/// `path` failed, as far as the module can tell: the file is not there, it is
+/// a directory, or the caller may not do this to it.
+fn build_path_errno() -> DaDecl {
+    helper(
+        PATH_ERRNO,
+        vec![param("path", DaType::string())],
+        DaType::void(),
+        vec![
+            if_then(
+                not(call("fexist", vec![var("path")])),
+                vec![set_errno(Errno::Enoent), ret_void()],
+            ),
+            let_("info", call("stat", vec![var("path")])),
+            if_then(
+                DaExpr::Field(Box::new(var("info")), "is_dir".into()),
+                vec![set_errno(Errno::Eisdir), ret_void()],
+            ),
+            set_errno(Errno::Eacces),
+        ],
+    )
+}
+
+/// `def c2da_std_fopen_errno(path : int8 const?)`
+fn build_fopen_errno() -> DaDecl {
+    helper(
+        FOPEN_ERRNO,
+        vec![param("path", c_string_type())],
+        DaType::void(),
+        vec![DaStmt::Expr(call(
+            PATH_ERRNO,
+            vec![call(STRING, vec![var("path")])],
+        ))],
+    )
+}
+
+/// `def c2da_std_getenv(name : uint64) : uint64`
+///
+/// daslib answers an empty string both for an absent variable and for one set
+/// to nothing, so presence is asked separately. The answer is a C string in
+/// the raw heap that stays valid until the next `getenv`, which is the
+/// lifetime C7.22.4.6p4 grants.
+fn build_getenv() -> DaDecl {
+    helper(
+        GETENV,
+        vec![u64_param("name")],
+        DaType::uint64(),
+        vec![
+            if_then(
+                op2("==", var("name"), uint64_const(0)),
+                vec![ret(uint64_const(0))],
+            ),
+            local("key", DaType::string(), call(RAW_STRING, vec![var("name")])),
+            if_then(
+                not(call("has_env_variable", vec![var("key")])),
+                vec![ret(uint64_const(0))],
+            ),
+            ret(call(
+                OWN_TEXT,
+                vec![
+                    DaExpr::ConstInt(TEXT_SLOT_GETENV),
+                    call("get_env_variable", vec![var("key")]),
+                ],
+            )),
+        ],
+    )
+}
+
+/// `def c2da_std_remove(path : uint64) : int`
+fn build_remove() -> DaDecl {
+    helper(
+        REMOVE,
+        vec![u64_param("path")],
+        DaType::int(),
+        vec![
+            local(
+                "name",
+                DaType::string(),
+                call(RAW_STRING, vec![var("path")]),
+            ),
+            if_then(
+                call("remove", vec![var("name")]),
+                vec![ret(DaExpr::ConstInt(0))],
+            ),
+            DaStmt::Expr(call(PATH_ERRNO, vec![var("name")])),
+            ret(DaExpr::ConstInt(-1)),
+        ],
+    )
+}
+
+/// `def c2da_std_rename(from : uint64; to : uint64) : int`
+fn build_rename() -> DaDecl {
+    helper(
+        RENAME,
+        vec![u64_param("from"), u64_param("to")],
+        DaType::int(),
+        vec![
+            local(
+                "old_name",
+                DaType::string(),
+                call(RAW_STRING, vec![var("from")]),
+            ),
+            local(
+                "new_name",
+                DaType::string(),
+                call(RAW_STRING, vec![var("to")]),
+            ),
+            if_then(
+                call("rename", vec![var("old_name"), var("new_name")]),
+                vec![ret(DaExpr::ConstInt(0))],
+            ),
+            DaStmt::Expr(call(PATH_ERRNO, vec![var("old_name")])),
+            ret(DaExpr::ConstInt(-1)),
+        ],
+    )
+}
+
+/// `def c2da_std_huge() : double` — C's `HUGE_VAL`.
+///
+/// daslang has no infinity literal and a division by zero in the generated
+/// module would be a constant the printer has to defend; the string
+/// conversion is the one spelling that is a value, not an operation.
+fn build_huge() -> DaDecl {
+    helper(
+        HUGE,
+        vec![],
+        DaType::double(),
+        vec![ret(call("to_double", vec![text("inf")]))],
+    )
+}
+
+/// `def c2da_std_strtod(nptr : uint64; endptr : uint64) : double`
+///
+/// C's syntax, scanned here exactly as `c2da_std_strto` scans the integer
+/// one: leading whitespace, an optional sign, digits with at most one decimal
+/// point, and an optional `e` exponent. `*endptr` is left at the first
+/// unconverted byte, or at `nptr` when no conversion happened, and — unlike
+/// the integer family — `EINVAL` is never reported, because C gives `strtod`
+/// no `EINVAL` case at all.
+///
+/// The digits themselves are converted by daslang's `to_double`, which is
+/// `fast_float` and answers zero for a magnitude the format cannot hold.
+/// Overflow and underflow are therefore decided here, from the decimal
+/// exponent of the parsed digits, and both report `ERANGE`: overflow answers
+/// `HUGE_VAL` with the parsed sign, underflow answers zero. A value that
+/// rounds to a *subnormal* is returned as-is without `ERANGE`, where glibc
+/// would report it — the one known divergence, and the one the format cannot
+/// detect after the fact.
+///
+/// The two forms C99 added and this engine does not implement — hexadecimal
+/// floating constants (`0x1p3`) and `inf`/`nan` — fail loudly rather than
+/// converting to something else: a literal argument is refused at translation
+/// time (`check_std_format`), and a computed one panics here.
+fn build_strtod() -> DaDecl {
+    let byte_at = |index: DaExpr| call(RAW_BYTE, vec![var("nptr"), index]);
+    let digit_loop = while_true(vec![
+        let_("b", byte_at(var("i"))),
+        if_chain(
+            op2(
+                "&&",
+                op2(">=", var("b"), DaExpr::ConstInt(48)),
+                op2("<=", var("b"), DaExpr::ConstInt(57)),
+            ),
+            vec![
+                advance("digits"),
+                if_then(
+                    op2("!=", var("b"), DaExpr::ConstInt(48)),
+                    vec![
+                        assign(var("nonzero"), DaExpr::ConstBool(true)),
+                        assign(var("lead"), DaExpr::ConstBool(false)),
+                    ],
+                ),
+                // The decimal exponent of the digit stream: one place per
+                // significant integer digit, one place back per zero that
+                // only holds a place after the point.
+                if_chain(
+                    not(var("point")),
+                    vec![if_then(not(var("lead")), vec![advance("exponent")])],
+                    vec![],
+                    Some(vec![if_then(
+                        var("lead"),
+                        vec![assign(
+                            var("exponent"),
+                            op2("-", var("exponent"), DaExpr::ConstInt(1)),
+                        )],
+                    )]),
+                ),
+                advance_u64("i"),
+            ],
+            vec![(
+                op2(
+                    "&&",
+                    op2("==", var("b"), DaExpr::ConstInt(46)),
+                    not(var("point")),
+                ),
+                vec![
+                    assign(var("point"), DaExpr::ConstBool(true)),
+                    advance_u64("i"),
+                ],
+            )],
+            Some(vec![DaStmt::Expr(DaExpr::Break)]),
+        ),
+    ]);
+    let exponent_block = if_then(
+        op2(
+            "==",
+            op2("|", byte_at(var("i")), DaExpr::ConstInt(32)),
+            DaExpr::ConstInt(101),
+        ),
+        vec![
+            local("j", DaType::uint64(), op2("+", var("i"), uint64_const(1))),
+            local(
+                "negative_exponent",
+                DaType::bool(),
+                DaExpr::ConstBool(false),
+            ),
+            if_chain(
+                op2("==", byte_at(var("j")), DaExpr::ConstInt(45)),
+                vec![
+                    assign(var("negative_exponent"), DaExpr::ConstBool(true)),
+                    advance_u64("j"),
+                ],
+                vec![(
+                    op2("==", byte_at(var("j")), DaExpr::ConstInt(43)),
+                    vec![advance_u64("j")],
+                )],
+                None,
+            ),
+            local("written", DaType::int(), DaExpr::ConstInt(0)),
+            local("value", DaType::int(), DaExpr::ConstInt(0)),
+            while_true(vec![
+                let_(
+                    "d",
+                    call(DIGIT, vec![byte_at(var("j")), DaExpr::ConstInt(10)]),
+                ),
+                if_then(
+                    op2("<", var("d"), DaExpr::ConstInt(0)),
+                    vec![DaStmt::Expr(DaExpr::Break)],
+                ),
+                // The magnitude only has to be big enough to be out of range;
+                // a longer exponent cannot come back.
+                if_then(
+                    op2("<", var("value"), DaExpr::ConstInt(100000)),
+                    vec![assign(
+                        var("value"),
+                        op2("+", op2("*", var("value"), DaExpr::ConstInt(10)), var("d")),
+                    )],
+                ),
+                advance("written"),
+                advance_u64("j"),
+            ]),
+            if_then(
+                op2(">", var("written"), DaExpr::ConstInt(0)),
+                vec![
+                    assign(var("stop"), var("j")),
+                    if_chain(
+                        var("negative_exponent"),
+                        vec![assign(
+                            var("exponent"),
+                            op2("-", var("exponent"), var("value")),
+                        )],
+                        vec![],
+                        Some(vec![assign(
+                            var("exponent"),
+                            op2("+", var("exponent"), var("value")),
+                        )]),
+                    ),
+                ],
+            ),
+        ],
+    );
+    helper(
+        STRTOD,
+        vec![u64_param("nptr"), u64_param("endptr")],
+        DaType::double(),
+        vec![
+            DaStmt::Expr(call(STORE_ADDR, vec![var("endptr"), var("nptr")])),
+            if_then(
+                op2("==", var("nptr"), uint64_const(0)),
+                vec![ret(DaExpr::ConstDouble(0.0))],
+            ),
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_(
+                op2(
+                    "!=",
+                    call(ISSPACE, vec![byte_at(var("i"))]),
+                    DaExpr::ConstInt(0),
+                ),
+                vec![advance_u64("i")],
+            ),
+            local("negative", DaType::bool(), DaExpr::ConstBool(false)),
+            let_("sign", byte_at(var("i"))),
+            if_chain(
+                op2("==", var("sign"), DaExpr::ConstInt(45)),
+                vec![
+                    assign(var("negative"), DaExpr::ConstBool(true)),
+                    advance_u64("i"),
+                ],
+                vec![(
+                    op2("==", var("sign"), DaExpr::ConstInt(43)),
+                    vec![advance_u64("i")],
+                )],
+                None,
+            ),
+            // The forms this engine does not implement are refused before
+            // anything is converted, never converted to something else.
+            if_then(
+                op2(
+                    "&&",
+                    op2("==", byte_at(var("i")), DaExpr::ConstInt(48)),
+                    op2(
+                        "==",
+                        op2(
+                            "|",
+                            byte_at(op2("+", var("i"), uint64_const(1))),
+                            DaExpr::ConstInt(32),
+                        ),
+                        DaExpr::ConstInt(120),
+                    ),
+                ),
+                vec![DaStmt::Expr(call(
+                    "panic",
+                    vec![text(
+                        "--libc std: strtod does not implement hexadecimal floating constants",
+                    )],
+                ))],
+            ),
+            let_("head", op2("|", byte_at(var("i")), DaExpr::ConstInt(32))),
+            if_then(
+                op2(
+                    "||",
+                    op2("==", var("head"), DaExpr::ConstInt(105)),
+                    op2("==", var("head"), DaExpr::ConstInt(110)),
+                ),
+                vec![DaStmt::Expr(call(
+                    "panic",
+                    vec![text("--libc std: strtod does not implement inf and nan")],
+                ))],
+            ),
+            local("start", DaType::uint64(), var("i")),
+            local("digits", DaType::int(), DaExpr::ConstInt(0)),
+            local("exponent", DaType::int(), DaExpr::ConstInt(0)),
+            local("nonzero", DaType::bool(), DaExpr::ConstBool(false)),
+            local("lead", DaType::bool(), DaExpr::ConstBool(true)),
+            local("point", DaType::bool(), DaExpr::ConstBool(false)),
+            digit_loop,
+            // No digits at all is "no conversion": the caller's pointer stays
+            // where it was put above and `errno` is untouched.
+            if_then(
+                op2("==", var("digits"), DaExpr::ConstInt(0)),
+                vec![ret(DaExpr::ConstDouble(0.0))],
+            ),
+            local("stop", DaType::uint64(), var("i")),
+            exponent_block,
+            DaStmt::Expr(call(
+                STORE_ADDR,
+                vec![var("endptr"), op2("+", var("nptr"), var("stop"))],
+            )),
+            // The unsigned text of the conversion, which is what `to_double`
+            // accepts; the sign is applied to the result.
+            local("body", DaType::string(), text("")),
+            local("k", DaType::uint64(), var("start")),
+            while_(
+                op2("<", var("k"), var("stop")),
+                vec![
+                    append("body", call("to_char", vec![byte_at(var("k"))])),
+                    advance_u64("k"),
+                ],
+            ),
+            local(
+                "value",
+                DaType::double(),
+                call("to_double", vec![var("body")]),
+            ),
+            // `to_double` answers zero for both an overflow and an underflow,
+            // so the direction comes from the digits' own decimal exponent.
+            if_then(
+                op2(
+                    "&&",
+                    var("nonzero"),
+                    op2(
+                        "||",
+                        op2("==", var("value"), DaExpr::ConstDouble(0.0)),
+                        op2("==", var("value"), call(HUGE, vec![])),
+                    ),
+                ),
+                vec![
+                    set_errno(Errno::Erange),
+                    if_chain(
+                        op2(">", var("exponent"), DaExpr::ConstInt(0)),
+                        vec![assign(var("value"), call(HUGE, vec![]))],
+                        vec![],
+                        Some(vec![assign(var("value"), DaExpr::ConstDouble(0.0))]),
+                    ),
+                ],
+            ),
+            if_then(
+                var("negative"),
+                vec![assign(
+                    var("value"),
+                    op2("-", DaExpr::ConstDouble(0.0), var("value")),
+                )],
+            ),
+            ret(var("value")),
+        ],
+    )
+}
+
+/// `def c2da_std_strtof(nptr : uint64; endptr : uint64) : float`
+///
+/// The same engine, narrowed. `float`'s range is the narrower one, so a value
+/// the double conversion accepted may still be out of `float`'s range, and
+/// that is `ERANGE` too.
+fn build_strtof() -> DaDecl {
+    let float_max = 3.402_823_466_385_288_6e38_f64;
+    let float_min = 1.401_298_464_324_817_1e-45_f64;
+    helper(
+        STRTOF,
+        vec![u64_param("nptr"), u64_param("endptr")],
+        DaType::float(),
+        vec![
+            local(
+                "value",
+                DaType::double(),
+                call(STRTOD, vec![var("nptr"), var("endptr")]),
+            ),
+            if_then(
+                op2(
+                    "||",
+                    op2(">", var("value"), DaExpr::ConstDouble(float_max)),
+                    op2("<", var("value"), DaExpr::ConstDouble(-float_max)),
+                ),
+                vec![set_errno(Errno::Erange)],
+            ),
+            if_then(
+                op2(
+                    "&&",
+                    op2("!=", var("value"), DaExpr::ConstDouble(0.0)),
+                    op2(
+                        "&&",
+                        op2("<", var("value"), DaExpr::ConstDouble(float_min)),
+                        op2(">", var("value"), DaExpr::ConstDouble(-float_min)),
+                    ),
+                ),
+                vec![set_errno(Errno::Erange)],
+            ),
+            ret(cast(var("value"), DaType::float())),
         ],
     )
 }
@@ -3518,10 +5203,7 @@ fn build_strto() -> DaDecl {
                         op2(">", var("base"), DaExpr::ConstInt(36)),
                     ),
                 ),
-                vec![
-                    DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(EINVAL)])),
-                    ret(uint64_const(0)),
-                ],
+                vec![set_errno(Errno::Einval), ret(uint64_const(0))],
             ),
             DaStmt::Expr(call(STORE_ADDR, vec![var("endptr"), var("nptr")])),
             if_then(
@@ -3651,10 +5333,7 @@ fn build_strto() -> DaDecl {
             )),
             if_then(
                 var("over"),
-                vec![
-                    DaStmt::Expr(call(SET_ERRNO, vec![DaExpr::ConstInt(ERANGE)])),
-                    ret(var("limit")),
-                ],
+                vec![set_errno(Errno::Erange), ret(var("limit"))],
             ),
             if_then(var("neg"), vec![ret(op2("-", uint64_const(0), var("acc")))]),
             ret(var("acc")),
@@ -3737,25 +5416,37 @@ fn build_atoi() -> DaDecl {
 
 // ── errno ────────────────────────────────────────────────────────────
 
-/// `var c2da_std_errno_cell : uint64 = 0x0` — the address of the module's one
-/// `errno` object, allocated on first use.
-fn build_errno_cell() -> DaDecl {
+/// `var c2da_std_errno_cell : uint64 = c2da_std_cell_alloc()` — the address of
+/// the module's one `errno` object, and, under `c2da_std_io_byte`, the one
+/// scratch byte the single-byte stream helpers read and write through.
+///
+/// The cell is allocated once, eagerly, when the module's globals are
+/// initialized: the raw-memory runtime's own globals are declared ahead of
+/// the std prelude, so the arena is already usable here. Eager allocation is
+/// what lets `c2da_std_errno_location` be a pure getter, and it is also what
+/// makes the address non-null for the whole run — a C program reads `errno`
+/// by dereferencing that address, where the translator can no longer guard.
+fn build_cell(name: &str) -> DaDecl {
     DaDecl::Variable(DaVariable {
-        name: ERRNO_CELL.to_owned(),
+        name: name.to_owned(),
         var_type: DaType::uint64(),
-        init: Some(uint64_const(0)),
+        init: Some(call(CELL_ALLOC, vec![])),
         annotations: vec![],
     })
 }
 
-/// `def c2da_std_errno_location() : uint64`
+/// `def c2da_std_cell_alloc() : uint64` — a pointer-aligned four-byte block of
+/// the raw heap.
 ///
-/// glibc's `errno` *is* `*__errno_location()`, so the translated program reads
-/// and writes this cell through an ordinary C `int *`. The address is rounded
-/// up to the target's pointer alignment — the strictest the Clang facts give
-/// this unit — because the raw-memory runtime is a bump allocator that makes
-/// no alignment promise of its own.
-fn build_errno_location() -> DaDecl {
+/// The address is rounded up to the target's pointer alignment — the
+/// strictest the Clang facts give this unit — because the raw-memory runtime
+/// is a bump allocator that makes no alignment promise of its own.
+///
+/// An arena that cannot hand out the first four bytes of a 64 MiB reserve is
+/// not a program state a translated C unit can recover from: `errno` would be
+/// a null pointer, and the very next `errno` *read* in the C program would
+/// dereference it. The helper panics instead, naming the prelude.
+fn build_cell_alloc() -> DaDecl {
     let align = layout().pointer_align.max(4);
     let zero_byte = |index: u64| {
         DaStmt::Expr(call(
@@ -3764,44 +5455,56 @@ fn build_errno_location() -> DaDecl {
         ))
     };
     helper(
-        ERRNO_LOCATION,
+        CELL_ALLOC,
         vec![],
         DaType::uint64(),
         vec![
-            if_then(
-                op2("==", var(ERRNO_CELL), uint64_const(0)),
-                vec![
-                    local(
-                        "raw",
-                        DaType::uint64(),
-                        call("c2da_rt_malloc", vec![uint64_const(align + 4)]),
-                    ),
-                    if_then(
-                        op2("==", var("raw"), uint64_const(0)),
-                        vec![ret(uint64_const(0))],
-                    ),
-                    local(
-                        "aligned",
-                        DaType::uint64(),
-                        op2(
-                            "*",
-                            op2(
-                                "/",
-                                op2("+", var("raw"), uint64_const(align - 1)),
-                                uint64_const(align),
-                            ),
-                            uint64_const(align),
-                        ),
-                    ),
-                    zero_byte(0),
-                    zero_byte(1),
-                    zero_byte(2),
-                    zero_byte(3),
-                    assign(var(ERRNO_CELL), var("aligned")),
-                ],
+            local(
+                "raw",
+                DaType::uint64(),
+                call("c2da_rt_malloc", vec![uint64_const(align + 4)]),
             ),
-            ret(var(ERRNO_CELL)),
+            if_then(
+                op2("==", var("raw"), uint64_const(0)),
+                vec![DaStmt::Expr(call(
+                    "panic",
+                    vec![text("--libc std prelude: the raw heap is exhausted")],
+                ))],
+            ),
+            local(
+                "aligned",
+                DaType::uint64(),
+                op2(
+                    "*",
+                    op2(
+                        "/",
+                        op2("+", var("raw"), uint64_const(align - 1)),
+                        uint64_const(align),
+                    ),
+                    uint64_const(align),
+                ),
+            ),
+            zero_byte(0),
+            zero_byte(1),
+            zero_byte(2),
+            zero_byte(3),
+            ret(var("aligned")),
         ],
+    )
+}
+
+/// `def c2da_std_errno_location() : uint64`
+///
+/// glibc's `errno` *is* `*__errno_location()`, so the translated program reads
+/// and writes this cell through an ordinary C `int *`. The cell exists before
+/// any translated code runs, so this is a getter and nothing else: no branch,
+/// and no answer a C program could dereference into nothing.
+fn build_errno_location() -> DaDecl {
+    helper(
+        ERRNO_LOCATION,
+        vec![],
+        DaType::uint64(),
+        vec![ret(var(ERRNO_CELL))],
     )
 }
 
@@ -3813,7 +5516,6 @@ fn build_set_errno() -> DaDecl {
         DaType::void(),
         vec![
             local("cell", DaType::uint64(), call(ERRNO_LOCATION, vec![])),
-            if_then(op2("==", var("cell"), uint64_const(0)), vec![ret_void()]),
             assign(
                 DaExpr::Unsafe(Box::new(DaExpr::Index(
                     Box::new(reinterpret(var("cell"), DaType::pointer(DaType::int()))),
@@ -3952,12 +5654,39 @@ fn build_snprintf() -> DaDecl {
     )
 }
 
+/// The cursor parameter of a std `v*` shim, and the two statements that walk
+/// it: the conversion reads from the caller's index and the caller's index is
+/// left where the conversion stopped.
+///
+/// C99 7.15.1p1 leaves the caller's `ap` indeterminate after a `v*printf`
+/// call, and glibc's x86-64 `va_list` is an array type, so a real program sees
+/// the callee's advance. Forwarding to a translated C function already works
+/// that way — the cursor is a `var` parameter (see `variadic.rs`) — and these
+/// shims are the same ABI, not a second one. A daScript field of a `var`
+/// record does not itself pass by reference, so the index crosses through a
+/// local that is written back.
+fn va_cursor_param() -> DaStmt {
+    var_param("ap", DaType::named("C2daVaCursor"))
+}
+
+fn cursor_index() -> DaExpr {
+    DaExpr::Field(Box::new(var("ap")), "index".into())
+}
+
+fn take_cursor() -> DaStmt {
+    local("from", DaType::int(), cursor_index())
+}
+
+fn put_cursor() -> DaStmt {
+    assign(cursor_index(), var("from"))
+}
+
 /// `def c2da_std_vsnprintf(dst : uint64; size : uint64; f : int8 const?;
-///                         ap : C2daVaCursor; args : array<C2daVaArg>) : int`
+///                         var ap : C2daVaCursor; args : array<C2daVaArg>) : int`
 ///
 /// The forwarded `va_list` is a cursor into `args` (see `variadic.rs`), which
 /// the call site passes alongside it; the conversion therefore starts at the
-/// cursor's own index.
+/// cursor's own index and leaves it past the arguments it read.
 fn build_vsnprintf() -> DaDecl {
     helper(
         VSNPRINTF,
@@ -3965,31 +5694,75 @@ fn build_vsnprintf() -> DaDecl {
             u64_param("dst"),
             u64_param("size"),
             param("f", c_string_type()),
-            param("ap", DaType::named("C2daVaCursor")),
+            va_cursor_param(),
             param("args", va_args_type()),
         ],
         DaType::int(),
         vec![
+            take_cursor(),
+            local(
+                "body",
+                DaType::string(),
+                call(VFORMAT, vec![var("f"), var("args"), var("from")]),
+            ),
+            put_cursor(),
             local(
                 "placed",
                 DaType::int(),
-                call(
-                    PLACE,
-                    vec![
-                        var("dst"),
-                        var("size"),
-                        call(
-                            VFORMAT,
-                            vec![
-                                var("f"),
-                                var("args"),
-                                DaExpr::Field(Box::new(var("ap")), "index".into()),
-                            ],
-                        ),
-                    ],
-                ),
+                call(PLACE, vec![var("dst"), var("size"), var("body")]),
             ),
             ret(op2("+", var("placed"), var(LOST_CELL))),
+        ],
+    )
+}
+
+/// `def c2da_std_vprintf(f : int8 const?; var ap : C2daVaCursor;
+///                       args : array<C2daVaArg>) : int`
+fn build_vprintf() -> DaDecl {
+    helper(
+        VPRINTF,
+        vec![
+            param("f", c_string_type()),
+            va_cursor_param(),
+            param("args", va_args_type()),
+        ],
+        DaType::int(),
+        vec![
+            take_cursor(),
+            local(
+                "body",
+                DaType::string(),
+                call(VFORMAT, vec![var("f"), var("args"), var("from")]),
+            ),
+            put_cursor(),
+            DaStmt::Expr(call("print", vec![var("body")])),
+            ret(op2("+", call("length", vec![var("body")]), var(LOST_CELL))),
+        ],
+    )
+}
+
+/// `def c2da_std_vfprintf(handle : uint64; f : int8 const?;
+///                        var ap : C2daVaCursor; args : array<C2daVaArg>) : int`
+fn build_vfprintf() -> DaDecl {
+    helper(
+        VFPRINTF,
+        vec![
+            u64_param("handle"),
+            param("f", c_string_type()),
+            va_cursor_param(),
+            param("args", va_args_type()),
+        ],
+        DaType::int(),
+        vec![
+            take_cursor(),
+            local(
+                "body",
+                DaType::string(),
+                call(VFORMAT, vec![var("f"), var("args"), var("from")]),
+            ),
+            put_cursor(),
+            DaStmt::Expr(call(WRITE, vec![var("handle"), var("body")])),
+            ret(op2("+", call("length", vec![var("body")]), var(LOST_CELL))),
         ],
     )
 }
@@ -4039,6 +5812,17 @@ fn build_fwrite() -> DaDecl {
                         cast(var("total"), DaType::int()),
                     ],
                 ))),
+            ),
+            // C's `fwrite` answers a short item count and sets the stream's
+            // error indicator; the byte count the host reports is what makes
+            // the difference between the two observable.
+            if_then(
+                op2(
+                    "||",
+                    op2("<", var("wrote"), DaExpr::ConstInt(0)),
+                    op2("<", cast(var("wrote"), DaType::uint64()), var("total")),
+                ),
+                vec![DaStmt::Expr(call(STREAM_FAIL, vec![var("handle")]))],
             ),
             if_then(
                 op2("<=", var("wrote"), DaExpr::ConstInt(0)),
@@ -4178,12 +5962,35 @@ mod tests {
             ("tolower", TOLOWER),
             ("toupper", TOUPPER),
             ("__errno_location", ERRNO_LOCATION),
+            ("vprintf", VPRINTF),
+            ("vfprintf", VFPRINTF),
+            ("strerror", STRERROR),
+            ("perror", PERROR),
+            ("feof", FEOF),
+            ("ferror", FERROR),
+            ("clearerr", CLEARERR),
+            ("getenv", GETENV),
+            // C's `long double` is `double` here, so `strtold` is `strtod`.
+            ("strtod", STRTOD),
+            ("strtold", STRTOD),
+            ("strtof", STRTOF),
+            ("remove", REMOVE),
+            ("rename", RENAME),
+            ("fgets", FGETS),
+            // `getc`/`putc` are the same functions as `fgetc`/`fputc`.
+            ("fgetc", FGETC),
+            ("getc", FGETC),
+            ("fputc", FPUTC),
+            ("putc", FPUTC),
+            ("ungetc", UNGETC),
+            ("rewind", REWIND),
+            ("fileno", FILENO),
         ] {
             let function = std_function(source).expect("registered std symbol");
             assert_eq!(function.target_name(), target);
         }
         assert_eq!(std_function("qsort"), None);
-        assert_eq!(std_function("strtod"), None);
+        assert_eq!(std_function("strerror_l"), None);
         assert_eq!(std_function("__ctype_b_loc"), None);
     }
 
@@ -4275,6 +6082,7 @@ mod tests {
             pointer_align: 8,
             timespec_sec: (0, 8),
             timespec_nsec: (8, 8),
+            errno: ErrnoNumbering::AsmGeneric,
         });
         for name in [
             PRINTF,
@@ -4322,6 +6130,24 @@ mod tests {
             TOLOWER,
             TOUPPER,
             ERRNO_LOCATION,
+            VPRINTF,
+            VFPRINTF,
+            STRERROR,
+            PERROR,
+            FEOF,
+            FERROR,
+            CLEARERR,
+            GETENV,
+            STRTOD,
+            STRTOF,
+            REMOVE,
+            RENAME,
+            FGETS,
+            FGETC,
+            FPUTC,
+            UNGETC,
+            REWIND,
+            FILENO,
             REPEAT,
             UTOA,
             NUMBER,
@@ -4339,5 +6165,93 @@ mod tests {
         assert_eq!(module_requires(), vec!["strings", "daslib/fio"]);
         reset();
         assert!(module_requires().is_empty());
+    }
+
+    #[test]
+    fn errno_numbering_follows_the_clang_target() {
+        for linux in [
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-gnu",
+            "riscv64-unknown-linux-gnu",
+            "i386-pc-linux-gnu",
+            "powerpc64le-unknown-linux-gnu",
+        ] {
+            assert_eq!(
+                ErrnoNumbering::of_target(linux),
+                ErrnoNumbering::AsmGeneric,
+                "{linux}"
+            );
+        }
+        // Linux architectures with a numbering of their own, and the hosts
+        // this translator has no numbering for at all.
+        for other in [
+            "mips64el-unknown-linux-gnuabi64",
+            "sparc64-unknown-linux-gnu",
+            "hppa-unknown-linux-gnu",
+            "alpha-unknown-linux-gnu",
+            "x86_64-apple-darwin",
+            "x86_64-pc-windows-msvc",
+            "wasm32-unknown-unknown",
+            "",
+        ] {
+            assert_eq!(
+                ErrnoNumbering::of_target(other),
+                ErrnoNumbering::Unknown,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn asm_generic_numbering_is_the_linux_uapi_one() {
+        let n = ErrnoNumbering::AsmGeneric;
+        for (code, value) in [
+            (Errno::Eperm, 1),
+            (Errno::Enoent, 2),
+            (Errno::Eintr, 4),
+            (Errno::Eio, 5),
+            (Errno::Ebadf, 9),
+            (Errno::Eagain, 11),
+            (Errno::Enomem, 12),
+            (Errno::Eacces, 13),
+            (Errno::Ebusy, 16),
+            (Errno::Eexist, 17),
+            (Errno::Eisdir, 21),
+            (Errno::Einval, 22),
+            (Errno::Enospc, 28),
+            (Errno::Espipe, 29),
+            (Errno::Erange, 34),
+            (Errno::Eoverflow, 75),
+        ] {
+            assert_eq!(n.code(code), value, "{code:?}");
+        }
+        // Every catalogued code is one the numbering knows.
+        for (code, text) in STRERROR_CATALOGUE {
+            assert!(n.code(*code) > 0, "{text}");
+        }
+    }
+
+    #[test]
+    fn unsupported_float_subjects_are_named() {
+        for (subject, spelled) in [
+            ("  0X1p3", "0x"),
+            ("-0x10", "0x"),
+            ("INF", "inf"),
+            ("+infinity", "inf"),
+            ("nan(7)", "nan"),
+        ] {
+            assert_eq!(
+                unsupported_float_subject(subject.as_bytes()).as_deref(),
+                Some(spelled),
+                "accepted {subject}"
+            );
+        }
+        for accepted in ["  -12.5e2xyz", "+7", ".5", "0", "0.0e0", "zzz", ""] {
+            assert_eq!(
+                unsupported_float_subject(accepted.as_bytes()),
+                None,
+                "rejected {accepted}"
+            );
+        }
     }
 }
