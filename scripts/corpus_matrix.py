@@ -78,7 +78,9 @@ CONVERGENCE_DOC = ROOT / "docs/corpus-convergence.md"
 BENCHMARK_DOC = ROOT / "docs/corpus-benchmark.md"
 AOT_HOST = ROOT / "scripts/corpus/aot_host.cpp"
 MODES = ("interp", "jit", "aot", "exe")
-FRAME_LINE = re.compile(r"^frame\[(\d+)\]=(-?\d+)$")
+# One line per checked item: `frame[i]=<hash>` for the decoders, `fib[n]=<value>`
+# for a program that produces numbered results; any `<name>[<index>]=<int>`.
+FRAME_LINE = re.compile(r"^[a-z_]+\[(\d+)\]=(-?\d+)$")
 KEY_LINE = re.compile(r"^([a-z_]+)=(-?\d+)$")
 # Mirrors the flags daScript's own build applies to its AOT stubs
 # (CMakeFiles/libDaScriptAot.dir); used when the toolchain has no
