@@ -60,21 +60,34 @@ Two more translator findings from that run, both generic:
 - **Struct emission order.** `daslang -aot`'s C++ does not compile out of the
   translator: four `field has incomplete type` errors (`M3Module` embeds `M3Memory`
   by value but is emitted first).  The translator emits records in C's *first-name*
-  order; daslang tolerates it, C++ needs *definition* order for by-value members.
-  The aot row above needed a hand reorder in a scratch copy.  Fix: order record
-  declarations by by-value containment (pointer members do not constrain), like
-  `global_order` already does for aliases and initializers.
+  order, not *definition* order.  daslang's AOT emitter does sort by-value members
+  ahead of their container, but gives up when the embedded struct also points back
+  at the container (pure repro and control in
+  [lookibed/daScript#2](https://github.com/lookibed/daScript/issues/2)); wasm3's
+  records are such cycles.  The aot row above needed a hand reorder in a scratch
+  copy.  Translator-side avoidance, independent of that issue: emit records in C
+  definition order, which is complete-before-by-value-use by construction (pointer
+  members do not constrain), like `global_order` already does for aliases and
+  initializers.
 - **Interpreter blocker, translator-side avoidance.** The throwing shape
   `unsafe(reinterpret<uint64>(unsafe(p + N)))` is emitted at exactly one site,
-  `abi.rs pointer_to_raw_address()` (pointer comparison operands).  The daslang
-  defect is in `ext_slot_cast` (`interop.h`): a bound extern returning a pointer
-  (`i_das_ptr_add`/`i_das_ptr_sub`) cannot be read through an integer slot; element
-  type, offset spelling and `-no-optimization` do not matter.  Hoisting the pointer
-  expression into an untyped temporary (`var t = unsafe(p + N)`) and reinterpreting
-  the temporary runs in the interpreter (verified in isolation), needs no pointee
-  knowledge at the site, and is a legitimate generic lowering choice.  Also noted:
-  `reinterpret<uint>` (32-bit) of a pointer breaks the JIT's codegen
-  (`Trunc only operates on integer`).
+  `abi.rs pointer_to_raw_address()` (pointer comparison operands).  Reported with a
+  9-line pure repro and the tried variants as
+  [lookibed/daScript#3](https://github.com/lookibed/daScript/issues/3): a bound
+  extern returning a pointer (`i_das_ptr_add`/`i_das_ptr_sub`) cannot be read
+  through an integer slot; element type, offset spelling and `-no-optimization` do
+  not matter.  Hoisting the pointer expression into a temporary
+  (`var t = unsafe(p + N)`) and reinterpreting the temporary runs in the
+  interpreter (verified in isolation), needs no pointee knowledge at the site, and
+  is a legitimate generic lowering choice.  Also noted and reported as
+  [lookibed/daScript#1](https://github.com/lookibed/daScript/issues/1):
+  `reinterpret<uint>` (32-bit) of a pointer sum breaks the JIT's codegen
+  (`Trunc only operates on integer`); the translator never emits a 32-bit
+  reinterpret of a pointer, so this one needs no avoidance.
+
+None of the three daslang issues is a dependency: the translator-side avoidances
+are to be implemented regardless, and the issues are recorded here so that the
+avoidances can be revisited when daslang changes.
 
 Two things remain, and this page owns them:
 
