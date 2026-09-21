@@ -137,13 +137,148 @@ arithmetic remains in the tree, in `p54-address-taken`
 back to `reinterpret<T?>`, never read as an integer, and the case passes in
 every mode.
 
-One thing remains, and this page owns it:
+## Decisions 2026-09-21, from measurement
 
-- **The decision per row** the user asked for is still due: (1) every non-direct
-  callee goes through `invoke`, decided by type — keep; (2) `musttail` is dropped and
-  the flat-stack guarantee is not preserved — measure the overflow depth per mode on
-  this corpus before calling it acceptable; (3) the `va_list` cursor crosses by
-  reference next to the caller's argument array — keep unless a callee stores the
-  cursor beyond the call; (4) `errno` is a cell in the raw heap behind
-  `__errno_location`, with `ERANGE`/`EINVAL` set by `strto*` — keep, and extend
-  when the next corpus needs more of `errno.h`.
+Four parallel research runs (one per row; probes, models, surveys and raw logs are
+session artefacts, the numbers are reproduced here).  Every timing is a median of
+≥ 5 runs after a warm-up, pinned to its own cores, against a C baseline measured
+the same way at the same time.  `perf`/`valgrind` are not on the machine, so where a
+profile would have been used the evidence is exact dynamic counts plus controlled
+builds plus disassembly.
+
+### 1. Indirect calls: keep `invoke` on a `function<>` value.  Do not devirtualise.
+
+wasm3 executes 1 305 795 dispatches per run (counted in an instrumented C copy).
+Per dispatch: C `-O2` 1.34 ns; aot 2.14 (+0.80); `-exe` 4.05 (+2.72); `-jit` 4.22
+(+2.88); interp 124 (+122).  A C `-O2` build with the tail call disabled costs 2.46
+(+1.12), so ≈ 40 % of the jit/exe gap is the missing tail call, not `invoke`.
+
+- **AOT** compiles `invoke` to a direct call through `SimFunction::aotFunction` *in
+  tail position* (clang's sibling-call optimisation fires through
+  `das_invoke_function`), so the AOT build reproduces wasm3's `musttail` chain.  The
+  +0.80 ns is one extra `Context*` argument, two null checks, one extra load and a
+  frame for the cold paths — the whole AOT gap.  A cheaper lowering would need a raw
+  C function-pointer call that daslang does not offer; achievable gain today: 0.
+- **JIT/exe** lower `invoke` to a call through `vec4f (*)(Context*, vec4f*, void*)`
+  with `ctx.stopFlags = 0` after it, which forbids a tail call (daslang side).
+- **Alternatives measured and rejected**: `lambda` values are slower in all four
+  modes; an `if/elif` devirtualisation costs 2.47 ns per arm in the interpreter (no
+  `switch` node exists) — ≈ 580 ns for wasm3's 473 address-taken functions, 4.5× worse
+  — and the compiled modes' good numbers come from LLVM jump tables on dense
+  integers, impossible for 64-bit `Func` comparisons; the callee set is not provable
+  anyway (the value is cast out of the bytecode array).  `options solid_context`
+  changes no AOT read and prohibits AOT.
+- **Unrelated finding worth its own work**: in AOT every daslang *global* read inside
+  a loop containing an opaque call is a mangled-name hash probe
+  (`das_global<T,mnh>` → `globalOffsetByMangledName`), ≈ 4.1 ns per access (jit 0.8,
+  exe 0.55).  wasm3's handlers read no globals, so it does not show there; translated
+  C whose hot loop touches file-scope variables will pay it.  Translator-side hoisting
+  is unsound (any pointer may alias a global); the AOT emitter has `das_global_solid`
+  and uses it only for initialisers — a daslang-side issue to file after measuring
+  the decoder `-std` cases.
+
+### 2. `musttail`: drop it with a source-located warning (`-Wmust-tail`).
+
+- **Time**: at `-O2` clang sibling-calls all 474 dispatch sites with or without the
+  attribute (474 indirect `jmp` in both objects; at `-O0` without it, 0 `jmp` /
+  479 `call`).  fib32 decode: stock 1778 µs, attribute dropped only 1743 (0.98×),
+  `-DM3_HAS_TAIL_CALL=0` 1832 (1.03×).  The attribute is worth 1.37× only at `-O0`.
+  So "fail closed and rebuild the input without tail calls" is refuted: it is slower
+  and restores nothing (`return_call` stops being iterative in the C reference too).
+- **Stack** (plain wasm recursion, 8 MiB native stack, `n_max` / bytes per wasm
+  frame): C `-O2` 130 940 / 64; aot 74 774 / 112; `-exe` 16 891 / 497; `-jit`
+  15 386 / 545; interp 6 704 / 1251 (a catchable daslang exception).  `ulimit -s`
+  doubled doubles `-exe`'s `n_max` exactly.  Raising `options stack` from 4 MiB to
+  32 MiB does **not** raise the interpreter's `n_max` and turns its exception into a
+  SIGSEGV: 4 MiB is the right value for the registered case, and it must not be
+  raised.
+- **`return_call`** (a wasm tail loop): C `-O2` and aot are unbounded — `clang++ -O3`
+  sibling-calls the AOT C++ (418 indirect `jmp` vs 13 in `-exe`'s object) — while
+  `-jit`/`-exe`/interp are bounded (16 364 / 14 534 / 6 718).  Under `-jit`/`-exe` a
+  C program that uses `musttail` for an unbounded loop has no depth at which it is
+  correct; that is the one qualitative loss.
+- **Trampoline** (a generic same-signature-SCC rewrite, prototyped on a model):
+  wins 1.8× under `-jit`/`-exe`, loses 1.5× under aot and 1.18× in the interpreter,
+  2.4× in C; it must rewrite every function-pointer type of the signature and prove
+  it sees every producer of a dispatch value, and cannot help `musttail` into an
+  unrelated callee.  Declined.
+- **daslang side**: no tail-call notion at all.  `LLVMSetTailCallKind` is bound
+  (`modules/dasLLVM/bindings/llvm_func.das`) and never called; the site is
+  `make_call` in `llvm_jit.das`, blocked by the epilogue emitted between the call and
+  `ret`.  To be filed on the fork as a proposal (JIT musttail, `[[clang::musttail]]`
+  in the AOT printer, a diagnosed annotation); not a dependency.
+- **Work**: `Attribute::MustTail` is parsed and read nowhere.  Add
+  `Diagnostic::MustTail` and warn at the drop site with the statement span; louder
+  wording when the attributed call is self- or SCC-recursive.  Correct
+  `tests/manual/wasm3/README.md` (the `call *%rax` claim holds at `-O0` only) and
+  record the depth table and the 4 MiB ceiling next to `das_options` in
+  `docs/corpus-build-recipe.md`.
+
+### 3. `va_list` parameters: keep by-reference; fix two live defects; escape check.
+
+- **ABI**: x86-64 `va_list` is `struct __va_list_tag[1]` (by reference); aarch64,
+  riscv64, i386, ppc64le pass it by value.  C99 7.15.1p1 makes the caller's `ap`
+  indeterminate after the call, so conforming programs cannot tell.
+- **Idioms** (19 programs, native vs interp vs `-jit`, the two daslang modes never
+  disagreed): every model-independent idiom matches; the two ABI-dependent ones
+  (caller reads on after the callee consumed; the same `ap` handed to a consumer
+  twice) match glibc because the model is by-reference — a hand-made by-value
+  simulation gives 3001/3003 where native gives 3003/3007.
+- **Survey** (Lua, zlib, stb, musl, picolibc, SQLite, curl, wasm3): 175 `va_list`
+  parameter sites; every `va_copy` copies a parameter (18), never a local; zero
+  `va_list` values escape their frame; zero "reuse after consume".  `&ap` occurs 14
+  times, all frame-local synchronous passes (musl's `printf_core(…, va_list *ap, …)`,
+  picolibc's struct wrapper) — an address-taken check would reject exactly the printf
+  engines a port will meet; an escape (lifetime) check fires on none of them.
+- **Defects found** (both silent, both outrank the model question):
+  `va_start` on an already-started object emits nothing (`VaPart::Start` →
+  `ConstInt(0)`), so a second `va_start` continues instead of rewinding: the
+  measure-then-format two-pass shape gives a wrong value (1203 for 1201) or runs off
+  the argument array; and the std shims (`c2da_std_vsnprintf` etc.) take the cursor
+  *without* `var`, i.e. by value, so forwarding to libc uses the opposite model from
+  forwarding to translated C (two probes diverge; one passes only because the two
+  defects cancel).  Also accepted and unsound: storing `&ap` of a parameter in a
+  global (a 4-byte cursor reinterpreted as a 24-byte struct pointer).
+- **Work**: emit `<cursor>.index = 0` on `va_start`; `var ap` in every std shim with
+  the advance written back; a located error when the address of a `va_list` object
+  is stored anywhere but a call argument; optionally poison the cursor on `va_end`.
+  Cases: va-start rewind (nostd), shared-cursor ABI pin (nostd), std forwarding
+  (std), negative escape.  `AstContext::va_list_kind` already exists if a
+  `--va-list-abi` switch is ever wanted; not now.
+
+### 4. `errno`: keep the raw-heap cell; fix two mechanical defects; grow the table.
+
+- **Equivalence**: 20 idioms native vs interp vs `-jit`; every idiom whose value the
+  translator writes is byte-identical, including a unit that includes the real
+  `<errno.h>` (the macro expands to `(*__errno_location())`, which is exactly what
+  the translator intercepts).  Misses are all "nobody wrote the value": failed
+  `fopen` (`ENOENT`), failed `fseek` (`EINVAL`), failed allocation (`ENOMEM`, which
+  no surveyed codebase checks).
+- **Alternative** (a daslang global reached through `addr()`): addressable in every
+  mode (verified), marginally cheaper under `-jit`, but `&errno` would no longer live
+  in the C address space, and threading does not discriminate (a `jobque` clone
+  re-initialises the globals *and* the heap array alike).  Rejected.
+- **Cell defects**: lazy allocation (a branch per access, ≈ 2× in the interpreter,
+  18 % under `-jit`) and unguarded reads when `c2da_rt_malloc` returns 0.  Allocate
+  eagerly in the prelude, make the accessor a pure getter.
+- **Survey** (Lua, SQLite, zlib, miniz, stb, lz4, cJSON, PCRE2, wasm3): `errno` in
+  6/10; most *writers* are POSIX syscalls outside ANSI scope (the cell must stay an
+  assignable `int`, nothing more); `strerror(errno)` is the first error path in 6/10;
+  `ferror`/`feof`/`clearerr` are load-bearing in Lua and lz4; `EINTR` loops are pure
+  reads; `EAGAIN == EWOULDBLOCK` on Linux.  daslib offers `feof` (no null check),
+  `get_env_variable`, `remove`/`rename` with an error *string*; no `ferror`,
+  `clearerr`, `strerror` or errno at script level.
+- **Numbering**: `ERANGE=34` etc. are Linux UAPI (`asm-generic`), not glibc-specific;
+  the program side already takes its constants from its own headers.  The helper
+  side should treat the numbering as a target fact next to `StdLayout` (fail closed
+  on an unknown target), and `strerror`'s catalogue must be shipped explicitly as
+  glibc's.
+- **Work**, in order: `strerror`, `perror`; `ferror`/`feof`/`clearerr` with a sticky
+  flag in the std `FILE`; `ENOENT`/`EACCES`/`EISDIR` on a failed `fopen` (from
+  `fexist`/`stat`); `getenv`; `strtod`; `EINVAL` on `fseek` plus `fwrite`/`fclose`
+  failure paths; `remove`/`rename`; `fgets`/`fgetc`/`fputc`/`ungetc`/`rewind`/
+  `fileno`; 15 constants.  Cases: errno idioms, real headers, strerror/perror,
+  stream flags, fopen errno, one negative.  Adjacent blocker: glibc's `assert` fails
+  as "statement expression has no final value" and gates SQLite.
+
+Nothing on this page is now undecided.  The open items are the work lists above.
