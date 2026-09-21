@@ -286,7 +286,14 @@ impl<'c> Translation<'c> {
     pub fn new(ast_context: TypedAstContext, tcfg: &'c TranspilerConfig, main_file: &Path) -> Self {
         Translation {
             type_converter: RefCell::new(TypeConverter::new(tcfg)),
-            renamer: RefCell::new(Renamer::global_value_namespace()),
+            // A `--libc std` module `require`s daslib, whose value names the
+            // std prelude spells unqualified; see
+            // `DASCRIPT_STD_LIBC_VALUE_NAMESPACE`.
+            renamer: RefCell::new(if tcfg.libc == crate::LibcMode::Std {
+                Renamer::std_libc_global_value_namespace()
+            } else {
+                Renamer::global_value_namespace()
+            }),
             function_context: RefCell::new(FuncContext::new()),
             emitted_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             emitted_anon_structs: std::cell::RefCell::new(std::collections::HashSet::new()),

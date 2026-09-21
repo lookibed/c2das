@@ -362,13 +362,20 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         else:
             das_entry = generated_das
 
+        # `--` is what separates the launcher's own command line from the
+        # program's.  A `--libc std` module turns that command line into a C
+        # `argv`, so the separator has to be there even when the program takes
+        # no arguments: without it the launcher's `-main <entry>` would reach
+        # the C program as `argv[1]` and `argv[2]`, and `argc` would not match
+        # the native program's.
+        separated = case.get("libc") == "std" or bool(program_args)
         da_result = subprocess.run(
             [
                 str(daslang),
                 str(das_entry),
                 "-main",
                 case["das_entrypoint"],
-                *(["--", *program_args] if program_args else []),
+                *(["--", *program_args] if separated else []),
             ],
             cwd=work,
             env=env,

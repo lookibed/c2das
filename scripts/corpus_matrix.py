@@ -388,16 +388,19 @@ def build_mode(p: Prepared, mode: str, entry: Path, name: str, c_entry: Path | N
 def with_args(command: list[str], mode: str, args: list[str]) -> list[str]:
     """The program's arguments, spelled the way each launcher passes them on.
 
-    `daslang` (interpreter and -jit) takes script arguments after `--`; the -exe
-    binary and the AOT host take them as plain trailing arguments.  All four
-    reach the script's get_command_line_arguments() with the argument last, which
-    is what the file entries rely on.
+    `daslang` (interpreter and -jit) and the AOT host take script arguments
+    after `--`; the -exe binary is the program itself, so its arguments are
+    plain trailing ones.  All four reach the script's
+    get_command_line_arguments() with the argument last, which is what the file
+    entries rely on, and all four give a `--libc std` module the same C `argv`:
+    the separator is what tells its `main` wrapper where the launcher's own
+    command line ends.
     """
     if not args:
         return command
-    if mode in ("interp", "jit"):
-        return [*command, "--", *args]
-    return [*command, *args]
+    if mode == "exe":
+        return [*command, *args]
+    return [*command, "--", *args]
 
 
 def describe_mode(mode: str, entry_name: str) -> str:

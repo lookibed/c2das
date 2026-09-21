@@ -873,6 +873,55 @@
     {
       "id": "p80-variable-length-array", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p80_variable_length_array.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "variable_length_array_runtime", "return_type": "int" }, "das_entrypoint": "variable_length_array_runtime", "expected": { "stdout": "", "exit_code": 0 }, "runtime": "required"
+    },
+    {
+      "id": "p81-std-printf-edge",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p81_std_printf_edge.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p72_std_file_io.bin"],
+      "expected": {
+        "stdout": "[00042][   07][][5]\n[000000ff][007][0x00001][010][010]\n[5][ff][ff][10][5]\n[   03][00042   ][-00000000000000000005][0][0]\n[0x1234][(nil)]\n[    42][42    ][42    ]\n[1.500][ab][0007][9]\n[abc][   ab][ab   ][][        ab]\n[(null)][][(null)][    (null)]\nnul_count=3\nargc=2 argv_end=1 argv0=1\nfflush_all=0\nseek_failed=1 told=0\nstrtoll=9223372036854775807 errno=34\nstrtoll_base=0 errno=22\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p82-std-exit-status",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p82_std_exit_status.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "argc=1 argv_end=1\n",
+        "exit_code": 7
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p83-std-main-void",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p83_std_main_void.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "main_void to_char=65 seek_set=99\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
     }
   ]
 }

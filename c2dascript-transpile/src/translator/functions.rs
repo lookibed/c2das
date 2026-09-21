@@ -257,13 +257,14 @@ impl<'c> Translation<'c> {
                 f.annotations.push("export".into());
             }
         }
-        // A C `main(argc, argv)` is not a daslang entry point: daslang calls a
-        // zero-argument function. In `--libc std` the translator adds the
-        // wrapper that turns the daslang command line into a C `argv`; the
-        // translated `main` itself keeps the name the renamer gave it, so
+        // A C `main` is not a daslang entry point whatever its parameter list:
+        // daslang calls an exported zero-argument function, and C's `main`
+        // keeps the name the renamer gave it (`main_0`). In `--libc std` the
+        // translator adds the wrapper that calls it, and — for a
+        // `main(argc, argv)` — turns the daslang command line into a C `argv`.
         // `nostd` naming is untouched.
-        if self.libc_std() && name == "main" && body.is_some() && !parameters.is_empty() {
-            super::libc::require_main_wrapper(&fn_name);
+        if self.libc_std() && name == "main" && body.is_some() {
+            self.require_std_main_wrapper(&fn_name, decl_id, parameters.len())?;
         }
         Ok(func)
     }
@@ -405,6 +406,11 @@ impl<'c> Translation<'c> {
         // the same reason, and never for a symbol the translation unit defines
         // itself.
         let std_libc = self.std_libc_call(func);
+        // A literal format string is checked before anything is lowered: a
+        // conversion the std engine does not implement is a translation-time
+        // failure, never output whose later conversions read the wrong
+        // arguments.
+        self.check_std_format(std_libc, args)?;
         let mut all_stmts = func_expr.stmts;
         let mut das_args = vec![];
         let mut variadic_tail = vec![];
@@ -488,7 +494,7 @@ impl<'c> Translation<'c> {
         let call = if let Some(function) = runtime {
             mk().call_expr(DaExpr::Var(function.target_name().to_owned()), das_args)
         } else if let Some(function) = std_libc {
-            let helper = super::libc::require_function(function);
+            let helper = self.require_std_function(function)?;
             mk().call_expr(DaExpr::Var(helper.to_owned()), das_args)
         } else if indirect_callee.is_some() {
             // `invoke` is daScript's call-through-a-function-value operator.

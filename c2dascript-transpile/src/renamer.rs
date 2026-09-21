@@ -279,6 +279,57 @@ pub const DASCRIPT_STD_LIBC_TYPE_NAMESPACE: &[&str] = &[
     "StringBuilderWriter",
 ];
 
+/// Value names the `--libc std` prelude references without qualification.
+///
+/// The `c2da_std_*` helpers stand on daslib, and they name its functions and
+/// constants the way daslang code does — `fopen`, `to_char`, `seek_set`. A C
+/// translation unit that defines a function or a global of the same name puts
+/// a second candidate in the module's own scope, and daslang then either
+/// refuses the reference ("error[30615]: too many matching variables
+/// 'seek_set'") or, worse, binds the C program's definition to the helper that
+/// meant daslib's. Reserving the names here renames the C symbol instead,
+/// which is the renamer's job and the only layer that owns C-to-daScript
+/// naming.
+///
+/// This list is exactly what the helper builders in `translator/libc.rs`
+/// spell; a new helper that names a new daslib symbol adds it here.
+///
+/// These names are reserved only in `--libc std`; `nostd` output is unchanged.
+#[rustfmt::skip]
+pub const DASCRIPT_STD_LIBC_VALUE_NAMESPACE: &[&str] = &[
+    // builtin
+    "print",
+    "fmt",
+    "length",
+    "panic",
+    "get_command_line_arguments",
+    "ref_time_ticks",
+    "get_clock",
+    // strings
+    "to_char",
+    "character_at",
+    "ends_with",
+    // fio_core / daslib/fio
+    "fprint",
+    "fopen",
+    "fclose",
+    "fflush",
+    "fseek",
+    "ftell",
+    "funbuffered",
+    "fstdout",
+    "fstderr",
+    "fstdin",
+    "exit",
+    "exit_now",
+    "_builtin_read",
+    "_builtin_read64",
+    "_builtin_write",
+    "seek_set",
+    "seek_cur",
+    "seek_end",
+];
+
 pub struct Renamer<T> {
     scopes: Vec<Scope<T>>,
     next_fresh: u64,
@@ -326,6 +377,18 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
             DASCRIPT_KEYWORDS,
             DASCRIPT_PRELUDE_TYPE_NAMESPACE,
             DASCRIPT_PRELUDE_VALUE_NAMESPACE,
+            &["main"],
+        ])
+    }
+
+    /// The value namespace of a `--libc std` module, which also `require`s the
+    /// modules the std prelude stands on.
+    pub fn std_libc_global_value_namespace() -> Self {
+        Renamer::new(&[
+            DASCRIPT_KEYWORDS,
+            DASCRIPT_PRELUDE_TYPE_NAMESPACE,
+            DASCRIPT_PRELUDE_VALUE_NAMESPACE,
+            DASCRIPT_STD_LIBC_VALUE_NAMESPACE,
             &["main"],
         ])
     }

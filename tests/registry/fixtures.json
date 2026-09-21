@@ -5737,6 +5737,90 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p81-std-printf-edge",
+      "canonical_cases": [
+        "p81-std-printf-edge"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "[00042][   07][][5]\n[000000ff][007][0x00001][010][010]\n[5][ff][ff][10][5]\n[   03][00042   ][-00000000000000000005][0][0]\n[0x1234][(nil)]\n[    42][42    ][42    ]\n[1.500][ab][0007][9]\n[abc][   ab][ab   ][][        ab]\n[(null)][][(null)][    (null)]\nnul_count=3\nargc=2 argv_end=1 argv0=1\nfflush_all=0\nseek_failed=1 told=0\nstrtoll=9223372036854775807 errno=34\nstrtoll_base=0 errno=22\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p81_std_printf_edge",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p81_std_printf_edge.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p82-std-exit-status",
+      "canonical_cases": [
+        "p82-std-exit-status"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 7,
+          "stdout": "argc=1 argv_end=1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p82_std_exit_status",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p82_std_exit_status.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p83-std-main-void",
+      "canonical_cases": [
+        "p83-std-main-void"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "main_void to_char=65 seek_set=99\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p83_std_main_void",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p83_std_main_void.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-s01-switch-basic",
       "canonical_cases": [
         "legacy-s01-switch-basic"
