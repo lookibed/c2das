@@ -98,10 +98,12 @@ pixels; the JIT has no `noalias` on C pointers; both need the same runtime memch
 
 ## daslang-side findings (candidates for the fork, with repros in the research dirs)
 
-- An `int16` loop with an `(i + 1) & (N - 1)` index wrap is unrolled ×16 and never
-  vectorised by daslang's pipeline while `clang -O2` vectorises the same shape with SSE2
-  (10× on the probe); an `int64` multiply/shift loop likewise (8.5× behind
-  `-march=native` C).
+- An `int16` loop with an `(i + 1) & (N - 1)` index wrap runs 2× slower than clang at
+  the same ISA under `-jit`/`-exe` while the unwrapped loop is at parity (re-measured on
+  a pure-daslang pointer loop with its C twin and filed as
+  [lookibed/daScript#6](https://github.com/lookibed/daScript/issues/6); the research
+  run's 10× was on the translated shape).  An `int64` multiply/shift loop likewise lags
+  (8.5× behind `-march=native` C on the research probe; not yet reduced to a pure repro).
 - `-exe` targets generic x86-64 by default while `-jit` targets the host; there is no
   host feature check on `DAS_JIT_BASELINE` (SIGILL).
 - The JIT emits 1.2–4× more instructions per function than clang for the same graph
