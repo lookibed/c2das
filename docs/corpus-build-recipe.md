@@ -70,7 +70,11 @@ off; nothing else in the module changes.  The output is otherwise an anonymous m
 2026-09-23): it drops daslang's generated null check in front of every `ExprAt`,
 `ExprPtr2Ref` and field dereference, which turns daslang's checked pointer access into C's
 unchecked one — the same thing the code would get rewritten on raw pointers, a choice of
-which unsafety to accept.  A case offers it through its corpus block:
+which unsafety to accept.  It also has a known miscompile
+([lookibed/daScript#7](https://github.com/lookibed/daScript/issues/7): a nested `void`
+function whose only effect is a store through `reinterpret<uint8?>(uint64)` is dropped in
+all modes), which the per-frame hash check guards the benchmark rows against.  A case
+offers it through its corpus block:
 
 ```json
 "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] }

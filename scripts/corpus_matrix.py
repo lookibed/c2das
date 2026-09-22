@@ -747,7 +747,9 @@ OPTION_TEXT = {
         "which removes daslang's null check in front of every pointer dereference (`ExprAt`, `ExprPtr2Ref`, "
         "field access): C's unchecked access, where a null dereference crashes instead of raising a located "
         "daslang exception. It is an option, not the default — the same effect is available by writing the "
-        "code on raw pointers; it is a choice of which unsafety to accept (`docs/followups/hot_path_levers.md`)."
+        "code on raw pointers; it is a choice of which unsafety to accept — and the annotation has a known "
+        "miscompile ([lookibed/daScript#7](https://github.com/lookibed/daScript/issues/7)), which the per-frame "
+        "hash check guards these rows against (`docs/followups/hot_path_levers.md`)."
     ),
 }
 
@@ -1036,7 +1038,8 @@ def render_benchmark(results: list[dict[str, Any]], facts: dict[str, str], runs:
         "header and daslang's null checks on every pointer dereference (no `--unsafe-deref`). A row named "
         "`daslang <mode> + unsafe_deref` is the option: a separate translation of the same case with "
         "`--unsafe-deref`, `[unsafe_deref]` on every function, measured the same way; see "
-        "`docs/followups/hot_path_levers.md`. The aot rows are the exception named in each case's build list. "
+        "`docs/followups/hot_path_levers.md`, which also names the next lever, vectorization of the loops the JIT "
+        "leaves scalar. The aot rows are the exception named in each case's build list. "
         "Cases that repeat a headline program through a hand-written daslang entry (no `--libc std`) and the "
         "embedded micro fixtures are here only.\n"
     )
