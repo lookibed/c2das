@@ -21,8 +21,17 @@ Two commands, two committed documents:
       built — `-O2`, `-O0` and `-O3 -march=native` — and every row carries two ratio
       columns, one against each of the two optimized C builds: a `clang -O2` binary
       targets generic x86-64 (SSE2) while daslang's LLVM backend compiles for the
-      host CPU and its features, so the native build is the fair ceiling and the
-      `-O2` one is the portable reference.
+      host CPU and its features, so the native build is the fair ceiling (the
+      headline) and the `-O2` one is the portable reference.  The document opens
+      with one table of the cases whose corpus block names a `headline` label
+      (cells: ratio to the native build per mode) and three lines under it; every
+      case's full table follows in an appendix.  `--output` writes it elsewhere.
+
+Optional corpus keys read only by the benchmark renderer: `headline` (the case's row
+label in the headline table; its presence puts the case there), `unit` (what one
+checked line is, default "frames"), `timed` (what the program times, default "decode
+loop") and `note` (a markdown sentence printed under the case's table and in the
+headline footnote).
 
 daslang run modes ("interop" in the project's wording is the interpreter):
 
@@ -457,6 +466,47 @@ def describe_mode(mode: str, entry_name: str) -> str:
     }[mode]
 
 
+# `daslang -jit` reads its own `--jit-*` switches from the *script's* arguments
+# (`llvm_jit_plan.make_jit_plan` → `clargs.parse_args` → `get_user_args()`, the
+# words after `--`); daslang's command line proper rejects them in front of the
+# script.  Passed explicitly they would therefore become program arguments and
+# change a `--libc std` program's C `argc` (verified 2026-09-22 on
+# `p81-std-printf-edge`: `argc=2` becomes `argc=3`).  `--jit-split-modules=-1`
+# is the DLL path's default (`llvm_jit_cli.das`: "-1 = split + auto threads
+# (JobQue count; the default)"), so the driver runs without it and instead
+# requires every measured run's JIT log to report the split build, which makes
+# the setting explicit without touching the program's argv.
+JIT_SPLIT_LOG = re.compile(r"\bsplit\b")
+
+
+def describe_bench_mode(mode: str, entry_name: str, std_program: bool) -> str:
+    """The benchmark's build text for a daslang row: the command and every way it
+    differs from the translation the other rows run."""
+    if mode == "jit":
+        return (
+            f"`daslang -jit {entry_name}`, split codegen with auto threads (`--jit-split-modules=-1`, daslang's "
+            "default for the DLL path; not passed, because the JIT reads its switches from the script's own "
+            "arguments, where it would change C `argc` — each run's JIT log is required to say `split`)"
+        )
+    if mode == "aot":
+        flags = AOT_PROGRAM_FLAGS if std_program else AOT_GRAPH_FLAGS
+        reasons = [
+            "no `solid_context` (daslang's AOT refuses the h264bsd program with it on)",
+            "no daslang auto-inlining (its inlined locals land between a `goto` and its label, which the "
+            "generated C++ rejects)",
+        ]
+        entry = ""
+        if not std_program:
+            reasons.insert(0, "a named public module (daslang emits AOT bodies only for those)")
+            entry = " (the fixture entry gets `options disable_auto_inline` prepended to a copy)"
+        return (
+            "`daslang -aot` per module + `aot_host` (policies.aot, fail_on_no_aot); **built from a second "
+            f"translation with `{' '.join(flags)}`**{entry}: {'; '.join(reasons)}; the host recompiles the "
+            "script on every run, so its start-up is not comparable"
+        )
+    return describe_mode(mode, entry_name)
+
+
 # ----------------------------------------------------------------------------
 # runs
 # ----------------------------------------------------------------------------
@@ -622,7 +672,10 @@ def render_convergence(results: list[dict[str, Any]], facts: dict[str, str]) -> 
 # ----------------------------------------------------------------------------
 
 def measure(command: list[str], cwd: Path, env: dict[str, str], runs: int,
-            reference_frames: list[tuple[int, int]] | None) -> dict[str, Any]:
+            reference_frames: list[tuple[int, int]] | None,
+            require_log: re.Pattern[str] | None = None) -> dict[str, Any]:
+    """`require_log`: a pattern some `[I]` log line of every measured run must
+    match (the `-jit` rows require the split-codegen report, see JIT_SPLIT_LOG)."""
     run_once(command, cwd, env)  # warm-up: page cache, JIT DLL cache, module cache
     samples: list[Run] = []
     for _ in range(runs):
@@ -633,6 +686,10 @@ def measure(command: list[str], cwd: Path, env: dict[str, str], runs: int,
             raise MatrixFailure(f"no decode_us line\nstdout:\n{run.result.stdout}\nstderr:\n{run.result.stderr}")
         if reference_frames is not None and run.frames != reference_frames:
             raise MatrixFailure(f"per-frame hashes differ from the C -O2 build\nstdout:\n{run.result.stdout}")
+        if require_log is not None and not any(require_log.search(line) for line in run.log_lines):
+            raise MatrixFailure(
+                f"no JIT log line matches {require_log.pattern!r}\nlog:\n" + "\n".join(run.log_lines)
+            )
         samples.append(run)
     decode = [s.values["decode_us"] / 1000.0 for s in samples]
     setup = [s.values.get("setup_us", 0) / 1000.0 for s in samples]
@@ -684,13 +741,21 @@ def bench_case(case: dict[str, Any], daslang: Path, runs: int, keep: bool) -> di
             raise MatrixFailure(f"{case['id']}: corpus block names neither bench_das_entry nor bench_translation_entry")
         for mode in MODES:
             name = f"daslang {mode}"
+            build = describe_bench_mode(mode, entry.name, c_entry is not None)
             try:
                 cmd = with_args(build_mode(p, mode, entry, "bench", c_entry), mode, p.args)
-                m = measure(cmd, p.work, p.env, runs, reference_frames)
-                variants.append({"name": name, "build": describe_mode(mode, entry.name), **m})
+                m = measure(cmd, p.work, p.env, runs, reference_frames,
+                            JIT_SPLIT_LOG if mode == "jit" else None)
+                variant = {"name": name, "mode": mode, "build": build, **m}
+                if mode == "aot":
+                    # aot_host compiles the script again (policies.aot) on every
+                    # launch, so its wall − work is a compiler's start-up, not a
+                    # comparable process start
+                    variant["startup_note"] = "n/a (recompiles per run)"
+                variants.append(variant)
                 print(f"  {case['id']} {mode}: decode {m['decode_median']:.3f} ms, wall {m['wall_median']:.1f} ms")
             except MatrixFailure as error:
-                variants.append({"name": name, "build": describe_mode(mode, entry.name), "error": str(error).splitlines()[0]})
+                variants.append({"name": name, "mode": mode, "build": build, "error": str(error).splitlines()[0]})
                 print(f"  {case['id']} {mode}: FAILED {str(error).splitlines()[0]}")
         return {"case": case, "variants": variants, "frames": len(reference_frames),
                 "fixture_bytes": (p.source_root / p.corpus["fixture"]).stat().st_size}
@@ -701,69 +766,167 @@ def bench_case(case: dict[str, Any], daslang: Path, runs: int, keep: bool) -> di
             shutil.rmtree(p.work, ignore_errors=True)
 
 
+# The benchmark document's reading order: the C row every ratio is against
+# first, then the portable and unoptimized C rows, then the daslang modes from
+# slowest to what ships (the headline table's column order).
+BENCH_ROW_ORDER = (C_NATIVE_VARIANT, C_O2_VARIANT, "C clang-18 -O0",
+                   "daslang interp", "daslang jit", "daslang exe", "daslang aot")
+HEADLINE_MODES = ("interp", "jit", "exe", "aot")
+# A non-headline case whose C -O2 loop runs under this many milliseconds is a
+# micro fixture: timer resolution and cache state dominate its ratios.
+MICRO_MS = 5.0
+
+
+def case_unit(case: dict[str, Any]) -> str:
+    """What one checked output line is: `frames` for the decoders (the default),
+    `checked values` for a program that prints numbered results (`corpus.unit`)."""
+    return case["corpus"].get("unit", "frames")
+
+
+def case_timed(case: dict[str, Any]) -> str:
+    """What the program times around (`corpus.timed`, default `decode loop`)."""
+    return case["corpus"].get("timed", "decode loop")
+
+
+def variant_by_name(result: dict[str, Any], name: str) -> dict[str, Any] | None:
+    return next((v for v in result["variants"] if v["name"] == name and "error" not in v), None)
+
+
+def ratio_to(reference: dict[str, Any] | None, value: float) -> str:
+    if reference is None or reference["decode_median"] <= 0:
+        return "—"
+    return f"{value / reference['decode_median']:.2f}×"
+
+
+def ordered_variants(result: dict[str, Any]) -> list[dict[str, Any]]:
+    rank = {name: index for index, name in enumerate(BENCH_ROW_ORDER)}
+    return sorted(result["variants"], key=lambda v: rank.get(v["name"], len(rank)))
+
+
+def approx_ms(values: list[float]) -> str:
+    """One process-start figure over the headline programs: a single rounded
+    value when they agree within 25 %, the measured range when they do not."""
+    if not values:
+        return "—"
+    low, high = min(values), max(values)
+    if high <= low * 1.25:
+        return f"≈ {statistics.median(values):.0f} ms"
+    return f"≈ {low:.0f}–{high:.0f} ms"
+
+
 def render_benchmark(results: list[dict[str, Any]], facts: dict[str, str], runs: int) -> str:
+    """One question at a glance — which daslang mode, how many times slower than
+    C — then every number behind it in an appendix of reference data."""
+    headline = [r for r in results if "headline" in r["case"]["corpus"]]
     out: list[str] = []
-    out.append("# Corpus benchmark: C vs c2das output in every daslang run mode\n")
+    out.append("# Corpus benchmark: how much slower than C is c2das-translated C, per daslang run mode\n")
     out.append(
+        "Each program below is a C code base translated whole by c2das (`c2dascript-transpile --strict`) and run in "
+        "each daslang mode. The time compared is what the program itself measures around its work loop (the decode "
+        "loop of the video decoders, the call loop of wasm3), after one warm-up run, as the median of "
+        f"{runs} runs; every mode's per-frame (per-value) hashes are checked against C's on every run, and a mode "
+        "that ever differs is reported as failed, never timed. Cells are the ratio to C built with `clang-18 -O3 "
+        "-march=native`; lower is better, 1.00× is C speed.\n"
+    )
+    out.append("| program | C, ms | " + " | ".join(HEADLINE_MODES) + " |")
+    out.append("|---|---|" + "---|" * len(HEADLINE_MODES))
+    starts: dict[str, list[float]] = {"exe": [], "jit": []}
+    for r in headline:
+        case = r["case"]
+        native = variant_by_name(r, C_NATIVE_VARIANT)
+        label = f"{case['corpus']['headline']}, {r['frames']} {case_unit(case)}"
+        if case.get("libc") == "std":
+            label += " — entire C translated"
+        cells = [label, "—" if native is None else f"{native['decode_median']:.2f}"]
+        for mode in HEADLINE_MODES:
+            variant = next((v for v in r["variants"] if v.get("mode") == mode), None)
+            if variant is None or "error" in variant:
+                cell = "failed"
+            else:
+                cell = ratio_to(native, variant["decode_median"])
+                if mode in starts:
+                    starts[mode].append(variant["startup_median"])
+            cells.append(cell + ("\\*" if mode == "aot" else ""))
+        out.append("| " + " | ".join(cells) + " |")
+    out.append("")
+    out.append(
+        f"Baseline: `clang-18 -O3 -march=native` on {facts['cpu']}; hashes match C in all modes; median of {runs} runs.\n"
+    )
+    out.append(
+        f"Process start (wall − timed work, median over these programs): exe {approx_ms(starts['exe'])}, "
+        f"jit {approx_ms(starts['jit'])}.\n"
+    )
+    notes = " ".join(r["case"]["corpus"]["note"] for r in headline if "note" in r["case"]["corpus"])
+    out.append(
+        "\\* AOT is built without `solid_context` and without daslang's auto-inliner (`--no-solid-context "
+        "--das-option disable_auto_inline`), because daslang's AOT refuses the h264bsd program with "
+        "`solid_context` on and its inliner produces C++ that does not compile; every other mode runs the "
+        "default translation. " + notes + "\n"
+    )
+    out.append("---\n")
+    out.append("## Appendix: full measurements\n")
+    out.append(
+        "Reference data behind the table above. "
         "Generated by `python3 scripts/corpus_matrix.py bench` "
         f"on {facts['date']} at commit `{facts['commit']}` "
-        f"(daslang {facts['daslang']}; {facts['clang']}; {facts['cpu']}; {facts['os']}, kernel {facts['kernel']}).\n"
+        f"(daslang {facts['daslang']}; {facts['clang']}; {facts['cpu']}; {facts['os']}, kernel {facts['kernel']}). "
+        "Every build and run command is written out in `docs/corpus-build-recipe.md`.\n"
     )
     out.append(
-        f"Each variant runs once to warm up (page cache, the JIT's `.jitted_scripts` DLL cache, the module cache) and "
-        f"then {runs} times; the table reports the median over those {runs} runs. **decode** is the time the program "
-        "itself measured around its frame loop (`decode_us`, C `clock_gettime(CLOCK_MONOTONIC)`, daslang "
-        "`ref_time_ticks`/`get_time_usec`), so it excludes process start, script compilation, JIT codegen and decoder "
-        "setup. **setup** is the measured `frames_begin()` call (runtime reset, sample copy, demuxer/decoder "
-        "creation). **wall** is the whole process as seen by the driver, and **startup** = wall − decode − setup: what a "
-        "mode spends before and after the work (loading the runtime, compiling the script, JIT codegen, teardown). "
-        "A row is printed only when its per-frame hashes equalled the C -O2 build's on every run. "
-        "Every build and run command behind these rows is written out in `docs/corpus-build-recipe.md`.\n"
+        "Columns: **ms (median / min)** is the program's own timer around its work loop (`decode_us`; C "
+        "`clock_gettime(CLOCK_MONOTONIC)`, daslang `ref_time_ticks`), excluding process start, script "
+        "compilation, JIT codegen and setup. **setup** is the timed `frames_begin_bytes()` call (runtime reset, "
+        "working copy of the input, decoder creation). **wall** is the whole process as the driver sees it and "
+        "**startup** = wall − work − setup (loading the runtime, compiling the script, JIT codegen, teardown); "
+        "the aot host compiles the script again on every launch, so its startup is not shown. **× C native** "
+        "is the ratio to `clang-18 -O3 -march=native`, the headline; **× C -O2** to the portable `clang-18 -O2` "
+        "build (generic x86-64, SSE2), shown for reference because daslang's LLVM backend compiles `-jit` for the "
+        "host CPU. The translated modules carry `options solid_context = true` (the translator's default) and "
+        "`[unsafe_deref]` on every function (the corpus cases' `--unsafe-deref`); see "
+        "`docs/followups/hot_path_levers.md`. The aot rows are the exception named in each case's build list. "
+        "Cases that repeat a headline program through a hand-written daslang entry (no `--libc std`) and the "
+        "embedded micro fixtures are here only.\n"
     )
-    out.append(
-        "Two C ratio columns, because `-O2` alone is not a fair ceiling: a `clang -O2` binary targets generic "
-        "x86-64 (SSE2) while daslang's LLVM backend compiles for the host CPU and its features under `-jit`. "
-        "**× C -O2 decode** is against the portable C build, **× C native decode** against `-O3 -march=native`, "
-        "the build a C programmer would ship for this machine. The translated modules are built with the "
-        "translator's defaults plus the flags their case declares — `options solid_context = true` in the module "
-        "header (the translator's default) and `[unsafe_deref]` on every function (`--unsafe-deref`, which the "
-        "corpus cases ask for); see `docs/followups/hot_path_levers.md`. The **aot** row is the exception: "
-        "daslang's AOT refuses the h264bsd graph with `solid_context` on, so the AOT translation passes "
-        "`--no-solid-context` (`docs/corpus-build-recipe.md`, step 6a) and that row carries `unsafe_deref` alone.\n"
-    )
-    out.append("Run modes: " + "; ".join(f"**{m}** = {describe_mode(m, 'bench_entry.das')}" for m in MODES) + ".\n")
     for r in results:
         case = r["case"]
         rw = case["corpus"]
-        out.append(f"## {rw['label']} — `{case['id']}`, {r['frames']} frames of `{rw['fixture']}` ({r['fixture_bytes']} bytes)\n")
-        def ratio_base(name: str) -> dict[str, Any] | None:
-            return next((v for v in r["variants"] if v["name"] == name and "error" not in v), None)
-
-        base = ratio_base(C_O2_VARIANT)
-        native = ratio_base(C_NATIVE_VARIANT)
-
-        def ratio_to(reference: dict[str, Any] | None, value: float) -> str:
-            if reference is None or reference["decode_median"] <= 0:
-                return "—"
-            return f"{value / reference['decode_median']:.2f}×"
-
+        timed = case_timed(case)
+        base = variant_by_name(r, C_O2_VARIANT)
+        native = variant_by_name(r, C_NATIVE_VARIANT)
+        marks: list[str] = []
+        if "headline" in rw:
+            marks.append("in the headline table")
+        elif base is not None and base["decode_median"] < MICRO_MS:
+            marks.append(f"micro fixture: C -O2 runs under {MICRO_MS:.0f} ms, noise-dominated")
+        mark = f" — {'; '.join(marks)}" if marks else ""
         out.append(
-            "| variant | decode ms (median) | decode ms (min) | setup ms | wall ms | startup ms | "
-            "× C -O2 decode | × C native decode |"
+            f"### {rw['label']} — `{case['id']}`, {r['frames']} {case_unit(case)} of `{rw['fixture']}` "
+            f"({r['fixture_bytes']} bytes){mark}\n"
+        )
+        out.append(
+            f"| variant | × C native | × C -O2 | {timed} ms (median) | {timed} ms (min) | setup ms | wall ms | "
+            "startup ms |"
         )
         out.append("|---|---|---|---|---|---|---|---|")
-        for v in r["variants"]:
+        variants = ordered_variants(r)
+        for v in variants:
             if "error" in v:
                 out.append(f"| {v['name']} | failed | | | | | | {v['error']} |")
                 continue
-            ratio = ratio_to(base, v["decode_median"])
-            native_ratio = ratio_to(native, v["decode_median"])
+            startup = v.get("startup_note", f"{v['startup_median']:.1f}")
             out.append(
-                f"| {v['name']} | {v['decode_median']:.3f} | {v['decode_min']:.3f} | {v['setup_median']:.3f} | "
-                f"{v['wall_median']:.1f} | {v['startup_median']:.1f} | {ratio} | {native_ratio} |"
+                f"| {v['name']} | {ratio_to(native, v['decode_median'])} | {ratio_to(base, v['decode_median'])} | "
+                f"{v['decode_median']:.3f} | {v['decode_min']:.3f} | {v['setup_median']:.3f} | "
+                f"{v['wall_median']:.1f} | {startup} |"
             )
         out.append("")
-        out.append("Builds: " + "; ".join(f"{v['name']}: {v['build']}" for v in r["variants"] if v.get("build")) + "\n")
+        if "note" in rw:
+            out.append(rw["note"] + "\n")
+        out.append("Builds:\n")
+        for v in variants:
+            if v.get("build"):
+                out.append(f"- {v['name']}: {v['build']}")
+        out.append("")
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -797,6 +960,9 @@ def main() -> int:
     bench.add_argument("--case")
     bench.add_argument("--runs", type=int, default=5)
     bench.add_argument("--keep-workdir", action="store_true")
+    bench.add_argument("--output", type=Path, default=None,
+                       help=f"write the document here instead of {BENCHMARK_DOC.relative_to(ROOT)} "
+                            "(with --case, instead of printing it)")
     args = parser.parse_args()
     try:
         daslang = runner.find_daslang()
@@ -826,7 +992,10 @@ def main() -> int:
             return 0
         results = [bench_case(case, daslang, args.runs, args.keep_workdir) for case in cases]
         document = render_benchmark(results, facts, args.runs)
-        if args.case:
+        if args.output is not None:
+            args.output.write_text(document, encoding="utf-8")
+            print(f"wrote {args.output}")
+        elif args.case:
             print(document)
         else:
             BENCHMARK_DOC.write_text(document, encoding="utf-8")

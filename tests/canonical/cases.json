@@ -777,7 +777,8 @@
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/testsrc2_320x240.m1v",
         "bench_c_entry": "src/plmpeg_file_bench_entry.c",
-        "bench_translation_entry": "src/plmpeg_file_bench_all.c"
+        "bench_translation_entry": "src/plmpeg_file_bench_all.c",
+        "headline": "pl_mpeg (MPEG-1 video), 320×240"
       }
     },
     {
@@ -807,7 +808,8 @@
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/test_640x360.mp4",
         "bench_c_entry": "src/h264_file_bench_entry.c",
-        "bench_translation_entry": "src/h264_file_bench_all.c"
+        "bench_translation_entry": "src/h264_file_bench_all.c",
+        "headline": "h264bsd + minimp4 (H.264 video), 640×360"
       }
     },
     {
@@ -1096,7 +1098,11 @@
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/fib32.wasm",
         "bench_c_entry": "src/all_host_bench.c",
-        "bench_translation_entry": "src/all_host_bench.c"
+        "bench_translation_entry": "src/all_host_bench.c",
+        "headline": "wasm3 (WebAssembly interpreter), fib32",
+        "unit": "checked values",
+        "timed": "fib call loop",
+        "note": "wasm3: the `-jit`/`-exe` path makes no tail calls — daslang's LLVM backend never emits sibling calls, so every executed wasm opcode costs a native frame — while the AOT C++ gets them from `clang++ -O3`; hence aot ahead of jit/exe here ([lookibed/daScript#4](https://github.com/lookibed/daScript/issues/4), `docs/followups/translator_gaps_wasm3.md`)."
       }
     }
   ]

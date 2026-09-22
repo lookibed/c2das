@@ -55,6 +55,21 @@ h264bsd under `-jit` went from 28 % behind `clang -O2` to parity with `clang -O3
 `solid_context` alone.  AOT rows are unchanged because the AOT build cannot carry
 `solid_context`.
 
+*Reading these ratios, 2026-09-22 review.*  The aot column is built from a different
+translation (`--no-solid-context --das-option disable_auto_inline`, plus `--public-module`
+for a graph under a fixture entry), so it is not like-for-like with jit/exe; the benchmark
+now says so in the aot build text and under its headline table, and prints no start-up for
+aot (the host recompiles the script per launch).  wasm3's aot 1.41× ahead of jit 2.72× /
+exe 2.53× is the tail-call gap
+([lookibed/daScript#4](https://github.com/lookibed/daScript/issues/4)), not a solid_context
+effect.  The headline is now the `× C -O3 -march=native` ratio of the three `-std`
+programs; `× C -O2` is the portable reference.  `-jit` runs split (`--jit-split-modules=-1`,
+daslang's default, asserted from the JIT log rather than passed, since the switch would
+reach the C `argv`); monolithic `=0` measured 0.4–0.7 % slower on both large `-std`
+programs, inside noise (`docs/corpus-build-recipe.md`, step 4).  The das-harness `setup`
+column was inflated by the translated heap's first 64 MiB reservation landing inside the
+timer (317 µs → 22 µs once reserved first); fixed in the four `*_bench_entry.das` (step 7).
+
 ## What the daslang pipeline is (read from source)
 
 `-jit`: LLVM `default<O3>`, loop/SLP vectorizers and unrolling on, inline threshold 1024

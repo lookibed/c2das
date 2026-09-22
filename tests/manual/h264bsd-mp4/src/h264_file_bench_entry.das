@@ -36,6 +36,11 @@ def main() : int {
         return 2
     }
     var hashes : array<int>
+    // The C heap is a static array that exists before `main`; the translation
+    // reserves its heap (64 MiB) on the first allocation.  Reserve it here, as a
+    // `--libc std` program's argv construction does, so `setup_us` times the
+    // same work as the C entry's (docs/corpus-build-recipe.md, section 7).
+    all::c2da_rt_init_heap()
     let t0 = ref_time_ticks()
     if (all::h264mp4_frames_begin_bytes(unsafe(addr(data[0])), length(data)) == 0) {
         print("frames_begin=0\n")

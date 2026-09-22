@@ -1,4 +1,4 @@
-# How the corpus benchmark builds its programs: C `clang -O2` vs daslang interp / jit / aot / exe
+# How the corpus benchmark builds its programs: C (`-O3 -march=native`, `-O2`, `-O0`) vs daslang interp / jit / exe / aot
 
 This is the build recipe behind `docs/corpus-benchmark.md`, written out command by command.
 `scripts/corpus_matrix.py bench` runs exactly these steps; the paths below are the ones it
@@ -85,13 +85,14 @@ clang-18 ... -O3 -march=native ... -o <work>/c_bench_native   # same command, -O
 <work>/c_bench_O2 <fixture>
 ```
 
-`-O2` is the portable baseline the `× C -O2 decode` column refers to; `-O0` is there to
-show what an unoptimised native build costs against the same source.  `-O3 -march=native`
-is the third row and the `× C native decode` column: a plain `clang -O2` binary targets
-generic x86-64 (SSE2) while daslang's LLVM backend compiles for the host CPU and its
-features under `-jit`, so `-O2` alone is not a fair ceiling for the daslang rows.  All
-three are measured the same way, and the `-O0` and native rows must reproduce the `-O2`
-build's per-frame hashes on every run or they are reported as a failure, not a number.
+`-O3 -march=native` is the headline baseline: every cell of the benchmark's headline table
+and the first ratio column (`× C native`) of each appendix table is a ratio to it.  A plain
+`clang -O2` binary targets generic x86-64 (SSE2) while daslang's LLVM backend compiles for
+the host CPU and its features under `-jit`, so `-O2` alone is not a fair ceiling for the
+daslang rows; it stays as the portable reference (`× C -O2`).  `-O0` is there to show what
+an unoptimised native build costs against the same source.  All three are measured the
+same way, and the `-O0` and native rows must reproduce the `-O2` build's per-frame hashes
+on every run or they are reported as a failure, not a number.
 
 ## 3. daslang interp
 
@@ -115,6 +116,23 @@ populates that cache, the five measured runs hit it.  The JIT writes `[I] LLVM J
 progress lines to stdout; the driver drops lines that start with `[I] ` before it reads
 the program's output.
 
+The JIT runs with `--jit-split-modules=-1`: split codegen, one object per das-module,
+optimized and emitted on auto threads, linked into one cached DLL.  That is daslang's
+default for the DLL path (`modules/dasLLVM/daslib/llvm_jit_cli.das`: "-1 = split + auto
+threads (JobQue count; the default)"), and the driver does **not** pass it, because it
+cannot be passed without changing the program: `daslang` rejects `--jit-*` switches in
+front of the script, and the JIT reads them from the script's own arguments after `--`
+(`llvm_jit_plan.make_jit_plan` → `clargs.parse_args` → `get_user_args()`), where the
+translated `main` also finds them — `p81-std-printf-edge` prints `argc=2` without the
+switch and `argc=3` with it.  Instead the driver requires every measured run's log to
+report the split build (`[I] LLVM JIT: <n> functions in <t> sec (cache, O3, split)`; a
+monolithic build prints `(cache, O3)`), and fails the row otherwise.  Monolithic emission
+(`--jit-split-modules=0`, full cross-module inlining) measured the same on the two large
+`-std` programs (2026-09-22, `taskset -c 8-15`, 14 runs per setting in ABAB blocks of 7,
+hashes checked): pl_mpeg 320×240 37.66 ms split vs 37.91 ms monolithic, h264bsd 640×360
+77.76 ms vs 78.11 ms, i.e. monolithic 0.4–0.7 % slower, inside noise — a `--libc std`
+program is a single das-module, so its split build is one partition anyway.
+
 ## 5. daslang exe
 
 ```sh
@@ -132,6 +150,17 @@ This is the variant with the smallest start-up cost (about 20 ms).
 daslang's AOT is a two-stage build: `daslang -aot` emits C++ for the program's functions,
 and a host links that C++ next to the daslang runtime and compiles the same script again
 with `policies.aot = 1` so `simulate()` binds every function to its pre-compiled body.
+
+**The aot row is built from a different translation than interp, jit and exe.**  Those
+three run the module of step 1 (`solid_context` on, daslang's auto-inliner free to run);
+the aot row runs a second translation with `--no-solid-context --das-option
+disable_auto_inline` (plus `--public-module` when a fixture entry `require`s the graph),
+because without them the program does not build or does not run under AOT (6a).  Both
+translations carry the case's `--unsafe-deref`.  The aot row therefore lacks the
+`solid_context` lever the other compiled rows have, and its ratio is not a like-for-like
+comparison with them; the benchmark says so in the row's build text and under the headline
+table.  Its start-up is not comparable either: the host recompiles the script on every
+launch (6d), so the benchmark prints `n/a (recompiles per run)` in its startup column.
 
 ### 6a. Second translation, with the AOT module header
 
@@ -229,7 +258,8 @@ clang++-18 aot_host.o all.das.o plmpeg_file_bench_entry.das.o \
 every other mode), compiles the script with `DAS_POLICY_AOT` and `DAS_POLICY_FAIL_ON_NO_AOT`,
 refuses to run an entry that is not AOT-linked, and returns the script's `main` result.
 The start-up cost of this variant (0.6–3.5 s) is that second compilation of the script
-inside the host; the decode loop itself runs the pre-compiled C++.
+inside the host, paid on every launch; the decode loop itself runs the pre-compiled C++.
+That is why the benchmark reports no startup figure for the aot rows.
 
 ## 6½. `--libc std`: the C entry is the translation input
 
@@ -284,24 +314,55 @@ convergence side uses `translation_entry` = `src/plmpeg_file_all.c` (graph +
   printing never lands inside the timed region.  Reading the fixture file happens before
   any timer starts.
 - **setup** is `setup_us`, measured around `frames_begin_bytes()`: runtime reset, working
-  copy of the stream, decoder (and demuxer) creation.
+  copy of the stream, decoder (and demuxer) creation.  The hand-written daslang entries
+  (`*_bench_entry.das`) call `all::c2da_rt_init_heap()` before their timer starts.  The
+  translated heap is reserved (`reserve(c2da_rt_heap, 64 MiB)`) on the first
+  `c2da_rt_malloc`; in C the heap is a static array that exists before `main`, and in a
+  `--libc std` program the translated `main` wrapper's argv construction allocates first,
+  so both of those enter `frames_begin_bytes()` with the heap in place.  Without the call
+  the das entries' first allocation happened inside the timed region: measured 2026-09-22
+  on `plmpeg-stream-320x240` under `-jit` (`taskset -c 8-15`, 9 runs), setup_us median
+  317 µs as shipped vs 22 µs with the heap reserved first (the `-std` twin shows 16–46 µs);
+  the interpreter's 4.6–4.8 ms setup is its own execution cost and does not move.  The
+  reservation is not part of the decoder's setup in either C program, so it is not timed.
+  One residue is left and is not a harness defect: the das-harness **aot** rows still show
+  ≈ 0.2 ms (the `-std` aot rows 0.01–0.03 ms).  A probe on the kept AOT host (9 runs)
+  attributes it to the first touch of the translated heap's pages: pre-allocating and
+  resetting 1 MB before the timer drops it to 16 µs, a warm `frames_begin_bytes` +
+  `frames_end` to 6 µs, while a cheap first cross-module call changes nothing.  Whether
+  those pages fault depends on the process's allocator history, not on the program; the
+  C builds always fault on their static heap (≈ 0.13 ms on pl_mpeg 320×240), so the
+  harness does not pre-touch anything C does not.
 - **wall** is the whole process as the driver sees it (`time.perf_counter` around
-  `subprocess.run`), and **startup** = wall − decode − setup.
+  `subprocess.run`), and **startup** = wall − decode − setup.  The aot rows print none (6d).
 - A run counts only if its exit code is 0 and its `frame[i]=` lines equal the C `-O2`
   build's; a variant that ever differs is reported as failed instead of timed.
-- Two ratio columns: **× C -O2 decode** against the portable C build and **× C native
-  decode** against `clang-18 -O3 -march=native`.  `-O2` is generic x86-64 while the JIT
-  compiles for the host CPU, so a single `-O2` column would flatter the daslang rows; the
-  native column is the fair ceiling.  A C row is itself divided by both, so the two C
-  builds' own ratio to each other is in the table.
+- The document opens with one headline table — one row per case whose corpus block has a
+  `headline` label (the three `-std` programs: the entire C, entry included, is
+  translated), columns interp / jit / exe / aot, each cell the ratio to `clang-18 -O3
+  -march=native`, plus the native C median in ms — and exactly three lines under it
+  (baseline, process start of exe and jit, the aot footnote with each headline case's
+  `note`).  Everything else is in the appendix below a rule, one table per case.
+- Appendix ratio columns: **× C native** first, against `clang-18 -O3 -march=native`, the
+  headline figure; **× C -O2** second, against the portable build.  `-O2` is generic
+  x86-64 while the JIT compiles for the host CPU, so a single `-O2` column would flatter
+  the daslang rows.  A C row is itself divided by both, so the two C builds' own ratio to
+  each other is in the table.
+- Per-case vocabulary comes from the corpus block: `unit` names what one checked line is
+  (default `frames`; wasm3's are `checked values`), `timed` names the timed loop (default
+  `decode loop`; wasm3's is the `fib call loop`), and `note` is a markdown sentence printed
+  under the case's table and in the headline footnote.  A non-headline case whose C `-O2`
+  loop runs under 5 ms (the embedded 96×64 samples) is marked as a noise-dominated micro
+  fixture.
 - The interp, jit and exe rows are built from a module that carries both levers of
   `docs/followups/hot_path_levers.md`: `options solid_context = true`, which the
   translator writes by default, and `[unsafe_deref]` on every function, which the corpus
   cases ask for with `"translator_flags": ["--unsafe-deref"]`.  Neither changes a body, so
   the per-frame hashes are the same either way — which is what the hash check proves on
-  every run.  The **aot** row carries `unsafe_deref` but not `solid_context`: daslang's
-  AOT refuses the h264bsd graph with that option on (step 6a), so the aot row is not
-  comparable to the other three on that lever.
+  every run.  The **aot** row carries `unsafe_deref` but neither `solid_context` nor
+  daslang's auto-inliner: daslang's AOT refuses the h264bsd graph with the option on and
+  the inliner's output does not compile as C++ (step 6a), so the aot row is not comparable
+  to the other three on those levers.
 
 ## 8. The other cases
 
@@ -322,7 +383,13 @@ stack = 4194304`.  Only the interpreter uses it: wasm3's dispatch recurses one t
 call per executed opcode on the simulated stack, and daslang's default overflows around
 `fib(20)`; jit, exe and aot recurse on the native stack.  Its C builds are the single
 translation unit `src/all_host_bench.c` (`-std=c11 -Iinclude -Iupstream/wasm3/source -Isrc`),
-and its "frames" are the seven `fib[n]=` lines.
+and its checked lines are the seven `fib[n]=` values (`corpus.unit` = `checked values`,
+`corpus.timed` = `fib call loop`, so the benchmark reads "7 checked values" and never
+"decode" for it).  Its `corpus.note` explains why aot runs it faster than jit and exe:
+the `-jit`/`-exe` path makes no tail calls (daslang's LLVM backend never emits sibling
+calls, so each executed wasm opcode costs a native frame) while the AOT C++ gets them from
+`clang++ -O3` ([lookibed/daScript#4](https://github.com/lookibed/daScript/issues/4),
+`docs/followups/translator_gaps_wasm3.md`).
 
 **4 MiB is a ceiling, not a starting point.**  The translation drops wasm3's
 `__attribute__((musttail))` (`-Wmust-tail`, 489 warnings on this graph), so a dispatch
