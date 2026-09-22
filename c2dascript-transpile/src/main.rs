@@ -11,14 +11,37 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
     let strict = take_flag(&mut args, "--strict");
-    // Opt out of substituting tiny `static` helpers at their call sites, so
-    // the effect of that substitution can be measured against this build.
+    // Which tiny `static` helpers are substituted at their call sites
+    // (TranspilerConfig::inline).  `--no-inline` predates the knob and stays
+    // an alias of `--inline=off`; given together, the two must agree.
     let no_inline = take_flag(&mut args, "--no-inline");
+    let inline = match take_prefixed(&mut args, "--inline=") {
+        Some(text) => match c2dascript_transpile::InlineMode::parse(&text) {
+            Some(mode) => mode,
+            None => {
+                let modes: Vec<&str> = c2dascript_transpile::InlineMode::ALL
+                    .iter()
+                    .map(|mode| mode.as_str())
+                    .collect();
+                eprintln!(
+                    "unknown inline mode '{text}'; expected one of {}",
+                    modes.join(", ")
+                );
+                std::process::exit(1);
+            }
+        },
+        None if no_inline => c2dascript_transpile::InlineMode::Off,
+        None => c2dascript_transpile::InlineMode::default(),
+    };
+    if no_inline && inline != c2dascript_transpile::InlineMode::Off {
+        eprintln!("--no-inline contradicts --inline={inline}");
+        std::process::exit(1);
+    }
     // Module header the output declares: `module <stem> public` and extra
     // `options` lines (see TranspilerConfig::public_module / das_options).
     let public_module = take_flag(&mut args, "--public-module");
@@ -83,7 +106,7 @@ fn main() {
         output_dir,
         log_level: log::LevelFilter::Warn,
         edition: c2rust_rust_tools::RustEdition::Edition2021,
-        inline_functions: !no_inline,
+        inline,
         public_module,
         solid_context: !no_solid_context,
         unsafe_deref,
@@ -182,6 +205,16 @@ fn take_warning_switches(args: &mut Vec<String>) -> (HashSet<Diagnostic>, HashSe
 
 fn take_option(args: &mut Vec<String>, option: &str) -> Option<std::path::PathBuf> {
     take_value(args, option).map(Into::into)
+}
+
+/// Removes the last `<prefix><value>` argument (e.g. `--inline=off`) and
+/// returns its value; every earlier one is removed too, so the last wins.
+fn take_prefixed(args: &mut Vec<String>, prefix: &str) -> Option<String> {
+    let mut value = None;
+    while let Some(index) = args.iter().position(|arg| arg.starts_with(prefix)) {
+        value = Some(args.remove(index)[prefix.len()..].to_owned());
+    }
+    value
 }
 
 /// `take_option` for an option whose value is a word rather than a path.

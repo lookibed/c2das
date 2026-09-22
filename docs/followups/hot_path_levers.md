@@ -101,10 +101,23 @@ nothing measurable; `-jit-stack` costs +37 %/+60 % if turned on (it is off);
    across windows (0 % to −8 %, once +8 %).  A recipe decision, not a translator one, and
    it costs the binary's portability; the benchmark should carry both an `-exe` (generic)
    row and a `C -O3 -march=native` column so the ratios are honest.
-4. **Translator expression-inlining hurts the compiled modes.**  `translator/inline.rs`
-   substitutes tiny static helpers for the interpreter's sake; `--no-inline` gave pl_mpeg
-   `-jit` −5…−12 % and h264 `-jit` −4 %, but hurt `-exe`.  Needs a knob
-   (`--inline=interp|off`) and a per-mode measurement before a default changes.
+4. **Translator expression-inlining: neutral in the compiled modes, kept on.**
+   `translator/inline.rs` substitutes tiny static helpers for the interpreter's sake.
+   The research run read `--no-inline` as pl_mpeg `-jit` −5…−12 % and h264 `-jit` −4 %;
+   an interleaved re-measurement (`--inline=on|off|auto`, 2026-09-22, `taskset`-pinned,
+   9–15 rounds, per-frame hashes checked) does not reproduce it.  What is inlined at all:
+   pl_mpeg 80 sites (76 × `plm_clamp`, 4 × the bench hash's `rotl32`), h264 4 (only
+   `rotl32` — the decoder has no candidate), wasm3 63 (`BaseTypeOf` & co.).  Off vs on,
+   decode median: pl_mpeg interp **+15…17 %** slower off (2589 → 3030 ms); pl_mpeg, h264
+   and wasm3 under `-jit`, `-exe` and AOT within ±2 % with equal minima, sign flipping
+   between windows; wasm3 interp within noise.  Narrower fixed policies — single-`return`
+   bodies only (drops `plm_clamp`), ≤ 5 or ≤ 3 C expression nodes — lose the interpreter
+   win and gain nothing compiled.  daslang's own `auto_inline_functions` does nothing
+   for these bodies (`--inline=off` with it disabled measured the same as `off`): a
+   relooped body is not `[inline]`-shaped, and under `-jit`/`-exe` LLVM (threshold 1024)
+   and under AOT the C++ compiler inline the call anyway, so the translator's
+   substitution is redundant there, not harmful.  Default `auto` = every candidate;
+   the corpus cases need no flag.
 5. **Small-block `memcpy`/`memset`.**  The `c2da_rt_*` helpers are byte loops that LLVM
    does not recognise as `llvm.memcpy`; the jitted helper is already an AVX2 copy, so what
    is left is the call itself (1.6 M calls from h264's `FillRow1`, 9–21 bytes each).

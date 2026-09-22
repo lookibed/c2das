@@ -131,6 +131,60 @@ impl std::fmt::Display for LibcMode {
     }
 }
 
+/// Call-site inlining policy for tiny `static` C helpers (`--inline=<mode>`).
+///
+/// See `translator/inline.rs` for which helpers qualify at all.  One `.das`
+/// feeds the interpreter, `-jit`, `-exe` and the AOT build alike, so the
+/// translator cannot know which run mode will consume it; a mode here is a
+/// fixed policy, not a per-run-mode decision.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum InlineMode {
+    /// Substitute every qualifying helper at its direct call sites.  Pays in
+    /// the interpreter, which dispatches every call.
+    On,
+    /// Substitute nothing (`--no-inline` is an alias).  The output is what
+    /// the translator wrote before `translator/inline.rs` existed.
+    Off,
+    /// The default policy, chosen from the per-run-mode benchmark in
+    /// `docs/followups/hot_path_levers.md` (lever 4).  It currently admits
+    /// what `On` admits: the substitution pays in the interpreter and is
+    /// neutral under `-jit`, `-exe` and AOT, so no narrower fixed policy
+    /// beat it in any mode.  Naming the default separately lets a build pin
+    /// `on` or `off` while the default stays free to follow new numbers.
+    #[default]
+    Auto,
+}
+
+impl InlineMode {
+    /// The spelling `--inline=` accepts, or `None` for an unknown mode.
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "on" => Some(Self::On),
+            "off" => Some(Self::Off),
+            "auto" => Some(Self::Auto),
+            _ => None,
+        }
+    }
+
+    /// The spelling this mode is written with on the command line.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::On => "on",
+            Self::Off => "off",
+            Self::Auto => "auto",
+        }
+    }
+
+    /// Every spelling `--inline=` accepts, in the order the usage text lists them.
+    pub const ALL: [Self; 3] = [Self::On, Self::Off, Self::Auto];
+}
+
+impl std::fmt::Display for InlineMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Configuration settings for the translation process
 #[derive(Debug)]
 pub struct TranspilerConfig {
@@ -145,11 +199,10 @@ pub struct TranspilerConfig {
     pub output_dir: Option<PathBuf>,
     pub log_level: log::LevelFilter,
     pub edition: c2rust_rust_tools::RustEdition,
-    /// Substitute direct calls to tiny `static` C helpers with the expression
-    /// they stand for (`--no-inline` turns it off). See
-    /// `translator/inline.rs`; the daslang interpreter pays one call dispatch
-    /// per invocation, which dominates flat per-byte loops.
-    pub inline_functions: bool,
+    /// Which direct calls to tiny `static` C helpers are substituted with the
+    /// expression they stand for (`--inline=on|off|auto`, `--no-inline` =
+    /// `--inline=off`).  See [`InlineMode`] and `translator/inline.rs`.
+    pub inline: InlineMode,
     /// Declare the output `module <file stem> public` (`--public-module`).
     /// An anonymous module is enough for `require` and for the interpreter,
     /// the JIT and `-exe`, but daslang's AOT generator keeps a module's
@@ -251,7 +304,7 @@ impl Default for TranspilerConfig {
             output_dir: None,
             log_level: log::LevelFilter::Warn,
             edition: c2rust_rust_tools::RustEdition::Edition2021,
-            inline_functions: true,
+            inline: InlineMode::default(),
             public_module: false,
             solid_context: true,
             unsafe_deref: false,

@@ -24,9 +24,12 @@
 //! vs 485 ms per 20 M calls), because the interpreter pays for the
 //! spliced statements instead.  What pays is turning the body into a single
 //! *expression*, which is what this module does.  See `docs/perf-plmpeg.md`
-//! for the probe numbers and the before/after benchmark; `--no-inline` turns
-//! the whole thing off, and its output is byte-identical to the translator's
-//! output before this existed.
+//! for the probe numbers and the before/after benchmark; `--inline=off` (alias
+//! `--no-inline`) turns the whole thing off, and its output is byte-identical
+//! to the translator's output before this existed.  `--inline=on` and the
+//! default `--inline=auto` substitute every candidate; see
+//! [`Translation::inlining_enabled`] for why that is the default in every run
+//! mode, the LLVM-compiled ones included.
 //!
 //! # The rule
 //!
@@ -72,6 +75,7 @@
 //! of the arm that guards it.
 
 use super::*;
+use crate::InlineMode;
 use std::collections::HashSet;
 
 /// Parameter budget for a candidate.  Nothing about the substitution needs a
@@ -109,10 +113,24 @@ pub(crate) struct InlineCandidate {
 }
 
 impl<'c> Translation<'c> {
-    /// Is call-site inlining switched on for this run?  `--no-inline` turns it
-    /// off, which is how the effect is measured.
+    /// Is call-site inlining switched on for this run?  `--inline=off` (or
+    /// `--no-inline`) turns it off, which is how the effect is measured.
+    ///
+    /// `on` and `auto` admit every candidate today.  `auto` is the default
+    /// *policy* and was chosen on the per-run-mode benchmark in
+    /// `docs/followups/hot_path_levers.md` (lever 4): substituting the
+    /// candidates this module accepts saves 15 % of pl_mpeg's interpreter
+    /// time, and leaves `-jit`, `-exe` and AOT within run-to-run noise either
+    /// way, because LLVM (and the C++ compiler, for AOT) inlines the call it
+    /// would otherwise see.  Narrower policies measured — single-`return`
+    /// bodies only, bodies of at most 5 or 3 expression nodes — lost the
+    /// interpreter win and gained nothing compiled.  One `.das` feeds every
+    /// run mode, so the policy cannot follow the mode that consumes it.
     pub(crate) fn inlining_enabled(&self) -> bool {
-        self.tcfg.inline_functions
+        match self.tcfg.inline {
+            InlineMode::On | InlineMode::Auto => true,
+            InlineMode::Off => false,
+        }
     }
 
     /// The function declaration a direct call names, if the call is direct and

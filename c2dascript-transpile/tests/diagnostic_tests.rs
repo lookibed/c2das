@@ -191,6 +191,53 @@ fn solid_context_is_the_default_module_header() {
     );
 }
 
+/// `--inline=<mode>` is the call-site inlining policy, and `--no-inline` is
+/// kept as an alias of `--inline=off`.  p71 is the fixture whose `static`
+/// helpers (`clamp255`, `sign_of`, `sat`, …) are substituted under
+/// `--inline=on`, so it is where `on` and `off` must differ.
+#[test]
+fn inline_knob_modes_and_the_no_inline_alias() {
+    let off = translate_module("p71_static_inline_calls", &["--inline=off"]);
+    let alias = translate_module("p71_static_inline_calls", &["--no-inline"]);
+    assert_eq!(alias, off, "`--no-inline` must be exactly `--inline=off`");
+
+    let on = translate_module("p71_static_inline_calls", &["--inline=on"]);
+    assert_ne!(on, off, "p71's static helpers must be substituted under `--inline=on`");
+    // Under `off` every helper is still reached by a call; under `on` the
+    // clamp shape has become a conditional-expression chain instead.
+    assert!(
+        off.contains("clamp255(") && !off.contains(" ? "),
+        "`--inline=off` must keep the calls and write no substituted chain:\n{off}"
+    );
+    assert!(on.contains(" ? "), "`--inline=on` must write the substituted chain:\n{on}");
+
+    let default = translate_module("p71_static_inline_calls", &[]);
+    let auto = translate_module("p71_static_inline_calls", &["--inline=auto"]);
+    assert_eq!(default, auto, "`auto` is the default policy");
+}
+
+/// An unknown `--inline=` mode, or `--no-inline` next to a mode that is not
+/// `off`, stops before anything is written.
+#[test]
+fn inline_knob_rejects_unknown_and_contradictory_modes() {
+    for extra in [&["--inline=sometimes"][..], &["--no-inline", "--inline=on"][..]] {
+        let output_dir = tempfile::tempdir().expect("temporary daScript output directory");
+        let output = Command::new(env!("CARGO_BIN_EXE_c2dascript-transpile"))
+            .args(extra)
+            .arg("--output-dir")
+            .arg(output_dir.path())
+            .arg("--file")
+            .arg(fixture("p71_static_inline_calls"))
+            .output()
+            .expect("c2dascript-transpile must run");
+        assert!(!output.status.success(), "{extra:?} must be refused");
+        assert!(
+            std::fs::read_dir(output_dir.path()).unwrap().next().is_none(),
+            "{extra:?}: nothing may be written"
+        );
+    }
+}
+
 /// `--unsafe-deref` reaches *every* definition the module contains — the
 /// translated C functions, the `c2da_rt_*` runtime helpers and the generated
 /// initializers alike — and nothing else changes.
