@@ -614,7 +614,6 @@
       "source_root": "tests/manual/plmpeg-stream",
       "translation_entry": "src/all.c",
       "c_graph": "plmpeg-target",
-      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-DPLM_NO_STDIO", "-Iinclude", "-Iupstream", "-Ifixtures", "-Isrc"]
@@ -635,7 +634,8 @@
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/sample.m1v",
         "bench_c_entry": "src/plmpeg_bench_entry.c",
-        "bench_das_entry": "src/plmpeg_bench_entry.das"
+        "bench_das_entry": "src/plmpeg_bench_entry.das",
+        "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] }
       }
     },
     {
@@ -664,7 +664,6 @@
       "source_root": "tests/manual/h264bsd-mp4",
       "translation_entry": "src/all.c",
       "c_graph": "h264bsd-mp4",
-      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-w", "-Iinclude", "-Iupstream/h264bsd/src", "-Iupstream/minimp4", "-Isrc"]
@@ -685,7 +684,8 @@
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/sample.mp4",
         "bench_c_entry": "src/h264_bench_entry.c",
-        "bench_das_entry": "src/h264_bench_entry.das"
+        "bench_das_entry": "src/h264_bench_entry.das",
+        "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] }
       }
     },
     {
@@ -694,7 +694,6 @@
       "source_root": "tests/manual/plmpeg-stream",
       "translation_entry": "src/all.c",
       "c_graph": "plmpeg-target",
-      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-DPLM_NO_STDIO", "-Iinclude", "-Iupstream", "-Ifixtures", "-Isrc"]
@@ -716,7 +715,8 @@
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/testsrc2_320x240.m1v",
         "bench_c_entry": "src/plmpeg_file_bench_entry.c",
-        "bench_das_entry": "src/plmpeg_file_bench_entry.das"
+        "bench_das_entry": "src/plmpeg_file_bench_entry.das",
+        "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] }
       }
     },
     {
@@ -725,7 +725,6 @@
       "source_root": "tests/manual/h264bsd-mp4",
       "translation_entry": "src/all.c",
       "c_graph": "h264bsd-mp4",
-      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-w", "-Iinclude", "-Iupstream/h264bsd/src", "-Iupstream/minimp4", "-Isrc"]
@@ -747,7 +746,8 @@
         "upstream": "UPSTREAM.md",
         "fixture": "fixtures/test_640x360.mp4",
         "bench_c_entry": "src/h264_file_bench_entry.c",
-        "bench_das_entry": "src/h264_file_bench_entry.das"
+        "bench_das_entry": "src/h264_file_bench_entry.das",
+        "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] }
       }
     },
     {
@@ -757,7 +757,6 @@
       "translation_entry": "src/plmpeg_file_all.c",
       "c_graph": "plmpeg-target",
       "libc": "std",
-      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-DPLM_NO_STDIO", "-Iinclude", "-Iupstream", "-Ifixtures", "-Isrc"]
@@ -778,6 +777,7 @@
         "fixture": "fixtures/testsrc2_320x240.m1v",
         "bench_c_entry": "src/plmpeg_file_bench_entry.c",
         "bench_translation_entry": "src/plmpeg_file_bench_all.c",
+        "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] },
         "headline": "pl_mpeg (MPEG-1 video), 320×240"
       }
     },
@@ -788,7 +788,6 @@
       "translation_entry": "src/h264_file_all.c",
       "c_graph": "h264bsd-mp4",
       "libc": "std",
-      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-w", "-Iinclude", "-Iupstream/h264bsd/src", "-Iupstream/minimp4", "-Isrc"]
@@ -809,6 +808,7 @@
         "fixture": "fixtures/test_640x360.mp4",
         "bench_c_entry": "src/h264_file_bench_entry.c",
         "bench_translation_entry": "src/h264_file_bench_all.c",
+        "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] },
         "headline": "h264bsd + minimp4 (H.264 video), 640×360"
       }
     },
@@ -1083,7 +1083,6 @@
       "c_graph": "wasm3",
       "libc": "std",
       "das_options": ["stack = 4194304"],
-      "translator_flags": ["--unsafe-deref"],
       "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-Iinclude", "-Iupstream/wasm3/source", "-Isrc"] },
       "c_reference": { "sources": ["src/all_host.c"] },
       "das_entrypoint": "main",
@@ -1099,6 +1098,7 @@
         "fixture": "fixtures/fib32.wasm",
         "bench_c_entry": "src/all_host_bench.c",
         "bench_translation_entry": "src/all_host_bench.c",
+        "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] },
         "headline": "wasm3 (WebAssembly interpreter), fib32",
         "unit": "checked values",
         "timed": "fib call loop",

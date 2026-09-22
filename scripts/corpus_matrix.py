@@ -27,7 +27,8 @@ Two commands, two committed documents:
       (cells: ratio to the native build per mode) and three lines under it; every
       case's full table follows in an appendix.  `--output` writes it elsewhere.
 
-Optional corpus keys read only by the benchmark renderer: `headline` (the case's row
+Optional corpus keys read only by the benchmark: `optional_translator_flags` (see
+below), `headline` (the case's row
 label in the headline table; its presence puts the case there), `unit` (what one
 checked line is, default "frames"), `timed` (what the program times, default "decode
 loop") and `note` (a markdown sentence printed under the case's table and in the
@@ -57,9 +58,19 @@ A case may carry `translator_flags`: translator switches passed verbatim, in add
 to the `--libc` and `--das-option` its other keys imply.  Both this driver and
 scripts/run_c2das_cases.py read them through runner.libc_flags, so a case is
 translated under one configuration whichever builds it.  The corpus cases declare
-`["--unsafe-deref"]`, which puts `unsafe_deref` on every emitted function; `options
-solid_context = true` needs no flag because it is the translator's default header
+none: every row without a `+` suffix runs the translator's defaults, `options
+solid_context = true` in the header and daslang's null checks left in place
 (`docs/followups/hot_path_levers.md`).
+
+A corpus block may carry `optional_translator_flags`, a map from an option label to
+translator switches, e.g. `{"unsafe_deref": ["--unsafe-deref"]}`.  The benchmark
+alone reads it: for each label it translates the case a second time with those
+switches added, into its own directory under the workspace (`bench_<label>/`, the
+fixture entry copied beside the modules for a nostd case), and measures the
+OPTION_MODES on it as separate rows named `daslang <mode> + <label>`, run from that
+directory so the JIT's `.jitted_scripts/` cache is never shared with the default
+rows.  The headline table stays on the default translation; a second table beside
+it shows what each option buys.
 
 A case may carry `program_args` (fixture-root-relative paths): every program, C or
 daslang in any mode, receives them as its command-line arguments, which is how the
@@ -242,8 +253,9 @@ class Prepared:
         """`--libc`, `--das-option` and `translator_flags` exactly as the canonical runner passes them.
 
         Both drivers read the same function, so a corpus case is translated
-        under one configuration whichever of them builds it — including the
-        `--unsafe-deref` the corpus cases declare.
+        under one configuration whichever of them builds it.  A benchmark
+        option's switches (`optional_translator_flags`) are passed through
+        `translate`'s `extra`, never through this list.
         """
         return runner.libc_flags(self.case)
 
@@ -385,17 +397,21 @@ def transpile_for_aot(p: Prepared, c_entry: Path, generated_dir: Path, flags: li
     return modules
 
 
-def build_aot(p: Prepared, entry: Path, name: str, c_entry: Path | None) -> list[str]:
+def build_aot(p: Prepared, entry: Path, name: str, c_entry: Path | None,
+              option_flags: list[str] | None = None) -> list[str]:
     """`c_entry` is the C unit whose translation *is* the program (std cases);
-    `None` means `entry` is a fixture-owned daslang entry over the graph."""
+    `None` means `entry` is a fixture-owned daslang entry over the graph.
+    `option_flags`: a benchmark option's translator switches, added to the AOT
+    translation's own."""
     das_root = p.daslang.parent.parent
     aot_dir = p.work / name
     aot_dir.mkdir()
+    extra = list(option_flags or [])
     if c_entry is not None:
         # the program is the translated C unit; its header already carries the
         # AOT options, so there is nothing to prepend
         modules: list[Path] = []
-        entry_copy = transpile_for_aot(p, c_entry, aot_dir / "generated", AOT_PROGRAM_FLAGS)[0]
+        entry_copy = transpile_for_aot(p, c_entry, aot_dir / "generated", [*AOT_PROGRAM_FLAGS, *extra])[0]
         shutil.copyfile(entry_copy, aot_dir / entry_copy.name)
         entry_copy = aot_dir / entry_copy.name
     else:
@@ -403,7 +419,7 @@ def build_aot(p: Prepared, entry: Path, name: str, c_entry: Path | None) -> list
         # it so `require <module>` resolves against these modules, never the
         # staged ones; the entry is fixture source, so its one AOT option is
         # prepended to a copy rather than edited in place
-        modules = transpile_for_aot(p, p.translation_entry, aot_dir / "generated", AOT_GRAPH_FLAGS)
+        modules = transpile_for_aot(p, p.translation_entry, aot_dir / "generated", [*AOT_GRAPH_FLAGS, *extra])
         entry_copy = aot_dir / entry.name
         entry_text = entry.read_text(encoding="utf-8")
         entry_copy.write_text("".join(AOT_ENTRY_OPTIONS) + entry_text, encoding="utf-8")
@@ -427,7 +443,10 @@ def build_aot(p: Prepared, entry: Path, name: str, c_entry: Path | None) -> list
     return [str(binary), str(das_root), str(entry_copy), "main"]
 
 
-def build_mode(p: Prepared, mode: str, entry: Path, name: str, c_entry: Path | None = None) -> list[str]:
+def build_mode(p: Prepared, mode: str, entry: Path, name: str, c_entry: Path | None = None,
+               option_flags: list[str] | None = None) -> list[str]:
+    """`option_flags` matter only to aot, which translates again; the other
+    modes take `entry`, already translated with them."""
     if mode == "interp":
         return [str(p.daslang), str(entry)]
     if mode == "jit":
@@ -435,7 +454,7 @@ def build_mode(p: Prepared, mode: str, entry: Path, name: str, c_entry: Path | N
     if mode == "exe":
         return build_exe(p, entry, f"{name}_exe")
     if mode == "aot":
-        return build_aot(p, entry, f"{name}_aot", c_entry)
+        return build_aot(p, entry, f"{name}_aot", c_entry, option_flags)
     raise MatrixFailure(f"unknown mode {mode}")
 
 
@@ -479,9 +498,20 @@ def describe_mode(mode: str, entry_name: str) -> str:
 JIT_SPLIT_LOG = re.compile(r"\bsplit\b")
 
 
-def describe_bench_mode(mode: str, entry_name: str, std_program: bool) -> str:
+def describe_bench_mode(mode: str, entry_name: str, std_program: bool,
+                        option_flags: list[str] | None = None) -> str:
     """The benchmark's build text for a daslang row: the command and every way it
-    differs from the translation the other rows run."""
+    differs from the translation the other rows run.  `option_flags`: the row is
+    a benchmark option's, built from a translation with those switches added."""
+    if option_flags:
+        if mode == "aot":
+            return describe_bench_mode(mode, entry_name, std_program, None).replace(
+                "translation with `", f"translation with `{' '.join(option_flags)} ", 1
+            )
+        return (
+            f"as the row without the suffix, from a separate translation with `{' '.join(option_flags)}`: "
+            + describe_bench_mode(mode, entry_name, std_program, None)
+        )
     if mode == "jit":
         return (
             f"`daslang -jit {entry_name}`, split codegen with auto threads (`--jit-split-modules=-1`, daslang's "
@@ -705,6 +735,60 @@ def measure(command: list[str], cwd: Path, env: dict[str, str], runs: int,
     }
 
 
+# The modes a benchmark option (`optional_translator_flags`) is measured in: the
+# compiled ones, where a translator lever shows as generated code; the
+# interpreter row stays on the default translation only.
+OPTION_MODES = ("jit", "exe", "aot")
+OPTION_LABEL = re.compile(r"^[a-z][a-z0-9_]*$")
+# What a known option does, for the sentence above its table in the document.
+OPTION_TEXT = {
+    "unsafe_deref": (
+        "These rows come from a second translation of each program with `[unsafe_deref]` on every function, "
+        "which removes daslang's null check in front of every pointer dereference (`ExprAt`, `ExprPtr2Ref`, "
+        "field access): C's unchecked access, where a null dereference crashes instead of raising a located "
+        "daslang exception. It is an option, not the default — the same effect is available by writing the "
+        "code on raw pointers; it is a choice of which unsafety to accept (`docs/followups/hot_path_levers.md`)."
+    ),
+}
+
+
+def optional_translator_flags(case: dict[str, Any]) -> dict[str, list[str]]:
+    """`corpus.optional_translator_flags`: option label -> translator switches."""
+    options = case["corpus"].get("optional_translator_flags", {})
+    if not isinstance(options, dict):
+        raise MatrixFailure(f"{case['id']}: optional_translator_flags must map a label to a flag list")
+    for label, flags in options.items():
+        if not OPTION_LABEL.match(label):
+            raise MatrixFailure(f"{case['id']}: optional_translator_flags label {label!r} is not [a-z][a-z0-9_]*")
+        if not isinstance(flags, list) or not flags or not all(isinstance(f, str) and f.strip() for f in flags):
+            raise MatrixFailure(f"{case['id']}: optional_translator_flags[{label!r}] must be a non-empty flag list")
+    return options
+
+
+def translate_option(p: Prepared, option_dir: Path, flags: list[str]) -> Path:
+    """Translate the benchmark program again with an option's switches added;
+    returns the entry to run.  Everything lands in `option_dir` under the
+    workspace: a std case's module is the program, a nostd case's modules sit
+    beside a copy of the fixture's benchmark entry so its `require` resolves to
+    them and never to the default translation."""
+    option_dir.mkdir()
+    if p.bench_translation_entry is not None:
+        return p.translate(p.bench_translation_entry, option_dir, flags)
+    if p.bench_das is None:
+        raise MatrixFailure(f"{p.case['id']}: corpus block names neither bench_das_entry nor bench_translation_entry")
+    generated = option_dir / "generated"
+    p.translate(p.translation_entry, generated, flags)
+    for module in sorted(generated.rglob("*.das")):
+        target = option_dir / module.relative_to(generated)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(module, target)
+    entry = option_dir / p.bench_das.name
+    if entry.exists():
+        raise MatrixFailure(f"{p.case['id']}: generated module collides with the entry {entry.name}")
+    shutil.copyfile(p.bench_das, entry)
+    return entry
+
+
 def bench_case(case: dict[str, Any], daslang: Path, runs: int, keep: bool) -> dict[str, Any]:
     p = prepare(case, daslang)
     try:
@@ -739,24 +823,43 @@ def bench_case(case: dict[str, Any], daslang: Path, runs: int, keep: bool) -> di
             c_entry = None
         if entry is None:
             raise MatrixFailure(f"{case['id']}: corpus block names neither bench_das_entry nor bench_translation_entry")
-        for mode in MODES:
-            name = f"daslang {mode}"
-            build = describe_bench_mode(mode, entry.name, c_entry is not None)
+
+        def daslang_row(mode: str, row_entry: Path, name: str, cwd: Path,
+                        option: str | None = None, option_flags: list[str] | None = None) -> None:
+            label = f"daslang {mode}" + (f" + {option}" if option else "")
+            build = describe_bench_mode(mode, row_entry.name, c_entry is not None, option_flags)
             try:
-                cmd = with_args(build_mode(p, mode, entry, "bench", c_entry), mode, p.args)
-                m = measure(cmd, p.work, p.env, runs, reference_frames,
+                cmd = with_args(build_mode(p, mode, row_entry, name, c_entry, option_flags), mode, p.args)
+                m = measure(cmd, cwd, p.env, runs, reference_frames,
                             JIT_SPLIT_LOG if mode == "jit" else None)
-                variant = {"name": name, "mode": mode, "build": build, **m}
+                variant = {"name": label, "mode": mode, "option": option, "build": build, **m}
                 if mode == "aot":
                     # aot_host compiles the script again (policies.aot) on every
                     # launch, so its wall − work is a compiler's start-up, not a
                     # comparable process start
                     variant["startup_note"] = "n/a (recompiles per run)"
                 variants.append(variant)
-                print(f"  {case['id']} {mode}: decode {m['decode_median']:.3f} ms, wall {m['wall_median']:.1f} ms")
+                print(f"  {case['id']} {label}: decode {m['decode_median']:.3f} ms, wall {m['wall_median']:.1f} ms")
             except MatrixFailure as error:
-                variants.append({"name": name, "mode": mode, "build": build, "error": str(error).splitlines()[0]})
-                print(f"  {case['id']} {mode}: FAILED {str(error).splitlines()[0]}")
+                variants.append({"name": label, "mode": mode, "option": option, "build": build,
+                                 "error": str(error).splitlines()[0]})
+                print(f"  {case['id']} {label}: FAILED {str(error).splitlines()[0]}")
+
+        for mode in MODES:
+            daslang_row(mode, entry, "bench", p.work)
+        for option, option_flags in optional_translator_flags(case).items():
+            # A separate translation per option, in its own directory under the
+            # workspace; the rows run from there, so `-jit` caches apart.
+            option_dir = p.work / f"bench_{option}"
+            try:
+                option_entry = translate_option(p, option_dir, option_flags)
+            except MatrixFailure as error:
+                for mode in OPTION_MODES:
+                    variants.append({"name": f"daslang {mode} + {option}", "mode": mode, "option": option,
+                                     "build": "", "error": str(error).splitlines()[0]})
+                continue
+            for mode in OPTION_MODES:
+                daslang_row(mode, option_entry, f"bench_{option}", option_dir, option, option_flags)
         return {"case": case, "variants": variants, "frames": len(reference_frames),
                 "fixture_bytes": (p.source_root / p.corpus["fixture"]).stat().st_size}
     finally:
@@ -799,8 +902,29 @@ def ratio_to(reference: dict[str, Any] | None, value: float) -> str:
 
 
 def ordered_variants(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """BENCH_ROW_ORDER, each option row (`daslang jit + unsafe_deref`) right
+    after the default row of its mode."""
     rank = {name: index for index, name in enumerate(BENCH_ROW_ORDER)}
-    return sorted(result["variants"], key=lambda v: rank.get(v["name"], len(rank)))
+
+    def key(v: dict[str, Any]) -> tuple[int, int]:
+        base = v["name"].split(" + ", 1)[0]
+        return (rank.get(base, len(rank)), 0 if base == v["name"] else 1)
+
+    return sorted(result["variants"], key=key)
+
+
+def mode_variant(result: dict[str, Any], mode: str, option: str | None = None) -> dict[str, Any] | None:
+    """The daslang row of `mode` (and benchmark option), failed or not."""
+    return next((v for v in result["variants"] if v.get("mode") == mode and v.get("option") == option), None)
+
+
+def option_labels(results: list[dict[str, Any]]) -> list[str]:
+    labels: list[str] = []
+    for r in results:
+        for label in optional_translator_flags(r["case"]):
+            if label not in labels:
+                labels.append(label)
+    return labels
 
 
 def approx_ms(values: list[float]) -> str:
@@ -839,7 +963,7 @@ def render_benchmark(results: list[dict[str, Any]], facts: dict[str, str], runs:
             label += " — entire C translated"
         cells = [label, "—" if native is None else f"{native['decode_median']:.2f}"]
         for mode in HEADLINE_MODES:
-            variant = next((v for v in r["variants"] if v.get("mode") == mode), None)
+            variant = mode_variant(r, mode)
             if variant is None or "error" in variant:
                 cell = "failed"
             else:
@@ -863,6 +987,33 @@ def render_benchmark(results: list[dict[str, Any]], facts: dict[str, str], runs:
         "`solid_context` on and its inliner produces C++ that does not compile; every other mode runs the "
         "default translation. " + notes + "\n"
     )
+    for option in option_labels(headline):
+        cases = [r for r in headline if option in optional_translator_flags(r["case"])]
+        flags = " ".join(optional_translator_flags(cases[0]["case"])[option])
+        out.append(
+            f"**Option: `{flags}`.** The table above is the translator's default output. "
+            + OPTION_TEXT.get(option, f"These rows come from a second translation of each program with `{flags}`.")
+            + " Cells are the ratio to the same `clang-18 -O3 -march=native` build, and in parentheses the change "
+            "against the same mode without the option (negative = faster).\n"
+        )
+        out.append("| program | " + " | ".join(f"{mode} + {option}" for mode in OPTION_MODES) + " |")
+        out.append("|---|" + "---|" * len(OPTION_MODES))
+        for r in cases:
+            native = variant_by_name(r, C_NATIVE_VARIANT)
+            cells = [r["case"]["corpus"]["headline"]]
+            for mode in OPTION_MODES:
+                variant = mode_variant(r, mode, option)
+                default = mode_variant(r, mode)
+                if variant is None or "error" in variant:
+                    cells.append("failed")
+                    continue
+                cell = ratio_to(native, variant["decode_median"])
+                if default is not None and "error" not in default and default["decode_median"] > 0:
+                    change = (variant["decode_median"] / default["decode_median"] - 1.0) * 100.0
+                    cell += f" ({change:+.0f} %)".replace("-", "−")
+                cells.append(cell + ("\\*" if mode == "aot" else ""))
+            out.append("| " + " | ".join(cells) + " |")
+        out.append("")
     out.append("---\n")
     out.append("## Appendix: full measurements\n")
     out.append(
@@ -881,8 +1032,10 @@ def render_benchmark(results: list[dict[str, Any]], facts: dict[str, str], runs:
         "the aot host compiles the script again on every launch, so its startup is not shown. **× C native** "
         "is the ratio to `clang-18 -O3 -march=native`, the headline; **× C -O2** to the portable `clang-18 -O2` "
         "build (generic x86-64, SSE2), shown for reference because daslang's LLVM backend compiles `-jit` for the "
-        "host CPU. The translated modules carry `options solid_context = true` (the translator's default) and "
-        "`[unsafe_deref]` on every function (the corpus cases' `--unsafe-deref`); see "
+        "host CPU. The translated modules are the translator's defaults: `options solid_context = true` in the "
+        "header and daslang's null checks on every pointer dereference (no `--unsafe-deref`). A row named "
+        "`daslang <mode> + unsafe_deref` is the option: a separate translation of the same case with "
+        "`--unsafe-deref`, `[unsafe_deref]` on every function, measured the same way; see "
         "`docs/followups/hot_path_levers.md`. The aot rows are the exception named in each case's build list. "
         "Cases that repeat a headline program through a hand-written daslang entry (no `--libc std`) and the "
         "embedded micro fixtures are here only.\n"
@@ -942,6 +1095,8 @@ def select_cases(case_id: str | None) -> list[dict[str, Any]]:
             raise MatrixFailure(f"no corpus case named {case_id}")
     if not cases:
         raise MatrixFailure("no corpus cases registered")
+    for case in cases:
+        optional_translator_flags(case)  # malformed options fail before any build
     return cases
 
 

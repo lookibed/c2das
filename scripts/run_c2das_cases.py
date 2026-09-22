@@ -165,9 +165,10 @@ def libc_flags(case: dict[str, Any]) -> list[str]:
 
     `translator_flags`: translator switches passed verbatim, for a case whose
     build configuration differs from the translator's defaults, e.g.
-    `"--unsafe-deref"` on the corpus cases (see
-    `docs/followups/hot_path_levers.md`).  They come last so a case can
-    override a policy the earlier keys set.
+    `"--unsafe-deref"` on `p95-unsafe-deref-flag`.  They come last so a case
+    can override a policy the earlier keys set.  The corpus cases declare
+    none; their `--unsafe-deref` build is a benchmark option
+    (`corpus.optional_translator_flags`, read by `corpus_matrix.py` only).
     """
     mode = case.get("libc")
     flags = ["--libc", mode] if mode else []
