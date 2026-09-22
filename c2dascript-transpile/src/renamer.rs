@@ -252,6 +252,18 @@ pub const DASCRIPT_PRELUDE_VALUE_NAMESPACE: &[&str] = &[
     "bool",
 ];
 
+/// daslang builtins that C `memcpy`/`memmove` calls lower to by their plain
+/// names (`CanonicalRuntimeFunction::builtin_copy`).
+///
+/// daslang resolves such a call among every visible `memcpy`, and a C
+/// translation unit that defines its own `memcpy` (a freestanding shim, as
+/// the h264bsd corpus has) would put a `def memcpy(uint8?; uint8?; uint64)`
+/// in the module that the builtin call binds to instead of daslang's.  The
+/// C definition is renamed; calls to it are lowered to the canonical copy
+/// anyway, and a function-pointer reference follows the renamed name.
+#[rustfmt::skip]
+pub const DASCRIPT_BUILTIN_COPY_NAMESPACE: &[&str] = &["memcpy", "memmove"];
+
 /// Type names the `--libc std` prelude's `require` lines bring into scope.
 ///
 /// daslang reports a use of an ambiguous type name as an error ("undefined
@@ -386,6 +398,7 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
             DASCRIPT_KEYWORDS,
             DASCRIPT_PRELUDE_TYPE_NAMESPACE,
             DASCRIPT_PRELUDE_VALUE_NAMESPACE,
+            DASCRIPT_BUILTIN_COPY_NAMESPACE,
             &["main"],
         ])
     }
@@ -397,6 +410,7 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
             DASCRIPT_KEYWORDS,
             DASCRIPT_PRELUDE_TYPE_NAMESPACE,
             DASCRIPT_PRELUDE_VALUE_NAMESPACE,
+            DASCRIPT_BUILTIN_COPY_NAMESPACE,
             DASCRIPT_STD_LIBC_VALUE_NAMESPACE,
             &["main"],
         ])

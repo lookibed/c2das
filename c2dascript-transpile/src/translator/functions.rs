@@ -503,7 +503,22 @@ impl<'c> Translation<'c> {
         } else if forwards_va_list {
             das_args.push(self.forwarded_va_args(func)?);
         }
-        let call = if let Some(function) = runtime {
+        // C `memcpy`/`memmove` cross to the daslang builtin copy; its result
+        // (C's `dst`) is the named destination address, or nothing at all
+        // when the call is an expression statement.
+        let builtin_copy = runtime
+            .and_then(CanonicalRuntimeFunction::builtin_copy)
+            .filter(|_| das_args.len() == 3);
+        let call = if let Some(builtin) = builtin_copy {
+            let lowered = self.lower_builtin_copy(ctx, builtin, das_args);
+            all_stmts.extend(lowered.stmts);
+            if ctx.is_unused() {
+                return Ok(WithStmts::new_val(lowered.val)
+                    .prepend_stmts(all_stmts)
+                    .merge_unsafe(is_unsafe));
+            }
+            lowered.val
+        } else if let Some(function) = runtime {
             mk().call_expr(DaExpr::Var(function.target_name().to_owned()), das_args)
         } else if let Some(function) = std_libc {
             let helper = self.require_std_function(function, func)?;
@@ -636,6 +651,85 @@ impl<'c> Translation<'c> {
                 WithStmts::new_val(self.integer_literal_for_type(arg, DaType::uint8()))
             }
         }
+    }
+
+    /// A C `memcpy`/`memmove` over already-lowered raw-address and `uint64`
+    /// operands, as the daslang builtin `builtin` (see
+    /// `CanonicalRuntimeFunction::builtin_copy`).
+    ///
+    /// C makes a zero-length copy a no-op whatever its pointers hold, which
+    /// the builtin does not promise, so a size that is not a nonzero constant
+    /// guards the copy.  Used as a value, the call is C's `dst`: the
+    /// destination address is named first and is the result; as an expression
+    /// statement the copy alone is the value.
+    fn lower_builtin_copy(
+        &self,
+        ctx: ExprContext,
+        builtin: &'static str,
+        args: Vec<DaExpr>,
+    ) -> WithStmts<DaExpr> {
+        fn is_nonzero_constant(expr: &DaExpr) -> bool {
+            match expr {
+                DaExpr::ConstUInt(n) => *n != 0,
+                DaExpr::ConstInt(n) => *n != 0,
+                DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr,
+                    to,
+                } if to.is_numeric() => is_nonzero_constant(expr),
+                _ => false,
+            }
+        }
+        let [dst, src, count]: [DaExpr; 3] = args.try_into().expect("three copy operands");
+        let guarded = !is_nonzero_constant(&count);
+        let mut stmts = vec![];
+        // Each operand is evaluated exactly once and before the guard, as C
+        // evaluates every argument of a call before the call.
+        let mut name = |value: DaExpr, force: bool| {
+            if !force && matches!(value, DaExpr::Var(_)) {
+                return value;
+            }
+            let tmp = self.renamer.borrow_mut().fresh();
+            stmts.push(DaStmt::Var {
+                name: tmp.clone(),
+                var_type: DaType::uint64(),
+                init: Some(value),
+            });
+            DaExpr::Var(tmp)
+        };
+        let dst = if ctx.is_used() || guarded { name(dst, ctx.is_used()) } else { dst };
+        let src = if guarded { name(src, false) } else { src };
+        let count = if guarded { name(count, false) } else { count };
+        let void_ptr = DaType::pointer(DaType::void());
+        let copy = DaExpr::Unsafe(Box::new(mk().call_expr(
+            DaExpr::Var(builtin.to_owned()),
+            vec![
+                self.raw_address_to_pointer(dst.clone(), void_ptr.clone()),
+                self.raw_address_to_pointer(src, void_ptr),
+                count.clone(),
+            ],
+        )));
+        let copy = if !guarded {
+            copy
+        } else {
+            DaExpr::IfThenElse {
+                cond: Box::new(DaExpr::Op2 {
+                    op: "!=",
+                    left: Box::new(count),
+                    right: Box::new(DaExpr::ConstUInt(0)),
+                }),
+                then: Box::new(DaExpr::Block(DaBlock {
+                    stmts: vec![DaStmt::Expr(copy)],
+                })),
+                elifs: vec![],
+                else_: None,
+            }
+        };
+        if ctx.is_unused() {
+            return WithStmts::new(stmts, copy);
+        }
+        stmts.push(DaStmt::Expr(copy));
+        WithStmts::new(stmts, dst)
     }
 
     pub(crate) fn direct_call_name(&self, func: CExprId) -> Option<String> {

@@ -58,6 +58,23 @@ impl CanonicalRuntimeFunction {
         }
     }
 
+    /// The daslang builtin a source-level call of this function lowers to
+    /// instead of its `c2da_rt_*` helper, if any.
+    ///
+    /// daslang's own `memcpy`/`memmove` (the `uint64`-size overloads) copy
+    /// between two real pointers, and a raw address *is* a real pointer, so a
+    /// C copy crosses to them directly rather than through a daslang byte
+    /// loop.  They return nothing; the call site keeps C's `dst` result
+    /// itself.  The helpers stay: the runtime's own `realloc` and the
+    /// storage-backed object copies still call `c2da_rt_memcpy`.
+    pub(crate) fn builtin_copy(self) -> Option<&'static str> {
+        match self {
+            Self::Memcpy => Some("memcpy"),
+            Self::Memmove => Some("memmove"),
+            _ => None,
+        }
+    }
+
     pub(crate) fn arg_kind(self, index: usize) -> Option<RuntimeArgKind> {
         match (self, index) {
             (Self::Malloc, 0)

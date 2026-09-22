@@ -48,3 +48,21 @@ of raising daslang's located exception.
 The printer renders a declaration's annotations as one bracketed, comma-separated block
 (`[export, unsafe_deref]`).  daScript's grammar accepts exactly one block per declaration;
 two consecutive `[...]` lines are a syntax error.
+
+## Memory copies go to daslang's builtins
+
+C `memcpy` and `memmove` are lowered to daslang's builtin `memcpy` / `memmove`
+(`void?, void?, uint64`), not to the `c2da_rt_*` byte loops (`runtime.rs
+CanonicalRuntimeFunction::builtin_copy`, `functions.rs lower_builtin_copy`): the two raw
+addresses are converted to pointers by the same path every raw-address operand uses
+(`abi::raw_address_to_pointer`), a constant non-zero size is passed as is, and any other size
+is named first and guarded by `!= 0`, because the builtin checks neither the size nor the
+pointers while C's `n == 0` is a no-op whatever the pointers hold.  All three operands are
+evaluated before the guard so C's argument evaluation order is kept when the copy is skipped;
+when the C result is used it is the named destination address.  `memset`, `memcmp` and
+`memchr` stay on the runtime helpers.  Because the builtins are named unqualified, a C
+translation unit that defines its own `memcpy`/`memmove` (a decoder's shim does) would
+shadow them; `renamer.rs DASCRIPT_BUILTIN_COPY_NAMESPACE` reserves the two names, so such a
+definition is emitted as `memcpy_0`.  With a daslang that lowers the builtins to LLVM
+intrinsics (upstream #4089) the constant-size copies inline under `-jit`; on a toolchain
+without it they are libc calls, and the measured gain is the interpreter's (6–27 %).

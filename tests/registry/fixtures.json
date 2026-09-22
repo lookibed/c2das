@@ -6224,6 +6224,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p96-memcpy-builtin",
+      "canonical_cases": [
+        "p96-memcpy-builtin"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "memcpy_builtin_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p96_memcpy_builtin",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p96_memcpy_builtin.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-s01-switch-basic",
       "canonical_cases": [
         "legacy-s01-switch-basic"

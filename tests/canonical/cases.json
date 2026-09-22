@@ -1076,6 +1076,22 @@
       "runtime": "required"
     },
     {
+      "id": "p96-memcpy-builtin",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p96_memcpy_builtin.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "memcpy_builtin_runtime", "return_type": "int" },
+      "das_entrypoint": "memcpy_builtin_runtime",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p96_copies_reach_the_builtin_past_a_source_defined_memmove",
+      "runtime": "required"
+    },
+    {
       "id": "wasm3-fib32-std",
       "status": "ready",
       "source_root": "tests/manual/wasm3",

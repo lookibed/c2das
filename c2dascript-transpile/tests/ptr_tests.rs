@@ -165,21 +165,39 @@ fn p19_runtime_memory_calls_use_canonical_raw_memory_abi() {
         "c2da_rt_memset(",
         "c2da_rt_realloc(",
         "c2da_rt_free(",
-        "c2da_rt_memcpy(",
-        "c2da_rt_memmove(",
         "c2da_rt_memcmp(",
         "c2da_rt_memchr(",
     ] {
         assert!(d.contains(runtime_name), "missing lowered {runtime_name}");
     }
-    for source_name in [
-        "memset(", "realloc(", "free(", "memcpy(", "memmove(", "memcmp(", "memchr(",
-    ] {
+    // C copies cross to daslang's builtin copies over void? views of the two
+    // raw addresses; the source-typed pointers never reach them directly.
+    for builtin in ["memcpy(", "memmove("] {
+        assert!(
+            d.contains(&format!("unsafe({builtin}unsafe(unsafe(reinterpret<void?>(")),
+            "missing builtin {builtin} over raw addresses"
+        );
+    }
+    for source_name in ["memset(", "realloc(", "free(", "memcmp(", "memchr("] {
         assert!(
             !d.contains(&format!("unsafe({source_name}")),
             "source call survived: {source_name}"
         );
     }
+}
+
+#[test]
+fn p96_copies_reach_the_builtin_past_a_source_defined_memmove() {
+    let d = transpile("p96_memcpy_builtin");
+    assert!(
+        d.contains("def memmove_0(") && !d.contains("def memmove("),
+        "a C definition of memmove must not shadow daslang's builtin memmove"
+    );
+    assert!(!d.contains("c2da_rt_memcpy(unsafe") && !d.contains("c2da_rt_memmove(unsafe"));
+    assert!(!d.contains("memmove_0(unsafe"), "calls must not reach the C body");
+    assert!(d.contains("unsafe(memcpy(") && d.contains("unsafe(memmove("));
+    // A size that is not a nonzero constant guards the copy (C's n == 0 no-op).
+    assert!(d.contains(" != 0x0) {\n        unsafe(memcpy("));
 }
 
 #[test]
