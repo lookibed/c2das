@@ -37,7 +37,7 @@ bytes to `plmpeg_frames_begin_bytes(bytes, length)` in the translated graph.
 ## 1. Translation (shared by interp, jit and exe)
 
 ```sh
-cargo run -q -p c2dascript-transpile -- --strict \
+cargo run -q -p c2dascript-transpile -- --strict --unsafe-deref \
     --output-dir <work>/generated \
     --file <work>/input/src/all.c \
     -std=c11 -DPLM_NO_STDIO -I<work>/input/include -I<work>/input/upstream \
@@ -47,7 +47,27 @@ cp <work>/generated/all.das <work>/input/src/all.das      # staged beside the en
 
 The clang flags are the case's `clang.flags` from `tests/canonical/cases.json`; for
 h264bsd-mp4 they are `-std=c11 -w -Iinclude -Iupstream/h264bsd/src -Iupstream/minimp4 -Isrc`.
-The output starts with `options gen2` and is an anonymous module.
+
+`--unsafe-deref` is the case's `translator_flags` entry, passed verbatim by both drivers
+(`run_c2das_cases.libc_flags`, which `corpus_matrix` reuses).  The corpus is the production
+configuration, so it carries both measured levers of
+`docs/followups/hot_path_levers.md`:
+
+```text
+options gen2
+options solid_context = true      # the translator's default header
+...
+[export, unsafe_deref]            # --unsafe-deref, on every emitted def
+def plm_video_decode_block(...) { ... }
+```
+
+`solid_context` bakes the offsets of the module's globals instead of looking each one up by
+mangled name through the context on every read; `unsafe_deref` drops daslang's generated
+null check in front of every `ExprAt`, `ExprPtr2Ref` and field dereference, which is
+faithful to C — dereferencing a null pointer is undefined behaviour there — at the price of
+a SIGSEGV where daslang would otherwise raise a located exception.  `--no-solid-context`
+turns the header line off; nothing else in the module changes with either flag.  The output
+is otherwise an anonymous module.
 
 ## 2. C reference builds
 
@@ -60,12 +80,18 @@ clang-18 -std=c11 -DPLM_NO_STDIO -I<work>/input/include -I<work>/input/upstream 
     <work>/input/src/all_reference.c <work>/input/src/plmpeg_file_bench_entry.c \
     -o <work>/c_bench_O2
 clang-18 ... -O0 ... -o <work>/c_bench_O0                 # same command, -O0
+clang-18 ... -O3 -march=native ... -o <work>/c_bench_native   # same command, -O3 -march=native
 
 <work>/c_bench_O2 <fixture>
 ```
 
-`-O2` is the baseline every ratio in the table refers to; `-O0` is there to show what an
-unoptimised native build costs against the same source.
+`-O2` is the portable baseline the `× C -O2 decode` column refers to; `-O0` is there to
+show what an unoptimised native build costs against the same source.  `-O3 -march=native`
+is the third row and the `× C native decode` column: a plain `clang -O2` binary targets
+generic x86-64 (SSE2) while daslang's LLVM backend compiles for the host CPU and its
+features under `-jit`, so `-O2` alone is not a fair ceiling for the daslang rows.  All
+three are measured the same way, and the `-O0` and native rows must reproduce the `-O2`
+build's per-frame hashes on every run or they are reported as a failure, not a number.
 
 ## 3. daslang interp
 
@@ -110,8 +136,8 @@ with `policies.aot = 1` so `simulate()` binds every function to its pre-compiled
 ### 6a. Second translation, with the AOT module header
 
 ```sh
-cargo run -q -p c2dascript-transpile -- --strict \
-    --public-module --das-option disable_auto_inline \
+cargo run -q -p c2dascript-transpile -- --strict --unsafe-deref \
+    --public-module --no-solid-context --das-option disable_auto_inline \
     --output-dir <work>/bench_aot/generated \
     --file <work>/input/src/all.c  <same clang flags as step 1>
 cp <work>/bench_aot/generated/all.das <work>/bench_aot/all.das
@@ -125,14 +151,29 @@ options disable_auto_inline
 module all public
 ```
 
+The header's order is fixed everywhere: `gen2`, then `solid_context` when it is on, then
+the `--das-option` lines in the order they were given.
+
 `module all public` is required because `daslang -aot` emits bodies only for a named public
 module's unexported functions (an anonymous module keeps nothing that is not exported or
 reached).  `options disable_auto_inline` is required because daslang's optimizer otherwise
 splices small same-module callees into their callers and declares the callee's locals at
 the call site (`_inl*` temporaries); in a jump-rendered body that puts an initialised
 declaration between a `goto` and its label, which C++ rejects (`cannot jump from this goto
-statement to its label`).  The C++ compiler inlines those calls itself.  The entry is fixture
-source, so the driver prepends the same `options disable_auto_inline` line to a copy of it:
+statement to its label`).  The C++ compiler inlines those calls itself.
+
+`--no-solid-context` is required for the same kind of reason.  The translator writes
+`options solid_context = true` by default, and daslang's AOT cannot run the h264bsd graph
+with it: `daslang -aot` generates the C++ and `clang++-18` compiles it, but
+`das_program_simulate` under `fail_on_no_aot` then refuses the program (`aot_host:
+simulation failed`).  Measured 2026-09-22 on both `h264bsd-mp4` and
+`h264bsd-mp4-640x360-std`, with and without `--unsafe-deref`; with `--no-solid-context` all
+four modes converge again.  pl_mpeg and wasm3 AOT-run either way, and daslang's own
+documentation says the option prohibits AOT, so the AOT build honours that and the three
+modes the option was measured on — interp, `-jit`, `-exe` — keep it.
+
+The entry is fixture source, so the driver prepends the same `options disable_auto_inline`
+line to a copy of it:
 
 ```sh
 { echo "options disable_auto_inline"; cat <work>/input/src/plmpeg_file_bench_entry.das; } \
@@ -223,8 +264,8 @@ real libc.  Nothing is written by hand on the daslang side: the module
 The four run modes then take that module exactly as steps 3–6 take the fixture entry:
 `daslang <module> -- <fixture>`, `daslang -jit <module> -- <fixture>`,
 `daslang -exe <module> -output ...`, and for AOT one more translation of the same
-amalgamation with `--libc std --das-option disable_auto_inline`, whose module already
-carries the option, so nothing is prepended to anything.  Note the difference from step
+amalgamation with `--libc std --no-solid-context --das-option disable_auto_inline`, whose
+module already carries the option, so nothing is prepended to anything.  Note the difference from step
 6a: a module that is the program itself stays anonymous.  Declared `module ... public`,
 its exported `main` no longer AOT-links (the host reports `entry 'main' is not
 AOT-linked`); every function is reachable from `main`, so the anonymous module loses
@@ -248,6 +289,19 @@ convergence side uses `translation_entry` = `src/plmpeg_file_all.c` (graph +
   `subprocess.run`), and **startup** = wall − decode − setup.
 - A run counts only if its exit code is 0 and its `frame[i]=` lines equal the C `-O2`
   build's; a variant that ever differs is reported as failed instead of timed.
+- Two ratio columns: **× C -O2 decode** against the portable C build and **× C native
+  decode** against `clang-18 -O3 -march=native`.  `-O2` is generic x86-64 while the JIT
+  compiles for the host CPU, so a single `-O2` column would flatter the daslang rows; the
+  native column is the fair ceiling.  A C row is itself divided by both, so the two C
+  builds' own ratio to each other is in the table.
+- The interp, jit and exe rows are built from a module that carries both levers of
+  `docs/followups/hot_path_levers.md`: `options solid_context = true`, which the
+  translator writes by default, and `[unsafe_deref]` on every function, which the corpus
+  cases ask for with `"translator_flags": ["--unsafe-deref"]`.  Neither changes a body, so
+  the per-frame hashes are the same either way — which is what the hash check proves on
+  every run.  The **aot** row carries `unsafe_deref` but not `solid_context`: daslang's
+  AOT refuses the h264bsd graph with that option on (step 6a), so the aot row is not
+  comparable to the other three on that lever.
 
 ## 8. The other cases
 

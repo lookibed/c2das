@@ -177,11 +177,24 @@ impl fmt::Display for DaAlias {
     }
 }
 
+/// Renders a declaration's annotation list as the single bracketed line
+/// daScript's grammar accepts.
+///
+/// gen2 allows exactly one annotation block per declaration: two consecutive
+/// `[a]` / `[b]` lines are a syntax error (`unexpected '[', expecting struct
+/// or class`), while `[a, b]` is the accepted spelling for several.  Printing
+/// one per line therefore only ever worked because no declaration carried
+/// more than one.
+fn write_annotations(f: &mut fmt::Formatter, annotations: &[String]) -> fmt::Result {
+    if annotations.is_empty() {
+        return Ok(());
+    }
+    writeln!(f, "[{}]", annotations.join(", "))
+}
+
 impl fmt::Display for DaFunction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for ann in &self.annotations {
-            writeln!(f, "[{}]", ann)?;
-        }
+        write_annotations(f, &self.annotations)?;
         let params_str: Vec<String> = self
             .params
             .iter()
@@ -201,9 +214,7 @@ impl fmt::Display for DaFunction {
 
 impl fmt::Display for DaVariable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for ann in &self.annotations {
-            writeln!(f, "[{}]", ann)?;
-        }
+        write_annotations(f, &self.annotations)?;
         if let Some(init_expr) = &self.init {
             if let Some(init_text) = typed_initializer_text(&self.var_type, init_expr) {
                 writeln!(f, "var {} : {} = {}", self.name, self.var_type, init_text)
@@ -249,9 +260,7 @@ fn is_cast_auto_zero(expr: &DaExpr) -> bool {
 
 impl fmt::Display for DaStructure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for ann in &self.annotations {
-            writeln!(f, "[{}]", ann)?;
-        }
+        write_annotations(f, &self.annotations)?;
         writeln!(f, "struct {} {{", self.name)?;
         for field in &self.fields {
             if let Some(def) = &field.default {

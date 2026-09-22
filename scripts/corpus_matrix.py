@@ -17,7 +17,12 @@ Two commands, two committed documents:
       `corpus.bench_das_entry`), which print the per-frame hashes plus the time
       spent inside the decode loop.  Every variant is run once to warm up and then
       `--runs` times (default 5); a variant's hashes must equal the C -O2 build's on
-      every run, otherwise its row is a failure, never a number.
+      every run, otherwise its row is a failure, never a number.  Three C rows are
+      built — `-O2`, `-O0` and `-O3 -march=native` — and every row carries two ratio
+      columns, one against each of the two optimized C builds: a `clang -O2` binary
+      targets generic x86-64 (SSE2) while daslang's LLVM backend compiles for the
+      host CPU and its features, so the native build is the fair ceiling and the
+      `-O2` one is the portable reference.
 
 daslang run modes ("interop" in the project's wording is the interpreter):
 
@@ -36,8 +41,16 @@ daslang run modes ("interop" in the project's wording is the interpreter):
   exe      daslang -exe entry.das -output <bin>       LLVM-compiled standalone
            executable linked against the daslang runtime shared library
 
-The C side is the same graph compiled with the case's clang flags, at -O2 and -O0
-for the benchmark and with the case's flags alone for the reference.
+The C side is the same graph compiled with the case's clang flags, at -O2, -O0 and
+-O3 -march=native for the benchmark and with the case's flags alone for the reference.
+
+A case may carry `translator_flags`: translator switches passed verbatim, in addition
+to the `--libc` and `--das-option` its other keys imply.  Both this driver and
+scripts/run_c2das_cases.py read them through runner.libc_flags, so a case is
+translated under one configuration whichever builds it.  The corpus cases declare
+`["--unsafe-deref"]`, which puts `unsafe_deref` on every emitted function; `options
+solid_context = true` needs no flag because it is the translator's default header
+(`docs/followups/hot_path_levers.md`).
 
 A case may carry `program_args` (fixture-root-relative paths): every program, C or
 daslang in any mode, receives them as its command-line arguments, which is how the
@@ -78,6 +91,12 @@ CONVERGENCE_DOC = ROOT / "docs/corpus-convergence.md"
 BENCHMARK_DOC = ROOT / "docs/corpus-benchmark.md"
 AOT_HOST = ROOT / "scripts/corpus/aot_host.cpp"
 MODES = ("interp", "jit", "aot", "exe")
+# The two C rows every other row is reported as a ratio of: the portable build
+# (`-O2`, generic x86-64) and the fair ceiling for this machine (`-O3
+# -march=native`).  Named once, because both `bench_case` and
+# `render_benchmark` have to agree on the spelling.
+C_O2_VARIANT = "C clang-18 -O2"
+C_NATIVE_VARIANT = "C clang-18 -O3 -march=native"
 # One line per checked item: `frame[i]=<hash>` for the decoders, `fib[n]=<value>`
 # for a program that produces numbered results; any `<name>[<index>]=<int>`.
 FRAME_LINE = re.compile(r"^[a-z_]+\[(\d+)\]=(-?\d+)$")
@@ -211,7 +230,12 @@ class Prepared:
         return graph + [entry]
 
     def libc_flags(self) -> list[str]:
-        """`--libc` and `--das-option` exactly as the canonical runner passes them."""
+        """`--libc`, `--das-option` and `translator_flags` exactly as the canonical runner passes them.
+
+        Both drivers read the same function, so a corpus case is translated
+        under one configuration whichever of them builds it — including the
+        `--unsafe-deref` the corpus cases declare.
+        """
         return runner.libc_flags(self.case)
 
     def translate(self, c_entry: Path, out_dir: Path, extra: list[str] | None = None) -> Path:
@@ -260,8 +284,14 @@ def prepare(case: dict[str, Any], daslang: Path) -> Prepared:
 # ----------------------------------------------------------------------------
 
 def build_c(p: Prepared, entry: Path, opt: str | None, name: str) -> list[str]:
+    """Build the C graph with `entry` as its entry point, at optimization `opt`.
+
+    `opt` is the whole optimization setting as it would be typed on a command
+    line, so it may be several words (`"-O3 -march=native"`), not only one
+    (`"-O2"`); `None` builds with the case's own clang flags alone.
+    """
     binary = p.work / name
-    flags = list(p.flags) + ([opt] if opt else [])
+    flags = list(p.flags) + (opt.split() if opt else [])
     sh([p.compiler, *flags, *map(str, p.c_sources(entry)), "-o", str(binary)],
        cwd=p.work, env=p.env, label=f"C build {name}")
     return [str(binary)]
@@ -301,16 +331,28 @@ def aot_compile_flags(das_root: Path) -> list[str]:
 # the program itself (a `--libc std` translation carrying `main`) must stay
 # anonymous: declared public, its exported `main` no longer AOT-links
 # ("entry 'main' is not AOT-linked" from the host, verified 2026-09-21).
-AOT_GRAPH_FLAGS = ["--public-module", "--das-option", "disable_auto_inline"]
-AOT_PROGRAM_FLAGS = ["--das-option", "disable_auto_inline"]
+#
+# `--no-solid-context` is the AOT path's second header difference.  The
+# translator writes `options solid_context = true` by default, and daslang's
+# AOT cannot run the h264bsd graph with it: the C++ generates and compiles,
+# but `das_program_simulate` under `fail_on_no_aot` then refuses the program
+# ("aot_host: simulation failed"), for both `h264bsd-mp4` and
+# `h264bsd-mp4-640x360-std`, with and without `--unsafe-deref` (verified
+# 2026-09-22; pl_mpeg and wasm3 AOT-run with the option on).  daslang's own
+# documentation says `solid_context` prohibits AOT, so this is the AOT build
+# honouring that, the same way it honours `disable_auto_inline`.  The option
+# is a `-jit`/`-exe`/interpreter lever, and those three modes keep it.
+AOT_GRAPH_FLAGS = ["--public-module", "--no-solid-context", "--das-option", "disable_auto_inline"]
+AOT_PROGRAM_FLAGS = ["--no-solid-context", "--das-option", "disable_auto_inline"]
 AOT_ENTRY_OPTIONS = ["options disable_auto_inline\n"]
 
 
 def transpile_for_aot(p: Prepared, c_entry: Path, generated_dir: Path, flags: list[str]) -> list[Path]:
     """Translate a C translation unit again, with the module header an AOT build needs.
 
-    The translator writes the header itself (`--public-module`, `--das-option`);
-    nothing edits generated text.  Two things differ from the plain translation:
+    The translator writes the header itself (`--public-module`, `--das-option`,
+    `--no-solid-context`); nothing edits generated text.  Three things differ
+    from the plain translation:
 
     * `module <name> public`: daslang emits AOT bodies for a module's functions
       only when the module is a named public one; an anonymous module keeps
@@ -321,6 +363,8 @@ def transpile_for_aot(p: Prepared, c_entry: Path, generated_dir: Path, flags: li
       jump-rendered body that puts an initialised declaration between a `goto`
       and its label, which C++ rejects; the C++ compiler inlines those calls
       itself, so the AOT build loses nothing by leaving them as calls.
+    * no `options solid_context`: see AOT_GRAPH_FLAGS.  daslang's AOT refuses
+      the h264bsd graph when the option is on.
 
     Everything else is byte-identical to the translation the other modes run,
     because the translator is deterministic over the same C input and flags.
@@ -610,16 +654,25 @@ def bench_case(case: dict[str, Any], daslang: Path, runs: int, keep: bool) -> di
         variants: list[dict[str, Any]] = []
         c_o2 = [*build_c(p, p.bench_c, "-O2", "c_bench_O2"), *p.args]
         base = measure(c_o2, p.work, p.env, runs, None)
-        variants.append({"name": "C clang-18 -O2", "build": f"`clang-18 {' '.join(case['clang']['flags'])} -O2`", **base})
+        variants.append({"name": C_O2_VARIANT, "build": f"`clang-18 {' '.join(case['clang']['flags'])} -O2`", **base})
         print(f"  {case['id']} C -O2: decode {base['decode_median']:.3f} ms")
         reference_frames = base["frames"]
-        c_o0 = [*build_c(p, p.bench_c, "-O0", "c_bench_O0"), *p.args]
-        try:
-            m = measure(c_o0, p.work, p.env, runs, reference_frames)
-            variants.append({"name": "C clang-18 -O0", "build": f"`clang-18 {' '.join(case['clang']['flags'])} -O0`", **m})
-            print(f"  {case['id']} C -O0: decode {m['decode_median']:.3f} ms")
-        except MatrixFailure as error:
-            variants.append({"name": "C clang-18 -O0", "build": "", "error": str(error).splitlines()[0]})
+        # The two further C builds: the unoptimized floor, and the build a C
+        # programmer would actually ship for this machine.  `-O2` targets
+        # generic x86-64 while daslang's LLVM backend compiles for the host
+        # CPU under `-jit`, so `-O2` alone is not a fair ceiling — the native
+        # build is what the daslang rows have to be read against.
+        for opt, variant_name, binary_name in (
+            ("-O0", "C clang-18 -O0", "c_bench_O0"),
+            ("-O3 -march=native", C_NATIVE_VARIANT, "c_bench_native"),
+        ):
+            try:
+                cmd = [*build_c(p, p.bench_c, opt, binary_name), *p.args]
+                m = measure(cmd, p.work, p.env, runs, reference_frames)
+                variants.append({"name": variant_name, "build": f"`clang-18 {' '.join(case['clang']['flags'])} {opt}`", **m})
+                print(f"  {case['id']} C {opt}: decode {m['decode_median']:.3f} ms")
+            except MatrixFailure as error:
+                variants.append({"name": variant_name, "build": "", "error": str(error).splitlines()[0]})
         if p.bench_translation_entry is not None:
             # std case: the benchmark program is the translated C graph + C entry
             entry = p.translate(p.bench_translation_entry, p.work / "generated_bench")
@@ -667,22 +720,47 @@ def render_benchmark(results: list[dict[str, Any]], facts: dict[str, str], runs:
         "A row is printed only when its per-frame hashes equalled the C -O2 build's on every run. "
         "Every build and run command behind these rows is written out in `docs/corpus-build-recipe.md`.\n"
     )
+    out.append(
+        "Two C ratio columns, because `-O2` alone is not a fair ceiling: a `clang -O2` binary targets generic "
+        "x86-64 (SSE2) while daslang's LLVM backend compiles for the host CPU and its features under `-jit`. "
+        "**× C -O2 decode** is against the portable C build, **× C native decode** against `-O3 -march=native`, "
+        "the build a C programmer would ship for this machine. The translated modules are built with the "
+        "translator's defaults plus the flags their case declares — `options solid_context = true` in the module "
+        "header (the translator's default) and `[unsafe_deref]` on every function (`--unsafe-deref`, which the "
+        "corpus cases ask for); see `docs/followups/hot_path_levers.md`. The **aot** row is the exception: "
+        "daslang's AOT refuses the h264bsd graph with `solid_context` on, so the AOT translation passes "
+        "`--no-solid-context` (`docs/corpus-build-recipe.md`, step 6a) and that row carries `unsafe_deref` alone.\n"
+    )
     out.append("Run modes: " + "; ".join(f"**{m}** = {describe_mode(m, 'bench_entry.das')}" for m in MODES) + ".\n")
     for r in results:
         case = r["case"]
         rw = case["corpus"]
         out.append(f"## {rw['label']} — `{case['id']}`, {r['frames']} frames of `{rw['fixture']}` ({r['fixture_bytes']} bytes)\n")
-        base = next((v for v in r["variants"] if v["name"] == "C clang-18 -O2" and "error" not in v), None)
-        out.append("| variant | decode ms (median) | decode ms (min) | setup ms | wall ms | startup ms | × C -O2 decode |")
-        out.append("|---|---|---|---|---|---|---|")
+        def ratio_base(name: str) -> dict[str, Any] | None:
+            return next((v for v in r["variants"] if v["name"] == name and "error" not in v), None)
+
+        base = ratio_base(C_O2_VARIANT)
+        native = ratio_base(C_NATIVE_VARIANT)
+
+        def ratio_to(reference: dict[str, Any] | None, value: float) -> str:
+            if reference is None or reference["decode_median"] <= 0:
+                return "—"
+            return f"{value / reference['decode_median']:.2f}×"
+
+        out.append(
+            "| variant | decode ms (median) | decode ms (min) | setup ms | wall ms | startup ms | "
+            "× C -O2 decode | × C native decode |"
+        )
+        out.append("|---|---|---|---|---|---|---|---|")
         for v in r["variants"]:
             if "error" in v:
-                out.append(f"| {v['name']} | failed | | | | | {v['error']} |")
+                out.append(f"| {v['name']} | failed | | | | | | {v['error']} |")
                 continue
-            ratio = f"{v['decode_median'] / base['decode_median']:.2f}×" if base and base["decode_median"] > 0 else "—"
+            ratio = ratio_to(base, v["decode_median"])
+            native_ratio = ratio_to(native, v["decode_median"])
             out.append(
                 f"| {v['name']} | {v['decode_median']:.3f} | {v['decode_min']:.3f} | {v['setup_median']:.3f} | "
-                f"{v['wall_median']:.1f} | {v['startup_median']:.1f} | {ratio} |"
+                f"{v['wall_median']:.1f} | {v['startup_median']:.1f} | {ratio} | {native_ratio} |"
             )
         out.append("")
         out.append("Builds: " + "; ".join(f"{v['name']}: {v['build']}" for v in r["variants"] if v.get("build")) + "\n")

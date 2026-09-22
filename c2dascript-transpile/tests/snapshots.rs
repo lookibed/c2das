@@ -30,6 +30,10 @@ fn config(output_dir: &Path) -> TranspilerConfig {
         edition: c2rust_rust_tools::RustEdition::Edition2021,
         inline_functions: true,
         public_module: false,
+        // The snapshots record what a default translation writes, header
+        // included, so these mirror the command line's own defaults.
+        solid_context: true,
+        unsafe_deref: false,
         das_options: vec![],
         libc: c2dascript_transpile::LibcMode::NoStd,
         enabled_warnings: Default::default(),

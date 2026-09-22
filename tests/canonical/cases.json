@@ -614,6 +614,7 @@
       "source_root": "tests/manual/plmpeg-stream",
       "translation_entry": "src/all.c",
       "c_graph": "plmpeg-target",
+      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-DPLM_NO_STDIO", "-Iinclude", "-Iupstream", "-Ifixtures", "-Isrc"]
@@ -663,6 +664,7 @@
       "source_root": "tests/manual/h264bsd-mp4",
       "translation_entry": "src/all.c",
       "c_graph": "h264bsd-mp4",
+      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-w", "-Iinclude", "-Iupstream/h264bsd/src", "-Iupstream/minimp4", "-Isrc"]
@@ -692,6 +694,7 @@
       "source_root": "tests/manual/plmpeg-stream",
       "translation_entry": "src/all.c",
       "c_graph": "plmpeg-target",
+      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-DPLM_NO_STDIO", "-Iinclude", "-Iupstream", "-Ifixtures", "-Isrc"]
@@ -722,6 +725,7 @@
       "source_root": "tests/manual/h264bsd-mp4",
       "translation_entry": "src/all.c",
       "c_graph": "h264bsd-mp4",
+      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-w", "-Iinclude", "-Iupstream/h264bsd/src", "-Iupstream/minimp4", "-Isrc"]
@@ -753,6 +757,7 @@
       "translation_entry": "src/plmpeg_file_all.c",
       "c_graph": "plmpeg-target",
       "libc": "std",
+      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-DPLM_NO_STDIO", "-Iinclude", "-Iupstream", "-Ifixtures", "-Isrc"]
@@ -782,6 +787,7 @@
       "translation_entry": "src/h264_file_all.c",
       "c_graph": "h264bsd-mp4",
       "libc": "std",
+      "translator_flags": ["--unsafe-deref"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-w", "-Iinclude", "-Iupstream/h264bsd/src", "-Iupstream/minimp4", "-Isrc"]
@@ -1052,6 +1058,22 @@
       "runtime": "required"
     },
     {
+      "id": "p95-unsafe-deref-flag",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p95_unsafe_deref_flag.c",
+      "c_graph": "single-tu",
+      "translator_flags": ["--unsafe-deref"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "unsafe_deref_flag_runtime", "return_type": "int" },
+      "das_entrypoint": "unsafe_deref_flag_runtime",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "wasm3-fib32-std",
       "status": "ready",
       "source_root": "tests/manual/wasm3",
@@ -1059,6 +1081,7 @@
       "c_graph": "wasm3",
       "libc": "std",
       "das_options": ["stack = 4194304"],
+      "translator_flags": ["--unsafe-deref"],
       "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-Iinclude", "-Iupstream/wasm3/source", "-Isrc"] },
       "c_reference": { "sources": ["src/all_host.c"] },
       "das_entrypoint": "main",

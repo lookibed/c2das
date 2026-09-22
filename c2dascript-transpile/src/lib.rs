@@ -155,6 +155,23 @@ pub struct TranspilerConfig {
     /// the JIT and `-exe`, but daslang's AOT generator keeps a module's
     /// unexported functions only when the module is a named public one.
     pub public_module: bool,
+    /// Write `options solid_context = true` into the module header
+    /// (`--no-solid-context` turns it off).  Default on: every read of a
+    /// translated C global is otherwise a mangled-name lookup through the
+    /// context (`jit_get_global_mnh`), which a compiled mode cannot hoist out
+    /// of a loop — measured at 1.27x -> 1.06x of C `-O2` on the h264bsd
+    /// corpus case (`docs/followups/hot_path_levers.md`).  It changes nothing
+    /// in the bodies and runs in the interpreter, `-jit`, `-exe` and AOT.
+    pub solid_context: bool,
+    /// Put `unsafe_deref` on every function this translator emits
+    /// (`--unsafe-deref`, default off).  daScript's `ExprAt`, `ExprPtr2Ref`
+    /// and field dereference emit a null check unless the *enclosing
+    /// function* carries the annotation; the expression-level `unsafe` the
+    /// translator writes does not suppress it.  Faithful to C — dereferencing
+    /// a null pointer is undefined behaviour there, so the check is not a
+    /// semantic the C program had — but it trades a located daScript
+    /// exception for a SIGSEGV, which is why it is opt-in.
+    pub unsafe_deref: bool,
     /// Extra `options <text>` lines after `options gen2` (`--das-option`,
     /// repeatable), for target-specific module options such as
     /// `disable_auto_inline` on an AOT build.
@@ -236,6 +253,8 @@ impl Default for TranspilerConfig {
             edition: c2rust_rust_tools::RustEdition::Edition2021,
             inline_functions: true,
             public_module: false,
+            solid_context: true,
+            unsafe_deref: false,
             das_options: vec![],
             libc: LibcMode::NoStd,
             enabled_warnings: HashSet::new(),

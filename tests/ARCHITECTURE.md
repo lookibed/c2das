@@ -21,7 +21,12 @@ executes it with the real `daslang`, and compares stdout and exit status.  A
 case either declares its oracle (`expected.exit_code`/`stdout`) or uses the C
 program itself as the oracle (`"expected": {"oracle": "c-reference"}`).
 Negative cases declare `expected_error.cause`, which must appear in the strict
-diagnostic.  `--all-ready` is the gate, `--all-known-red` surveys the cases
+diagnostic.  A case may also declare the configuration it is translated under:
+`libc`, `das_options` (module `options` lines) and `translator_flags`
+(translator switches passed verbatim, e.g. `--unsafe-deref`).  All three are
+assembled by one function, `run_c2das_cases.libc_flags`, which
+`scripts/corpus_matrix.py` reuses, so a case is translated the same way by
+every driver.  `--all-ready` is the gate, `--all-known-red` surveys the cases
 that are expected to fail so they can be promoted when they pass.  The runner
 locates `daslang` through `DASLANG`, `DASROOT`, the pinned
 `tmp/daslang-toolchain`, `PATH`, or `~/daScript`; nothing is machine-specific.

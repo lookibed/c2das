@@ -11,7 +11,7 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--public-module] [--das-option <text>]... [--libc nostd|std|ffi|all] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
@@ -22,6 +22,14 @@ fn main() {
     // Module header the output declares: `module <stem> public` and extra
     // `options` lines (see TranspilerConfig::public_module / das_options).
     let public_module = take_flag(&mut args, "--public-module");
+    // `options solid_context = true` is the translator's default header line;
+    // this drops it, for a build that wants daslang's per-read global lookup
+    // back (see TranspilerConfig::solid_context).
+    let no_solid_context = take_flag(&mut args, "--no-solid-context");
+    // Put `unsafe_deref` on every emitted function: a null dereference then
+    // faults instead of raising daslang's located exception.  Off by default;
+    // see TranspilerConfig::unsafe_deref.
+    let unsafe_deref = take_flag(&mut args, "--unsafe-deref");
     let mut das_options: Vec<String> = Vec::new();
     while let Some(option) = take_option(&mut args, "--das-option") {
         das_options.push(option.to_string_lossy().into_owned());
@@ -77,6 +85,8 @@ fn main() {
         edition: c2rust_rust_tools::RustEdition::Edition2021,
         inline_functions: !no_inline,
         public_module,
+        solid_context: !no_solid_context,
+        unsafe_deref,
         das_options,
         libc,
         enabled_warnings,

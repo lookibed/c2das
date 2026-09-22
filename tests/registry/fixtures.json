@@ -6196,6 +6196,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p95-unsafe-deref-flag",
+      "canonical_cases": [
+        "p95-unsafe-deref-flag"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unsafe_deref_flag_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p95_unsafe_deref_flag",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p95_unsafe_deref_flag.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-s01-switch-basic",
       "canonical_cases": [
         "legacy-s01-switch-basic"

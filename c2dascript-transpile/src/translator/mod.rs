@@ -3869,11 +3869,33 @@ fn translate_impl(
     // every translated function.
     module_decls.extend(libc::take_entry_declarations());
 
+    // The null-dereference policy is a property of the whole module, not of
+    // one lowering: daScript decides it per *function*, and every function in
+    // the file — the translated C, the `c2da_rt_*` runtime, the `--libc std`
+    // helpers, the generated global initializers — works on the same raw C
+    // addresses.  Applying it once here is the only place that can see all of
+    // them; a per-owner push would silently leave out whichever builder was
+    // added last.
+    if t.tcfg.unsafe_deref {
+        apply_unsafe_deref(&mut module_decls);
+    }
+
     // Build the daScript module.  The header is the caller's choice: an
     // anonymous `options gen2` module by default, `module <stem> public` and
     // extra `options` lines when the build that consumes the output asks
     // for them (see TranspilerConfig::public_module / das_options).
+    //
+    // `solid_context` is the translator's own default rather than a caller
+    // option, because it is a fact about the module the translator emits: the
+    // output declares all of its globals itself and never has another module
+    // splice more in, so baking their offsets is always correct here.  The
+    // order is fixed — `gen2`, `solid_context`, then the caller's
+    // `--das-option` lines — so the header is reproducible for a given
+    // command line.
     let mut options: Vec<String> = vec!["gen2".into()];
+    if t.tcfg.solid_context {
+        options.push("solid_context = true".into());
+    }
     options.extend(t.tcfg.das_options.iter().cloned());
     let module = DaModule {
         name: main_file
@@ -3889,4 +3911,36 @@ fn translate_impl(
     };
 
     Ok((module.to_string(), None, vec![], IndexSet::new()))
+}
+
+/// The annotation daScript reads to skip the generated null check on every
+/// `ExprAt`, `ExprPtr2Ref` and field dereference inside a function body.
+const UNSAFE_DEREF_ANNOTATION: &str = "unsafe_deref";
+
+/// Marks every *defined* function of the module `unsafe_deref`.
+///
+/// A body-less declaration is left alone: it dereferences nothing, and the
+/// annotation would describe a body this module does not own.  The annotation
+/// is appended, never replacing what a function already carries, so `export`
+/// and `init` keep their meaning; the printer renders the list as the single
+/// `[export, unsafe_deref]` block daScript's grammar accepts.
+fn apply_unsafe_deref(decls: &mut [DaDecl]) {
+    for decl in decls {
+        let DaDecl::Function(function) = decl else {
+            continue;
+        };
+        if function.body.is_none() {
+            continue;
+        }
+        if function
+            .annotations
+            .iter()
+            .any(|annotation| annotation == UNSAFE_DEREF_ANNOTATION)
+        {
+            continue;
+        }
+        function
+            .annotations
+            .push(UNSAFE_DEREF_ANNOTATION.to_owned());
+    }
 }

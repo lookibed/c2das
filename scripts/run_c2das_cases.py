@@ -84,6 +84,11 @@ def load_cases() -> list[dict[str, Any]]:
             isinstance(option, str) and option.strip() for option in das_options
         ):
             raise CaseFailure(f"{identifier}: das_options must be a list of option strings")
+        translator_flags = case.get("translator_flags", [])
+        if not isinstance(translator_flags, list) or not all(
+            isinstance(flag, str) and flag.strip() for flag in translator_flags
+        ):
+            raise CaseFailure(f"{identifier}: translator_flags must be a list of flag strings")
         if "expected_exporter_failure" in case:
             failure = case["expected_exporter_failure"]
             if not isinstance(failure, dict) or not all(
@@ -157,11 +162,18 @@ def libc_flags(case: dict[str, Any]) -> list[str]:
     simulated stack.  It is a per-program resource setting declared by the
     case, the way a linker script sets a C program's stack; nothing edits
     generated text.
+
+    `translator_flags`: translator switches passed verbatim, for a case whose
+    build configuration differs from the translator's defaults, e.g.
+    `"--unsafe-deref"` on the corpus cases (see
+    `docs/followups/hot_path_levers.md`).  They come last so a case can
+    override a policy the earlier keys set.
     """
     mode = case.get("libc")
     flags = ["--libc", mode] if mode else []
     for option in case.get("das_options", []):
         flags += ["--das-option", option]
+    flags += list(case.get("translator_flags", []))
     return flags
 
 

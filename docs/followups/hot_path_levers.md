@@ -52,9 +52,19 @@ nothing measurable; `-jit-stack` costs +37 %/+60 % if turned on (it is off);
    171 sites in pl_mpeg's IR, 836 in h264's; a loop bound read from a global is reloaded
    every iteration and blocks vectorization (25× on a copy loop).  `solid_context` bakes
    the offsets: 1046 call sites gone from the h264 exe, **h264 1.27 → 1.06, pl_mpeg
-   1.05 → 1.00**.  Verified to run in interp, `-jit`, `-exe` and the AOT path on a std
-   program despite daslang's documentation saying it prohibits AOT.  One header line;
-   nothing in the body changes.
+   1.05 → 1.00**.  One header line; nothing in the body changes.
+
+   *Correction, 2026-09-22, on implementation.*  The AOT half of that claim does not hold
+   in general.  With `options solid_context = true`, `daslang -aot` generates C++ that
+   compiles, but `das_program_simulate` under `fail_on_no_aot` then refuses the program
+   (`aot_host: simulation failed`) for **both h264bsd corpus cases**, with and without
+   `[unsafe_deref]`; pl_mpeg and wasm3 AOT-run with the option on.  daslang's own
+   documentation says `solid_context` prohibits AOT, so the corpus AOT build now passes
+   `--no-solid-context` (`corpus_matrix.AOT_GRAPH_FLAGS`, documented at step 6a of
+   `docs/corpus-build-recipe.md`), exactly as it passes `disable_auto_inline`.  interp,
+   `-jit` and `-exe` — the three modes the lever was measured on — keep the option.  What
+   inside the h264bsd graph the AOT path cannot take is not yet attributed; it is a
+   candidate for the fork.
 2. **`[unsafe_deref]` on every translated function.**  `ExprAt`, `ExprPtr2Ref` and field
    dereferences emit `check_ptr_zero` unless the *function* carries the annotation
    (`llvm_jit.das:2760/4981/6225`); the expression-level `unsafe(...)` the translator
@@ -117,3 +127,13 @@ exceptions for debugging; the faithful default is unchecked), then re-measure th
 matrix on a quiet machine with a `C -O3 -march=native` column added to
 `docs/corpus-benchmark.md`.  3 is a recipe row, not a default.  4–6 wait for their own
 measurements.
+
+*As implemented, 2026-09-22.*  1 is `options solid_context = true`, written by default,
+with `--no-solid-context` to drop it.  2 is `[unsafe_deref]` on every emitted function
+behind `--unsafe-deref`, **opt-in**: the located daslang exception stays the default and
+the corpus cases ask for the unchecked build with `"translator_flags": ["--unsafe-deref"]`
+in `tests/canonical/cases.json`, so the production configuration is the measured one while
+a debugging translation keeps its exceptions.  `scripts/corpus_matrix.py bench` now builds
+a third C row, `clang-18 -O3 -march=native`, and prints a `× C native decode` column beside
+`× C -O2 decode`; the numbers in `docs/corpus-benchmark.md` are still the old ones until
+the matrix is re-measured on a quiet machine.

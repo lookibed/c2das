@@ -1,10 +1,13 @@
-//! The translator's own `-W` diagnostics, observed where a user observes
-//! them: on the command line's stderr.
+//! The translator's command-line contracts, observed where a user observes
+//! them: on the command line's stderr, and in the file it writes.
 //!
 //! A warning is a user-visible contract, so it is pinned through the real
 //! binary rather than through an in-process logger: the flag name printed in
 //! the message (`[-Wmust-tail]`) and the spelling that switches it off
-//! (`-Wno-must-tail`) must be the same two strings the CLI accepts.
+//! (`-Wno-must-tail`) must be the same two strings the CLI accepts.  The
+//! module-wide policy flags below (`--no-solid-context`, `--unsafe-deref`)
+//! are pinned the same way, because what they promise is a line of the
+//! generated module, not an internal state.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -109,5 +112,129 @@ fn a_unit_without_musttail_does_not_warn() {
     assert!(
         must_tail_warnings(&stderr).is_empty(),
         "nothing was dropped, so nothing may be reported:\n{stderr}"
+    );
+}
+
+// ── module-wide policy flags ────────────────────────────────────────────
+//
+// `solid_context` is a header line and `unsafe_deref` an annotation on every
+// emitted function; both are measured levers from
+// `docs/followups/hot_path_levers.md`, and both are only worth anything if
+// they really reach every declaration of the written module.
+
+/// Translates `name` with the extra arguments and returns the daScript module
+/// the binary wrote.  Panics unless the translation succeeded.
+fn translate_module(name: &str, extra: &[&str]) -> String {
+    let output_dir = tempfile::tempdir().expect("temporary daScript output directory");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_c2dascript-transpile"));
+    command
+        .arg("--strict")
+        .arg("--output-dir")
+        .arg(output_dir.path())
+        .arg("--file")
+        .arg(fixture(name))
+        .arg("-std=c11")
+        .arg("-w")
+        .args(extra);
+    let output = command.output().expect("c2dascript-transpile must run");
+    assert!(
+        output.status.success(),
+        "{name}: translation must succeed, got {status:?}\n{stderr}",
+        status = output.status,
+        stderr = String::from_utf8_lossy(&output.stderr),
+    );
+    let module = output_dir.path().join(format!("{name}.das"));
+    std::fs::read_to_string(&module)
+        .unwrap_or_else(|err| panic!("cannot read generated {}: {err}", module.display()))
+}
+
+/// The annotation block a `def` carries, i.e. the `[...]` line immediately
+/// above it, or `None` when the definition is unannotated.
+fn annotations_above_defs(module: &str) -> Vec<Option<&str>> {
+    let lines: Vec<&str> = module.lines().collect();
+    lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| line.starts_with("def "))
+        .map(|(index, _)| {
+            index
+                .checked_sub(1)
+                .map(|previous| lines[previous])
+                .filter(|previous| previous.starts_with('['))
+        })
+        .collect()
+}
+
+/// `solid_context` is the default header, and the only way to lose it is to
+/// ask for that.
+#[test]
+fn solid_context_is_the_default_module_header() {
+    let default = translate_module("p85_pointer_sum_compare", &[]);
+    let header: Vec<&str> = default
+        .lines()
+        .take_while(|line| line.starts_with("options "))
+        .collect();
+    assert_eq!(
+        header,
+        vec!["options gen2", "options solid_context = true"],
+        "the default header must be `gen2` then `solid_context`, in that order:\n{default}"
+    );
+
+    let opted_out = translate_module("p85_pointer_sum_compare", &["--no-solid-context"]);
+    assert!(
+        !opted_out.contains("solid_context"),
+        "--no-solid-context must leave no trace of the option:\n{opted_out}"
+    );
+    assert!(
+        opted_out.starts_with("options gen2\n"),
+        "--no-solid-context must keep the rest of the header:\n{opted_out}"
+    );
+}
+
+/// `--unsafe-deref` reaches *every* definition the module contains — the
+/// translated C functions, the `c2da_rt_*` runtime helpers and the generated
+/// initializers alike — and nothing else changes.
+#[test]
+fn unsafe_deref_annotates_every_definition_and_is_opt_in() {
+    let default = translate_module("p85_pointer_sum_compare", &[]);
+    assert!(
+        !default.contains("unsafe_deref"),
+        "the checked null dereference is the default; nothing may carry the annotation:\n{default}"
+    );
+
+    let unchecked = translate_module("p85_pointer_sum_compare", &["--unsafe-deref"]);
+    let annotated = annotations_above_defs(&unchecked);
+    assert!(
+        !annotated.is_empty(),
+        "the fixture must define functions at all:\n{unchecked}"
+    );
+    for annotation in &annotated {
+        let annotation = annotation.expect("every `def` must carry an annotation block");
+        assert!(
+            annotation.contains("unsafe_deref"),
+            "a definition without `unsafe_deref` keeps its null checks: {annotation}"
+        );
+    }
+    // daScript's grammar allows one annotation block per declaration, so an
+    // exported function must gain the annotation inside the block it already
+    // has rather than on a second line.
+    assert!(
+        unchecked.contains("[export, unsafe_deref]"),
+        "an exported definition must keep `export` in the same block:\n{unchecked}"
+    );
+    assert!(
+        !unchecked.contains("[export]\n[unsafe_deref]"),
+        "two annotation blocks in a row are a daScript syntax error:\n{unchecked}"
+    );
+
+    // Only the annotations differ: the bodies are the same text either way.
+    let stripped: String = unchecked
+        .lines()
+        .filter(|line| *line != "[unsafe_deref]")
+        .map(|line| format!("{}\n", line.replace("[export, unsafe_deref]", "[export]")))
+        .collect();
+    assert_eq!(
+        stripped, default,
+        "`--unsafe-deref` must add annotations and change nothing else"
     );
 }
