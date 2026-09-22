@@ -34,6 +34,27 @@ translator itself adds and can remove.
 | `-jit` + `[unsafe_deref]` on every function | 1.16 (from 1.34) |
 | `-exe` + `solid_context` + `[unsafe_deref]` + host ISA | **1.05** |
 
+## As measured after implementation (commit `e83b97ecb`, quiet machine)
+
+`docs/corpus-benchmark.md` regenerated with `solid_context` in the header (interp,
+`-jit`, `-exe`; the AOT build opts out) and `--unsafe-deref` on the corpus cases, plus
+the new `C -O3 -march=native` row.  Ratios of the decode loop:
+
+| case | jit ×O2 before → after | jit ×native | exe ×O2 before → after | exe ×native | aot ×O2 (unchanged) |
+|---|---|---|---|---|---|
+| pl_mpeg 320×240 | 1.01 → 0.99 | 1.09 | 1.07 → 1.03 | 1.14 | 1.09 |
+| pl_mpeg 320×240 std | 1.02 → 0.99 | 1.08 | 1.08 → 1.13 | 1.24 | 1.08 |
+| h264bsd 640×360 | 1.28 → **1.04** | **1.02** | 1.27 → 1.08 | 1.06 | 1.23 |
+| h264bsd 640×360 std | 1.28 → **1.05** | **1.02** | 1.26 → 1.07 | 1.04 | 1.33 |
+| wasm3 fib32 std | 3.02 → 2.72 | 2.74 | 3.09 → 2.53 | 2.54 | 1.41 |
+
+h264bsd under `-jit` went from 28 % behind `clang -O2` to parity with `clang -O3
+-march=native` (its native build is only 2 % faster than `-O2`); pl_mpeg is at
+`-O2` parity under `-jit` and 8–9 % behind the native build, which is the ISA headroom
+`-exe` (generic x86-64) does not take; wasm3's dispatch improved 10–18 % from
+`solid_context` alone.  AOT rows are unchanged because the AOT build cannot carry
+`solid_context`.
+
 ## What the daslang pipeline is (read from source)
 
 `-jit`: LLVM `default<O3>`, loop/SLP vectorizers and unrolling on, inline threshold 1024
