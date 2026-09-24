@@ -17,9 +17,11 @@ var c2da_rt_alloc_sizes : array<uint64>
 
 var c2da_rt_alloc_live : array<bool>
 
+var c2da_rt_alloc_free : array<int>
+
 def c2da_rt_init_heap() {
     if (length(c2da_rt_heap) == 0) {
-        reserve(c2da_rt_heap, int(0x4000000))
+        reserve(c2da_rt_heap, int(0x40000000))
         resize(c2da_rt_heap, 1)
     }
 }
@@ -28,15 +30,66 @@ def c2da_rt_reset() {
     resize(c2da_rt_alloc_addrs, 0)
     resize(c2da_rt_alloc_sizes, 0)
     resize(c2da_rt_alloc_live, 0)
+    resize(c2da_rt_alloc_free, 0)
+}
+def c2da_rt_find_record(address : uint64) : int {
+    var lo : int = 0
+    var hi : int = length(c2da_rt_alloc_addrs)
+    while (lo < hi) {
+        var mid : int = (lo + hi) / 2
+        if (c2da_rt_alloc_addrs[mid] < address) {
+            lo = mid + 1
+        } else {
+            hi = mid
+        }
+    }
+    if (lo < length(c2da_rt_alloc_addrs) && c2da_rt_alloc_addrs[lo] == address) {
+        return lo
+    }
+    return -1
+}
+def c2da_rt_take_free(need : uint64) : int {
+    var best : int = -1
+    var best_slot : int = -1
+    var slot : int = length(c2da_rt_alloc_free) - 1
+    while (slot >= 0) {
+        var record : int = c2da_rt_alloc_free[slot]
+        var capacity : uint64 = c2da_rt_alloc_sizes[record]
+        if (capacity >= need && capacity - need <= need) {
+            if (best < 0 || capacity < c2da_rt_alloc_sizes[best]) {
+                best = record
+                best_slot = slot
+            }
+            if (capacity == need) {
+                break
+            }
+        }
+        slot = slot - 1
+    }
+    if (best >= 0) {
+        c2da_rt_alloc_free[best_slot] = c2da_rt_alloc_free[length(c2da_rt_alloc_free) - 1]
+        pop(c2da_rt_alloc_free)
+    }
+    return best
 }
 def c2da_rt_malloc(size : uint64) : uint64 {
     c2da_rt_init_heap()
     if (size == 0x0) {
         return 0x0
     }
-    var start : uint64 = c2da_rt_next
-    var end : uint64 = start + size
-    if (end > 0x4000000) {
+    if (size > 0x40000000) {
+        return 0x0
+    }
+    var need : uint64 = (size + 0xf) / 0x10 * 0x10
+    var reused : int = c2da_rt_take_free(need)
+    if (reused >= 0) {
+        c2da_rt_alloc_live[reused] = true
+        return c2da_rt_alloc_addrs[reused]
+    }
+    var base : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[int(0x0)]))))
+    var start : uint64 = (base + c2da_rt_next + 0xf) / 0x10 * 0x10 - base
+    var end : uint64 = start + need
+    if (end > 0x40000000) {
         return 0x0
     }
     if (int(end) > length(c2da_rt_heap)) {
@@ -49,18 +102,15 @@ def c2da_rt_malloc(size : uint64) : uint64 {
     resize(c2da_rt_alloc_sizes, int(record + 0x1))
     resize(c2da_rt_alloc_live, int(record + 0x1))
     c2da_rt_alloc_addrs[int(record)] = address
-    c2da_rt_alloc_sizes[int(record)] = size
+    c2da_rt_alloc_sizes[int(record)] = need
     c2da_rt_alloc_live[int(record)] = true
     return address
 }
 def c2da_rt_free(address : uint64) {
-    var i : uint64 = 0x0
-    while (int(i) < length(c2da_rt_alloc_addrs)) {
-        if (c2da_rt_alloc_live[int(i)] && c2da_rt_alloc_addrs[int(i)] == address) {
-            c2da_rt_alloc_live[int(i)] = false
-            return
-        }
-        i = i + 0x1
+    var record : int = c2da_rt_find_record(address)
+    if (record >= 0 && c2da_rt_alloc_live[record]) {
+        c2da_rt_alloc_live[record] = false
+        push(c2da_rt_alloc_free, record)
     }
 }
 def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
@@ -71,30 +121,33 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
         c2da_rt_free(address)
         return 0x0
     }
-    var i : uint64 = 0x0
-    var old_size : uint64 = 0x0
-    var found : bool = false
-    while (int(i) < length(c2da_rt_alloc_addrs)) {
-        if (c2da_rt_alloc_live[int(i)] && c2da_rt_alloc_addrs[int(i)] == address) {
-            old_size = c2da_rt_alloc_sizes[int(i)]
-            found = true
-        }
-        i = i + 0x1
-    }
-    if (found == false) {
+    var record : int = c2da_rt_find_record(address)
+    if (record < 0 || c2da_rt_alloc_live[record] == false) {
         return 0x0
+    }
+    var capacity : uint64 = c2da_rt_alloc_sizes[record]
+    if (size <= capacity) {
+        return address
+    }
+    if (size > 0x40000000) {
+        return 0x0
+    }
+    var need : uint64 = (size + 0xf) / 0x10 * 0x10
+    var start : uint64 = address - unsafe(intptr(unsafe(addr(c2da_rt_heap[int(0x0)]))))
+    var end : uint64 = start + need
+    if (start + capacity == c2da_rt_next && end <= 0x40000000) {
+        if (int(end) > length(c2da_rt_heap)) {
+            resize(c2da_rt_heap, int(end))
+        }
+        c2da_rt_next = end
+        c2da_rt_alloc_sizes[record] = need
+        return address
     }
     var replacement : uint64 = c2da_rt_malloc(size)
     if (replacement == 0x0) {
         return 0x0
     }
-    var copy_size : uint64 = 0x0
-    if (old_size < size) {
-        copy_size = old_size
-    } else {
-        copy_size = size
-    }
-    c2da_rt_memcpy(replacement, address, copy_size)
+    c2da_rt_memcpy(replacement, address, capacity)
     c2da_rt_free(address)
     return replacement
 }

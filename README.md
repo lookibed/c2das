@@ -98,8 +98,10 @@ asm, statement expressions with declarations).
   aliases on copy) are the next semantic layer; plmpeg blocks on the first.
 - `_Atomic` is lowered as its plain type; `volatile`, SIMD vectors, inline
   asm, `long double`, `__int128` and packed structs by value are diagnostics.
-- The runtime heap is a 64 MiB bump arena without reuse or alignment and
-  the byte routines are interpreted loops; it is correct, not fast.
+- The runtime heap is a 1 GiB reserved arena (address space, not memory)
+  with 16-byte-aligned blocks and reuse of freed blocks, and the
+  `memset`/`memcmp`/`memchr` routines are interpreted loops; it is correct,
+  not fast.
 - `va_list` forwarding to another function is rejected.
 
 Unsupported semantics must fail with a precise translation diagnostic rather

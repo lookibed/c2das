@@ -45,10 +45,11 @@ per-frame streaming probes are the oracle. The version of this ledger before tha
 (PLMPEG "known red" on `abi::null_pointer`, h264bsd "inventory only") predated the
 promotions and was never updated.
 
-`--all-ready` stops at the first failing case, and `p56-heap-churn` (a synthetic
-200 MiB heap-churn test, red in the release too) precedes both corpora in registry
-order, so a full-registry run does not reach them until that case is fixed or
-skipped; verify them with `--case` as above.
+`--all-ready` stops at the first failing case.  Until 2026-09-25 `p56-heap-churn` (a
+synthetic 200 MiB heap-churn test, red in the release too) failed ahead of both corpora
+in registry order, so a full-registry run never reached them; the raw heap now reuses
+freed blocks inside a 1 GiB reserve (`translator/ARCHITECTURE.md`, "The raw heap"),
+the case passes, and `--all-ready` runs the corpora too.
 
 Known-red entries are never counted as successful validation or readiness. A `ready`
 row is only as current as its "Last verified" cell: re-run the case and update the

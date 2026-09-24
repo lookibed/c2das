@@ -7,15 +7,36 @@
 use das_ast::{CastKind, DaBlock, DaDecl, DaExpr, DaFunction, DaStmt, DaType, DaVariable};
 
 /// One allocation arena is reserved before an address is exposed.  Later
-/// `resize` calls stay inside that reservation, so a C pointer returned from
-/// `c2da_rt_malloc` does not move when a later allocation grows the heap.
-pub const HEAP_RESERVE_BYTES: u64 = 64 * 1024 * 1024;
+/// `resize` calls stay inside that reservation, so the array never reallocates
+/// and a C pointer returned from `c2da_rt_malloc` does not move when a later
+/// allocation grows the heap.
+///
+/// The reservation is address space, not memory: daslang's `reserve` does not
+/// touch the pages (measured: a daslang program's maximum RSS is the same with
+/// no reserve and with a 64 MiB, 256 MiB, 1 GiB or 1.5 GiB one), and only the
+/// bytes below the allocation high-water mark are ever `resize`d, i.e. zeroed
+/// and committed.  1 GiB keeps every heap offset inside the `int` that daslang's
+/// array indexing and `resize` take.
+pub const HEAP_RESERVE_BYTES: u64 = 1024 * 1024 * 1024;
+
+/// C's `malloc` returns storage aligned for any object type, 16 bytes on the
+/// supported targets (`alignof(max_align_t)`).  Every block starts at an
+/// address that is a multiple of this, and every block capacity is one.
+const HEAP_ALIGN_BYTES: u64 = 16;
 
 const HEAP: &str = "c2da_rt_heap";
+/// Arena offset of the first byte no block has ever covered (the bump pointer).
 const NEXT: &str = "c2da_rt_next";
+/// One record per block ever carved from the arena, in arena order: records are
+/// only appended by the bump path, so `ALLOC_ADDRS` is sorted by address and a
+/// block is found by binary search.
 const ALLOC_ADDRS: &str = "c2da_rt_alloc_addrs";
+/// A block's capacity in bytes (a multiple of `HEAP_ALIGN_BYTES`, at least the
+/// size it was requested with); it stays with the block across reuse.
 const ALLOC_SIZES: &str = "c2da_rt_alloc_sizes";
 const ALLOC_LIVE: &str = "c2da_rt_alloc_live";
+/// Indices of the records that are not live: the blocks `malloc` may reuse.
+const ALLOC_FREE: &str = "c2da_rt_alloc_free";
 /// Addresses of frame-scoped C objects, innermost frame last.
 const LOCALS: &str = "c2da_rt_locals";
 
@@ -198,6 +219,71 @@ fn function(name: &str, params: Vec<DaStmt>, ret_type: DaType, stmts: Vec<DaStmt
     })
 }
 
+fn param(name: &str, param_type: DaType) -> DaStmt {
+    DaStmt::Param {
+        name: name.to_owned(),
+        param_type,
+        default: None,
+        is_mutable: false,
+    }
+}
+
+fn let_var(name: &str, var_type: DaType, init: DaExpr) -> DaStmt {
+    DaStmt::Var {
+        name: name.to_owned(),
+        var_type,
+        init: Some(init),
+    }
+}
+
+fn when(cond: DaExpr, then: Vec<DaStmt>) -> DaStmt {
+    DaStmt::Expr(DaExpr::IfThenElse {
+        cond: Box::new(cond),
+        then: block(then),
+        elifs: vec![],
+        else_: None,
+    })
+}
+
+fn at(array: &str, index: DaExpr) -> DaExpr {
+    DaExpr::Index(Box::new(var(array)), Box::new(index))
+}
+
+fn store(target: DaExpr, value: DaExpr) -> DaStmt {
+    DaStmt::Expr(DaExpr::Assign(Box::new(target), Box::new(value)))
+}
+
+fn length_of(array: &str) -> DaExpr {
+    call("length", vec![var(array)])
+}
+
+/// `value` rounded up to a multiple of `HEAP_ALIGN_BYTES`.  `value` is a
+/// size already bounded by `HEAP_RESERVE_BYTES` or an address inside the
+/// arena, so the addition cannot wrap.
+fn align_up(value: DaExpr) -> DaExpr {
+    op(
+        "*",
+        op(
+            "/",
+            op("+", value, DaExpr::ConstUInt(HEAP_ALIGN_BYTES - 1)),
+            DaExpr::ConstUInt(HEAP_ALIGN_BYTES),
+        ),
+        DaExpr::ConstUInt(HEAP_ALIGN_BYTES),
+    )
+}
+
+/// Grows the materialized arena to `end` bytes (never past the reserve, which
+/// the caller has checked), so `addr(heap[offset])` is valid below `end`.
+fn materialize_heap_to(end: DaExpr) -> DaStmt {
+    when(
+        op(">", uint_to_int(end.clone()), length_of(HEAP)),
+        vec![DaStmt::Expr(call(
+            "resize",
+            vec![var(HEAP), uint_to_int(end)],
+        ))],
+    )
+}
+
 /// The daScript parameter count of the runtime function `name`, or `None` when
 /// the runtime emits no function by that name.
 ///
@@ -272,6 +358,110 @@ pub fn declarations() -> Vec<DaDecl> {
             DaStmt::Expr(call("resize", vec![var(ALLOC_ADDRS), DaExpr::ConstInt(0)])),
             DaStmt::Expr(call("resize", vec![var(ALLOC_SIZES), DaExpr::ConstInt(0)])),
             DaStmt::Expr(call("resize", vec![var(ALLOC_LIVE), DaExpr::ConstInt(0)])),
+            DaStmt::Expr(call("resize", vec![var(ALLOC_FREE), DaExpr::ConstInt(0)])),
+        ],
+    );
+
+    // The record of the block that starts at `address`, or -1.  Records are
+    // appended in arena order, so the address column is sorted.
+    let find_record = function(
+        "c2da_rt_find_record",
+        vec![param("address", uint64.clone())],
+        DaType::int(),
+        vec![
+            let_var("lo", DaType::int(), DaExpr::ConstInt(0)),
+            let_var("hi", DaType::int(), length_of(ALLOC_ADDRS)),
+            DaStmt::Expr(DaExpr::While(
+                Box::new(op("<", var("lo"), var("hi"))),
+                block(vec![
+                    let_var(
+                        "mid",
+                        DaType::int(),
+                        op("/", op("+", var("lo"), var("hi")), DaExpr::ConstInt(2)),
+                    ),
+                    DaStmt::Expr(DaExpr::IfThenElse {
+                        cond: Box::new(op("<", at(ALLOC_ADDRS, var("mid")), var("address"))),
+                        then: block(vec![assign("lo", op("+", var("mid"), DaExpr::ConstInt(1)))]),
+                        elifs: vec![],
+                        else_: Some(block(vec![assign("hi", var("mid"))])),
+                    }),
+                ]),
+            )),
+            when(
+                op(
+                    "&&",
+                    op("<", var("lo"), length_of(ALLOC_ADDRS)),
+                    op("==", at(ALLOC_ADDRS, var("lo")), var("address")),
+                ),
+                vec![ret(var("lo"))],
+            ),
+            ret(DaExpr::ConstInt(-1)),
+        ],
+    );
+
+    // Takes the best-fitting freed block of at least `need` bytes off the free
+    // list and returns its record, or -1.  A block more than twice `need` is
+    // not reused (blocks are never split), so a small request cannot pin a
+    // large block.  The list is scanned newest first and an exact fit ends the
+    // scan, so a free/malloc pair of one size is constant time.
+    let take_free = function(
+        "c2da_rt_take_free",
+        vec![param("need", uint64.clone())],
+        DaType::int(),
+        vec![
+            let_var("best", DaType::int(), DaExpr::ConstInt(-1)),
+            let_var("best_slot", DaType::int(), DaExpr::ConstInt(-1)),
+            let_var(
+                "slot",
+                DaType::int(),
+                op("-", length_of(ALLOC_FREE), DaExpr::ConstInt(1)),
+            ),
+            DaStmt::Expr(DaExpr::While(
+                Box::new(op(">=", var("slot"), DaExpr::ConstInt(0))),
+                block(vec![
+                    let_var("record", DaType::int(), at(ALLOC_FREE, var("slot"))),
+                    let_var("capacity", uint64.clone(), at(ALLOC_SIZES, var("record"))),
+                    when(
+                        op(
+                            "&&",
+                            op(">=", var("capacity"), var("need")),
+                            op("<=", op("-", var("capacity"), var("need")), var("need")),
+                        ),
+                        vec![
+                            when(
+                                op(
+                                    "||",
+                                    op("<", var("best"), DaExpr::ConstInt(0)),
+                                    op("<", var("capacity"), at(ALLOC_SIZES, var("best"))),
+                                ),
+                                vec![
+                                    assign("best", var("record")),
+                                    assign("best_slot", var("slot")),
+                                ],
+                            ),
+                            when(
+                                op("==", var("capacity"), var("need")),
+                                vec![DaStmt::Expr(DaExpr::Break)],
+                            ),
+                        ],
+                    ),
+                    assign("slot", op("-", var("slot"), DaExpr::ConstInt(1))),
+                ]),
+            )),
+            when(
+                op(">=", var("best"), DaExpr::ConstInt(0)),
+                vec![
+                    store(
+                        at(ALLOC_FREE, var("best_slot")),
+                        at(
+                            ALLOC_FREE,
+                            op("-", length_of(ALLOC_FREE), DaExpr::ConstInt(1)),
+                        ),
+                    ),
+                    DaStmt::Expr(call("pop", vec![var(ALLOC_FREE)])),
+                ],
+            ),
+            ret(var("best")),
         ],
     );
 
@@ -292,35 +482,42 @@ pub fn declarations() -> Vec<DaDecl> {
                 elifs: vec![],
                 else_: None,
             }),
-            DaStmt::Var {
-                name: "start".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(var(NEXT)),
-            },
-            DaStmt::Var {
-                name: "end".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(op("+", var("start"), var("size"))),
-            },
-            DaStmt::Expr(DaExpr::IfThenElse {
-                cond: Box::new(op(">", var("end"), DaExpr::ConstUInt(HEAP_RESERVE_BYTES))),
-                then: block(vec![ret(DaExpr::ConstUInt(0))]),
-                elifs: vec![],
-                else_: None,
-            }),
-            DaStmt::Expr(DaExpr::IfThenElse {
-                cond: Box::new(op(
-                    ">",
-                    uint_to_int(var("end")),
-                    call("length", vec![var(HEAP)]),
-                )),
-                then: block(vec![DaStmt::Expr(call(
-                    "resize",
-                    vec![var(HEAP), uint_to_int(var("end"))],
-                ))]),
-                elifs: vec![],
-                else_: None,
-            }),
+            // Checked before rounding so `align_up` cannot wrap.
+            when(
+                op(">", var("size"), DaExpr::ConstUInt(HEAP_RESERVE_BYTES)),
+                vec![ret(DaExpr::ConstUInt(0))],
+            ),
+            let_var("need", uint64.clone(), align_up(var("size"))),
+            // A freed block is reused before the arena grows.  Its contents
+            // are whatever its last owner left: C's malloc makes no promise,
+            // and calloc clears what it returns itself.
+            let_var(
+                "reused",
+                DaType::int(),
+                call("c2da_rt_take_free", vec![var("need")]),
+            ),
+            when(
+                op(">=", var("reused"), DaExpr::ConstInt(0)),
+                vec![
+                    store(at(ALLOC_LIVE, var("reused")), DaExpr::ConstBool(true)),
+                    ret(at(ALLOC_ADDRS, var("reused"))),
+                ],
+            ),
+            // The block starts at the first 16-aligned *address* at or after
+            // the bump pointer; the arena's base address is fixed by the
+            // reservation, so this is an arena offset like any other.
+            let_var("base", uint64.clone(), heap_address(DaExpr::ConstUInt(0))),
+            let_var(
+                "start",
+                uint64.clone(),
+                op("-", align_up(op("+", var("base"), var(NEXT))), var("base")),
+            ),
+            let_var("end", uint64.clone(), op("+", var("start"), var("need"))),
+            when(
+                op(">", var("end"), DaExpr::ConstUInt(HEAP_RESERVE_BYTES)),
+                vec![ret(DaExpr::ConstUInt(0))],
+            ),
+            materialize_heap_to(var("end")),
             assign(NEXT, var("end")),
             // The raw-address ABI exposes the actual address of the reserved
             // arena.  Bookkeeping must retain that same value: `start` is an
@@ -376,7 +573,7 @@ pub fn declarations() -> Vec<DaDecl> {
                     Box::new(var(ALLOC_SIZES)),
                     Box::new(uint_to_int(var("record"))),
                 )),
-                Box::new(var("size")),
+                Box::new(var("need")),
             )),
             DaStmt::Expr(DaExpr::Assign(
                 Box::new(DaExpr::Index(
@@ -398,51 +595,25 @@ pub fn declarations() -> Vec<DaDecl> {
             is_mutable: false,
         }],
         DaType::void(),
+        // `free(NULL)`, a pointer that is not a block start and a second free
+        // of one block find no live record and change nothing.
         vec![
-            DaStmt::Var {
-                name: "i".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(DaExpr::ConstUInt(0)),
-            },
-            DaStmt::Expr(DaExpr::While(
-                Box::new(op(
-                    "<",
-                    uint_to_int(var("i")),
-                    call("length", vec![var(ALLOC_ADDRS)]),
-                )),
-                block(vec![
-                    DaStmt::Expr(DaExpr::IfThenElse {
-                        cond: Box::new(op(
-                            "&&",
-                            DaExpr::Index(
-                                Box::new(var(ALLOC_LIVE)),
-                                Box::new(uint_to_int(var("i"))),
-                            ),
-                            op(
-                                "==",
-                                DaExpr::Index(
-                                    Box::new(var(ALLOC_ADDRS)),
-                                    Box::new(uint_to_int(var("i"))),
-                                ),
-                                var("address"),
-                            ),
-                        )),
-                        then: block(vec![
-                            DaStmt::Expr(DaExpr::Assign(
-                                Box::new(DaExpr::Index(
-                                    Box::new(var(ALLOC_LIVE)),
-                                    Box::new(uint_to_int(var("i"))),
-                                )),
-                                Box::new(DaExpr::ConstBool(false)),
-                            )),
-                            DaStmt::Expr(DaExpr::Return(None)),
-                        ]),
-                        elifs: vec![],
-                        else_: None,
-                    }),
-                    assign("i", op("+", var("i"), DaExpr::ConstUInt(1))),
-                ]),
-            )),
+            let_var(
+                "record",
+                DaType::int(),
+                call("c2da_rt_find_record", vec![var("address")]),
+            ),
+            when(
+                op(
+                    "&&",
+                    op(">=", var("record"), DaExpr::ConstInt(0)),
+                    at(ALLOC_LIVE, var("record")),
+                ),
+                vec![
+                    store(at(ALLOC_LIVE, var("record")), DaExpr::ConstBool(false)),
+                    DaStmt::Expr(call("push", vec![var(ALLOC_FREE), var("record")])),
+                ],
+            ),
         ],
     );
 
@@ -479,91 +650,71 @@ pub fn declarations() -> Vec<DaDecl> {
                 elifs: vec![],
                 else_: None,
             }),
-            DaStmt::Var {
-                name: "i".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(DaExpr::ConstUInt(0)),
-            },
-            DaStmt::Var {
-                name: "old_size".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(DaExpr::ConstUInt(0)),
-            },
-            DaStmt::Var {
-                name: "found".to_owned(),
-                var_type: DaType::bool(),
-                init: Some(DaExpr::ConstBool(false)),
-            },
-            DaStmt::Expr(DaExpr::While(
-                Box::new(op(
-                    "<",
-                    uint_to_int(var("i")),
-                    call("length", vec![var(ALLOC_ADDRS)]),
-                )),
-                block(vec![
-                    DaStmt::Expr(DaExpr::IfThenElse {
-                        cond: Box::new(op(
-                            "&&",
-                            DaExpr::Index(
-                                Box::new(var(ALLOC_LIVE)),
-                                Box::new(uint_to_int(var("i"))),
-                            ),
-                            op(
-                                "==",
-                                DaExpr::Index(
-                                    Box::new(var(ALLOC_ADDRS)),
-                                    Box::new(uint_to_int(var("i"))),
-                                ),
-                                var("address"),
-                            ),
-                        )),
-                        then: block(vec![
-                            assign(
-                                "old_size",
-                                DaExpr::Index(
-                                    Box::new(var(ALLOC_SIZES)),
-                                    Box::new(uint_to_int(var("i"))),
-                                ),
-                            ),
-                            assign("found", DaExpr::ConstBool(true)),
-                        ]),
-                        elifs: vec![],
-                        else_: None,
-                    }),
-                    assign("i", op("+", var("i"), DaExpr::ConstUInt(1))),
-                ]),
-            )),
-            DaStmt::Expr(DaExpr::IfThenElse {
-                cond: Box::new(op("==", var("found"), DaExpr::ConstBool(false))),
-                then: block(vec![ret(DaExpr::ConstUInt(0))]),
-                elifs: vec![],
-                else_: None,
-            }),
-            DaStmt::Var {
-                name: "replacement".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(call("c2da_rt_malloc", vec![var("size")])),
-            },
-            DaStmt::Expr(DaExpr::IfThenElse {
-                cond: Box::new(op("==", var("replacement"), DaExpr::ConstUInt(0))),
-                then: block(vec![ret(DaExpr::ConstUInt(0))]),
-                elifs: vec![],
-                else_: None,
-            }),
-            DaStmt::Var {
-                name: "copy_size".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(DaExpr::ConstUInt(0)),
-            },
-            DaStmt::Expr(DaExpr::IfThenElse {
-                cond: Box::new(op("<", var("old_size"), var("size"))),
-                then: block(vec![assign("copy_size", var("old_size"))]),
-                elifs: vec![],
-                else_: Some(block(vec![assign("copy_size", var("size"))])),
-            }),
+            let_var(
+                "record",
+                DaType::int(),
+                call("c2da_rt_find_record", vec![var("address")]),
+            ),
+            when(
+                op(
+                    "||",
+                    op("<", var("record"), DaExpr::ConstInt(0)),
+                    op(
+                        "==",
+                        at(ALLOC_LIVE, var("record")),
+                        DaExpr::ConstBool(false),
+                    ),
+                ),
+                vec![ret(DaExpr::ConstUInt(0))],
+            ),
+            let_var("capacity", uint64.clone(), at(ALLOC_SIZES, var("record"))),
+            // The block already holds `size` bytes: C keeps the object where
+            // it is, contents unchanged.
+            when(
+                op("<=", var("size"), var("capacity")),
+                vec![ret(var("address"))],
+            ),
+            when(
+                op(">", var("size"), DaExpr::ConstUInt(HEAP_RESERVE_BYTES)),
+                vec![ret(DaExpr::ConstUInt(0))],
+            ),
+            // The last block of the arena grows in place when the reserve
+            // allows it: nothing lies behind it, so no live block moves.
+            let_var("need", uint64.clone(), align_up(var("size"))),
+            let_var(
+                "start",
+                uint64.clone(),
+                op("-", var("address"), heap_address(DaExpr::ConstUInt(0))),
+            ),
+            let_var("end", uint64.clone(), op("+", var("start"), var("need"))),
+            when(
+                op(
+                    "&&",
+                    op("==", op("+", var("start"), var("capacity")), var(NEXT)),
+                    op("<=", var("end"), DaExpr::ConstUInt(HEAP_RESERVE_BYTES)),
+                ),
+                vec![
+                    materialize_heap_to(var("end")),
+                    assign(NEXT, var("end")),
+                    store(at(ALLOC_SIZES, var("record")), var("need")),
+                    ret(var("address")),
+                ],
+            ),
+            let_var(
+                "replacement",
+                uint64.clone(),
+                call("c2da_rt_malloc", vec![var("size")]),
+            ),
+            when(
+                op("==", var("replacement"), DaExpr::ConstUInt(0)),
+                vec![ret(DaExpr::ConstUInt(0))],
+            ),
+            // `capacity < size` here, so the whole old block fits and covers
+            // every byte C preserves (the old object's size is at most its
+            // capacity; bytes past it were indeterminate in C).
             DaStmt::Expr(call(
                 "c2da_rt_memcpy",
-                vec![var("replacement"), var("address"), var("copy_size")],
+                vec![var("replacement"), var("address"), var("capacity")],
             )),
             DaStmt::Expr(call("c2da_rt_free", vec![var("address")])),
             ret(var("replacement")),
@@ -1029,8 +1180,16 @@ pub fn declarations() -> Vec<DaDecl> {
             init: None,
             annotations: vec![],
         }),
+        DaDecl::Variable(DaVariable {
+            name: ALLOC_FREE.to_owned(),
+            var_type: DaType::array(DaType::int()),
+            init: None,
+            annotations: vec![],
+        }),
         init_heap,
         reset,
+        find_record,
+        take_free,
         malloc,
         free,
         realloc,
@@ -1075,6 +1234,69 @@ mod tests {
         assert!(rendered.contains("c2da_rt_alloc_addrs[int(record)] = address"));
         assert!(rendered.contains("intptr(unsafe(addr(c2da_rt_heap[int(start)])))"));
         assert!(!rendered.contains(".replace("));
+    }
+
+    fn rendered_function(name: &str) -> String {
+        declarations()
+            .into_iter()
+            .find_map(|decl| match &decl {
+                DaDecl::Function(function) if function.name == name => Some(decl.to_string()),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("runtime emits {name}"))
+    }
+
+    #[test]
+    fn heap_reserve_is_large_and_stays_inside_int_indexing() {
+        // The reserve is address space only (measured, see the constant), and
+        // every arena offset must fit the `int` daslang indexes arrays with.
+        assert!(HEAP_RESERVE_BYTES >= 512 * 1024 * 1024);
+        assert!(HEAP_RESERVE_BYTES <= i32::MAX as u64);
+        assert_eq!(HEAP_RESERVE_BYTES % HEAP_ALIGN_BYTES, 0);
+        let init = rendered_function("c2da_rt_init_heap");
+        assert!(init.contains(&format!(
+            "reserve(c2da_rt_heap, int({HEAP_RESERVE_BYTES:#x}))"
+        )));
+    }
+
+    #[test]
+    fn malloc_reuses_freed_blocks_before_growing_the_arena_and_aligns_every_block() {
+        let malloc = rendered_function("c2da_rt_malloc");
+        let reuse = malloc
+            .find("c2da_rt_take_free(need)")
+            .expect("malloc consults the free list");
+        let bump = malloc
+            .find("c2da_rt_next = end")
+            .expect("malloc bumps the arena");
+        assert!(
+            reuse < bump,
+            "free-list reuse precedes arena growth:\n{malloc}"
+        );
+        // Capacity and start address are both rounded to the 16-byte C alignment.
+        assert!(malloc.contains("var need : uint64 = (size + 0xf) / 0x10 * 0x10"));
+        assert!(malloc.contains("(base + c2da_rt_next + 0xf) / 0x10 * 0x10 - base"));
+        assert!(malloc.contains("c2da_rt_alloc_sizes[int(record)] = need"));
+
+        let free = rendered_function("c2da_rt_free");
+        assert!(free.contains("c2da_rt_find_record(address)"));
+        assert!(free.contains("push(c2da_rt_alloc_free, record)"));
+        // Only a live record is released, so a double free cannot enter the
+        // free list twice and hand one block to two owners.
+        assert!(free.contains("record >= 0 && c2da_rt_alloc_live[record]"));
+
+        let reset = rendered_function("c2da_rt_reset");
+        assert!(reset.contains("resize(c2da_rt_alloc_free, 0)"));
+    }
+
+    #[test]
+    fn realloc_keeps_the_block_when_it_fits_and_copies_the_whole_old_block_otherwise() {
+        let realloc = rendered_function("c2da_rt_realloc");
+        assert!(realloc.contains("if (size <= capacity) {\n        return address"));
+        assert!(realloc.contains("start + capacity == c2da_rt_next"));
+        assert!(realloc.contains("c2da_rt_memcpy(replacement, address, capacity)"));
+        let calloc = rendered_function("c2da_rt_calloc");
+        // A reused block holds its previous owner's bytes: calloc clears it.
+        assert!(calloc.contains("c2da_rt_memset(address, uint8(0x0), total)"));
     }
 
     #[test]

@@ -44,12 +44,14 @@ recognise runtime names that the C source declares itself.
    `plmpeg_reference.expected`, and `tests/manual/h264bsd-mp4/src/test_decode.das`
    (width, height, frame_count of `fixtures/sample.mp4`). Every defect found here becomes a
    small canonical case in `tests/syntax` + `tests/canonical/cases.json` so it stays fixed.
-4. **Allocator, only when it bites.** `c2da_rt_malloc` is a bump arena inside a 64 MiB
-   `array<uint8>` that never reuses freed blocks (that is what `p56-heap-churn` measures).
-   h264bsd and pl_mpeg allocate their picture buffers at initialisation, so this may be
-   enough for the fixtures. If it is not, the interpreter has builtin `malloc`, `free` and
-   `memcpy` (`module_builtin_runtime.cpp`), so the allocator can be swapped locally in
-   `translator/runtime.rs` without changing the address model.
+4. **Allocator, only when it bites.** `c2da_rt_malloc` was a bump arena inside a 64 MiB
+   `array<uint8>` that never reused freed blocks (that is what `p56-heap-churn` measures).
+   h264bsd and pl_mpeg allocate their picture buffers at initialisation, so that was
+   enough for the fixtures. Since 2026-09-25 the arena is a 1 GiB reserve (address space
+   only; RSS measured unchanged) whose freed blocks are reused before it grows, with
+   16-byte-aligned blocks and in-place `realloc`, still in `translator/runtime.rs` and
+   still the same address model (`translator/ARCHITECTURE.md`, "The raw heap");
+   `p56-heap-churn` passes.
 5. **Both targets in the canonical manifest.** Done for both. `plmpeg-stream` is promoted to
    `ready` (C reference `src/all_reference.c` + `src/plmpeg_reference_entry.c`, preserved
    entry `src/plmpeg_entry.das`). `h264bsd-mp4` is now wired the same way — C reference
@@ -63,9 +65,9 @@ recognise runtime names that the C source declares itself.
    to `ready` once that fix is committed. Both cases are now caught by
    `scripts/run_c2das_cases.py` rather than by hand.
 
-Out of the path for now: `p56-heap-churn` (allocator, see step 4) and
-`p59-nested-aggregates` (`addr()` without `unsafe` in 2-D array pointer subtraction); neither
-blocks the two targets.
+Out of the path at the time: `p56-heap-churn` (allocator, see step 4; passes since
+2026-09-25) and `p59-nested-aggregates` (`addr()` without `unsafe` in 2-D array pointer
+subtraction); neither blocked the two targets.
 
 ## What to borrow from C-To-DAS without pivoting
 

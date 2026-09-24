@@ -306,7 +306,7 @@ output as the oracle.
   eagerly in the module's globals — the raw-memory runtime's own globals are
   declared ahead of the std prelude, so the arena is usable at that point — and
   `c2da_std_errno_location()` is now a getter with no branch.  The arena cannot
-  hand out four bytes only if a 64 MiB reserve is exhausted at start-up, which
+  hand out four bytes only if its reserve (1 GiB) is exhausted at start-up, which
   is not a state a C program can be handed a null `errno` for: the allocator
   panics instead, because the *read* happens in the translated C, where the
   translator can no longer guard.  Case `p89` (the ten idioms), `p90` (the same

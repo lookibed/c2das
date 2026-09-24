@@ -350,7 +350,7 @@ convergence side uses `translation_entry` = `src/plmpeg_file_all.c` (graph +
 - **setup** is `setup_us`, measured around `frames_begin_bytes()`: runtime reset, working
   copy of the stream, decoder (and demuxer) creation.  The hand-written daslang entries
   (`*_bench_entry.das`) call `all::c2da_rt_init_heap()` before their timer starts.  The
-  translated heap is reserved (`reserve(c2da_rt_heap, 64 MiB)`) on the first
+  translated heap is reserved (`reserve(c2da_rt_heap, 1 GiB)`, 64 MiB before 2026-09-25) on the first
   `c2da_rt_malloc`; in C the heap is a static array that exists before `main`, and in a
   `--libc std` program the translated `main` wrapper's argv construction allocates first,
   so both of those enter `frames_begin_bytes()` with the heap in place.  Without the call
