@@ -230,9 +230,19 @@ fn resolve_dependencies(
 fn collect_names(expr: &DaExpr, out: &mut Vec<String>) {
     use DaExpr::*;
     match expr {
-        ConstInt(_) | ConstUInt(_) | ConstFloat(_) | ConstDouble(_) | ConstBool(_)
-        | ConstString(_) | ConstNull | Break | Continue | Goto(_) | Label(_)
-        | DefaultValue(_) | TypeInfo { .. } => {}
+        ConstInt(_)
+        | ConstUInt(_)
+        | ConstFloat(_)
+        | ConstDouble(_)
+        | ConstBool(_)
+        | ConstString(_)
+        | ConstNull
+        | Break
+        | Continue
+        | Goto(_)
+        | Label(_)
+        | DefaultValue(_)
+        | TypeInfo { .. } => {}
         Var(name) | FuncRef(name) => out.push(name.clone()),
         Field(e, _) | SafeField(e, _) => collect_names(e, out),
         Index(a, b) | SafeIndex(a, b) | Assign(a, b) | Pipe(a, b) | While(a, b) => {
@@ -399,7 +409,9 @@ pub(crate) fn order_record_declarations(decls: Vec<DaDecl>) -> Vec<DaDecl> {
     let mut alias_body: HashMap<&str, &das_ast::DaType> = HashMap::new();
     for decl in &decls {
         if let DaDecl::Alias(alias) = decl {
-            alias_body.entry(alias.name.as_str()).or_insert(&alias.aliased_type);
+            alias_body
+                .entry(alias.name.as_str())
+                .or_insert(&alias.aliased_type);
         }
     }
 
@@ -706,10 +718,7 @@ mod tests {
                     ("up", DaType::pointer(DaType::named("Trunk"))),
                 ],
             ),
-            structure(
-                "Leaf",
-                &[("up", DaType::pointer(DaType::named("Middle")))],
-            ),
+            structure("Leaf", &[("up", DaType::pointer(DaType::named("Middle")))]),
         ];
         let ordered = order_record_declarations(decls);
         assert_eq!(
@@ -730,10 +739,7 @@ mod tests {
                     ("log", DaType::named("LeafList")),
                 ],
             ),
-            alias(
-                "LeafList",
-                DaType::array(DaType::named("Stem")),
-            ),
+            alias("LeafList", DaType::array(DaType::named("Stem"))),
             structure("Leaf", &[("value", DaType::int())]),
             structure("Stem", &[("value", DaType::int())]),
         ];

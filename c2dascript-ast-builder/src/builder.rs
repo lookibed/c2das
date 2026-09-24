@@ -55,11 +55,18 @@ impl DaBuilder {
 
     // ── operators ──
     pub fn unary_op(self, op: &'static str, expr: DaExpr) -> DaExpr {
-        DaExpr::Op1 { op, expr: Box::new(expr) }
+        DaExpr::Op1 {
+            op,
+            expr: Box::new(expr),
+        }
     }
 
     pub fn binary_op(self, op: &'static str, left: DaExpr, right: DaExpr) -> DaExpr {
-        DaExpr::Op2 { op, left: Box::new(left), right: Box::new(right) }
+        DaExpr::Op2 {
+            op,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
     }
 
     // ── call ──
@@ -104,11 +111,18 @@ impl DaBuilder {
 
     // ── statements ──
     pub fn var_stmt<N: Make<String>>(self, name: N, ty: DaType, init: Option<DaExpr>) -> DaStmt {
-        DaStmt::Var { name: name.make(&self), var_type: ty, init }
+        DaStmt::Var {
+            name: name.make(&self),
+            var_type: ty,
+            init,
+        }
     }
 
     pub fn let_stmt<N: Make<String>>(self, name: N, init: Option<DaExpr>) -> DaStmt {
-        DaStmt::Let { name: name.make(&self), init }
+        DaStmt::Let {
+            name: name.make(&self),
+            init,
+        }
     }
 
     pub fn expr_stmt(self, expr: DaExpr) -> DaStmt {
@@ -116,7 +130,13 @@ impl DaBuilder {
     }
 
     // ── declarations ──
-    pub fn fn_decl<N: Make<String>>(self, name: N, params: Vec<DaStmt>, ret_type: DaType, body: Option<DaExpr>) -> DaDecl {
+    pub fn fn_decl<N: Make<String>>(
+        self,
+        name: N,
+        params: Vec<DaStmt>,
+        ret_type: DaType,
+        body: Option<DaExpr>,
+    ) -> DaDecl {
         DaDecl::Function(DaFunction {
             name: name.make(&self),
             params,
@@ -136,7 +156,12 @@ impl DaBuilder {
         })
     }
 
-    pub fn enum_decl<N: Make<String>>(self, name: N, base: DaType, variants: Vec<DaEnumVariant>) -> DaDecl {
+    pub fn enum_decl<N: Make<String>>(
+        self,
+        name: N,
+        base: DaType,
+        variants: Vec<DaEnumVariant>,
+    ) -> DaDecl {
         DaDecl::Enumeration(DaEnumeration {
             name: name.make(&self),
             base_type: base,
@@ -160,27 +185,65 @@ impl DaBuilder {
     }
 
     pub fn param<N: Make<String>>(self, name: N, ty: DaType, default: Option<DaExpr>) -> DaStmt {
-        DaStmt::Param { name: name.make(&self), param_type: ty, default, is_mutable: false }
+        DaStmt::Param {
+            name: name.make(&self),
+            param_type: ty,
+            default,
+            is_mutable: false,
+        }
     }
 
-    pub fn param_mut<N: Make<String>>(self, name: N, ty: DaType, default: Option<DaExpr>) -> DaStmt {
-        DaStmt::Param { name: name.make(&self), param_type: ty, default, is_mutable: true }
+    pub fn param_mut<N: Make<String>>(
+        self,
+        name: N,
+        ty: DaType,
+        default: Option<DaExpr>,
+    ) -> DaStmt {
+        DaStmt::Param {
+            name: name.make(&self),
+            param_type: ty,
+            default,
+            is_mutable: true,
+        }
     }
 
     // ── module ──
     pub fn module(self, decls: Vec<DaDecl>) -> DaModule {
-        DaModule { decls, ..DaModule::new() }
+        DaModule {
+            decls,
+            ..DaModule::new()
+        }
     }
 
     // ── type helpers (return DaType) ──
-    pub fn ty_int(self) -> DaType { DaType::int() }
-    pub fn ty_uint(self) -> DaType { DaType::uint() }
-    pub fn ty_float(self) -> DaType { DaType::float() }
-    pub fn ty_double(self) -> DaType { DaType::double() }
-    pub fn ty_bool(self) -> DaType { DaType::bool() }
-    pub fn ty_void(self) -> DaType { DaType::void() }
-    pub fn ty_string(self) -> DaType { DaType::string() }
-    pub fn ty_named<N: Make<String>>(self, name: N) -> DaType { DaType::named(&name.make(&self)) }
-    pub fn ty_pointer(self, inner: DaType) -> DaType { DaType::pointer(inner) }
-    pub fn ty_array(self, inner: DaType) -> DaType { DaType::array(inner) }
+    pub fn ty_int(self) -> DaType {
+        DaType::int()
+    }
+    pub fn ty_uint(self) -> DaType {
+        DaType::uint()
+    }
+    pub fn ty_float(self) -> DaType {
+        DaType::float()
+    }
+    pub fn ty_double(self) -> DaType {
+        DaType::double()
+    }
+    pub fn ty_bool(self) -> DaType {
+        DaType::bool()
+    }
+    pub fn ty_void(self) -> DaType {
+        DaType::void()
+    }
+    pub fn ty_string(self) -> DaType {
+        DaType::string()
+    }
+    pub fn ty_named<N: Make<String>>(self, name: N) -> DaType {
+        DaType::named(&name.make(&self))
+    }
+    pub fn ty_pointer(self, inner: DaType) -> DaType {
+        DaType::pointer(inner)
+    }
+    pub fn ty_array(self, inner: DaType) -> DaType {
+        DaType::array(inner)
+    }
 }

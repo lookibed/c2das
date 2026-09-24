@@ -97,5 +97,4 @@ impl<'c> Translation<'c> {
             to: ty,
         })
     }
-
 }

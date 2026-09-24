@@ -70,7 +70,16 @@ impl<'c> Translation<'c> {
                     (self.arith_type_of_kind(lk), self.arith_type_of_kind(rk))
                 {
                     return self.convert_arithmetic_binop(
-                        ctx, op, lhs, rhs, lhs_type_id, rhs_type_id, lk, rk, la, ra,
+                        ctx,
+                        op,
+                        lhs,
+                        rhs,
+                        lhs_type_id,
+                        rhs_type_id,
+                        lk,
+                        rk,
+                        la,
+                        ra,
                     );
                 }
             }
@@ -415,8 +424,7 @@ impl<'c> Translation<'c> {
         rhs: WithStmts<DaExpr>,
     ) -> (WithStmts<DaExpr>, WithStmts<DaExpr>) {
         fn is_bool(value: &DaExpr) -> bool {
-            Translation::infer_type(value)
-                .map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+            Translation::infer_type(value).map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
         }
         fn number_type(value: &DaExpr) -> Option<DaType> {
             Translation::infer_type(value)
@@ -437,8 +445,7 @@ impl<'c> Translation<'c> {
             }
             let is_unsafe = value.is_unsafe;
             let mut stmts = value.stmts;
-            let (extra, materialized) =
-                self.materialize_bool_as_number(value.val, target.clone());
+            let (extra, materialized) = self.materialize_bool_as_number(value.val, target.clone());
             stmts.extend(extra);
             WithStmts::new(stmts, materialized).merge_unsafe(is_unsafe)
         };
@@ -577,9 +584,11 @@ impl<'c> Translation<'c> {
         // object's bytes; there is no wrapper struct at that address to assign
         // to.
         if op == CBinOp::Assign && self.is_raw_record_place(lhs) {
-            let address = self.storage_object_address(ctx.used(), lhs)?.ok_or_else(|| {
-                TranslationError::generic("store target is not a storage-backed C record")
-            })?;
+            let address = self
+                .storage_object_address(ctx.used(), lhs)?
+                .ok_or_else(|| {
+                    TranslationError::generic("store target is not a storage-backed C record")
+                })?;
             let value = self.convert_expr(ctx.used(), rhs, Some(lhs_type_id))?;
             let stored = self.raw_store(address, value)?;
             return Ok(lower_raw_store(stored, is_used));
@@ -706,7 +715,8 @@ impl<'c> Translation<'c> {
             let das_op = convert_binop(inner_op).map_err(TranslationError::generic)?;
             let is_ptr_op = lhs_kind.is_pointer() || self.is_pointer_type(lhs_type_id.ctype);
             let rhs_ty = self.ast_context[rhs].kind.get_qual_type();
-            let rhs_val = self.convert_expr(ctx.used(), rhs, if is_ptr_op { None } else { rhs_ty })?;
+            let rhs_val =
+                self.convert_expr(ctx.used(), rhs, if is_ptr_op { None } else { rhs_ty })?;
             if is_ptr_op {
                 let value = rhs_val.map(|offset| {
                     DaExpr::Unsafe(Box::new(mk().binary_op(
@@ -953,10 +963,7 @@ impl<'c> Translation<'c> {
         // A storage-backed wrapper is a name for bytes elsewhere, not the
         // object: it can never be produced by dereferencing a pointer to the
         // object.
-        if self
-            .storage_backed_record_of(expr_type_id.ctype)
-            .is_some()
-        {
+        if self.storage_backed_record_of(expr_type_id.ctype).is_some() {
             return Ok(None);
         }
         let Some(ptr_expr) = self.const_deref_pointer_expr(rhs) else {
@@ -1017,9 +1024,7 @@ impl<'c> Translation<'c> {
                 DaExpr::Unsafe(Box::new(DaExpr::Op2 {
                     op: "+",
                     left: Box::new(l),
-                    right: Box::new(
-                        self.pointer_offset_operand(normalize_numeric_binop_tree(r)),
-                    ),
+                    right: Box::new(self.pointer_offset_operand(normalize_numeric_binop_tree(r))),
                 }))
             }))
         } else {
@@ -1250,9 +1255,8 @@ impl<'c> Translation<'c> {
                         // `!d` is `d == 0` in the operand's own floating type.
                         // Comparing against an integer zero would make every
                         // value with magnitude below one test as false.
-                        let zero = super::literals::floating_zero_for_datype(
-                            &self.convert_type(qty)?,
-                        );
+                        let zero =
+                            super::literals::floating_zero_for_datype(&self.convert_type(qty)?);
                         return Ok(val.map(|v| DaExpr::Op2 {
                             op: "==",
                             left: Box::new(v),
@@ -1439,8 +1443,7 @@ impl<'c> Translation<'c> {
                 .merge_unsafe(is_unsafe || store_unsafe));
         }
         let place = self.convert_lvalue_once(ctx, arg, arg_ty)?;
-        let new_value =
-            self.increment_value(das_op, place.val.clone(), arg_ty, &kind, &storage)?;
+        let new_value = self.increment_value(das_op, place.val.clone(), arg_ty, &kind, &storage)?;
         let is_unsafe = place.is_unsafe;
         let mut stmts = place.stmts;
         let result = if is_post {
@@ -1525,9 +1528,11 @@ impl<'c> Translation<'c> {
             // `(*p).f` and `p[i].f`: the record behind the pointer is raw
             // bytes, so the field's place comes from the pointer rather than
             // from a wrapper that does not exist there.
-            let base = self.storage_object_address(ctx.used(), base_expr)?.ok_or_else(|| {
-                TranslationError::generic("member base is not a storage-backed C record")
-            })?;
+            let base = self
+                .storage_object_address(ctx.used(), base_expr)?
+                .ok_or_else(|| {
+                    TranslationError::generic("member base is not a storage-backed C record")
+                })?;
             return Ok(Some((field, self.field_address(base, field)?)));
         }
         Ok(None)

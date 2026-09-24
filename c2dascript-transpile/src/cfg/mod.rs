@@ -3,9 +3,9 @@
 
 use crate::c_ast::*;
 use crate::diagnostics::{diag, Diagnostic, TranslationResult};
+use crate::translator::value_lowering::ValueSite;
 use crate::translator::*;
 use crate::with_stmts::WithStmts;
-use crate::translator::value_lowering::ValueSite;
 use das_ast::{DaBlock, DaExpr, DaStmt, DaType, DaTypeKind};
 use indexmap::{indexset, IndexMap, IndexSet};
 use std::collections::hash_map::DefaultHasher;
@@ -292,11 +292,7 @@ impl DeclStmtStore {
         self.store.extend(o.store);
     }
     pub fn extract_decl(&mut self, id: CDeclId) -> TranslationResult<Vec<DaStmt>> {
-        let DeclStmtInfo {
-            decl,
-            assign,
-            ..
-        } = self
+        let DeclStmtInfo { decl, assign, .. } = self
             .store
             .swap_remove(&id)
             .ok_or_else(|| TranslationError::generic("decl info not found"))?;
@@ -314,17 +310,12 @@ impl DeclStmtStore {
         Ok(decl)
     }
     pub fn extract_assign(&mut self, id: CDeclId) -> TranslationResult<Vec<DaStmt>> {
-        let DeclStmtInfo {
-            decl,
-            assign,
-            ..
-        } = self
+        let DeclStmtInfo { decl, assign, .. } = self
             .store
             .swap_remove(&id)
             .ok_or_else(|| TranslationError::generic("assign info not found"))?;
 
-        let assign =
-            assign.ok_or_else(|| TranslationError::generic("assign already extracted"))?;
+        let assign = assign.ok_or_else(|| TranslationError::generic("assign already extracted"))?;
 
         self.store.insert(
             id,
@@ -819,8 +810,7 @@ impl CfgBuilder {
                 // is promoted, and every `case` constant is converted to the
                 // promoted type.  daScript has no implicit numeric conversions,
                 // so the promotion has to be explicit on both sides.
-                let scrut_ty = tr
-                    .ast_context[*scrutinee]
+                let scrut_ty = tr.ast_context[*scrutinee]
                     .kind
                     .get_qual_type()
                     .map(|q| tr.convert_type(q))
@@ -1079,16 +1069,17 @@ impl CfgBuilder {
             // Inline asm has no CFG-neutral scalar substitute. Route it to
             // translator/assembly.rs so the user receives its source-located
             // ABI diagnostic instead of a generic CFG failure.
-            CStmtKind::Asm { asm, inputs, outputs, clobbers, is_volatile } => {
-                tr.convert_inline_assembly(
-                    sid,
-                    asm,
-                    inputs,
-                    outputs,
-                    clobbers,
-                    *is_volatile,
-                )?;
-                unreachable!("inline assembly lowering always diagnoses or returns a real statement")
+            CStmtKind::Asm {
+                asm,
+                inputs,
+                outputs,
+                clobbers,
+                is_volatile,
+            } => {
+                tr.convert_inline_assembly(sid, asm, inputs, outputs, clobbers, *is_volatile)?;
+                unreachable!(
+                    "inline assembly lowering always diagnoses or returns a real statement"
+                )
             }
 
             _ => Err(TranslationError::generic(
@@ -1119,9 +1110,9 @@ impl Cfg<Label, StmtOrDecl> {
         // Add implicit return at the end
         let exit_lbl = last_lbl.unwrap_or_else(|| builder.fresh_label());
         let tail_stmt = match &ret {
-            ImplicitReturnType::Main => DaStmt::Expr(DaExpr::Return(Some(Box::new(
-                DaExpr::ConstInt(0),
-            )))),
+            ImplicitReturnType::Main => {
+                DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::ConstInt(0)))))
+            }
             ImplicitReturnType::Void | ImplicitReturnType::StmtExprVoid => {
                 DaStmt::Expr(DaExpr::Return(None))
             }

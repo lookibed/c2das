@@ -1056,7 +1056,8 @@ impl<'c> Translation<'c> {
                             .map(WithStmts::new_val);
                     }
                 }
-                self.convert_literal(literal_ty, lit).map(WithStmts::new_val)
+                self.convert_literal(literal_ty, lit)
+                    .map(WithStmts::new_val)
             }
 
             Binary(ty, op, lhs, rhs, lty, rty) => {
@@ -1336,7 +1337,8 @@ impl<'c> Translation<'c> {
                         // policy), so the decayed pointer becomes a named
                         // value that both reads and writes can address.
                         let is_unsafe = raw.is_unsafe;
-                        let pointer = raw.map(|raw| self.raw_address_to_pointer(raw, target.clone()));
+                        let pointer =
+                            raw.map(|raw| self.raw_address_to_pointer(raw, target.clone()));
                         let tmp = self.renamer.borrow_mut().fresh();
                         let mut stmts = pointer.stmts;
                         stmts.push(DaStmt::Var {
@@ -1404,11 +1406,11 @@ impl<'c> Translation<'c> {
                 ) {
                     let inner = self.convert_expr(ctx, *expr, None)?;
                     let target_type = self.convert_type(ty.clone())?;
-                    return Ok(WithStmts::new_val(
-                        self.cast_to_type(inner.val, target_type),
-                    )
-                    .prepend_stmts(inner.stmts)
-                    .merge_unsafe(inner.is_unsafe));
+                    return Ok(
+                        WithStmts::new_val(self.cast_to_type(inner.val, target_type))
+                            .prepend_stmts(inner.stmts)
+                            .merge_unsafe(inner.is_unsafe),
+                    );
                 }
                 let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                 Ok(WithStmts::new_val(inner.val)
@@ -1797,10 +1799,9 @@ impl<'c> Translation<'c> {
                     Box::new(self.coerce_branch_value(else_e.val, &tmp_type)),
                 )));
                 c_stmts.push(DaStmt::Expr(DaExpr::IfThenElse {
-                    cond: Box::new(mk().unary_op(
-                        "!",
-                        self.value_is_truthy(tmp_var.clone(), &tmp_type),
-                    )),
+                    cond: Box::new(
+                        mk().unary_op("!", self.value_is_truthy(tmp_var.clone(), &tmp_type)),
+                    ),
                     then: Box::new(DaExpr::Block(DaBlock { stmts: else_stmts })),
                     elifs: vec![],
                     else_: None,
@@ -1871,9 +1872,7 @@ impl<'c> Translation<'c> {
             } else {
                 i64::from(byte)
             };
-            items.push(
-                self.integer_literal_for_type(DaExpr::ConstInt(value), elem_da.clone()),
-            );
+            items.push(self.integer_literal_for_type(DaExpr::ConstInt(value), elem_da.clone()));
         }
         Ok(DaExpr::MakeFixedArray {
             elem_type: elem_da,
@@ -2080,10 +2079,9 @@ impl<'c> Translation<'c> {
     /// leaving it through `break`, `return`, `goto` or `continue`.
     fn statement_falls_through(&self, stmt_id: CStmtId) -> bool {
         match &self.ast_context[stmt_id].kind {
-            CStmtKind::Break
-            | CStmtKind::Continue
-            | CStmtKind::Return(_)
-            | CStmtKind::Goto(_) => false,
+            CStmtKind::Break | CStmtKind::Continue | CStmtKind::Return(_) | CStmtKind::Goto(_) => {
+                false
+            }
             CStmtKind::Compound(ref stmts) => stmts
                 .last()
                 .map_or(true, |&last| self.statement_falls_through(last)),

@@ -222,16 +222,32 @@ pub const DASCRIPT_PRELUDE_TYPE_NAMESPACE: &[&str] = &[
     "variant",
     "bitfield",
     "smart_ptr",
-    "int2", "int3", "int4",
-    "uint2", "uint3", "uint4",
-    "float2", "float3", "float4",
-    "double2", "double3", "double4",
-    "range2", "range3", "range4",
-    "half2", "half4",
-    "short2", "short4",
-    "ushort2", "ushort4",
-    "byte16", "sbyte16",
-    "float3x3", "float3x4", "float4x4",
+    "int2",
+    "int3",
+    "int4",
+    "uint2",
+    "uint3",
+    "uint4",
+    "float2",
+    "float3",
+    "float4",
+    "double2",
+    "double3",
+    "double4",
+    "range2",
+    "range3",
+    "range4",
+    "half2",
+    "half4",
+    "short2",
+    "short4",
+    "ushort2",
+    "ushort4",
+    "byte16",
+    "sbyte16",
+    "float3x3",
+    "float3x4",
+    "float4x4",
 ];
 
 #[rustfmt::skip]
@@ -372,7 +388,11 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
     pub fn keywords() -> Self {
         // Include ALL reserved words — keywords + type names + value names.
         // block, for example, is in TYPE_NAMESPACE but not in KEYWORDS.
-        Renamer::new(&[DASCRIPT_KEYWORDS, DASCRIPT_PRELUDE_TYPE_NAMESPACE, DASCRIPT_PRELUDE_VALUE_NAMESPACE])
+        Renamer::new(&[
+            DASCRIPT_KEYWORDS,
+            DASCRIPT_PRELUDE_TYPE_NAMESPACE,
+            DASCRIPT_PRELUDE_VALUE_NAMESPACE,
+        ])
     }
 
     pub fn type_namespace() -> Self {

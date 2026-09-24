@@ -261,7 +261,10 @@ impl<'c> Translation<'c> {
             return false;
         }
         kind.is_integral_type()
-            || matches!(kind, CTypeKind::Float | CTypeKind::Double | CTypeKind::Enum(_))
+            || matches!(
+                kind,
+                CTypeKind::Float | CTypeKind::Double | CTypeKind::Enum(_)
+            )
     }
 
     /// Recognize the body shape.  Anything else declines.

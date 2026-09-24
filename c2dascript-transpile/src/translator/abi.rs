@@ -143,11 +143,7 @@ impl<'c> Translation<'c> {
     /// A no-op when the daScript storage type already is that type.
     pub(crate) fn promote_operand(&self, expr: DaExpr, from: &CTypeKind, to: CArith) -> DaExpr {
         let target = to.da_type();
-        if Self::infer_type(&expr)
-            .map(super::writable_type)
-            .as_ref()
-            == Some(&target)
-        {
+        if Self::infer_type(&expr).map(super::writable_type).as_ref() == Some(&target) {
             return expr;
         }
         // C types `!p`, `a < b` and `a && b` as `int`, so the C type says the

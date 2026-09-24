@@ -140,7 +140,9 @@ impl<'c> Translation<'c> {
         // replaces it as soon as the walk finishes.
         self.storage_backed_cache.borrow_mut().insert(record, false);
         let verdict = self.compute_storage_backed(record);
-        self.storage_backed_cache.borrow_mut().insert(record, verdict);
+        self.storage_backed_cache
+            .borrow_mut()
+            .insert(record, verdict);
         verdict
     }
 

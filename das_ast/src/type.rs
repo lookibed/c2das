@@ -40,7 +40,12 @@ pub struct DaType {
 
 impl DaType {
     pub fn new(kind: DaTypeKind) -> Self {
-        DaType { kind, is_const: false, is_ref: false, is_temporary: false }
+        DaType {
+            kind,
+            is_const: false,
+            is_ref: false,
+            is_temporary: false,
+        }
     }
 
     /// True for simple numeric/scalar types that can use function-style cast: `uint(expr)`.
@@ -86,23 +91,57 @@ impl DaType {
     }
 
     /// Shortcut: `DaType::int()` → `DaType { kind: Int, const: false, ref: false }`
-    pub fn int() -> Self { DaType::new(DaTypeKind::Int) }
-    pub fn uint() -> Self { DaType::new(DaTypeKind::UInt) }
-    pub fn int8() -> Self { DaType::new(DaTypeKind::Int8) }
-    pub fn uint8() -> Self { DaType::new(DaTypeKind::UInt8) }
-    pub fn int16() -> Self { DaType::new(DaTypeKind::Int16) }
-    pub fn uint16() -> Self { DaType::new(DaTypeKind::UInt16) }
-    pub fn int64() -> Self { DaType::new(DaTypeKind::Int64) }
-    pub fn uint64() -> Self { DaType::new(DaTypeKind::UInt64) }
-    pub fn float() -> Self { DaType::new(DaTypeKind::Float) }
-    pub fn double() -> Self { DaType::new(DaTypeKind::Double) }
-    pub fn bool() -> Self { DaType::new(DaTypeKind::Bool) }
-    pub fn void() -> Self { DaType::new(DaTypeKind::Void) }
-    pub fn string() -> Self { DaType::new(DaTypeKind::String_) }
-    pub fn auto() -> Self { DaType::new(DaTypeKind::Auto) }
-    pub fn named(name: &str) -> Self { DaType::new(DaTypeKind::Named(name.to_string())) }
-    pub fn pointer(inner: DaType) -> Self { DaType::new(DaTypeKind::Pointer(Box::new(inner))) }
-    pub fn array(inner: DaType) -> Self { DaType::new(DaTypeKind::Array(Box::new(inner))) }
+    pub fn int() -> Self {
+        DaType::new(DaTypeKind::Int)
+    }
+    pub fn uint() -> Self {
+        DaType::new(DaTypeKind::UInt)
+    }
+    pub fn int8() -> Self {
+        DaType::new(DaTypeKind::Int8)
+    }
+    pub fn uint8() -> Self {
+        DaType::new(DaTypeKind::UInt8)
+    }
+    pub fn int16() -> Self {
+        DaType::new(DaTypeKind::Int16)
+    }
+    pub fn uint16() -> Self {
+        DaType::new(DaTypeKind::UInt16)
+    }
+    pub fn int64() -> Self {
+        DaType::new(DaTypeKind::Int64)
+    }
+    pub fn uint64() -> Self {
+        DaType::new(DaTypeKind::UInt64)
+    }
+    pub fn float() -> Self {
+        DaType::new(DaTypeKind::Float)
+    }
+    pub fn double() -> Self {
+        DaType::new(DaTypeKind::Double)
+    }
+    pub fn bool() -> Self {
+        DaType::new(DaTypeKind::Bool)
+    }
+    pub fn void() -> Self {
+        DaType::new(DaTypeKind::Void)
+    }
+    pub fn string() -> Self {
+        DaType::new(DaTypeKind::String_)
+    }
+    pub fn auto() -> Self {
+        DaType::new(DaTypeKind::Auto)
+    }
+    pub fn named(name: &str) -> Self {
+        DaType::new(DaTypeKind::Named(name.to_string()))
+    }
+    pub fn pointer(inner: DaType) -> Self {
+        DaType::new(DaTypeKind::Pointer(Box::new(inner)))
+    }
+    pub fn array(inner: DaType) -> Self {
+        DaType::new(DaTypeKind::Array(Box::new(inner)))
+    }
     pub fn fixed_array(inner: DaType, n: usize) -> Self {
         DaType::new(DaTypeKind::FixedArray(Box::new(inner), n))
     }

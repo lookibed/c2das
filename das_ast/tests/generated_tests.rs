@@ -5,12 +5,22 @@ fn normalize_newlines(s: &str) -> String {
 }
 
 fn assert_output(name: &str, module: DaModule) {
-    let das_path = format!("{}/../tests/syntax/{}.das", env!("CARGO_MANIFEST_DIR"), name);
-    let expected = normalize_newlines(&std::fs::read_to_string(&das_path)
-        .unwrap_or_else(|_| panic!("missing syntax file: {}", das_path)));
+    let das_path = format!(
+        "{}/../tests/syntax/{}.das",
+        env!("CARGO_MANIFEST_DIR"),
+        name
+    );
+    let expected = normalize_newlines(
+        &std::fs::read_to_string(&das_path)
+            .unwrap_or_else(|_| panic!("missing syntax file: {}", das_path)),
+    );
     let actual = module.to_string();
     if actual != expected {
-        eprintln!("=== EXPECTED ({}) === bytes: {:?}", das_path, expected.as_bytes());
+        eprintln!(
+            "=== EXPECTED ({}) === bytes: {:?}",
+            das_path,
+            expected.as_bytes()
+        );
         eprintln!("{}", expected);
         eprintln!("=== ACTUAL === bytes: {:?}", actual.as_bytes());
         eprintln!("{}", actual);
@@ -28,18 +38,26 @@ fn test_00_const() {
         decls: vec![DaDecl::Function(DaFunction {
             name: "add".into(),
             params: vec![
-                DaStmt::Param { name: "a".into(), param_type: DaType::int(), default: None, is_mutable: false },
-                DaStmt::Param { name: "b".into(), param_type: DaType::int(), default: None, is_mutable: false },
+                DaStmt::Param {
+                    name: "a".into(),
+                    param_type: DaType::int(),
+                    default: None,
+                    is_mutable: false,
+                },
+                DaStmt::Param {
+                    name: "b".into(),
+                    param_type: DaType::int(),
+                    default: None,
+                    is_mutable: false,
+                },
             ],
             ret_type: DaType::int(),
             body: Some(DaExpr::Block(DaBlock {
-                stmts: vec![
-                    DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Op2 {
-                        op: "+",
-                        left: Box::new(DaExpr::Var("a".into())),
-                        right: Box::new(DaExpr::Var("b".into())),
-                    })))),
-                ],
+                stmts: vec![DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Op2 {
+                    op: "+",
+                    left: Box::new(DaExpr::Var("a".into())),
+                    right: Box::new(DaExpr::Var("b".into())),
+                }))))],
             })),
             annotations: vec![],
             is_public: false,

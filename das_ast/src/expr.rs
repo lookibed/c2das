@@ -410,7 +410,10 @@ fn write_unsigned_literal(f: &mut fmt::Formatter, value: u64) -> fmt::Result {
 /// spelling, which is exactly what daScript needs to lex a real constant.
 fn float_repr(value: f64) -> String {
     let text = format!("{:?}", value);
-    if text.contains('.') || text.contains('e') || text.contains('E') || text.contains("inf")
+    if text.contains('.')
+        || text.contains('e')
+        || text.contains('E')
+        || text.contains("inf")
         || text.contains("NaN")
     {
         text

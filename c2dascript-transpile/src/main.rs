@@ -231,7 +231,12 @@ fn take_value(args: &mut Vec<String>, option: &str) -> Option<String> {
 /// Translates and returns the process exit status: 0, or 2 for a failed
 /// translation.  It never exits itself, so the caller can release the
 /// temporary compile database first.
-fn run(config: c2dascript_transpile::TranspilerConfig, cc_db: &Path, extra: &[&str], strict: bool) -> i32 {
+fn run(
+    config: c2dascript_transpile::TranspilerConfig,
+    cc_db: &Path,
+    extra: &[&str],
+    strict: bool,
+) -> i32 {
     // A failed translation is a failure in both modes. The two differ only in
     // whether the remaining translation units are still attempted; neither may
     // report success for a file that produced no output.

@@ -66,11 +66,9 @@ impl Tail {
             Tail::FallThrough | Tail::End => vec![],
             Tail::Goto(l) | Tail::IfGoto(_, l) => vec![l],
             Tail::IfElseGoto(_, t, f) => vec![t, f],
-            Tail::Dispatch { cases, default, .. } => cases
-                .iter()
-                .map(|(_, l)| l)
-                .chain(default.iter())
-                .collect(),
+            Tail::Dispatch { cases, default, .. } => {
+                cases.iter().map(|(_, l)| l).chain(default.iter()).collect()
+            }
         }
     }
 }
@@ -128,9 +126,8 @@ pub(crate) fn render(
     }
     drop(jumped_to);
 
-    let goto = |label: &Label| -> DaStmt {
-        DaStmt::Expr(DaExpr::Goto(label_text(&label_ids, label)))
-    };
+    let goto =
+        |label: &Label| -> DaStmt { DaStmt::Expr(DaExpr::Goto(label_text(&label_ids, label))) };
     let goto_block = |label: &Label| -> DaExpr {
         DaExpr::Block(DaBlock {
             stmts: vec![goto(label)],
@@ -468,11 +465,9 @@ fn plan(terminator: &GenTerminator<Label>, next: Option<&Label>) -> Tail {
                 (true, true) => Tail::FallThrough,
                 (_, true) => Tail::IfGoto(cond.clone(), then_target.clone()),
                 (true, _) => Tail::IfGoto(negate(cond), else_target.clone()),
-                (false, false) => Tail::IfElseGoto(
-                    cond.clone(),
-                    then_target.clone(),
-                    else_target.clone(),
-                ),
+                (false, false) => {
+                    Tail::IfElseGoto(cond.clone(), then_target.clone(), else_target.clone())
+                }
             }
         }
         Switch { expr, cases } => {

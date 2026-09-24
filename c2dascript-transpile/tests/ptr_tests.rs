@@ -174,7 +174,9 @@ fn p19_runtime_memory_calls_use_canonical_raw_memory_abi() {
     // raw addresses; the source-typed pointers never reach them directly.
     for builtin in ["memcpy(", "memmove("] {
         assert!(
-            d.contains(&format!("unsafe({builtin}unsafe(unsafe(reinterpret<void?>(")),
+            d.contains(&format!(
+                "unsafe({builtin}unsafe(unsafe(reinterpret<void?>("
+            )),
             "missing builtin {builtin} over raw addresses"
         );
     }
@@ -194,7 +196,10 @@ fn p96_copies_reach_the_builtin_past_a_source_defined_memmove() {
         "a C definition of memmove must not shadow daslang's builtin memmove"
     );
     assert!(!d.contains("c2da_rt_memcpy(unsafe") && !d.contains("c2da_rt_memmove(unsafe"));
-    assert!(!d.contains("memmove_0(unsafe"), "calls must not reach the C body");
+    assert!(
+        !d.contains("memmove_0(unsafe"),
+        "calls must not reach the C body"
+    );
     assert!(d.contains("unsafe(memcpy(") && d.contains("unsafe(memmove("));
     // A size that is not a nonzero constant guards the copy (C's n == 0 no-op).
     assert!(d.contains(" != 0x0) {\n        unsafe(memcpy("));

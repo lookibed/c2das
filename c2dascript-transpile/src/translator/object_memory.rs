@@ -56,9 +56,11 @@ impl<'c> Translation<'c> {
                 // address-backed place even when the object itself is an
                 // ordinary daScript value, and an aggregate field (`u.bytes`,
                 // `u.halves`) must stay a place rather than become an rvalue.
-                let parent = *self.ast_context.parents.get(&field).ok_or_else(|| {
-                    TranslationError::generic("field has no parent record")
-                })?;
+                let parent = *self
+                    .ast_context
+                    .parents
+                    .get(&field)
+                    .ok_or_else(|| TranslationError::generic("field has no parent record"))?;
                 if !self.is_storage_backed_record(parent) {
                     return Ok(None);
                 }
@@ -66,9 +68,13 @@ impl<'c> Translation<'c> {
                 // one reached through a pointer (raw bytes at an address);
                 // only `storage_object_address` knows which, and reading
                 // `c2da_storage` out of the latter would dereference garbage.
-                let base_address = self.storage_object_address(ctx, base_expr)?.ok_or_else(|| {
-                    TranslationError::generic("member base is not a storage-backed C record")
-                })?;
+                let base_address =
+                    self.storage_object_address(ctx, base_expr)?
+                        .ok_or_else(|| {
+                            TranslationError::generic(
+                                "member base is not a storage-backed C record",
+                            )
+                        })?;
                 self.field_address(base_address, field).map(Some)
             }
         }
@@ -758,8 +764,7 @@ impl<'c> Translation<'c> {
             expr: Box::new(literal),
             to: storage_type.clone(),
         };
-        let storage_mask_const =
-            |bits: u64| typed_const(DaExpr::ConstUInt(bits & storage_mask));
+        let storage_mask_const = |bits: u64| typed_const(DaExpr::ConstUInt(bits & storage_mask));
         let storage_count_const = |count: u64| typed_const(DaExpr::ConstInt(count as i64));
         let value_expr = value.val.clone();
         let new_storage = storage.zip(value).map(|(old, value)| DaExpr::Op2 {

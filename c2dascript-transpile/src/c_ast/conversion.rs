@@ -608,16 +608,18 @@ impl ConversionContext {
                 let size = expect_opt_u64(&ty_node.extras[ty_node.extras.len() - 2]);
                 let align = expect_opt_u64(&ty_node.extras[ty_node.extras.len() - 1]);
                 match (size, align) {
-                    (Some(Some(size_bits)), Some(Some(align_bits))) => {
-                        Some(CTypeLayout { size_bits, align_bits })
-                    }
+                    (Some(Some(size_bits)), Some(Some(align_bits))) => Some(CTypeLayout {
+                        size_bits,
+                        align_bits,
+                    }),
                     (Some(None), Some(None)) => None,
                     _ => None,
                 }
             } else {
                 None
             };
-            self.typed_context.set_type_layout(CTypeId(new_id), type_layout);
+            self.typed_context
+                .set_type_layout(CTypeId(new_id), type_layout);
 
             match ty_node.tag {
                 TypeTag::TagBool if expected_ty & OTHER_TYPE != 0 => {

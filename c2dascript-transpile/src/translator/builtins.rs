@@ -105,17 +105,9 @@ fn byte_swap_expr(value: DaExpr, width: u32, ty: &DaType) -> DaExpr {
     for source in 0..width {
         let target = width - 1 - source;
         let shifted = if target > source {
-            op2(
-                "<<",
-                value.clone(),
-                shift_lit(8 * (target - source) as u64),
-            )
+            op2("<<", value.clone(), shift_lit(8 * (target - source) as u64))
         } else if target < source {
-            op2(
-                ">>",
-                value.clone(),
-                shift_lit(8 * (source - target) as u64),
-            )
+            op2(">>", value.clone(), shift_lit(8 * (source - target) as u64))
         } else {
             value.clone()
         };
@@ -146,7 +138,11 @@ fn find_first_set_helper(name: &str, ty: DaType, unsigned: DaType) -> DaDecl {
         DaType::int(),
         vec![
             DaStmt::Expr(DaExpr::IfThenElse {
-                cond: Box::new(op2("==", var("v"), cast_to(DaExpr::ConstInt(0), ty.clone()))),
+                cond: Box::new(op2(
+                    "==",
+                    var("v"),
+                    cast_to(DaExpr::ConstInt(0), ty.clone()),
+                )),
                 then: block(vec![ret(DaExpr::ConstInt(0))]),
                 elifs: vec![],
                 else_: None,
@@ -154,10 +150,7 @@ fn find_first_set_helper(name: &str, ty: DaType, unsigned: DaType) -> DaDecl {
             ret(op2(
                 "+",
                 cast_to(
-                    DaExpr::Call(
-                        Box::new(var("ctz")),
-                        vec![cast_to(var("v"), unsigned)],
-                    ),
+                    DaExpr::Call(Box::new(var("ctz")), vec![cast_to(var("v"), unsigned)]),
                     DaType::int(),
                 ),
                 DaExpr::ConstInt(1),
@@ -394,10 +387,24 @@ impl<'c> Translation<'c> {
         // Rotate builtins. daScript spells rotate-left `<<<` and
         // rotate-right `>>>`; they are not interchangeable.
         if builtin_name.starts_with("__builtin_rotateleft") {
-            return self.convert_builtin_rotate(&builtin_name, &loc, das_args, arg_stmts, is_unsafe, "<<<");
+            return self.convert_builtin_rotate(
+                &builtin_name,
+                &loc,
+                das_args,
+                arg_stmts,
+                is_unsafe,
+                "<<<",
+            );
         }
         if builtin_name.starts_with("__builtin_rotateright") {
-            return self.convert_builtin_rotate(&builtin_name, &loc, das_args, arg_stmts, is_unsafe, ">>>");
+            return self.convert_builtin_rotate(
+                &builtin_name,
+                &loc,
+                das_args,
+                arg_stmts,
+                is_unsafe,
+                ">>>",
+            );
         }
 
         if builtin_name.ends_with("_overflow") {
@@ -477,9 +484,7 @@ impl<'c> Translation<'c> {
             }
             "__builtin_bswap16" | "__builtin_bswap32" | "__builtin_bswap64" => {
                 let (name, width, ty, result_ty) = match builtin_name.as_str() {
-                    "__builtin_bswap16" => {
-                        ("c2da_bswap16", 2u32, DaType::uint(), DaType::uint16())
-                    }
+                    "__builtin_bswap16" => ("c2da_bswap16", 2u32, DaType::uint(), DaType::uint16()),
                     "__builtin_bswap32" => ("c2da_bswap32", 4, DaType::uint(), DaType::uint()),
                     _ => ("c2da_bswap64", 8, DaType::uint64(), DaType::uint64()),
                 };
@@ -544,11 +549,10 @@ impl<'c> Translation<'c> {
                 let arg = self.builtin_arg(&builtin_name, &loc, &das_args, 0)?;
                 cast_to(op2("!=", arg.clone(), arg), DaType::int())
             }
-            "__builtin_unreachable" => {
-                DaExpr::Call(Box::new(var("panic")), vec![DaExpr::ConstString(
-                    "__builtin_unreachable".to_owned(),
-                )])
-            }
+            "__builtin_unreachable" => DaExpr::Call(
+                Box::new(var("panic")),
+                vec![DaExpr::ConstString("__builtin_unreachable".to_owned())],
+            ),
             _ => {
                 return Err(format_translation_err!(
                     loc,

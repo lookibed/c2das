@@ -697,7 +697,11 @@ impl<'c> Translation<'c> {
             });
             DaExpr::Var(tmp)
         };
-        let dst = if ctx.is_used() || guarded { name(dst, ctx.is_used()) } else { dst };
+        let dst = if ctx.is_used() || guarded {
+            name(dst, ctx.is_used())
+        } else {
+            dst
+        };
         let src = if guarded { name(src, false) } else { src };
         let count = if guarded { name(count, false) } else { count };
         let void_ptr = DaType::pointer(DaType::void());

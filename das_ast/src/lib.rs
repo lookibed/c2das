@@ -1,9 +1,9 @@
-pub mod r#type;
 pub mod expr;
 pub mod stmt;
+pub mod r#type;
 
-pub use r#type::*;
 pub use expr::*;
+pub use r#type::*;
 pub use stmt::*;
 
 use std::fmt;

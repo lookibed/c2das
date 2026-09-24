@@ -133,7 +133,9 @@ fn records_precede_the_records_that_embed_them() {
     for pair in [("Inner", "Outer"), ("Leaf", "Middle"), ("Middle", "Trunk")] {
         assert!(
             position[pair.0] < position[pair.1],
-            "{} must be declared before {}", pair.0, pair.1
+            "{} must be declared before {}",
+            pair.0,
+            pair.1
         );
     }
 }

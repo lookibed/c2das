@@ -643,7 +643,9 @@ impl StructureState {
                                     cond: Box::new(cond),
                                     then: Box::new(DaExpr::Block(DaBlock { stmts: then_stmts })),
                                     elifs: vec![],
-                                    else_: Some(Box::new(DaExpr::Block(DaBlock { stmts: els_stmts }))),
+                                    else_: Some(Box::new(DaExpr::Block(DaBlock {
+                                        stmts: els_stmts,
+                                    }))),
                                 }
                             }
                         } else {

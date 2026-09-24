@@ -914,7 +914,11 @@ pub fn declarations() -> Vec<DaDecl> {
                     "c2da_rt_free",
                     vec![DaExpr::Index(
                         Box::new(var(LOCALS)),
-                        Box::new(op("-", call("length", vec![var(LOCALS)]), DaExpr::ConstInt(1))),
+                        Box::new(op(
+                            "-",
+                            call("length", vec![var(LOCALS)]),
+                            DaExpr::ConstInt(1),
+                        )),
                     )],
                 )),
                 DaStmt::Expr(call("pop", vec![var(LOCALS)])),
@@ -945,13 +949,13 @@ pub fn declarations() -> Vec<DaDecl> {
                 init: Some(call(
                     "c2da_rt_calloc",
                     vec![
-                DaExpr::Cast {
-                    kind: CastKind::Cast,
-                    expr: Box::new(DaExpr::ConstUInt(1)),
-                    to: DaType::uint64(),
-                },
-                op("+", var("size"), DaExpr::ConstUInt(1)),
-            ],
+                        DaExpr::Cast {
+                            kind: CastKind::Cast,
+                            expr: Box::new(DaExpr::ConstUInt(1)),
+                            to: DaType::uint64(),
+                        },
+                        op("+", var("size"), DaExpr::ConstUInt(1)),
+                    ],
                 )),
             },
             DaStmt::Expr(call("push", vec![var(LOCALS), var("address")])),

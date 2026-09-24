@@ -356,8 +356,7 @@ impl<'c> Translation<'c> {
             match self.ast_context.resolve_type(address.ctype.ctype).kind {
                 CTypeKind::Struct(record) | CTypeKind::Union(record) => {
                     let fields = self.record_fields(record)?;
-                    let is_union =
-                        matches!(self.ast_context[record].kind, CDeclKind::Union { .. });
+                    let is_union = matches!(self.ast_context[record].kind, CDeclKind::Union { .. });
                     let pairs: Vec<(CFieldId, CExprId)> = if is_union {
                         match (fields.first(), elements.first()) {
                             (Some(&field), Some(&element)) => vec![(field, element)],
@@ -393,8 +392,7 @@ impl<'c> Translation<'c> {
                             .ok_or_else(|| {
                                 TranslationError::generic("C array element offset overflow")
                             })?;
-                        let stored =
-                            self.store_initializer(ctx, element_address, element, None)?;
+                        let stored = self.store_initializer(ctx, element_address, element, None)?;
                         let is_unsafe = stored.is_unsafe;
                         out.stmts.extend(stored.stmts);
                         out = out.merge_unsafe(is_unsafe);
@@ -664,8 +662,7 @@ impl<'c> Translation<'c> {
         let _ = self.storage_record_name(record_id)?;
         self.field_address(
             CObjectAddress {
-                raw: wrapper
-                    .map(|wrapper| DaExpr::Field(Box::new(wrapper), "c2da_storage".into())),
+                raw: wrapper.map(|wrapper| DaExpr::Field(Box::new(wrapper), "c2da_storage".into())),
                 raw_is_address: true,
                 ctype: match self.ast_context[field].kind {
                     CDeclKind::Field { typ, .. } => typ,
@@ -774,7 +771,6 @@ impl<'c> Translation<'c> {
         stmts.extend(stored.stmts);
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(val.is_unsafe || stored.is_unsafe))
     }
-
 }
 
 /// Whether a wrapper value already owns storage no other C object can reach.
