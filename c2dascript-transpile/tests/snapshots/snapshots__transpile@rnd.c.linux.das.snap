@@ -3,7 +3,7 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/os-specific/rnd.c
 ---
 TRANSLATION FAILED
-operation=top-level declaration lowering; c_type=Function(CQualTypeId { qualifiers: Qualifiers { is_const: false, is_restrict: false, is_volatile: false }, ctype: CTypeId(1242) }, [], false, false, false); declaration=get_rand_seed; cause=unsupported external call: abs
+operation=top-level declaration lowering; c_type=Function(CQualTypeId { qualifiers: Qualifiers { is_const: false, is_restrict: false, is_volatile: false }, ctype: CTypeId(1227) }, [], false, false, false); declaration=get_rand_seed; cause=unsupported external call: abs
 --> ./tests/snapshots/os-specific/rnd.c:14:17
 
 --> ./tests/snapshots/os-specific/rnd.c:10:1

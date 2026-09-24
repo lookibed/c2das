@@ -3,8 +3,11 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/if_else.c
 ---
 options gen2
+options solid_context = true
 
 var c2da_rt_heap : array<uint8>
+
+var c2da_rt_locals : array<uint64>
 
 var c2da_rt_next : uint64 = 0x0
 
@@ -161,6 +164,23 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+def c2da_rt_frame_enter() : int {
+    return length(c2da_rt_locals)
+}
+def c2da_rt_frame_leave(mark : int) {
+    while (length(c2da_rt_locals) > mark) {
+        c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
+        pop(c2da_rt_locals)
+    }
+}
+def c2da_rt_local(size : uint64; align : uint64) : uint64 {
+    var address : uint64 = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    push(c2da_rt_locals, address)
+    return address
+}
+def c2da_rt_static(size : uint64; align : uint64) : uint64 {
+    return c2da_rt_calloc(uint64(0x1), size + 0x1)
+}
 struct C2daVaArg {
     tag : int
     i64 : int64
@@ -260,6 +280,7 @@ def simple_if_else(var x : int) : int {
 [export]
 def if_no_else(var x_0 : int) : int {
     var c2da_fresh0 : int = int(0)
+    c2da_fresh0 = int(0)
     if (x_0 > int(0)) {
         c2da_fresh0 = int(1)
     }
@@ -295,6 +316,8 @@ def multiple_ifs(var x_1 : int) : int {
 [export]
 def nested_if_else(var x_2 : int) : int {
     var c2da_fresh1 : int = int(0)
+    var c2da_fresh2 : int = int(0)
+    c2da_fresh1 = int(0)
     if (x_2 > int(0)) {
         c2da_fresh1 = int(1)
     }
@@ -305,7 +328,7 @@ def nested_if_else(var x_2 : int) : int {
     label 0:
     return x_2
     label 1:
-    var c2da_fresh2 : int = int(0)
+    c2da_fresh2 = int(0)
     if (x_2 < int(10)) {
         c2da_fresh2 = int(1)
     }
@@ -323,6 +346,8 @@ def nested_if_else(var x_2 : int) : int {
 [export]
 def nested_if_no_else(var x_3 : int) : int {
     var c2da_fresh3 : int = int(0)
+    var c2da_fresh4 : int = int(0)
+    c2da_fresh3 = int(0)
     if (x_3 > int(0)) {
         c2da_fresh3 = int(1)
     }
@@ -333,7 +358,7 @@ def nested_if_no_else(var x_3 : int) : int {
     label 0:
     return x_3
     label 1:
-    var c2da_fresh4 : int = int(0)
+    c2da_fresh4 = int(0)
     if (x_3 < int(10)) {
         c2da_fresh4 = int(1)
     }
@@ -351,13 +376,16 @@ def nested_if_no_else(var x_3 : int) : int {
 [export]
 def early_returns(var a : int) : int {
     var c2da_fresh5 : int = int(0)
+    var c2da_fresh6 : int = int(0)
+    var c2da_fresh7 : int = int(0)
+    c2da_fresh5 = int(0)
     if (a == int(2)) {
         c2da_fresh5 = int(1)
     }
     if (c2da_fresh5 != 0) {
         goto label 3
     }
-    var c2da_fresh6 : int = int(0)
+    c2da_fresh6 = int(0)
     if (a == int(3)) {
         c2da_fresh6 = int(1)
     }
@@ -365,7 +393,7 @@ def early_returns(var a : int) : int {
         goto label 2
     }
     label 0:
-    var c2da_fresh7 : int = int(0)
+    c2da_fresh7 = int(0)
     if (a == int(4)) {
         c2da_fresh7 = int(1)
     }

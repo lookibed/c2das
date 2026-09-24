@@ -3,8 +3,11 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/loops.c
 ---
 options gen2
+options solid_context = true
 
 var c2da_rt_heap : array<uint8>
+
+var c2da_rt_locals : array<uint64>
 
 var c2da_rt_next : uint64 = 0x0
 
@@ -161,6 +164,23 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+def c2da_rt_frame_enter() : int {
+    return length(c2da_rt_locals)
+}
+def c2da_rt_frame_leave(mark : int) {
+    while (length(c2da_rt_locals) > mark) {
+        c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
+        pop(c2da_rt_locals)
+    }
+}
+def c2da_rt_local(size : uint64; align : uint64) : uint64 {
+    var address : uint64 = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    push(c2da_rt_locals, address)
+    return address
+}
+def c2da_rt_static(size : uint64; align : uint64) : uint64 {
+    return c2da_rt_calloc(uint64(0x1), size + 0x1)
+}
 struct C2daVaArg {
     tag : int
     i64 : int64
@@ -259,9 +279,11 @@ def while_loop(var x : int) : int {
 [export]
 def for_loop(var x_0 : int) : int {
     var i : int = int(0)
+    var c2da_fresh0 : int = int(0)
+    var c2da_postinc : int = int(0)
     i = int(0)
     label 0:
-    var c2da_fresh0 : int = int(0)
+    c2da_fresh0 = int(0)
     if (i < int(10)) {
         c2da_fresh0 = int(1)
     }
@@ -271,9 +293,8 @@ def for_loop(var x_0 : int) : int {
     return x_0
     label 1:
     x_0 = int(x_0 + int(1))
-    var c2da_postinc : int = i
+    c2da_postinc = i
     i = int(i + 1)
-    c2da_postinc
     goto label 0
     panic("unreachable: fell out of a translated control-flow graph")
 }
@@ -408,9 +429,14 @@ def nested_while(var x_7 : int) {
 def nested_for(var x_8 : int) {
     var i_0 : int = int(0)
     var j : int = int(0)
+    var c2da_fresh1 : int = int(0)
+    var c2da_fresh2 : int = int(0)
+    var c2da_postinc_2 : int = int(0)
+    var c2da_postinc_0 : int = int(0)
+    var c2da_postinc_1 : int = int(0)
     i_0 = int(0)
     label 0:
-    var c2da_fresh1 : int = int(0)
+    c2da_fresh1 = int(0)
     if (i_0 < int(5)) {
         c2da_fresh1 = int(1)
     }
@@ -421,29 +447,27 @@ def nested_for(var x_8 : int) {
     label 1:
     j = int(0)
     label 2:
-    var c2da_fresh2 : int = int(0)
+    c2da_fresh2 = int(0)
     if (j < int(5)) {
         c2da_fresh2 = int(1)
     }
     if (c2da_fresh2 != 0) {
         goto label 3
     }
-    var c2da_postinc_2 : int = i_0
+    c2da_postinc_2 = i_0
     i_0 = int(i_0 + 1)
-    c2da_postinc_2
     goto label 0
     label 3:
-    var c2da_postinc_0 : int = x_8
+    c2da_postinc_0 = x_8
     x_8 = int(x_8 + 1)
-    c2da_postinc_0
-    var c2da_postinc_1 : int = j
+    c2da_postinc_1 = j
     j = int(j + 1)
-    c2da_postinc_1
     goto label 2
     panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def exit_nested_loops(var x_9 : int) : int {
+    var c2da_postinc_3 : int = int(0)
     label 0:
     if (x_9 != 0) {
         goto label 2
@@ -460,9 +484,8 @@ def exit_nested_loops(var x_9 : int) : int {
     if (x_9 != 0) {
         goto label 5
     }
-    var c2da_postinc_3 : int = x_9
+    c2da_postinc_3 = x_9
     x_9 = int(x_9 + 1)
-    c2da_postinc_3
     goto label 3
     label 5:
     goto label 1
@@ -470,6 +493,7 @@ def exit_nested_loops(var x_9 : int) : int {
 }
 [export]
 def continue_nested_loops(var x_10 : int) : int {
+    var c2da_postinc_4 : int = int(0)
     label 0:
     label 1:
     if (x_10 != 0) {
@@ -487,9 +511,8 @@ def continue_nested_loops(var x_10 : int) : int {
     if (x_10 != 0) {
         goto label 5
     }
-    var c2da_postinc_4 : int = x_10
+    c2da_postinc_4 = x_10
     x_10 = int(x_10 + 1)
-    c2da_postinc_4
     goto label 3
     label 5:
     goto label 0
@@ -497,6 +520,7 @@ def continue_nested_loops(var x_10 : int) : int {
 }
 [export]
 def break_and_continue_nested_loops(var x_11 : int) : int {
+    var c2da_postinc_5 : int = int(0)
     label 0:
     label 1:
     if (x_11 != 0) {
@@ -518,9 +542,8 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
     if (x_11 != 0) {
         goto label 6
     }
-    var c2da_postinc_5 : int = x_11
+    c2da_postinc_5 = x_11
     x_11 = int(x_11 + 1)
-    c2da_postinc_5
     goto label 4
     label 6:
     goto label 0
@@ -531,9 +554,11 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
 [export]
 def for_loop_single_continue(var x_12 : int) : int {
     var i_1 : int = int(0)
+    var c2da_fresh3 : int = int(0)
+    var c2da_postinc_6 : int = int(0)
     i_1 = int(0)
     label 0:
-    var c2da_fresh3 : int = int(0)
+    c2da_fresh3 = int(0)
     if (i_1 < int(10)) {
         c2da_fresh3 = int(1)
     }
@@ -548,9 +573,8 @@ def for_loop_single_continue(var x_12 : int) : int {
     label 2:
     x_12 = int(x_12 + int(1))
     label 3:
-    var c2da_postinc_6 : int = i_1
+    c2da_postinc_6 = i_1
     i_1 = int(i_1 + 1)
-    c2da_postinc_6
     goto label 0
     label 4:
     if (x_12 != 0) {
@@ -564,9 +588,11 @@ def for_loop_single_continue(var x_12 : int) : int {
 [export]
 def for_loop_multi_continue(var x_13 : int) : int {
     var i_2 : int = int(0)
+    var c2da_fresh4 : int = int(0)
+    var c2da_postinc_7 : int = int(0)
     i_2 = int(0)
     label 0:
-    var c2da_fresh4 : int = int(0)
+    c2da_fresh4 = int(0)
     if (i_2 < int(10)) {
         c2da_fresh4 = int(1)
     }
@@ -586,9 +612,8 @@ def for_loop_multi_continue(var x_13 : int) : int {
     label 3:
     x_13 = int(x_13 + int(2))
     label 4:
-    var c2da_postinc_7 : int = i_2
+    c2da_postinc_7 = i_2
     i_2 = int(i_2 + 1)
-    c2da_postinc_7
     goto label 0
     label 5:
     if (x_13 != 0) {

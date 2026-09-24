@@ -3,6 +3,6 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/os-specific/wide_strings.c
 ---
 TRANSLATION FAILED
-operation=top-level declaration lowering; c_type=ConstantArray(CTypeId(115), 2); declaration=static_array; cause=wide string array initializer is not implemented
+operation=top-level declaration lowering; c_type=ConstantArray(CTypeId(108), 2); declaration=static_array; cause=wide string array initializer is not implemented
 
 --> ./tests/snapshots/os-specific/wide_strings.c:3:1

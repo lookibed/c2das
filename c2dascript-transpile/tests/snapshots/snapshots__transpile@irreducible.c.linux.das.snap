@@ -3,8 +3,11 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/os-specific/irreducible.c
 ---
 options gen2
+options solid_context = true
 
 var c2da_rt_heap : array<uint8>
+
+var c2da_rt_locals : array<uint64>
 
 var c2da_rt_next : uint64 = 0x0
 
@@ -161,6 +164,23 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+def c2da_rt_frame_enter() : int {
+    return length(c2da_rt_locals)
+}
+def c2da_rt_frame_leave(mark : int) {
+    while (length(c2da_rt_locals) > mark) {
+        c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
+        pop(c2da_rt_locals)
+    }
+}
+def c2da_rt_local(size : uint64; align : uint64) : uint64 {
+    var address : uint64 = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    push(c2da_rt_locals, address)
+    return address
+}
+def c2da_rt_static(size : uint64; align : uint64) : uint64 {
+    return c2da_rt_calloc(uint64(0x1), size + 0x1)
+}
 struct C2daVaArg {
     tag : int
     i64 : int64
@@ -246,8 +266,11 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
 def irreducible(var x : int) : int {
-    label 0:
     var c2da_fresh0 : int = int(0)
+    var c2da_fresh1 : int = int(0)
+    var c2da_fresh2 : int = int(0)
+    label 0:
+    c2da_fresh0 = int(0)
     if (x < int(6)) {
         c2da_fresh0 = int(1)
     }
@@ -255,7 +278,7 @@ def irreducible(var x : int) : int {
         goto label 5
     }
     label 1:
-    var c2da_fresh1 : int = int(0)
+    c2da_fresh1 = int(0)
     if (x < int(9)) {
         c2da_fresh1 = int(1)
     }
@@ -263,7 +286,7 @@ def irreducible(var x : int) : int {
         goto label 4
     }
     label 2:
-    var c2da_fresh2 : int = int(0)
+    c2da_fresh2 = int(0)
     if (x < int(20)) {
         c2da_fresh2 = int(1)
     }

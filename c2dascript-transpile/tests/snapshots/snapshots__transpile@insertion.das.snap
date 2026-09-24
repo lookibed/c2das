@@ -3,8 +3,11 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/insertion.c
 ---
 options gen2
+options solid_context = true
 
 var c2da_rt_heap : array<uint8>
+
+var c2da_rt_locals : array<uint64>
 
 var c2da_rt_next : uint64 = 0x0
 
@@ -161,6 +164,23 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+def c2da_rt_frame_enter() : int {
+    return length(c2da_rt_locals)
+}
+def c2da_rt_frame_leave(mark : int) {
+    while (length(c2da_rt_locals) > mark) {
+        c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
+        pop(c2da_rt_locals)
+    }
+}
+def c2da_rt_local(size : uint64; align : uint64) : uint64 {
+    var address : uint64 = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    push(c2da_rt_locals, address)
+    return address
+}
+def c2da_rt_static(size : uint64; align : uint64) : uint64 {
+    return c2da_rt_calloc(uint64(0x1), size + 0x1)
+}
 struct C2daVaArg {
     tag : int
     i64 : int64
@@ -245,13 +265,19 @@ def c2da_bool_to_uint(v : bool) : uint {
 def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
-def insertion_sort(n : int const; var p : int?) {
+def insertion_sort(var n : int; var p : int?) {
     var i : int = int(0)
     var tmp : int = int(0)
     var j : int = int(0)
+    var c2da_fresh0 : int = int(0)
+    var c2da_fresh1 : int = int(0)
+    var c2da_fresh3 : int = int(0)
+    var c2da_fresh2 : int = int(0)
+    var c2da_postinc_0 : int = int(0)
+    var c2da_postinc : int = int(0)
     i = int(1)
     label 0:
-    var c2da_fresh0 : int = int(0)
+    c2da_fresh0 = int(0)
     if (i < n) {
         c2da_fresh0 = int(1)
     }
@@ -263,13 +289,13 @@ def insertion_sort(n : int const; var p : int?) {
     tmp = unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(i)])
     j = i
     label 2:
-    var c2da_fresh1 : int = int(0)
+    c2da_fresh1 = int(0)
     if (j > int(0)) {
         c2da_fresh1 = int(1)
     }
-    var c2da_fresh3 : int = 0
+    c2da_fresh3 = 0
     if (c2da_fresh1 != 0) {
-        var c2da_fresh2 : int = int(0)
+        c2da_fresh2 = int(0)
         if (unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(j - int(1))]) > tmp) {
             c2da_fresh2 = int(1)
         }
@@ -281,15 +307,13 @@ def insertion_sort(n : int const; var p : int?) {
         goto label 3
     }
     unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(j)]) = tmp
-    var c2da_postinc_0 : int = i
+    c2da_postinc_0 = i
     i = int(i + 1)
-    c2da_postinc_0
     goto label 0
     label 3:
     unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(j)]) = unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(j - int(1))])
-    var c2da_postinc : int = j
+    c2da_postinc = j
     j = int(j - 1)
-    c2da_postinc
     goto label 2
     panic("unreachable: fell out of a translated control-flow graph")
 }

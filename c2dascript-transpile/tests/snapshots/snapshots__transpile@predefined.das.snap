@@ -3,8 +3,11 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/predefined.c
 ---
 options gen2
+options solid_context = true
 
 var c2da_rt_heap : array<uint8>
+
+var c2da_rt_locals : array<uint64>
 
 var c2da_rt_next : uint64 = 0x0
 
@@ -160,6 +163,23 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
         i = i + 0x1
     }
     return 0x0
+}
+def c2da_rt_frame_enter() : int {
+    return length(c2da_rt_locals)
+}
+def c2da_rt_frame_leave(mark : int) {
+    while (length(c2da_rt_locals) > mark) {
+        c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
+        pop(c2da_rt_locals)
+    }
+}
+def c2da_rt_local(size : uint64; align : uint64) : uint64 {
+    var address : uint64 = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    push(c2da_rt_locals, address)
+    return address
+}
+def c2da_rt_static(size : uint64; align : uint64) : uint64 {
+    return c2da_rt_calloc(uint64(0x1), size + 0x1)
 }
 struct C2daVaArg {
     tag : int

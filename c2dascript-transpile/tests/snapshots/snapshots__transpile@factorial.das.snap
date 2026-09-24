@@ -3,8 +3,11 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/factorial.c
 ---
 options gen2
+options solid_context = true
 
 var c2da_rt_heap : array<uint8>
+
+var c2da_rt_locals : array<uint64>
 
 var c2da_rt_next : uint64 = 0x0
 
@@ -161,6 +164,23 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+def c2da_rt_frame_enter() : int {
+    return length(c2da_rt_locals)
+}
+def c2da_rt_frame_leave(mark : int) {
+    while (length(c2da_rt_locals) > mark) {
+        c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
+        pop(c2da_rt_locals)
+    }
+}
+def c2da_rt_local(size : uint64; align : uint64) : uint64 {
+    var address : uint64 = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    push(c2da_rt_locals, address)
+    return address
+}
+def c2da_rt_static(size : uint64; align : uint64) : uint64 {
+    return c2da_rt_calloc(uint64(0x1), size + 0x1)
+}
 struct C2daVaArg {
     tag : int
     i64 : int64
@@ -248,10 +268,12 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 def factorial(var n : uint16) : uint16 {
     var result_0 : uint16 = uint16(0)
     var i : uint16 = uint16(0)
+    var c2da_fresh0 : int = int(0)
+    var c2da_postinc : uint16 = uint16(0)
     result_0 = uint16(int(1))
     i = uint16(int(1))
     label 0:
-    var c2da_fresh0 : int = int(0)
+    c2da_fresh0 = int(0)
     if (int(i) < int(n)) {
         c2da_fresh0 = int(1)
     }
@@ -261,9 +283,8 @@ def factorial(var n : uint16) : uint16 {
     return result_0
     label 1:
     result_0 = uint16(int(result_0) * int(i))
-    var c2da_postinc : uint16 = i
+    c2da_postinc = i
     i = uint16(int(i) + 1)
-    c2da_postinc
     goto label 0
     panic("unreachable: fell out of a translated control-flow graph")
 }

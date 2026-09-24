@@ -1,32 +1,129 @@
 name: c2das-runtime
 
+# What this workflow proves: on a clean ubuntu-24.04 machine, with the daslang
+# interpreter built from the pinned daScript revision below, the canonical fast
+# preflight (`scripts/c2das_preflight.sh --fast`) passes: untracked-artifact and
+# registry checks, rustfmt, the architecture/governance/ptr tests, and every
+# ready canonical case translated fresh and run in the daslang interpreter
+# against its C reference.
+#
+# It is a mirror of the local gate, not the gate itself: the authoritative gate
+# is `bash scripts/c2das_preflight.sh` (plus `--full` / `--extended` where the
+# change needs them) run from a local checkout.  This workflow builds daScript
+# WITHOUT dasLLVM, so it covers the interpreter only; the JIT, AOT and `-exe`
+# modes of the corpus matrix (`--extended`) are not exercised here.
+#
+# Why no JIT: dasLLVM at this revision targets LLVM 22.1.5
+# (modules/dasLLVM/CMakeLists.txt, DAS_LLVM_TARGET_VERSION), so the distro's
+# llvm-18-dev does not satisfy it; enabling it would download a prebuilt LLVM
+# instead, which the fast preflight does not need.
+
 on:
   push:
     branches: [master]
   pull_request:
 
 jobs:
-  linux-wsl-equivalent:
-    name: Linux WSL-equivalent daScript gate
+  linux-interpreter-preflight:
+    name: Fast preflight (daslang interpreter)
     runs-on: ubuntu-24.04
     env:
-      LLVM_CONFIG_PATH: /usr/bin/llvm-config-18
-      DASCRIPT_REVISION: b1289736d
       CARGO_TERM_COLOR: always
+      # c2rust-ast-exporter links against LLVM/Clang 18.
+      LLVM_CONFIG_PATH: /usr/bin/llvm-config-18
+      # The toolchain the corpus is measured with: the merge commit on
+      # lookibed/daScript `master`.  Full hash, so that a shallow fetch of
+      # exactly this commit works.
+      DASCRIPT_REPOSITORY: https://github.com/lookibed/daScript.git
+      DASCRIPT_REVISION: 48c221317415b4b8ea473c09c68ff5f9c94a254b
+      # Interpreter-only daScript: every optional module that needs a GUI,
+      # audio, network or third-party library is switched off, and so are the
+      # test, tutorial and AOT-example targets.  DAS_TOOLS_DISABLED stays OFF,
+      # because that is what builds `bin/daslang`.  With these switches the
+      # configure step never looks for OpenGL, GLFW, OpenSSL or LLVM.
+      DASCRIPT_CMAKE_FLAGS: >-
+        -DCMAKE_BUILD_TYPE=Release
+        -DDAS_FLEX_BISON_DISABLED=ON
+        -DDAS_LLVM_DISABLED=ON
+        -DDAS_CLANG_BIND_DISABLED=ON
+        -DDAS_SMT_DISABLED=ON
+        -DDAS_SQLITE_DISABLED=ON
+        -DDAS_HV_DISABLED=ON
+        -DDAS_GLFW_DISABLED=ON
+        -DDAS_IMGUI_DISABLED=ON
+        -DDAS_VULKAN_DISABLED=ON
+        -DDAS_AUDIO_DISABLED=ON
+        -DDAS_STDDLG_DISABLED=ON
+        -DDAS_MESHOPTIMIZER_DISABLED=ON
+        -DDAS_STBIMAGE_DISABLED=ON
+        -DDAS_METAL_DISABLED=ON
+        -DDAS_ACCELERATE_DISABLED=ON
+        -DDAS_CLIPBOARD_DISABLED=ON
+        -DDAS_PUGIXML_DISABLED=ON
+        -DDAS_TREE_SITTER_DISABLED=ON
+        -DDAS_TERMINAL_DISABLED=ON
+        -DDAS_MINFFT_DISABLED=ON
+        -DDAS_LIVE_HOST_DISABLED=ON
+        -DDAS_UNIT_TEST_DISABLED=ON
+        -DDAS_AOT_EXAMPLES_DISABLED=ON
+        -DDAS_TUTORIAL_DISABLED=ON
+        -DDAS_TESTS_DISABLED=ON
+      # Share one Cargo target directory between the preflight's own cargo
+      # calls and the case runner's transpiler build, so rust-cache saves it.
+      C2DAS_CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      C2DAS_CASE_CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - uses: actions/checkout@v4
-      - name: Install LLVM 18 and daScript build dependencies
+
+      - name: Install Clang/LLVM 18 and the daScript build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-18 llvm-18-dev libclang-18-dev cmake ninja-build git
-      - name: Build pinned daScript runtime
+
+      - name: Locate daScript and derive its cache key
+        id: dascript
         run: |
-          git clone https://github.com/GaijinEntertainment/daScript.git /tmp/daScript
-          git -C /tmp/daScript checkout "$DASCRIPT_REVISION"
-          cmake -S /tmp/daScript -B /tmp/daScript/build -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build /tmp/daScript/build --parallel 2
-          test -x /tmp/daScript/bin/daslang
-      - name: Run canonical fast preflight
+          echo "DASROOT=$RUNNER_TEMP/daScript" >> "$GITHUB_ENV"
+          key="$(printf '%s\n%s\n%s\n' "$DASCRIPT_REPOSITORY" "$DASCRIPT_REVISION" "$DASCRIPT_CMAKE_FLAGS" | sha256sum | cut -c1-16)"
+          echo "key=daScript-${{ runner.os }}-ubuntu-24.04-${DASCRIPT_REVISION:0:9}-$key" >> "$GITHUB_OUTPUT"
+
+      # daScript writes bin/, lib/ and its .shared_module files into the source
+      # tree, so the tree (minus the CMake build directory) is the whole
+      # runtime.  The key covers the revision and the configure flags; a push
+      # that changes neither reuses the cached interpreter.
+      - name: Restore the pinned daScript build
+        id: dascript-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/daScript
+            !${{ runner.temp }}/daScript/build
+          key: ${{ steps.dascript.outputs.key }}
+
+      - name: Build the pinned daScript interpreter
+        if: steps.dascript-cache.outputs.cache-hit != 'true'
         run: |
-          export DASROOT=/tmp/daScript
-          bash scripts/c2das_preflight.sh --fast
+          rm -rf "$DASROOT"
+          git init -q "$DASROOT"
+          git -C "$DASROOT" remote add origin "$DASCRIPT_REPOSITORY"
+          git -C "$DASROOT" fetch -q --depth 1 origin "$DASCRIPT_REVISION"
+          git -C "$DASROOT" checkout -q FETCH_HEAD
+          # shellcheck disable=SC2086 # the flag list is split on purpose
+          cmake -S "$DASROOT" -B "$DASROOT/build" -G Ninja $DASCRIPT_CMAKE_FLAGS
+          cmake --build "$DASROOT/build" --parallel 2
+
+      - name: Check the daslang binary
+        run: |
+          test -x "$DASROOT/bin/daslang"
+          test "$(git -C "$DASROOT" rev-parse HEAD)" = "$DASCRIPT_REVISION"
+
+      - name: Install the pinned Rust toolchain (rust-toolchain.toml)
+        run: |
+          rustup toolchain install nightly-2022-11-03 --profile minimal \
+            --component rustfmt,rustc-dev,rust-src,miri,rust-analyzer
+          rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run the canonical fast preflight
+        run: bash scripts/c2das_preflight.sh --fast

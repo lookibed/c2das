@@ -181,6 +181,26 @@ toolchain under `tmp/daslang-toolchain` (see
 registry in `tests/registry/fixtures.json` exposes every remaining fixture's
 exact status instead of treating it as covered.
 
+### Continuous integration
+
+The authoritative gate is the local preflight, run from a Git checkout:
+`bash scripts/c2das_preflight.sh` (`--fast` by default; `--full` adds the
+workspace tests, `--extended` the corpus ledger, PLMPEG end to end and the
+four-mode corpus convergence check). GitHub Actions mirrors part of it and
+proves less:
+
+- `ci` (ubuntu-22.04, Clang 18) runs rustfmt, a release build, the workspace
+  tests except the inherited `c2rust-transpile` and `das_ast` suites, the
+  test-registry check, the `c2dascript-transpile` contract and snapshot
+  tests, and checks that the tests left no untracked files. It runs no
+  daScript.
+- `c2das-runtime` (ubuntu-24.04) builds an interpreter-only daScript at the
+  pinned `lookibed/daScript` revision, caches it by revision and configure
+  flags, and runs `scripts/c2das_preflight.sh --fast`. JIT, AOT and `-exe`
+  are not built, so the corpus run modes are covered only locally.
+
+A green workflow is not a substitute for the local preflight.
+
 ## Development principles
 
 - Keep the C2Rust architecture where it provides a sound front-end model;

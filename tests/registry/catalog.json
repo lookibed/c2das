@@ -489,21 +489,15 @@
     },
     {
       "path": ".github/workflows/c2das-runtime.yml",
-      "reason": "Calls the blocked fast preflight.",
+      "reason": "Mirrors scripts/c2das_preflight.sh --fast on ubuntu-24.04 with an interpreter-only daScript built at lookibed/daScript 48c221317; no JIT/AOT/-exe, and not yet observed green on GitHub.",
       "role": "c2das-ci",
       "status": "blocked"
     },
     {
       "path": ".github/workflows/ci.yml",
-      "reason": "Runs c2rust-transpile and Rust-output validation, not c2das.",
-      "role": "inherited-c2rust-ci",
-      "status": "quarantined"
-    },
-    {
-      "path": ".github/workflows/internal-testsuite.yml",
-      "reason": "Checks out immunant/c2rust rather than this repository.",
-      "role": "upstream-c2rust-ci",
-      "status": "retire"
+      "reason": "Rustfmt, release build, workspace tests without the inherited c2rust-transpile and das_ast suites, test registry, c2dascript-transpile contract and snapshot tests; runs no daScript.",
+      "role": "c2das-rust-ci",
+      "status": "retained-non-e2e"
     }
   ],
   "schema_version": 1

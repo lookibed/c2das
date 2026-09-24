@@ -3,8 +3,11 @@ source: c2dascript-transpile/tests/snapshots.rs
 expression: transpile --strict tests/snapshots/os-specific/types.c
 ---
 options gen2
+options solid_context = true
 
 var c2da_rt_heap : array<uint8>
+
+var c2da_rt_locals : array<uint64>
 
 var c2da_rt_next : uint64 = 0x0
 
@@ -161,6 +164,23 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+def c2da_rt_frame_enter() : int {
+    return length(c2da_rt_locals)
+}
+def c2da_rt_frame_leave(mark : int) {
+    while (length(c2da_rt_locals) > mark) {
+        c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
+        pop(c2da_rt_locals)
+    }
+}
+def c2da_rt_local(size : uint64; align : uint64) : uint64 {
+    var address : uint64 = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    push(c2da_rt_locals, address)
+    return address
+}
+def c2da_rt_static(size : uint64; align : uint64) : uint64 {
+    return c2da_rt_calloc(uint64(0x1), size + 0x1)
+}
 struct C2daVaArg {
     tag : int
     i64 : int64
@@ -257,7 +277,7 @@ typedef uint64_t = uint64
 typedef intptr_t = int64
 typedef uintptr_t = uint64
 typedef intmax_t = int64
-typedef uintmax_t = auto
+typedef uintmax_t = uint64
 typedef ptrdiff_t = int64
 def c2da___bswap_16(var c2da___bsx : uint16) : uint16 {
     return uint16(int(c2da___bsx) >> int(8) & int(255) | (int(c2da___bsx) & int(255)) << int(8))
@@ -279,15 +299,15 @@ def c2da___uint64_identity(var c2da___x_1 : uint64) : uint64 {
 }
 var intvar : int = int(0)
 
-var sizevar : size_t = unsafe(reinterpret<size_t>(int(0)))
+var sizevar : uint64 = uint64(int(0))
 
-var ssizevar : ssize_t = unsafe(reinterpret<ssize_t>(int(0)))
+var ssizevar : int64 = int64(int(0))
 
-var intptrvar : intptr_t = unsafe(reinterpret<intptr_t>(int(0)))
+var intptrvar : int64 = int64(int(0))
 
-var uintptrvar : uintptr_t = unsafe(reinterpret<uintptr_t>(int(0)))
+var uintptrvar : uint64 = uint64(int(0))
 
-var ptrdiffvar : ptrdiff_t = unsafe(reinterpret<ptrdiff_t>(int(0)))
+var ptrdiffvar : int64 = int64(int(0))
 
 var uint8var : uint8 = uint8(int(0))
 
@@ -305,6 +325,6 @@ var int32var : int = int(0)
 
 var int64var : int64 = int64(int(0))
 
-var maxvar : intmax_t = unsafe(reinterpret<intmax_t>(int(0)))
+var maxvar : int64 = int64(int(0))
 
-var umaxvar : uintmax_t = unsafe(reinterpret<uintmax_t>(int(0)))
+var umaxvar : uint64 = uint64(int(0))
