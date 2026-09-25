@@ -528,15 +528,24 @@ impl<'m> Folder<'m> {
                 };
                 self.bind(name, ty);
             }
-            DaStmt::Let { name, init } => {
+            DaStmt::Let {
+                name,
+                var_type,
+                init,
+            } => {
                 if let Some(init) = init {
                     self.walk_expr(init);
                 }
-                let ty = init
-                    .as_ref()
-                    .and_then(|init| self.type_of(init))
-                    .map(|ty| value_of(ty).const_());
-                self.bind(name, ty);
+                let ty = match var_type {
+                    Some(var_type) if !matches!(var_type.kind, DaTypeKind::Auto) => {
+                        Some(var_type.clone())
+                    }
+                    _ => init
+                        .as_ref()
+                        .and_then(|init| self.type_of(init))
+                        .map(value_of),
+                };
+                self.bind(name, ty.map(|ty| ty.const_()));
             }
             DaStmt::Param {
                 name,
@@ -837,6 +846,15 @@ impl<'m> Folder<'m> {
                 }
             }
             Block(block) => self.walk_block(block),
+            MakeBlock { params, body } => {
+                // The block's parameters are in scope in its body only.
+                self.scopes.push(HashMap::new());
+                for param in params {
+                    self.walk_stmt(param);
+                }
+                self.walk_block(body);
+                self.scopes.pop();
+            }
             IfThenElse {
                 cond,
                 then,

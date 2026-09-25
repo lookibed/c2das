@@ -82,6 +82,15 @@ pub enum DaExpr {
     /// `{ stmts }` — maps to [`ExprBlock`](ast_expressions.h:165)
     Block(DaBlock),
 
+    /// `$(params) { stmts }` — a block literal, the value daslib functions such
+    /// as `build_string` take as their last argument.  Maps to
+    /// [`ExprMakeBlock`](ast_expressions.h:1070); `params` are `DaStmt::Param`s.
+    /// A block reads and writes the enclosing function's locals in place.
+    MakeBlock {
+        params: Vec<DaStmt>,
+        body: DaBlock,
+    },
+
     // -- control flow --
     /// `if (cond) then [else else_]` — maps to [`ExprIfThenElse`](ast_expressions.h:1326)
     IfThenElse {
@@ -609,11 +618,28 @@ impl DaExpr {
 
             Call(func, args) => {
                 write_operand(f, func, PREC_POSTFIX)?;
-                let args_str: Vec<String> = args.iter().map(|a| format!("{}", a)).collect();
-                write!(f, "({})", args_str.join(", "))
+                write!(f, "(")?;
+                for (index, arg) in args.iter().enumerate() {
+                    if index > 0 {
+                        write!(f, ", ")?;
+                    }
+                    // An argument that spans lines (a block literal) is
+                    // indented as the statement the call belongs to.
+                    arg.fmt_with_indent(f, indent)?;
+                }
+                write!(f, ")")
             }
 
             Block(block) => write_block(f, block, indent),
+
+            MakeBlock { params, body } => {
+                let params_str: Vec<String> = params
+                    .iter()
+                    .map(|p| format!("{}", p).trim().to_string())
+                    .collect();
+                write!(f, "$({}) ", params_str.join("; "))?;
+                write_block(f, body, indent)
+            }
 
             IfThenElse {
                 cond,
@@ -672,7 +698,10 @@ impl DaExpr {
             }
 
             Return(None) => write!(f, "return"),
-            Return(Some(val)) => write!(f, "return {}", val),
+            Return(Some(val)) => {
+                write!(f, "return ")?;
+                val.fmt_with_indent(f, indent)
+            }
 
             Break => write!(f, "break"),
             Continue => write!(f, "continue"),
@@ -841,6 +870,56 @@ mod tests {
             typed.to_string(),
             "unsafe(reinterpret<uint64?>(unsafe(reinterpret<uint64>(p))))"
         );
+    }
+
+    #[test]
+    fn block_literal_argument_is_indented_with_its_statement() {
+        let block = DaExpr::MakeBlock {
+            params: vec![DaStmt::Param {
+                name: "writer".to_string(),
+                param_type: DaType::named("StringBuilderWriter"),
+                default: None,
+                is_mutable: true,
+            }],
+            body: DaBlock {
+                stmts: vec![DaStmt::Expr(DaExpr::Call(
+                    Box::new(var("write_char")),
+                    vec![var("writer"), DaExpr::ConstInt(65)],
+                ))],
+            },
+        };
+        let body = DaExpr::Block(DaBlock {
+            stmts: vec![
+                DaStmt::Let {
+                    name: "s".to_string(),
+                    var_type: Some(DaType::string()),
+                    init: Some(DaExpr::Call(
+                        Box::new(var("build_string")),
+                        vec![block.clone()],
+                    )),
+                },
+                DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Call(
+                    Box::new(var("build_string")),
+                    vec![block],
+                ))))),
+            ],
+        });
+        assert_eq!(
+            body.to_string(),
+            "{\n    let s : string = build_string($(var writer : StringBuilderWriter) {\n        \
+             write_char(writer, 65)\n    })\n    return build_string($(var writer : \
+             StringBuilderWriter) {\n        write_char(writer, 65)\n    })\n}"
+        );
+    }
+
+    #[test]
+    fn untyped_let_keeps_its_inferred_spelling() {
+        let stmt = DaStmt::Let {
+            name: "x".to_string(),
+            var_type: None,
+            init: Some(DaExpr::ConstInt(1)),
+        };
+        assert_eq!(stmt.to_string(), "let x = 1\n");
     }
 
     #[test]

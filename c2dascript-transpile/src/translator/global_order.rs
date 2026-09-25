@@ -265,7 +265,7 @@ fn collect_names(expr: &DaExpr, out: &mut Vec<String>) {
                 collect_names(a, out);
             }
         }
-        Block(b) => collect_block(b, out),
+        Block(b) | MakeBlock { body: b, .. } => collect_block(b, out),
         IfThenElse {
             cond,
             then,

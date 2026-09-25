@@ -121,6 +121,7 @@ impl DaBuilder {
     pub fn let_stmt<N: Make<String>>(self, name: N, init: Option<DaExpr>) -> DaStmt {
         DaStmt::Let {
             name: name.make(&self),
+            var_type: None,
             init,
         }
     }

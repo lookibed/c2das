@@ -3857,6 +3857,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p101-std-text-builders",
+      "canonical_cases": [
+        "p101-std-text-builders"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "b%c[   +042][xy  ]\ncount=19\n[xyz]  2.5%|11\nstrtod=125 end=8\nstrtod=-0.25 end=5\nstrtod=0 end=0\ncaf\u00e9 \u20ac!\n[caf\u00e9 \u20ac!][caf\u00e9]\n0110011000\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p101_std_text_builders",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p101_std_text_builders.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-p10-ptr-swap",
       "canonical_cases": [
         "legacy-p10-ptr-swap"

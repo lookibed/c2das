@@ -36,7 +36,7 @@ def c2da_rt_find_record(address : uint64) : int {
     var lo : int = 0
     var hi : int = length(c2da_rt_alloc_addrs)
     while (lo < hi) {
-        var mid : int = (lo + hi) / 2
+        let mid : int = (lo + hi) / 2
         if (c2da_rt_alloc_addrs[mid] < address) {
             lo = mid + 1
         } else {
@@ -53,8 +53,8 @@ def c2da_rt_take_free(need : uint64) : int {
     var best_slot : int = -1
     var slot : int = length(c2da_rt_alloc_free) - 1
     while (slot >= 0) {
-        var record : int = c2da_rt_alloc_free[slot]
-        var capacity : uint64 = c2da_rt_alloc_sizes[record]
+        let record : int = c2da_rt_alloc_free[slot]
+        let capacity : uint64 = c2da_rt_alloc_sizes[record]
         if (capacity >= need && capacity - need <= need) {
             if (best < 0 || capacity < c2da_rt_alloc_sizes[best]) {
                 best = record
@@ -74,21 +74,18 @@ def c2da_rt_take_free(need : uint64) : int {
 }
 def c2da_rt_malloc(size : uint64) : uint64 {
     c2da_rt_init_heap()
-    if (size == 0x0) {
+    if (size == 0x0 || size > 0x40000000) {
         return 0x0
     }
-    if (size > 0x40000000) {
-        return 0x0
-    }
-    var need : uint64 = (size + 0xf) / 0x10 * 0x10
-    var reused : int = c2da_rt_take_free(need)
+    let need : uint64 = (size + 0xf) / 0x10 * 0x10
+    let reused : int = c2da_rt_take_free(need)
     if (reused >= 0) {
         c2da_rt_alloc_live[reused] = true
         return c2da_rt_alloc_addrs[reused]
     }
-    var base : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[0x0]))))
-    var start : uint64 = (base + c2da_rt_next + 0xf) / 0x10 * 0x10 - base
-    var end : uint64 = start + need
+    let base : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[0x0]))))
+    let start : uint64 = (base + c2da_rt_next + 0xf) / 0x10 * 0x10 - base
+    let end : uint64 = start + need
     if (end > 0x40000000) {
         return 0x0
     }
@@ -96,8 +93,8 @@ def c2da_rt_malloc(size : uint64) : uint64 {
         resize(c2da_rt_heap, int64(end))
     }
     c2da_rt_next = end
-    var address : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[start]))))
-    var record : uint64 = uint64(long_length(c2da_rt_alloc_addrs))
+    let address : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[start]))))
+    let record : uint64 = uint64(long_length(c2da_rt_alloc_addrs))
     resize(c2da_rt_alloc_addrs, int64(record + 0x1))
     resize(c2da_rt_alloc_sizes, int64(record + 0x1))
     resize(c2da_rt_alloc_live, int64(record + 0x1))
@@ -107,7 +104,7 @@ def c2da_rt_malloc(size : uint64) : uint64 {
     return address
 }
 def c2da_rt_free(address : uint64) {
-    var record : int = c2da_rt_find_record(address)
+    let record : int = c2da_rt_find_record(address)
     if (record >= 0 && c2da_rt_alloc_live[record]) {
         c2da_rt_alloc_live[record] = false
         push(c2da_rt_alloc_free, record)
@@ -121,20 +118,20 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
         c2da_rt_free(address)
         return 0x0
     }
-    var record : int = c2da_rt_find_record(address)
-    if (record < 0 || c2da_rt_alloc_live[record] == false) {
+    let record : int = c2da_rt_find_record(address)
+    if (record < 0 || !c2da_rt_alloc_live[record]) {
         return 0x0
     }
-    var capacity : uint64 = c2da_rt_alloc_sizes[record]
+    let capacity : uint64 = c2da_rt_alloc_sizes[record]
     if (size <= capacity) {
         return address
     }
     if (size > 0x40000000) {
         return 0x0
     }
-    var need : uint64 = (size + 0xf) / 0x10 * 0x10
-    var start : uint64 = address - unsafe(intptr(unsafe(addr(c2da_rt_heap[0x0]))))
-    var end : uint64 = start + need
+    let need : uint64 = (size + 0xf) / 0x10 * 0x10
+    let start : uint64 = address - unsafe(intptr(unsafe(addr(c2da_rt_heap[0x0]))))
+    let end : uint64 = start + need
     if (start + capacity == c2da_rt_next && end <= 0x40000000) {
         if (int64(end) > long_length(c2da_rt_heap)) {
             resize(c2da_rt_heap, int64(end))
@@ -143,7 +140,7 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
         c2da_rt_alloc_sizes[record] = need
         return address
     }
-    var replacement : uint64 = c2da_rt_malloc(size)
+    let replacement : uint64 = c2da_rt_malloc(size)
     if (replacement == 0x0) {
         return 0x0
     }
@@ -160,11 +157,11 @@ def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     return dst
 }
 def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
-    var total : uint64 = count * size
+    let total : uint64 = count * size
     if (size != 0x0 && total / size != count) {
         return 0x0
     }
-    var address : uint64 = c2da_rt_malloc(total)
+    let address : uint64 = c2da_rt_malloc(total)
     if (address != 0x0) {
         c2da_rt_memset(address, 0x0u8, total)
     }
@@ -260,7 +257,7 @@ def c2da_clip_uint(v : int) : uint {
     return uint(v)
 }
 def c2da_bool_to_uint(v : bool) : uint {
-    if (v == true) {
+    if (v) {
         return 0x1
     } else {
         return 0x0

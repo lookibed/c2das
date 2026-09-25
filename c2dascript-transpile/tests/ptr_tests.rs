@@ -1,6 +1,10 @@
 use std::path::Path;
 
 fn transpile(name: &str) -> String {
+    transpile_with_libc(name, c2dascript_transpile::LibcMode::NoStd)
+}
+
+fn transpile_with_libc(name: &str, libc: c2dascript_transpile::LibcMode) -> String {
     let c_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
@@ -10,6 +14,7 @@ fn transpile(name: &str) -> String {
     let temp = tempfile::tempdir().expect("temporary AST/render output directory");
     let config = c2dascript_transpile::TranspilerConfig {
         output_dir: Some(temp.path().join("das")),
+        libc,
         ..Default::default()
     };
     let outputs = c2dascript_transpile::transpile_checked(config, &cc_path, &["-w"])
@@ -207,6 +212,42 @@ fn p98_pointer_argument_of_the_parameter_type_crosses_as_itself() {
 }
 
 #[test]
+fn p101_std_text_is_built_in_one_string_builder() {
+    let d = transpile_with_libc(
+        "p101_std_text_builders",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // Text assembled byte by byte goes through one daslib string builder,
+    // never a `string +=` per byte.
+    assert!(d.contains(
+        "    let out : string = build_string($(var writer : StringBuilderWriter) {\n        var i : int = 0\n"
+    ));
+    assert!(d.contains("write_char(writer, ch)"));
+    assert!(d.contains("write(writer, c2da_std_number("));
+    assert!(!d.contains("+= to_char("));
+    assert!(!d.contains("verbatim"));
+    // A specification's spelling is read back out of the format itself.
+    assert!(d.contains("write(writer, c2da_std_take(f, i, j - i))"));
+    assert!(d.contains(
+        "\"--libc std: printf conversion is not implemented: \" + c2da_std_take(f, i, j + 1 - i)"
+    ));
+    assert!(
+        d.contains("body = c2da_std_take(unsafe(reinterpret<int8 const?>(address)), 0, precision)")
+    );
+    // `strtod`'s digits, the C-string readers and the field padding.
+    assert!(d.contains("write_char(writer, c2da_std_raw_byte(nptr, k))"));
+    assert!(d.contains("let spaces : string = repeat(\" \", gap)"));
+    assert!(!d.contains("c2da_std_repeat"));
+    // The C locale's classes are daslib's, byte for byte.
+    assert!(d.contains("if (is_alpha(c)) {"));
+    assert!(d.contains("if (is_number(b)) {"));
+    // A value that is already the payload lane's type is not converted again.
+    assert!(d.contains("C2daVaArg(tag = 1, i64 = 42l,"));
+    assert!(d.contains("C2daVaArg(tag = 2, i64 = 0, f64 = value,"));
+    assert!(d.contains("C2daVaArg(tag = 1, i64 = int64(count),"));
+}
+
+#[test]
 fn p99_conditionals_without_statements_are_daslang_expressions() {
     let d = transpile("p99_direct_conditionals");
     // `?:` whose arms are one expression each: daslang's `c ? a : b`, the
@@ -350,7 +391,8 @@ fn p21_byte_reads_are_widened_before_numeric_operations() {
 fn p26_variadic_sum_uses_the_canonical_packed_abi() {
     let d = transpile("p26_variadic_sum");
     assert!(d.contains("struct C2daVaArg"));
-    assert!(d.contains("def sum(var count : int; var c2da_va_args : array<C2daVaArg>)"));
+    // The promoted-argument array is only read, so it is not a `var` parameter.
+    assert!(d.contains("def sum(var count : int; c2da_va_args : array<C2daVaArg>)"));
     assert!(d.contains("def variadic_sum_runtime() : int"));
     assert!(d.contains("C2daVaArg(tag = 1, i64 = 10l"));
     assert!(d.contains("c2da_va_item"));
@@ -361,9 +403,9 @@ fn p26_variadic_sum_uses_the_canonical_packed_abi() {
 #[test]
 fn p27_variadic_promotions_pack_int_and_double_lanes() {
     let d = transpile("p27_variadic_promotions");
-    assert!(d.contains(
-        "def promoted_sum(var count : int; var c2da_va_args : array<C2daVaArg>) : double"
-    ));
+    assert!(
+        d.contains("def promoted_sum(var count : int; c2da_va_args : array<C2daVaArg>) : double")
+    );
     assert!(
         d.contains("C2daVaArg(tag = 1"),
         "integer promotions must use the integer ABI lane"

@@ -212,7 +212,10 @@ impl<'c> Translation<'c> {
             }
         }
         if let Some(arg_name) = variadic_arg_name {
-            params.push(mk().param_mut(arg_name, DaType::array(self.va_arg_type()), None));
+            // The promoted-argument array is only ever read: `va_arg` indexes
+            // it and a forwarded `va_list` passes it on (`variadic.rs`), and
+            // every function that receives it declares it read-only too.
+            params.push(mk().param(arg_name, DaType::array(self.va_arg_type()), None));
         }
         if let Some(body_id) = body {
             self.add_definition_param_aliases(body_id, &param_bindings);

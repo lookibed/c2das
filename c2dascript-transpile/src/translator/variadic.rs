@@ -386,14 +386,24 @@ impl<'c> Translation<'c> {
             return Err(format_translation_err!(self.ast_context.display_loc(&self.ast_context[expr_id].loc), "unsupported variadic argument without C type"));
         };
         let kind = &self.ast_context.resolve_type(ty.ctype).kind;
+        // The payload field's own type needs no conversion: a C value of a
+        // type the translator stores as exactly `int64` (or `double`) is
+        // already one.  Any other type is converted.
+        let promoted = |value: DaExpr, to: DaType| -> TranslationResult<DaExpr> {
+            if self.convert_type(ty)?.kind == to.kind {
+                Ok(value)
+            } else {
+                Ok(DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(value),
+                    to,
+                })
+            }
+        };
         let (tag, integer, float, raw) = if kind.is_integral_type() || kind.is_enum() {
             (
                 DaExpr::ConstInt(1),
-                DaExpr::Cast {
-                    kind: das_ast::CastKind::Cast,
-                    expr: Box::new(value),
-                    to: DaType::int64(),
-                },
+                promoted(value, DaType::int64())?,
                 DaExpr::ConstDouble(0.0),
                 DaExpr::ConstUInt(0),
             )
@@ -404,11 +414,7 @@ impl<'c> Translation<'c> {
             (
                 DaExpr::ConstInt(2),
                 DaExpr::ConstInt(0),
-                DaExpr::Cast {
-                    kind: das_ast::CastKind::Cast,
-                    expr: Box::new(value),
-                    to: DaType::double(),
-                },
+                promoted(value, DaType::double())?,
                 DaExpr::ConstUInt(0),
             )
         } else if kind.is_pointer() {

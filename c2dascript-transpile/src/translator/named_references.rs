@@ -105,6 +105,7 @@ impl<'c> Translation<'c> {
                 let ptr_name = self.renamer.borrow_mut().fresh();
                 let compute_ref = DaStmt::Let {
                     name: ptr_name.clone(),
+                    var_type: None,
                     init: Some(reference),
                 };
                 let write = DaExpr::Deref(Box::new(DaExpr::Var(ptr_name)));

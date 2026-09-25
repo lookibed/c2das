@@ -10,8 +10,13 @@ pub enum DaStmt {
         var_type: DaType,
         init: Option<DaExpr>,
     },
-    /// `let name [= init]` (immutable, type inferred)
-    Let { name: String, init: Option<DaExpr> },
+    /// `let name [: type] [= init]` — immutable; the type is inferred from
+    /// `init` when `var_type` is `None`.
+    Let {
+        name: String,
+        var_type: Option<DaType>,
+        init: Option<DaExpr>,
+    },
     /// `name : type [= init]` — в параметрах функции
     /// `is_mutable = true` → `var name : type`
     Param {
@@ -109,18 +114,28 @@ impl DaStmt {
                     if let Some(init_text) = typed_initializer_text(var_type, init_expr) {
                         writeln!(f, "var {} : {} = {}", name, var_type, init_text)
                     } else {
-                        writeln!(f, "var {} : {} = {}", name, var_type, init_expr)
+                        write!(f, "var {} : {} = ", name, var_type)?;
+                        init_expr.fmt_with_indent(f, indent)?;
+                        writeln!(f)
                     }
                 } else {
                     writeln!(f, "var {} : {}", name, var_type)
                 }
             }
-            DaStmt::Let { name, init } => {
-                if let Some(init_expr) = init {
-                    writeln!(f, "let {} = {}", name, init_expr)
-                } else {
-                    writeln!(f, "let {}", name)
+            DaStmt::Let {
+                name,
+                var_type,
+                init,
+            } => {
+                write!(f, "let {}", name)?;
+                if let Some(var_type) = var_type {
+                    write!(f, " : {}", var_type)?;
                 }
+                if let Some(init_expr) = init {
+                    write!(f, " = ")?;
+                    init_expr.fmt_with_indent(f, indent)?;
+                }
+                writeln!(f)
             }
             DaStmt::Param {
                 name,

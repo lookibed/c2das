@@ -242,10 +242,20 @@ fn param(name: &str, param_type: DaType) -> DaStmt {
     }
 }
 
-fn let_var(name: &str, var_type: DaType, init: DaExpr) -> DaStmt {
+/// `var name : type = init` — a local the helper assigns again.
+fn mutable_var(name: &str, var_type: DaType, init: DaExpr) -> DaStmt {
     DaStmt::Var {
         name: name.to_owned(),
         var_type,
+        init: Some(init),
+    }
+}
+
+/// `let name : type = init` — a local the helper never assigns again.
+fn let_var(name: &str, var_type: DaType, init: DaExpr) -> DaStmt {
+    DaStmt::Let {
+        name: name.to_owned(),
+        var_type: Some(var_type),
         init: Some(init),
     }
 }
@@ -313,6 +323,7 @@ fn object_storage(what: &str) -> Vec<DaStmt> {
     vec![
         DaStmt::Let {
             name: "address".to_owned(),
+            var_type: None,
             init: Some(call(
                 "c2da_rt_calloc",
                 vec![
@@ -419,8 +430,8 @@ pub fn declarations() -> Vec<DaDecl> {
         vec![param("address", uint64.clone())],
         DaType::int(),
         vec![
-            let_var("lo", DaType::int(), DaExpr::ConstInt(0)),
-            let_var("hi", DaType::int(), length_of(ALLOC_ADDRS)),
+            mutable_var("lo", DaType::int(), DaExpr::ConstInt(0)),
+            mutable_var("hi", DaType::int(), length_of(ALLOC_ADDRS)),
             DaStmt::Expr(DaExpr::While(
                 Box::new(op("<", var("lo"), var("hi"))),
                 block(vec![
@@ -459,9 +470,9 @@ pub fn declarations() -> Vec<DaDecl> {
         vec![param("need", uint64.clone())],
         DaType::int(),
         vec![
-            let_var("best", DaType::int(), DaExpr::ConstInt(-1)),
-            let_var("best_slot", DaType::int(), DaExpr::ConstInt(-1)),
-            let_var(
+            mutable_var("best", DaType::int(), DaExpr::ConstInt(-1)),
+            mutable_var("best_slot", DaType::int(), DaExpr::ConstInt(-1)),
+            mutable_var(
                 "slot",
                 DaType::int(),
                 op("-", length_of(ALLOC_FREE), DaExpr::ConstInt(1)),
@@ -526,15 +537,14 @@ pub fn declarations() -> Vec<DaDecl> {
         uint64.clone(),
         vec![
             DaStmt::Expr(call("c2da_rt_init_heap", vec![])),
-            DaStmt::Expr(DaExpr::IfThenElse {
-                cond: Box::new(op("==", var("size"), DaExpr::ConstUInt(0))),
-                then: block(vec![ret(DaExpr::ConstUInt(0))]),
-                elifs: vec![],
-                else_: None,
-            }),
-            // Checked before rounding so `align_up` cannot wrap.
+            // `malloc(0)` is `NULL`; a size past the reserve is checked before
+            // rounding so `align_up` cannot wrap.
             when(
-                op(">", var("size"), DaExpr::ConstUInt(HEAP_RESERVE_BYTES)),
+                op(
+                    "||",
+                    op("==", var("size"), DaExpr::ConstUInt(0)),
+                    op(">", var("size"), DaExpr::ConstUInt(HEAP_RESERVE_BYTES)),
+                ),
                 vec![ret(DaExpr::ConstUInt(0))],
             ),
             let_var("need", uint64.clone(), align_up(var("size"))),
@@ -573,23 +583,19 @@ pub fn declarations() -> Vec<DaDecl> {
             // arena.  Bookkeeping must retain that same value: `start` is an
             // arena-relative offset and is only meaningful while deriving this
             // address, never as an allocation identity.
-            DaStmt::Var {
-                name: "address".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(heap_address(var("start"))),
-            },
+            let_var("address", uint64.clone(), heap_address(var("start"))),
             // Allocation metadata is deliberately separate from the raw byte
             // arena: free/realloc must never infer an allocation boundary from
             // a typed C pointer.
-            DaStmt::Var {
-                name: "record".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(DaExpr::Cast {
+            let_var(
+                "record",
+                uint64.clone(),
+                DaExpr::Cast {
                     kind: CastKind::Cast,
                     expr: Box::new(long_length_of(ALLOC_ADDRS)),
                     to: uint64.clone(),
-                }),
-            },
+                },
+            ),
             DaStmt::Expr(call(
                 "resize",
                 vec![
@@ -691,11 +697,10 @@ pub fn declarations() -> Vec<DaDecl> {
                 op(
                     "||",
                     op("<", var("record"), DaExpr::ConstInt(0)),
-                    op(
-                        "==",
-                        at(ALLOC_LIVE, var("record")),
-                        DaExpr::ConstBool(false),
-                    ),
+                    DaExpr::Op1 {
+                        op: "!",
+                        expr: Box::new(at(ALLOC_LIVE, var("record"))),
+                    },
                 ),
                 vec![ret(DaExpr::ConstUInt(0))],
             ),
@@ -814,11 +819,7 @@ pub fn declarations() -> Vec<DaDecl> {
         ],
         uint64.clone(),
         vec![
-            DaStmt::Var {
-                name: "total".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(op("*", var("count"), var("size"))),
-            },
+            let_var("total", uint64.clone(), op("*", var("count"), var("size"))),
             // C calloc must fail rather than wrapping a multiplication.
             DaStmt::Expr(DaExpr::IfThenElse {
                 cond: Box::new(op(
@@ -830,11 +831,11 @@ pub fn declarations() -> Vec<DaDecl> {
                 elifs: vec![],
                 else_: None,
             }),
-            DaStmt::Var {
-                name: "address".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(call("c2da_rt_malloc", vec![var("total")])),
-            },
+            let_var(
+                "address",
+                uint64.clone(),
+                call("c2da_rt_malloc", vec![var("total")]),
+            ),
             DaStmt::Expr(DaExpr::IfThenElse {
                 cond: Box::new(op("!=", var("address"), DaExpr::ConstUInt(0))),
                 then: block(vec![DaStmt::Expr(call(
@@ -1277,7 +1278,7 @@ mod tests {
         let malloc = rendered_function("c2da_rt_malloc");
         assert!(malloc.contains("if (int64(end) > long_length(c2da_rt_heap)) {"));
         assert!(malloc.contains("resize(c2da_rt_heap, int64(end))"));
-        assert!(malloc.contains("var record : uint64 = uint64(long_length(c2da_rt_alloc_addrs))"));
+        assert!(malloc.contains("let record : uint64 = uint64(long_length(c2da_rt_alloc_addrs))"));
         assert!(malloc.contains("resize(c2da_rt_alloc_addrs, int64(record + 0x1))"));
         let memcpy = rendered_function("c2da_rt_memcpy");
         assert!(memcpy.contains("reinterpret<uint8?>(dst))[i]"));
@@ -1339,7 +1340,11 @@ mod tests {
             "free-list reuse precedes arena growth:\n{malloc}"
         );
         // Capacity and start address are both rounded to the 16-byte C alignment.
-        assert!(malloc.contains("var need : uint64 = (size + 0xf) / 0x10 * 0x10"));
+        assert!(malloc.contains("let need : uint64 = (size + 0xf) / 0x10 * 0x10"));
+        // `malloc(0)` and a size past the reserve share the one `NULL` exit.
+        assert!(malloc.contains(&format!(
+            "if (size == 0x0 || size > 0x{HEAP_RESERVE_BYTES:x}) {{\n        return 0x0"
+        )));
         assert!(malloc.contains("(base + c2da_rt_next + 0xf) / 0x10 * 0x10 - base"));
         assert!(malloc.contains("c2da_rt_alloc_sizes[record] = need"));
 
@@ -1357,6 +1362,7 @@ mod tests {
     #[test]
     fn realloc_keeps_the_block_when_it_fits_and_copies_the_whole_old_block_otherwise() {
         let realloc = rendered_function("c2da_rt_realloc");
+        assert!(realloc.contains("if (record < 0 || !c2da_rt_alloc_live[record]) {"));
         assert!(realloc.contains("if (size <= capacity) {\n        return address"));
         assert!(realloc.contains("start + capacity == c2da_rt_next"));
         assert!(realloc.contains("c2da_rt_memcpy(replacement, address, capacity)"));

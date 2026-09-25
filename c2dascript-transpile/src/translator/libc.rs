@@ -180,8 +180,9 @@ fn set_errno(code: Errno) -> DaStmt {
 /// Module names the std prelude stands on. They are added to the generated
 /// module's `require` list only when a std helper is actually emitted.
 ///
-/// `strings` provides `to_char`/`character_at`/`first_character`/`is_number`/
-/// `ends_with`, `daslib/fio` the
+/// `strings` provides `to_char`/`character_uat`/`first_character`/`is_number`/
+/// `is_alpha`/`ends_with`/`repeat` and the string builder (`build_string`,
+/// `write`, `write_char`, `StringBuilderWriter`), `daslib/fio` the
 /// file API and `exit_now`/`funbuffered`. `fmt`, `print`, `panic`,
 /// `get_command_line_arguments`, `ref_time_ticks` and `get_clock` are builtins
 /// and need no `require` of their own.
@@ -201,7 +202,6 @@ const ARG_I64: &str = "c2da_std_arg_i64";
 const ARG_U64: &str = "c2da_std_arg_u64";
 const ARG_F64: &str = "c2da_std_arg_f64";
 const PAD: &str = "c2da_std_pad";
-const REPEAT: &str = "c2da_std_repeat";
 const UTOA: &str = "c2da_std_utoa";
 const NUMBER: &str = "c2da_std_number";
 const TAKE: &str = "c2da_std_take";
@@ -785,8 +785,7 @@ fn dependencies(name: &str) -> &'static [&'static str] {
     match name {
         STRING => &[BYTE],
         TAKE => &[BYTE],
-        PAD => &[REPEAT],
-        NUMBER => &[UTOA, REPEAT],
+        NUMBER => &[UTOA],
         VFORMAT => &[
             BYTE, STRING, TAKE, PAD, NUMBER, UTOA, ARG_I64, ARG_U64, ARG_F64, LOST_CELL,
         ],
@@ -871,7 +870,6 @@ fn build(name: &str) -> DaDecl {
         ARG_U64 => build_arg_u64(),
         ARG_F64 => build_arg_f64(),
         PAD => build_pad(),
-        REPEAT => build_repeat(),
         UTOA => build_utoa(),
         NUMBER => build_number(),
         TAKE => build_take(),
@@ -1518,8 +1516,49 @@ fn while_(cond: DaExpr, body: Vec<DaStmt>) -> DaStmt {
 fn let_(name: &str, init: DaExpr) -> DaStmt {
     DaStmt::Let {
         name: name.to_owned(),
+        var_type: None,
         init: Some(init),
     }
+}
+
+/// `let name : type = init` — a typed local the helper never assigns again.
+fn constant(name: &str, var_type: DaType, init: DaExpr) -> DaStmt {
+    DaStmt::Let {
+        name: name.to_owned(),
+        var_type: Some(var_type),
+        init: Some(init),
+    }
+}
+
+/// `build_string($(var writer : StringBuilderWriter) { body })` — text built
+/// in one daslib string builder, which `emit`/`emit_char` append to.  The
+/// block reads and writes the helper's locals in place.
+fn build_text(body: Vec<DaStmt>) -> DaExpr {
+    call(
+        "build_string",
+        vec![DaExpr::MakeBlock {
+            params: vec![var_param("writer", DaType::named("StringBuilderWriter"))],
+            body: DaBlock { stmts: body },
+        }],
+    )
+}
+
+/// `write(writer, text)` inside [`build_text`].
+fn emit(text: DaExpr) -> DaStmt {
+    DaStmt::Expr(call("write", vec![var("writer"), text]))
+}
+
+/// `write_char(writer, code)` inside [`build_text`]: the one byte `code`,
+/// exactly the byte `to_char(code)` holds.
+fn emit_char(code: DaExpr) -> DaStmt {
+    DaStmt::Expr(call("write_char", vec![var("writer"), code]))
+}
+
+/// `unsafe(character_uat(s, index))` — byte `index` of `s`, for an index the
+/// caller has already bounded by `length(s)`.  `character_at` would measure
+/// the string again on every call to check the same bound.
+fn byte_of_text(s: &str, index: DaExpr) -> DaExpr {
+    DaExpr::Unsafe(Box::new(call("character_uat", vec![var(s), index])))
 }
 
 fn local(name: &str, var_type: DaType, init: DaExpr) -> DaStmt {
@@ -1616,22 +1655,19 @@ fn build_string() -> DaDecl {
         vec![param("s", c_string_type())],
         DaType::string(),
         vec![
-            local("out", DaType::string(), text("")),
-            if_then(
-                op2("==", var("s"), DaExpr::ConstNull),
-                vec![ret(var("out"))],
-            ),
-            local("i", DaType::int(), DaExpr::ConstInt(0)),
-            while_true(vec![
-                let_("b", call(BYTE, vec![var("s"), var("i")])),
-                if_then(
-                    op2("==", var("b"), DaExpr::ConstInt(0)),
-                    vec![DaStmt::Expr(DaExpr::Break)],
-                ),
-                append("out", call("to_char", vec![var("b")])),
-                advance("i"),
-            ]),
-            ret(var("out")),
+            if_then(op2("==", var("s"), DaExpr::ConstNull), vec![ret(text(""))]),
+            ret(build_text(vec![
+                local("i", DaType::int(), DaExpr::ConstInt(0)),
+                while_true(vec![
+                    let_("b", call(BYTE, vec![var("s"), var("i")])),
+                    if_then(
+                        op2("==", var("b"), DaExpr::ConstInt(0)),
+                        vec![DaStmt::Expr(DaExpr::Break)],
+                    ),
+                    emit_char(var("b")),
+                    advance("i"),
+                ]),
+            ])),
         ],
     )
 }
@@ -1650,7 +1686,7 @@ fn build_store() -> DaDecl {
         vec![param("s", DaType::string())],
         DaType::uint64(),
         vec![
-            local("n", DaType::int(), call("length", vec![var("s")])),
+            constant("n", DaType::int(), call("length", vec![var("s")])),
             local(
                 "base",
                 DaType::uint64(),
@@ -1669,11 +1705,7 @@ fn build_store() -> DaDecl {
                     assign(
                         byte_at(var("i")),
                         cast(
-                            op2(
-                                "&",
-                                call("character_at", vec![var("s"), var("i")]),
-                                DaExpr::ConstInt(255),
-                            ),
+                            op2("&", byte_of_text("s", var("i")), DaExpr::ConstInt(255)),
                             DaType::uint8(),
                         ),
                     ),
@@ -1794,7 +1826,7 @@ fn build_pad() -> DaDecl {
         ],
         DaType::string(),
         vec![
-            local(
+            constant(
                 "gap",
                 DaType::int(),
                 op2("-", var("width"), call("length", vec![var("body")])),
@@ -1803,36 +1835,17 @@ fn build_pad() -> DaDecl {
                 op2("<=", var("gap"), DaExpr::ConstInt(0)),
                 vec![ret(var("body"))],
             ),
-            local(
-                "spaces",
-                DaType::string(),
-                call(REPEAT, vec![text(" "), var("gap")]),
-            ),
+            constant("spaces", DaType::string(), repeated(" ", var("gap"))),
             if_then(var("left"), vec![ret(op2("+", var("body"), var("spaces")))]),
             ret(op2("+", var("spaces"), var("body"))),
         ],
     )
 }
 
-/// `def c2da_std_repeat(unit : string; count : int) : string`
-fn build_repeat() -> DaDecl {
-    helper(
-        REPEAT,
-        vec![
-            param("unit", DaType::string()),
-            param("count", DaType::int()),
-        ],
-        DaType::string(),
-        vec![
-            local("out", DaType::string(), text("")),
-            local("i", DaType::int(), DaExpr::ConstInt(0)),
-            while_(
-                op2("<", var("i"), var("count")),
-                vec![append("out", var("unit")), advance("i")],
-            ),
-            ret(var("out")),
-        ],
-    )
+/// `repeat(unit, count)` — daslib's `unit` written `count` times, and the
+/// empty string for a `count` of zero or less.
+fn repeated(unit: &str, count: DaExpr) -> DaExpr {
+    call("repeat", vec![text(unit), count])
 }
 
 /// `def c2da_std_utoa(value : uint64; base : int; upper : bool) : string` —
@@ -1872,7 +1885,7 @@ fn build_utoa() -> DaDecl {
                 op2("==", var("value"), uint64_const(0)),
                 vec![ret(text("0"))],
             ),
-            local(
+            constant(
                 "radix",
                 DaType::uint64(),
                 cast(var("base"), DaType::uint64()),
@@ -1882,7 +1895,7 @@ fn build_utoa() -> DaDecl {
             while_(
                 op2("!=", var("rest"), uint64_const(0)),
                 vec![
-                    local(
+                    constant(
                         "d",
                         DaType::int(),
                         cast(op2("%", var("rest"), var("radix")), DaType::int()),
@@ -1985,16 +1998,9 @@ fn build_number() -> DaDecl {
                             var("digits"),
                             op2(
                                 "+",
-                                call(
-                                    REPEAT,
-                                    vec![
-                                        text("0"),
-                                        op2(
-                                            "-",
-                                            var("precision"),
-                                            call("length", vec![var("digits")]),
-                                        ),
-                                    ],
+                                repeated(
+                                    "0",
+                                    op2("-", var("precision"), call("length", vec![var("digits")])),
                                 ),
                                 var("digits"),
                             ),
@@ -2005,12 +2011,12 @@ fn build_number() -> DaDecl {
             ),
             local("prefix", DaType::string(), var("sign")),
             if_then(var("alt"), vec![hex_prefix, octal_prefix]),
-            local(
+            constant(
                 "body",
                 DaType::string(),
                 op2("+", var("prefix"), var("digits")),
             ),
-            local(
+            constant(
                 "gap",
                 DaType::int(),
                 op2("-", var("width"), call("length", vec![var("body")])),
@@ -2021,61 +2027,55 @@ fn build_number() -> DaDecl {
             ),
             if_then(
                 var("left"),
-                vec![ret(op2(
-                    "+",
-                    var("body"),
-                    call(REPEAT, vec![text(" "), var("gap")]),
-                ))],
+                vec![ret(op2("+", var("body"), repeated(" ", var("gap"))))],
             ),
             if_then(
                 op2("&&", var("zero"), not(var("has_precision"))),
                 vec![ret(op2(
                     "+",
-                    op2(
-                        "+",
-                        var("prefix"),
-                        call(REPEAT, vec![text("0"), var("gap")]),
-                    ),
+                    op2("+", var("prefix"), repeated("0", var("gap"))),
                     var("digits"),
                 ))],
             ),
-            ret(op2(
-                "+",
-                call(REPEAT, vec![text(" "), var("gap")]),
-                var("body"),
-            )),
+            ret(op2("+", repeated(" ", var("gap")), var("body"))),
         ],
     )
 }
 
-/// `def c2da_std_take(s : int8 const?; limit : int) : string` — at most
-/// `limit` bytes of a C string, stopping at the terminator.
+/// `def c2da_std_take(s : int8 const?; from : int; limit : int) : string` — at
+/// most `limit` bytes of a C string starting at byte `from`, stopping at the
+/// terminator.
 ///
 /// C's `%.Ns` does not require the argument to be NUL-terminated at all past
 /// the `N`th byte, so the precision is a read limit here, not a truncation of
-/// something already read.
+/// something already read.  `c2da_std_vformat` also reads the spelling of a
+/// conversion specification back out of the format string with it.
 fn build_take() -> DaDecl {
     helper(
         TAKE,
-        vec![param("s", c_string_type()), param("limit", DaType::int())],
+        vec![
+            param("s", c_string_type()),
+            param("from", DaType::int()),
+            param("limit", DaType::int()),
+        ],
         DaType::string(),
         vec![
-            local("out", DaType::string(), text("")),
-            if_then(
-                op2("==", var("s"), DaExpr::ConstNull),
-                vec![ret(var("out"))],
-            ),
-            local("i", DaType::int(), DaExpr::ConstInt(0)),
-            while_(
-                op2("<", var("i"), var("limit")),
-                vec![
-                    let_("ch", call(BYTE, vec![var("s"), var("i")])),
-                    if_then(is_byte("ch", 0), vec![DaStmt::Expr(DaExpr::Break)]),
-                    append("out", call("to_char", vec![var("ch")])),
-                    advance("i"),
-                ],
-            ),
-            ret(var("out")),
+            if_then(op2("==", var("s"), DaExpr::ConstNull), vec![ret(text(""))]),
+            ret(build_text(vec![
+                local("k", DaType::int(), DaExpr::ConstInt(0)),
+                while_(
+                    op2("<", var("k"), var("limit")),
+                    vec![
+                        let_(
+                            "ch",
+                            call(BYTE, vec![var("s"), op2("+", var("from"), var("k"))]),
+                        ),
+                        if_then(is_byte("ch", 0), vec![DaStmt::Expr(DaExpr::Break)]),
+                        emit_char(var("ch")),
+                        advance("k"),
+                    ],
+                ),
+            ])),
         ],
     )
 }
@@ -2184,24 +2184,21 @@ fn build_vformat() -> DaDecl {
             ],
             None,
         ),
-        append(
-            "out",
-            call(
-                NUMBER,
-                vec![
-                    var("magnitude"),
-                    DaExpr::ConstInt(10),
-                    DaExpr::ConstBool(false),
-                    var("sign"),
-                    DaExpr::ConstBool(false),
-                    var("has_precision"),
-                    var("precision"),
-                    var("width"),
-                    var("left"),
-                    var("zero"),
-                ],
-            ),
-        ),
+        emit(call(
+            NUMBER,
+            vec![
+                var("magnitude"),
+                DaExpr::ConstInt(10),
+                DaExpr::ConstBool(false),
+                var("sign"),
+                DaExpr::ConstBool(false),
+                var("has_precision"),
+                var("precision"),
+                var("width"),
+                var("left"),
+                var("zero"),
+            ],
+        )),
         advance("next"),
     ];
     // %u %x %X %o — unsigned, narrowed the same way. C prints no sign for an
@@ -2230,24 +2227,21 @@ fn build_vformat() -> DaDecl {
             )],
             None,
         ),
-        append(
-            "out",
-            call(
-                NUMBER,
-                vec![
-                    var("uvalue"),
-                    var("radix"),
-                    is_byte("conv", 88),
-                    text(""),
-                    var("alt"),
-                    var("has_precision"),
-                    var("precision"),
-                    var("width"),
-                    var("left"),
-                    var("zero"),
-                ],
-            ),
-        ),
+        emit(call(
+            NUMBER,
+            vec![
+                var("uvalue"),
+                var("radix"),
+                is_byte("conv", 88),
+                text(""),
+                var("alt"),
+                var("has_precision"),
+                var("precision"),
+                var("width"),
+                var("left"),
+                var("zero"),
+            ],
+        )),
         advance("next"),
     ];
     // %c — daslang's `fmt` left-aligns a character, C right-aligns it, so the
@@ -2255,7 +2249,7 @@ fn build_vformat() -> DaDecl {
     // is one byte C writes and a daslang string cannot carry, so the byte is
     // counted (see `build_lost_cell`) and the field one byte narrower.
     let char_arm = vec![
-        local(
+        constant(
             "code",
             DaType::int(),
             op2(
@@ -2275,17 +2269,14 @@ fn build_vformat() -> DaDecl {
                 assign(var("field"), op2("-", var("field"), DaExpr::ConstInt(1))),
             ],
         ),
-        append(
-            "out",
-            call(
-                PAD,
-                vec![
-                    call("to_char", vec![var("code")]),
-                    var("field"),
-                    var("left"),
-                ],
-            ),
-        ),
+        emit(call(
+            PAD,
+            vec![
+                call("to_char", vec![var("code")]),
+                var("field"),
+                var("left"),
+            ],
+        )),
         advance("next"),
     ];
     // %f %F %e %E %g %G — the one family daslang's `fmt` spells exactly as C
@@ -2335,23 +2326,20 @@ fn build_vformat() -> DaDecl {
                 ),
             ],
         ),
-        append(
-            "out",
-            call(
-                "fmt",
-                vec![
-                    op2("+", var("spec"), call("to_char", vec![var("conv")])),
-                    call(ARG_F64, vec![var("args"), var("next")]),
-                ],
-            ),
-        ),
+        emit(call(
+            "fmt",
+            vec![
+                op2("+", var("spec"), call("to_char", vec![var("conv")])),
+                call(ARG_F64, vec![var("args"), var("next")]),
+            ],
+        )),
         advance("next"),
     ];
     // %s — the argument is a raw address of NUL-terminated bytes. glibc
     // prints `(null)` for a null pointer, and nothing at all when a precision
     // shorter than `(null)` was asked for.
     let string_arm = vec![
-        local(
+        constant(
             "address",
             DaType::uint64(),
             call(ARG_U64, vec![var("args"), var("next")]),
@@ -2375,6 +2363,7 @@ fn build_vformat() -> DaDecl {
                         TAKE,
                         vec![
                             reinterpret(var("address"), c_string_type()),
+                            DaExpr::ConstInt(0),
                             var("precision"),
                         ],
                     ),
@@ -2385,16 +2374,13 @@ fn build_vformat() -> DaDecl {
                 call(STRING, vec![reinterpret(var("address"), c_string_type())]),
             )]),
         ),
-        append(
-            "out",
-            call(PAD, vec![var("body"), var("width"), var("left")]),
-        ),
+        emit(call(PAD, vec![var("body"), var("width"), var("left")])),
         advance("next"),
     ];
     // %p — glibc prints `0x` and the lowercase hexadecimal of the value, and
     // `(nil)` for a null pointer.
     let pointer_arm = vec![
-        local(
+        constant(
             "target",
             DaType::uint64(),
             call(ARG_U64, vec![var("args"), var("next")]),
@@ -2418,10 +2404,7 @@ fn build_vformat() -> DaDecl {
                 ),
             )],
         ),
-        append(
-            "out",
-            call(PAD, vec![var("body"), var("width"), var("left")]),
-        ),
+        emit(call(PAD, vec![var("body"), var("width"), var("left")])),
         advance("next"),
     ];
     // %n — the translation-time check refuses it for a literal format, which
@@ -2429,6 +2412,11 @@ fn build_vformat() -> DaDecl {
     // computed format it writes nothing and consumes the pointer argument, so
     // every later conversion still reads its own argument.
     let store_count_arm = vec![advance("next")];
+
+    // The specification as the format spells it: bytes `i` up to (not
+    // including) `end` of `f`, all non-NUL, since each was read as part of it.
+    let spelling =
+        |end: DaExpr| -> DaExpr { call(TAKE, vec![var("f"), var("i"), op2("-", end, var("i"))]) };
 
     let one_of = |name: &'static str, codes: &[i64]| -> DaExpr {
         codes
@@ -2454,7 +2442,7 @@ fn build_vformat() -> DaDecl {
             vec![op2(
                 "+",
                 text("--libc std: printf conversion is not implemented: "),
-                var("verbatim"),
+                spelling(op2("+", var("j"), DaExpr::ConstInt(1))),
             )],
         ))]),
     );
@@ -2484,7 +2472,6 @@ fn build_vformat() -> DaDecl {
             ],
             Some(vec![DaStmt::Expr(DaExpr::Break)]),
         ),
-        append("verbatim", call("to_char", vec![var("fc")])),
         advance("j"),
     ]);
 
@@ -2495,13 +2482,12 @@ fn build_vformat() -> DaDecl {
     let width_block = if_chain(
         op2("==", format_byte("j"), DaExpr::ConstInt(42)),
         vec![
-            local(
+            constant(
                 "given",
                 DaType::int(),
                 cast(call(ARG_I64, vec![var("args"), var("next")]), DaType::int()),
             ),
             advance("next"),
-            append("verbatim", text("*")),
             advance("j"),
             if_chain(
                 op2("<", var("given"), DaExpr::ConstInt(0)),
@@ -2525,7 +2511,6 @@ fn build_vformat() -> DaDecl {
                     op2("-", var("wc"), DaExpr::ConstInt(48)),
                 ),
             ),
-            append("verbatim", call("to_char", vec![var("wc")])),
             advance("j"),
         ])]),
     );
@@ -2535,19 +2520,17 @@ fn build_vformat() -> DaDecl {
     let precision_block = if_then(
         op2("==", format_byte("j"), DaExpr::ConstInt(46)),
         vec![
-            append("verbatim", text(".")),
             advance("j"),
             assign(var("has_precision"), DaExpr::ConstBool(true)),
             if_chain(
                 op2("==", format_byte("j"), DaExpr::ConstInt(42)),
                 vec![
-                    local(
+                    constant(
                         "given",
                         DaType::int(),
                         cast(call(ARG_I64, vec![var("args"), var("next")]), DaType::int()),
                     ),
                     advance("next"),
-                    append("verbatim", text("*")),
                     advance("j"),
                     if_chain(
                         op2("<", var("given"), DaExpr::ConstInt(0)),
@@ -2568,7 +2551,6 @@ fn build_vformat() -> DaDecl {
                             op2("-", var("pc"), DaExpr::ConstInt(48)),
                         ),
                     ),
-                    append("verbatim", call("to_char", vec![var("pc")])),
                     advance("j"),
                 ])]),
             ),
@@ -2588,32 +2570,23 @@ fn build_vformat() -> DaDecl {
             )],
             None,
         ),
-        append("verbatim", call("to_char", vec![var("lc")])),
         advance("j"),
     ]);
 
-    let body = vec![
-        local("out", DaType::string(), text("")),
-        assign(var(LOST_CELL), DaExpr::ConstInt(0)),
-        if_then(
-            op2("==", var("f"), DaExpr::ConstNull),
-            vec![ret(var("out"))],
-        ),
+    let conversions = vec![
         local("i", DaType::int(), DaExpr::ConstInt(0)),
-        local("next", DaType::int(), var("start")),
         while_true(vec![
             let_("ch", format_byte("i")),
             if_then(is_byte("ch", 0), vec![DaStmt::Expr(DaExpr::Break)]),
             if_then(
                 op2("!=", var("ch"), DaExpr::ConstInt(37)),
                 vec![
-                    append("out", call("to_char", vec![var("ch")])),
+                    emit_char(var("ch")),
                     advance("i"),
                     DaStmt::Expr(DaExpr::Continue),
                 ],
             ),
             local("j", DaType::int(), op2("+", var("i"), DaExpr::ConstInt(1))),
-            local("verbatim", DaType::string(), text("%")),
             local("left", DaType::bool(), DaExpr::ConstBool(false)),
             local("zero", DaType::bool(), DaExpr::ConstBool(false)),
             local("plus", DaType::bool(), DaExpr::ConstBool(false)),
@@ -2631,23 +2604,31 @@ fn build_vformat() -> DaDecl {
             if_then(
                 is_byte("conv", 37),
                 vec![
-                    append("out", text("%")),
+                    emit(text("%")),
                     assign(var("i"), op2("+", var("j"), DaExpr::ConstInt(1))),
                     DaStmt::Expr(DaExpr::Continue),
                 ],
             ),
+            // A specification cut short by the end of the format is printed
+            // as it was spelled.
             if_then(
                 is_byte("conv", 0),
                 vec![
-                    append("out", var("verbatim")),
+                    emit(spelling(var("j"))),
                     assign(var("i"), var("j")),
                     DaStmt::Expr(DaExpr::Continue),
                 ],
             ),
-            append("verbatim", call("to_char", vec![var("conv")])),
             conversion,
             assign(var("i"), op2("+", var("j"), DaExpr::ConstInt(1))),
         ]),
+    ];
+
+    let body = vec![
+        assign(var(LOST_CELL), DaExpr::ConstInt(0)),
+        if_then(op2("==", var("f"), DaExpr::ConstNull), vec![ret(text(""))]),
+        local("next", DaType::int(), var("start")),
+        constant("out", DaType::string(), build_text(conversions)),
         // The caller's cursor ends where this conversion stopped reading: a
         // `va_list` handed to `vsnprintf` is advanced by the call, exactly as
         // it would be by a translated C callee.
@@ -2676,7 +2657,7 @@ fn build_printf() -> DaDecl {
         vec![param("f", c_string_type()), param("args", va_args_type())],
         DaType::int(),
         vec![
-            local(
+            constant(
                 "body",
                 DaType::string(),
                 call(FORMAT, vec![var("f"), var("args")]),
@@ -2712,7 +2693,7 @@ fn build_file_of() -> DaDecl {
 fn build_fopen() -> DaDecl {
     let kept = |code: i64| op2("==", var("letter"), DaExpr::ConstInt(code));
     let sanitize = vec![
-        local("spelled", DaType::string(), call(STRING, vec![var("mode")])),
+        constant("spelled", DaType::string(), call(STRING, vec![var("mode")])),
         if_then(
             call("empty", vec![var("spelled")]),
             vec![set_errno(Errno::Einval), ret(uint64_const(0))],
@@ -2730,35 +2711,34 @@ fn build_fopen() -> DaDecl {
             ),
             vec![set_errno(Errno::Einval), ret(uint64_const(0))],
         ),
-        local(
+        constant(
             "accepted",
             DaType::string(),
-            call("to_char", vec![var("head")]),
-        ),
-        local("k", DaType::int(), DaExpr::ConstInt(1)),
-        while_(
-            op2("<", var("k"), call("length", vec![var("spelled")])),
-            vec![
-                let_(
-                    "letter",
-                    call("character_at", vec![var("spelled"), var("k")]),
+            build_text(vec![
+                emit_char(var("head")),
+                local("k", DaType::int(), DaExpr::ConstInt(1)),
+                while_(
+                    op2("<", var("k"), call("length", vec![var("spelled")])),
+                    vec![
+                        let_("letter", byte_of_text("spelled", var("k"))),
+                        // `,ccs=<encoding>` is a suffix, not a flag: everything
+                        // from the comma on belongs to it.
+                        if_then(
+                            op2("==", var("letter"), DaExpr::ConstInt(44)),
+                            vec![DaStmt::Expr(DaExpr::Break)],
+                        ),
+                        if_then(
+                            op2(
+                                "||",
+                                kept(43),
+                                op2("||", kept(98), op2("||", kept(116), kept(120))),
+                            ),
+                            vec![emit_char(var("letter"))],
+                        ),
+                        advance("k"),
+                    ],
                 ),
-                // `,ccs=<encoding>` is a suffix, not a flag: everything from
-                // the comma on belongs to it.
-                if_then(
-                    op2("==", var("letter"), DaExpr::ConstInt(44)),
-                    vec![DaStmt::Expr(DaExpr::Break)],
-                ),
-                if_then(
-                    op2(
-                        "||",
-                        kept(43),
-                        op2("||", kept(98), op2("||", kept(116), kept(120))),
-                    ),
-                    vec![append("accepted", call("to_char", vec![var("letter")]))],
-                ),
-                advance("k"),
-            ],
+            ]),
         ),
     ];
     let mut body = sanitize;
@@ -2780,7 +2760,7 @@ fn build_fopen() -> DaDecl {
                 ret(uint64_const(0)),
             ],
         ),
-        local(
+        constant(
             "handle",
             DaType::uint64(),
             reinterpret(var("opened"), DaType::uint64()),
@@ -2889,20 +2869,13 @@ fn build_fread() -> DaDecl {
         ],
         DaType::uint64(),
         vec![
+            // No stream, no destination or nothing asked for: nothing is read.
             if_then(
-                op2(
-                    "||",
-                    op2("==", var("handle"), uint64_const(0)),
-                    op2("==", var("dst"), uint64_const(0)),
-                ),
-                vec![ret(uint64_const(0))],
-            ),
-            if_then(
-                op2(
-                    "||",
-                    op2("==", var("size"), uint64_const(0)),
-                    op2("==", var("count"), uint64_const(0)),
-                ),
+                ["handle", "dst", "size", "count"]
+                    .into_iter()
+                    .map(|name| op2("==", var(name), uint64_const(0)))
+                    .reduce(|left, right| op2("||", left, right))
+                    .expect("four operands"),
                 vec![ret(uint64_const(0))],
             ),
             if_then(
@@ -2926,7 +2899,7 @@ fn build_fread() -> DaDecl {
             ),
             // A byte handed back by `ungetc` is the next byte read, so it is
             // placed first and the host is asked for one fewer.
-            local(
+            constant(
                 "pushed",
                 DaType::int(),
                 call(STREAM_TAKE_PUSH, vec![var("handle")]),
@@ -2955,17 +2928,17 @@ fn build_fread() -> DaDecl {
                     DaType::pointer(DaType::uint8()),
                 ),
             ),
-            local(
+            constant(
                 "got",
                 DaType::int64(),
-                DaExpr::Unsafe(Box::new(call(
+                call(
                     "_builtin_read64",
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("buffer"),
                         cast(var("total"), DaType::int64()),
                     ],
-                ))),
+                ),
             ),
             // A short read is end-of-file, which C does not call an error; a
             // negative one is the read error `ferror` reports.
@@ -3040,7 +3013,7 @@ fn build_fseek() -> DaDecl {
             ),
             // daslib's `fseek` is `fseeko`: zero on success, -1 on failure,
             // which is the answer C's `fseek` gives too.
-            local(
+            constant(
                 "moved",
                 DaType::int64(),
                 call(
@@ -3150,18 +3123,24 @@ fn build_clock_gettime() -> DaDecl {
             Box::new(reinterpret(var("ts"), DaType::pointer(element.clone()))),
             Box::new(DaExpr::ConstInt(index)),
         )));
-        assign(target, cast(value, element))
+        // Every value below is an `int64`; only a 4-byte member narrows it.
+        let value = if width == 4 {
+            cast(value, element)
+        } else {
+            value
+        };
+        assign(target, value)
     };
     let seconds = facts.timespec_sec;
     let nanoseconds = facts.timespec_nsec;
     let monotonic = vec![
-        local("ns", DaType::int64(), call("ref_time_ticks", vec![])),
+        constant("ns", DaType::int64(), call("ref_time_ticks", vec![])),
         field(seconds, op2("/", var("ns"), int64_const(1000000000))),
         field(nanoseconds, op2("%", var("ns"), int64_const(1000000000))),
         ret(DaExpr::ConstInt(0)),
     ];
     let realtime = vec![
-        local(
+        constant(
             "epoch",
             DaType::int64(),
             cast(call("get_clock", vec![]), DaType::int64()),
@@ -3359,7 +3338,7 @@ fn build_stream_take_push() -> DaDecl {
                 vec![ret(DaExpr::ConstInt(-1))],
             ),
             let_("slot", call(STREAM_SLOT, vec![var("handle")])),
-            local("pushed", DaType::int(), slot_entry(STREAM_PUSH)),
+            constant("pushed", DaType::int(), slot_entry(STREAM_PUSH)),
             assign(slot_entry(STREAM_PUSH), DaExpr::ConstInt(-1)),
             ret(var("pushed")),
         ],
@@ -3431,7 +3410,7 @@ fn build_clearerr() -> DaDecl {
             assign(slot_entry(STREAM_FLAGS), DaExpr::ConstInt(0)),
             assign(slot_entry(STREAM_PUSH), DaExpr::ConstInt(-1)),
             let_("stream", call(FILE_OF, vec![var("handle")])),
-            local("at", DaType::int64(), call("ftell", vec![var("stream")])),
+            constant("at", DaType::int64(), call("ftell", vec![var("stream")])),
             if_then(
                 op2(">=", var("at"), int64_const(0)),
                 vec![DaStmt::Expr(call(
@@ -3498,7 +3477,7 @@ fn build_fileno() -> DaDecl {
                 None,
             ),
             let_("slot", call(STREAM_SLOT, vec![var("handle")])),
-            local("fd", DaType::int(), slot_entry(STREAM_FD)),
+            constant("fd", DaType::int(), slot_entry(STREAM_FD)),
             if_then(
                 op2("<", var("fd"), DaExpr::ConstInt(0)),
                 vec![set_errno(Errno::Ebadf), ret(DaExpr::ConstInt(-1))],
@@ -3519,7 +3498,7 @@ fn build_fgetc() -> DaDecl {
                 op2("==", var("handle"), uint64_const(0)),
                 vec![ret(DaExpr::ConstInt(-1))],
             ),
-            local(
+            constant(
                 "pushed",
                 DaType::int(),
                 call(STREAM_TAKE_PUSH, vec![var("handle")]),
@@ -3533,17 +3512,17 @@ fn build_fgetc() -> DaDecl {
                 DaType::pointer(DaType::uint8()),
                 reinterpret(var(IO_BYTE), DaType::pointer(DaType::uint8())),
             ),
-            local(
+            constant(
                 "got",
                 DaType::int64(),
-                DaExpr::Unsafe(Box::new(call(
+                call(
                     "_builtin_read64",
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("buffer"),
                         int64_const(1),
                     ],
-                ))),
+                ),
             ),
             if_then(
                 op2("<", var("got"), int64_const(0)),
@@ -3582,17 +3561,17 @@ fn build_fputc() -> DaDecl {
                 DaType::pointer(DaType::uint8()),
                 reinterpret(var(IO_BYTE), DaType::pointer(DaType::uint8())),
             ),
-            local(
+            constant(
                 "wrote",
                 DaType::int(),
-                DaExpr::Unsafe(Box::new(call(
+                call(
                     "_builtin_write",
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("buffer"),
                         DaExpr::ConstInt(1),
                     ],
-                ))),
+                ),
             ),
             if_then(
                 op2("!=", var("wrote"), DaExpr::ConstInt(1)),
@@ -3747,19 +3726,19 @@ fn build_own_text() -> DaDecl {
                     DaStmt::Expr(call("push", vec![var(TEXT_CAPS), uint64_const(0)])),
                 ],
             ),
-            local(
+            constant(
                 "need",
                 DaType::uint64(),
                 op2(
                     "+",
-                    cast(call("length", vec![var("body")]), DaType::uint64()),
+                    cast(call("long_length", vec![var("body")]), DaType::uint64()),
                     uint64_const(1),
                 ),
             ),
             if_then(
                 op2("<", slot_entry(TEXT_CAPS), var("need")),
                 vec![
-                    local(
+                    constant(
                         "raw",
                         DaType::uint64(),
                         call("c2da_rt_malloc", vec![var("need")]),
@@ -3772,7 +3751,7 @@ fn build_own_text() -> DaDecl {
                     assign(slot_entry(TEXT_CAPS), var("need")),
                 ],
             ),
-            local("base", DaType::uint64(), slot_entry(TEXT_CELLS)),
+            constant("base", DaType::uint64(), slot_entry(TEXT_CELLS)),
             local("i", DaType::int(), DaExpr::ConstInt(0)),
             while_(
                 op2("<", var("i"), call("length", vec![var("body")])),
@@ -3782,7 +3761,7 @@ fn build_own_text() -> DaDecl {
                         vec![
                             var("base"),
                             cast(var("i"), DaType::uint64()),
-                            call("character_at", vec![var("body"), var("i")]),
+                            byte_of_text("body", var("i")),
                         ],
                     )),
                     advance("i"),
@@ -3907,13 +3886,9 @@ fn build_perror() -> DaDecl {
                 DaType::string(),
                 call(STRERROR_TEXT, vec![call(GET_ERRNO, vec![])]),
             ),
-            local("prefix", DaType::string(), call(RAW_STRING, vec![var("s")])),
+            constant("prefix", DaType::string(), call(RAW_STRING, vec![var("s")])),
             if_then(
-                op2(
-                    "!=",
-                    call("length", vec![var("prefix")]),
-                    DaExpr::ConstInt(0),
-                ),
+                not(call("empty", vec![var("prefix")])),
                 vec![assign(
                     var("body"),
                     op2("+", op2("+", var("prefix"), text(": ")), var("body")),
@@ -3979,7 +3954,7 @@ fn build_getenv() -> DaDecl {
                 op2("==", var("name"), uint64_const(0)),
                 vec![ret(uint64_const(0))],
             ),
-            local("key", DaType::string(), call(RAW_STRING, vec![var("name")])),
+            constant("key", DaType::string(), call(RAW_STRING, vec![var("name")])),
             if_then(
                 not(call("has_env_variable", vec![var("key")])),
                 vec![ret(uint64_const(0))],
@@ -4002,7 +3977,7 @@ fn build_remove() -> DaDecl {
         vec![u64_param("path")],
         DaType::int(),
         vec![
-            local(
+            constant(
                 "name",
                 DaType::string(),
                 call(RAW_STRING, vec![var("path")]),
@@ -4024,12 +3999,12 @@ fn build_rename() -> DaDecl {
         vec![u64_param("from"), u64_param("to")],
         DaType::int(),
         vec![
-            local(
+            constant(
                 "old_name",
                 DaType::string(),
                 call(RAW_STRING, vec![var("from")]),
             ),
-            local(
+            constant(
                 "new_name",
                 DaType::string(),
                 call(RAW_STRING, vec![var("to")]),
@@ -4085,11 +4060,7 @@ fn build_strtod() -> DaDecl {
     let digit_loop = while_true(vec![
         let_("b", byte_at(var("i"))),
         if_chain(
-            op2(
-                "&&",
-                op2(">=", var("b"), DaExpr::ConstInt(48)),
-                op2("<=", var("b"), DaExpr::ConstInt(57)),
-            ),
+            is_digit("b"),
             vec![
                 advance("digits"),
                 if_then(
@@ -4266,7 +4237,7 @@ fn build_strtod() -> DaDecl {
                     vec![text("--libc std: strtod does not implement inf and nan")],
                 ))],
             ),
-            local("start", DaType::uint64(), var("i")),
+            constant("start", DaType::uint64(), var("i")),
             local("digits", DaType::int(), DaExpr::ConstInt(0)),
             local("exponent", DaType::int(), DaExpr::ConstInt(0)),
             local("nonzero", DaType::bool(), DaExpr::ConstBool(false)),
@@ -4287,14 +4258,16 @@ fn build_strtod() -> DaDecl {
             )),
             // The unsigned text of the conversion, which is what `to_double`
             // accepts; the sign is applied to the result.
-            local("body", DaType::string(), text("")),
-            local("k", DaType::uint64(), var("start")),
-            while_(
-                op2("<", var("k"), var("stop")),
-                vec![
-                    append("body", call("to_char", vec![byte_at(var("k"))])),
-                    advance_u64("k"),
-                ],
+            constant(
+                "body",
+                DaType::string(),
+                build_text(vec![
+                    local("k", DaType::uint64(), var("start")),
+                    while_(
+                        op2("<", var("k"), var("stop")),
+                        vec![emit_char(byte_at(var("k"))), advance_u64("k")],
+                    ),
+                ]),
             ),
             local(
                 "value",
@@ -4348,7 +4321,7 @@ fn build_strtof() -> DaDecl {
         vec![u64_param("nptr"), u64_param("endptr")],
         DaType::float(),
         vec![
-            local(
+            constant(
                 "value",
                 DaType::double(),
                 call(STRTOD, vec![var("nptr"), var("endptr")]),
@@ -4692,22 +4665,19 @@ fn build_raw_string() -> DaDecl {
         vec![u64_param("base")],
         DaType::string(),
         vec![
-            local("out", DaType::string(), text("")),
-            if_then(
-                op2("==", var("base"), uint64_const(0)),
-                vec![ret(var("out"))],
-            ),
-            local("i", DaType::uint64(), uint64_const(0)),
-            while_true(vec![
-                let_("b", byte_of("base", var("i"))),
-                if_then(
-                    op2("==", var("b"), DaExpr::ConstInt(0)),
-                    vec![DaStmt::Expr(DaExpr::Break)],
-                ),
-                append("out", call("to_char", vec![var("b")])),
-                advance_u64("i"),
-            ]),
-            ret(var("out")),
+            if_then(op2("==", var("base"), uint64_const(0)), vec![ret(text(""))]),
+            ret(build_text(vec![
+                local("i", DaType::uint64(), uint64_const(0)),
+                while_true(vec![
+                    let_("b", byte_of("base", var("i"))),
+                    if_then(
+                        op2("==", var("b"), DaExpr::ConstInt(0)),
+                        vec![DaStmt::Expr(DaExpr::Break)],
+                    ),
+                    emit_char(var("b")),
+                    advance_u64("i"),
+                ]),
+            ])),
         ],
     )
 }
@@ -4769,7 +4739,7 @@ fn build_place() -> DaDecl {
         ],
         DaType::int(),
         vec![
-            local("n", DaType::int(), call("length", vec![var("body")])),
+            constant("n", DaType::int(), call("length", vec![var("body")])),
             if_then(
                 op2(
                     "&&",
@@ -4777,7 +4747,7 @@ fn build_place() -> DaDecl {
                     op2("!=", var("dst"), uint64_const(0)),
                 ),
                 vec![
-                    local(
+                    constant(
                         "cap",
                         DaType::int(),
                         op2("-", cast(var("size"), DaType::int()), DaExpr::ConstInt(1)),
@@ -4795,7 +4765,7 @@ fn build_place() -> DaDecl {
                                 vec![
                                     var("dst"),
                                     cast(var("i"), DaType::uint64()),
-                                    call("character_at", vec![var("body"), var("i")]),
+                                    byte_of_text("body", var("i")),
                                 ],
                             )),
                             advance("i"),
@@ -4990,7 +4960,7 @@ fn build_strchr() -> DaDecl {
                 op2("==", var("s"), uint64_const(0)),
                 vec![ret(uint64_const(0))],
             ),
-            local(
+            constant(
                 "target",
                 DaType::int(),
                 op2("&", var("ch"), DaExpr::ConstInt(255)),
@@ -5024,7 +4994,7 @@ fn build_strrchr() -> DaDecl {
                 op2("==", var("s"), uint64_const(0)),
                 vec![ret(uint64_const(0))],
             ),
-            local(
+            constant(
                 "target",
                 DaType::int(),
                 op2("&", var("ch"), DaExpr::ConstInt(255)),
@@ -5445,7 +5415,7 @@ fn build_cell_alloc() -> DaDecl {
         vec![],
         DaType::uint64(),
         vec![
-            local(
+            constant(
                 "raw",
                 DaType::uint64(),
                 call("c2da_rt_malloc", vec![uint64_const(align + 4)]),
@@ -5457,7 +5427,7 @@ fn build_cell_alloc() -> DaDecl {
                     vec![text("--libc std prelude: the raw heap is exhausted")],
                 ))],
             ),
-            local(
+            constant(
                 "aligned",
                 DaType::uint64(),
                 op2(
@@ -5575,7 +5545,7 @@ fn build_putchar() -> DaDecl {
         vec![param("c", DaType::int())],
         DaType::int(),
         vec![
-            local(
+            constant(
                 "byte",
                 DaType::int(),
                 op2("&", var("c"), DaExpr::ConstInt(255)),
@@ -5600,7 +5570,7 @@ fn build_fprintf() -> DaDecl {
         ],
         DaType::int(),
         vec![
-            local(
+            constant(
                 "body",
                 DaType::string(),
                 call(FORMAT, vec![var("f"), var("args")]),
@@ -5623,7 +5593,7 @@ fn build_snprintf() -> DaDecl {
         ],
         DaType::int(),
         vec![
-            local(
+            constant(
                 "placed",
                 DaType::int(),
                 call(
@@ -5686,13 +5656,13 @@ fn build_vsnprintf() -> DaDecl {
         DaType::int(),
         vec![
             take_cursor(),
-            local(
+            constant(
                 "body",
                 DaType::string(),
                 call(VFORMAT, vec![var("f"), var("args"), var("from")]),
             ),
             put_cursor(),
-            local(
+            constant(
                 "placed",
                 DaType::int(),
                 call(PLACE, vec![var("dst"), var("size"), var("body")]),
@@ -5715,7 +5685,7 @@ fn build_vprintf() -> DaDecl {
         DaType::int(),
         vec![
             take_cursor(),
-            local(
+            constant(
                 "body",
                 DaType::string(),
                 call(VFORMAT, vec![var("f"), var("args"), var("from")]),
@@ -5741,7 +5711,7 @@ fn build_vfprintf() -> DaDecl {
         DaType::int(),
         vec![
             take_cursor(),
-            local(
+            constant(
                 "body",
                 DaType::string(),
                 call(VFORMAT, vec![var("f"), var("args"), var("from")]),
@@ -5773,7 +5743,7 @@ fn build_fwrite() -> DaDecl {
                 ),
                 vec![ret(uint64_const(0))],
             ),
-            local(
+            constant(
                 "total",
                 DaType::uint64(),
                 op2("*", var("size"), var("count")),
@@ -5787,17 +5757,17 @@ fn build_fwrite() -> DaDecl {
                 DaType::pointer(DaType::uint8()),
                 reinterpret(var("src"), DaType::pointer(DaType::uint8())),
             ),
-            local(
+            constant(
                 "wrote",
                 DaType::int(),
-                DaExpr::Unsafe(Box::new(call(
+                call(
                     "_builtin_write",
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("buffer"),
                         cast(var("total"), DaType::int()),
                     ],
-                ))),
+                ),
             ),
             // C's `fwrite` answers a short item count and sets the stream's
             // error indicator; the byte count the host reports is what makes
@@ -5839,8 +5809,10 @@ fn is_digit(name: &str) -> DaExpr {
     call("is_number", vec![var(name)])
 }
 
+/// `is_alpha(c)` — daslib `strings`' `'a'..'z' || 'A'..'Z'` over an `int`,
+/// the C locale's `isalpha`.
 fn letter() -> DaExpr {
-    op2("||", in_range(65, 90), in_range(97, 122))
+    call("is_alpha", vec![var("c")])
 }
 
 /// `def c2da_std_is…(c : int) : int` — the C locale, which is the only locale
@@ -6140,7 +6112,6 @@ mod tests {
             UNGETC,
             REWIND,
             FILENO,
-            REPEAT,
             UTOA,
             NUMBER,
             TAKE,

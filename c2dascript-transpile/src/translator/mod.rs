@@ -3261,14 +3261,8 @@ fn c2da_bool_to_uint_helper() -> DaDecl {
         ret_type: DaType::uint(),
         body: Some(DaExpr::Block(DaBlock {
             stmts: vec![DaStmt::Expr(DaExpr::IfThenElse {
-                // `DaExpr` currently carries no type on a plain variable.  Make
-                // the helper condition explicitly boolean so the printer never
-                // routes it through C-style numeric truthiness.
-                cond: Box::new(DaExpr::Op2 {
-                    op: "==",
-                    left: Box::new(DaExpr::Var("v".to_string())),
-                    right: Box::new(DaExpr::ConstBool(true)),
-                }),
+                // `v` is the helper's own `bool` parameter: it is the condition.
+                cond: Box::new(DaExpr::Var("v".to_string())),
                 then: Box::new(DaExpr::Block(DaBlock {
                     stmts: vec![DaStmt::Expr(DaExpr::Return(Some(Box::new(
                         DaExpr::ConstUInt(1),

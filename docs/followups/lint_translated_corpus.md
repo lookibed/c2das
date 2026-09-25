@@ -150,6 +150,20 @@ Counts are occurrences in the module text.
 1. Runtime prelude: 64-bit `resize` / `long_length` (LINT018/017) — the only finding that can
    change behaviour, and it should fail closed rather than truncate.  The PERF001/003/017
    fixes in the same prelude are cheap alongside it.
+   *Addressed:* the prelude (`runtime.rs`, `libc.rs`, the `mod.rs` helpers) is lint-clean
+   in all three modules and in a module that pulls in every `--libc std` helper.  Locals
+   that are never reassigned are typed `let` (`DaStmt::Let` carries an optional type);
+   text built byte by byte goes through one `build_string` builder (`DaExpr::MakeBlock`,
+   `write`/`write_char`) instead of `string +=`, and printf's spelling of a specification
+   is read back out of the format rather than accumulated; `repeat`, `is_alpha`,
+   `is_number` and `unsafe(character_uat(...))` under the existing bound replace the
+   hand-written loops, range checks and `character_at`.  The variadic argument array is a
+   read-only parameter (LINT014), and a payload value already of the lane's type is not
+   converted again.  Runtime fixture `p101-std-text-builders`.  Per module
+   703 / 2 383 / 2 556 → 633 / 2 313 / 2 482 findings; what remains is program code.  The
+   93 wasm3 STYLE018 are not prelude: a C `_Bool` operand of `&&`/`||`/`if` becomes
+   `(b == true ? 1 : 0) != 0` (`abi.rs materialize_bool_as_number` →
+   `mod.rs as_bool_condition`); the condition lowering could take the `_Bool` itself.
 2. Printing hygiene: drop same-type `reinterpret`, collapse nested `unsafe` to one per
    expression, print literals in their target type.  This removes ≈ 95 % of all findings and
    most of the bulk of the modules.

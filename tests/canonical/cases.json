@@ -1156,6 +1156,23 @@
       "runtime": "required"
     },
     {
+      "id": "p101-std-text-builders",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p101_std_text_builders.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "b%c[   +042][xy  ]\ncount=19\n[xyz]  2.5%|11\nstrtod=125 end=8\nstrtod=-0.25 end=5\nstrtod=0 end=0\ncafé €!\n[café €!][café]\n0110011000\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p101_std_text_is_built_in_one_string_builder",
+      "runtime": "required"
+    },
+    {
       "id": "wasm3-fib32-std",
       "status": "ready",
       "source_root": "tests/manual/wasm3",
