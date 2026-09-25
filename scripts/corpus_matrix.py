@@ -1093,9 +1093,14 @@ def render_benchmark(results: list[dict[str, Any]], facts: dict[str, str], runs:
 def select_cases(case_id: str | None) -> list[dict[str, Any]]:
     cases = [c for c in runner.load_cases() if "corpus" in c]
     if case_id:
+        # `--case` runs any corpus case, a known-red one included: that is how
+        # its blocker is measured.  The whole matrix (and so the committed
+        # documents and `converge --check`) covers the ready cases only.
         cases = [c for c in cases if c["id"] == case_id]
         if not cases:
             raise MatrixFailure(f"no corpus case named {case_id}")
+    else:
+        cases = [c for c in cases if c.get("status") == "ready"]
     if not cases:
         raise MatrixFailure("no corpus cases registered")
     for case in cases:

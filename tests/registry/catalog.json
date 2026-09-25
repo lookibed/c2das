@@ -161,6 +161,16 @@
       "status": "inventory-only"
     },
     {
+      "c_graph": "binjgb",
+      "entrypoint": "graph-member",
+      "expected_kind": "unregistered",
+      "glob": "tests/manual/binjgb/src/*.c",
+      "id": "binjgb",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "status": "inventory-only"
+    },
+    {
       "c_graph": "single-tu",
       "entrypoint": "unregistered",
       "expected_kind": "unregistered",
@@ -248,6 +258,18 @@
       "description": "Canonical wasm3 interpreter translation graph, rooted at src/all_host.c; src/all_host_bench.c is the same graph with the timing entry.",
       "entry": "tests/manual/wasm3/src/all_host.c",
       "id": "wasm3"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-DNDEBUG",
+        "-Iinclude",
+        "-Iupstream/binjgb/src",
+        "-Isrc"
+      ],
+      "description": "Canonical binjgb (Game Boy Color emulator core) translation graph, rooted at src/binjgb_all.c; src/binjgb_bench_all.c is the same graph with the timing entry.",
+      "entry": "tests/manual/binjgb/src/binjgb_all.c",
+      "id": "binjgb"
     },
     {
       "compile_commands": "tests/production/real-archive-secret/cc_all.json",

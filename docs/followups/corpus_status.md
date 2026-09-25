@@ -7,6 +7,7 @@
 | PLMPEG stream, 320×240 | same pl_mpeg revision; `fixtures/testsrc2_320x240.m1v` synthesized with ffmpeg (command and sha256 in `UPSTREAM.md`) | ready | `plmpeg-stream-320x240`, same graph, file entries `src/plmpeg_file_*` reading the fixture at run time | RGB hash of every decoded frame (59 frames, 320×240, GOP 12, no B-frames), pinned in `cases.json` | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md` |
 | wasm3 (interpreter core, no WASI) | `tests/manual/wasm3/UPSTREAM.md`: wasm3 `deeaca9ce` (MIT); `fixtures/fib32.wasm`, `fib64.wasm` are upstream's own test vectors | ready | `wasm3-fib32-std`: `src/all_host.c` (graph + C host over the `.wasm` named by the last argument) translated under `--libc std` with `das_options: ["stack = 4194304"]`, `program_args: fixtures/fib32.wasm` | `fib[n]=` for n in 1,2,5,10,15,20,24 plus `bytes=62` and `count=7`, pinned in `cases.json`; C reference == fresh daslang in every run mode | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md`; `docs/followups/translator_gaps_wasm3.md` has the first per-mode measurement and the story; both daslang-side issues are avoided translator-side — record order in `global_order.rs` ([#2](https://github.com/lookibed/daScript/issues/2), case `p84-struct-definition-order`) and the named pointer value in `abi.rs` ([#3](https://github.com/lookibed/daScript/issues/3), case `p85-pointer-sum-compare`); decisions on the four translator gaps still due |
 | h264bsd + minimp4, 640×360 | same revisions; `fixtures/test_640x360.mp4` is upstream's `test/test_640x360.h264` muxed without re-encoding (`UPSTREAM.md`) | ready | `h264bsd-mp4-640x360`, same graph, file entries `src/h264_file_*` reading the fixture at run time | YUV hash of every decoded picture (73 pictures, 640×368 output, constrained baseline), pinned in `cases.json` | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md` |
+| binjgb (Game Boy Color emulator core) | `tests/manual/binjgb/UPSTREAM.md`: binjgb `8191a5d6` (MIT); `fixtures/cgb-acid2.gbc` is Matt Currie's cgb-acid2 `v1.1` (MIT) | known-red | `binjgb-cgb-acid2-std`: `src/binjgb_all.c` (graph + platform layer + C entry over the ROM named by the last argument) translated under `--libc std`, `program_args: fixtures/cgb-acid2.gbc` | cartridge header lines, RGB555 FNV-1a hash of each of 60 emulated frames (A held on frames 8–9), `frames=60`, `ticks=5378896`, pinned in `cases.json` from the clang-18 C reference | blocked: the translated module does not compile in daslang, "binjgb: translation blockers" below; not in `docs/corpus-convergence.md` / `docs/corpus-benchmark.md` until ready |
 
 The two 320×240 / 640×360 rows exist twice in `cases.json`: once over a fixture-owned
 daslang entry (`plmpeg-stream-320x240`, `h264bsd-mp4-640x360`) and once as
@@ -54,3 +55,118 @@ the case passes, and `--all-ready` runs the corpora too.
 Known-red entries are never counted as successful validation or readiness. A `ready`
 row is only as current as its "Last verified" cell: re-run the case and update the
 cell whenever the translator, the runtime prelude or the vendored sources change.
+
+## binjgb: translation blockers
+
+Measured 2026-09-26 at `1173131c4`, daslang 0.6.4, clang-18.  `tests/manual/binjgb`
+(`README.md` there) vendors the binjgb core unmodified; the case `binjgb-cgb-acid2-std` is
+`known-red`.  `scripts/corpus_matrix.py` runs a known-red corpus case only under `--case`; the
+whole-matrix runs, the committed documents and `converge --check` cover the ready cases.
+
+The C reference (`clang-18`, `-O0`/`-O2`/`-O3 -march=native`, and `-O0` with
+`-fsanitize=address,undefined`) prints the pinned oracle.  `c2dascript-transpile --strict
+--libc std` translates `src/binjgb_all.c` with no error (14,613 lines, 833 KB of daslang).
+daslang then rejects the module at compile time — interpreter, `-jit`, `-exe` and `daslang -aot`
+alike (exit 1 / 255) — with five errors in two families.  Both are translator gaps: the C is
+valid and the generated text is what daslang refuses.
+
+**Gap B1 — compound assignment on an enum-typed lvalue.**  `lvalue ^= 1` where the lvalue has
+enum type is lowered as `reinterpret<E>(lvalue ^ 1u)`: the operator is applied to the enum
+value, not to its integer value.
+
+```
+error[30341]: no matching functions or generics: _::^(Speed&, uint const)
+    ... = unsafe(reinterpret<Speed>(unsafe(unsafe(reinterpret<Speed?>(unsafe(reinterpret<uint64>(e_118))))[52956]) ^ 1u))
+while compiling: execute_instruction(e_118: Emulator? -const): void
+error[30341]: no matching functions or generics: _::^(Bool&, uint const)
+    ... = unsafe(reinterpret<Bool>(unsafe(unsafe(reinterpret<Bool?>(unsafe(reinterpret<uint64>(e_118))))[3120]) ^ 1u))
+```
+
+Sites: `upstream/binjgb/src/emulator.c:4369` (`CPU_SPEED.speed ^= 1;`, `Speed`) and
+`emulator.c:4144` (`#define CCF FC ^= 1; ...`, the `F.C` flag of type `Bool`, expanded in
+`execute_instruction`).  Minimal reproducer (with `#include <stdio.h>`; C prints `speed=1`):
+
+```c
+typedef enum Speed { SPEED_NORMAL = 0, SPEED_DOUBLE = 1 } Speed;
+typedef struct CpuSpeed { Speed speed; } CpuSpeed;
+int main(void) { CpuSpeed s = {SPEED_NORMAL}; s.speed ^= 1; printf("speed=%d\n", (int)s.speed); return 0; }
+```
+
+→ `s.speed = unsafe(reinterpret<Speed>(s.speed ^ 1u))`, the same `error[30341]`.  Owner: the
+compound-assignment lowering in `translator/operators.rs` with the enum conversions of
+`translator/enums.rs` (C11 6.5.16.2: `E1 op= E2` is `E1 = E1 op (E2)` after the usual
+arithmetic conversions, so the enum operand must be converted to its integer type first).
+
+**Gap B2 — copying a record with pointer fields from a const source.**  The copy is emitted as a
+plain daslang copy/initialization, and daslang refuses to copy a `T? const` field into a `T?`.
+
+```
+error[30915]: can only copy compatible type; FileData const&
+    c2da_fresh368 = *file_data_3
+	can't assign 'FileData const&.data: uint8? = uint8? const'
+error[30344]: local variable iter initialization type mismatch; JoypadStateIter const
+    var iter : JoypadStateIter = c2da_fresh551
+	can't assign 'JoypadStateIter const.chunk: JoypadChunk? = JoypadChunk? const'
+	can't assign 'JoypadStateIter const.state: JoypadState? = JoypadState? const'
+error[30344]: local variable iter_0 initialization type mismatch; JoypadStateIter const
+    var iter_0 : JoypadStateIter = c2da_fresh554
+```
+
+Sites: `emulator.c:4910` (`e->file_data = *file_data;` in `set_rom_file_data`, through
+`const FileData *`), and the callee-side copy of a by-value record parameter at `joypad.c:140`
+(`joypad_truncate_to(JoypadBuffer*, JoypadStateIter iter)`) and `joypad.c:156`
+(`joypad_get_next_state(JoypadStateIter iter)`); `JoypadStateIter` holds two pointers.  Minimal
+reproducer (with `#include <stdio.h>`; C prints `size=3 first=2`):
+
+```c
+typedef struct FileData { unsigned char *data; unsigned long size; } FileData;
+typedef struct Holder { int tag; FileData file_data; } Holder;
+static void set_file(Holder *h, const FileData *file_data) { h->file_data = *file_data; }
+static FileData advance(FileData iter) { iter.data += 1; iter.size -= 1; return iter; }
+int main(void) {
+    static unsigned char bytes[4] = {1, 2, 3, 4};
+    FileData f = {bytes, 4}; Holder h = {0, {0, 0}};
+    set_file(&h, &f);
+    FileData g = advance(h.file_data);
+    printf("size=%lu first=%d\n", g.size, (int)g.data[0]);
+    return 0;
+}
+```
+
+→ `var c2da_fresh0 : FileData = *file_data` and `var iter : FileData = c2da_fresh1`, the same two
+errors.  Owner: record value copies — the by-value parameter copy in `translator/functions.rs`
+("C passes a record by value: the parameter is a local object") and the record assignment
+through a const pointer (the temporary that is then `c2da_rt_memcpy`'d into the pointer-backed
+field; not yet traced to its owner, `translator/object_memory.rs` is the candidate).  C's `const`
+on the source object does not make the copied pointer members point to const.
+
+**Past the two gaps (diagnostic, not validation).**  A scratch copy of the corpus with the three
+statements rewritten (`FC = FC ? FALSE : TRUE`, the `speed` toggle as a conditional,
+`set_rom_file_data` copying `data` and `size` field by field) and `joypad.c` left out of the graph
+translates, and `corpus_matrix`'s own `converge_case` / `bench_case` run over it give:
+
+| mode | 60-frame run vs C | 300-frame bench, × C `-O3 -march=native` (59.8–60.4 ms) |
+|---|---|---|
+| interp | byte-identical | 145× (8.78 s) |
+| jit | byte-identical | 1.38× |
+| exe | byte-identical | 1.41× |
+| aot | C++ does not compile | — |
+
+**Gap B3 (AOT) — a 256-case `switch` exceeds clang's bracket depth.**  `switch (cb)` at
+`emulator.c:4556` (the CB-prefixed opcodes, all 256 values) becomes a flat
+`if/elif` chain of 256 arms in the daslang module (maximum indentation 8); daslang's AOT prints
+each `elif` as a nested `else { if ... }`, and `clang++-18` stops on the generated C++:
+
+```
+binjgb_all.das.cpp:26600:1017: fatal error: bracket nesting level exceeded maximum of 256
+```
+
+The 245-arm `switch (opcode)` at `emulator.c:4453` stays under the limit.  Owner: the switch
+lowering (`build_switch_arm`, `translator/mod.rs`); the alternative outside the translator is a
+`-fbracket-depth` in the AOT build flags, which `scripts/corpus_matrix.py` does not set.
+Neither is done here.
+
+Acceptance gate for promotion to `ready`: the unmodified `src/binjgb_all.c` compiles and matches
+the pinned oracle in `run_c2das_cases.py --case binjgb-cgb-acid2-std` and in all four modes of
+`corpus_matrix.py converge --case binjgb-cgb-acid2-std`; each gap gets a canonical case of its
+reproducer when it is fixed.
