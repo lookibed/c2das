@@ -1250,6 +1250,157 @@
       "status": "inventory-only"
     },
     {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "doomgeneric",
+      "id": "tests--manual--doomgeneric--src--all",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/src/all.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "doomgeneric",
+      "id": "tests--manual--doomgeneric--src--dg_platform",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/src/dg_platform.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "canonical_case": "doomgeneric-demo1-std",
+      "canonical_cases": [
+        "doomgeneric-demo1-std"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "frame[0]=-288221841\nframe[1]=-1974147103\nframe[2]=-1371333551\nframe[3]=-311612633\nframe[4]=61684155\nframe[5]=274729465\nframe[6]=-575676439\nframe[7]=839636789\nframe[8]=-1757064413\nframe[9]=597874855\nframe[10]=756133791\nframe[11]=546555967\nframe[12]=840439929\nframe[13]=-1964124787\nframe[14]=1574317281\nframe[15]=-1968558826\nframe[16]=1018789605\nframe[17]=-737365355\nframe[18]=1332884193\nframe[19]=133681673\nframe[20]=1144928681\nframe[21]=-874128881\nframe[22]=20652115\nframe[23]=1477602998\nframe[24]=2127216700\nframe[25]=-2142760767\nframe[26]=935832973\nframe[27]=-494883972\nframe[28]=-1350608116\nframe[29]=-1104928309\nframe[30]=1520901762\nframe[31]=1449564386\nframe[32]=1319215018\nframe[33]=1137127970\nframe[34]=1403493386\nframe[35]=1309546109\nframe[36]=2124821507\nframe[37]=-722706232\nframe[38]=1183685786\nframe[39]=742349402\nframe[40]=742349402\nframe[41]=742349402\nframe[42]=742349402\nframe[43]=742349402\nframe[44]=742349402\nframe[45]=-1953597393\nframe[46]=-668979122\nframe[47]=575663143\nframe[48]=600575477\nframe[49]=-899223173\nframe[50]=-1895391426\nframe[51]=-2140389343\nframe[52]=-1973890294\nframe[53]=2050982887\nframe[54]=1435611004\nframe[55]=-513844599\nframe[56]=133742381\nframe[57]=1541739105\nframe[58]=1110043847\nframe[59]=-1514565496\nframe[60]=695570021\nframe[61]=1661577531\nframe[62]=1044374416\nframe[63]=319965919\nframe[64]=543616154\nframe[65]=1012607777\nframe[66]=-1224194418\nframe[67]=87956286\nframe[68]=-711226778\nframe[69]=763190869\nframes=70\n"
+        }
+      },
+      "family": "doomgeneric",
+      "id": "tests--manual--doomgeneric--src--doom_all",
+      "owner": "corpus graph inventory",
+      "runtime": "required",
+      "source": "tests/manual/doomgeneric/src/doom_all.c",
+      "status": "known-red"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "doomgeneric",
+      "id": "tests--manual--doomgeneric--src--doom_bench_all",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/src/doom_bench_all.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "doomgeneric",
+      "id": "tests--manual--doomgeneric--src--doom_bench_entry",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/src/doom_bench_entry.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "doomgeneric",
+      "id": "tests--manual--doomgeneric--src--doom_entry",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/src/doom_entry.c",
+      "status": "inventory-only"
+    },
+    {
       "c_graph": "h264bsd-mp4",
       "canonical_case": "h264bsd-mp4",
       "canonical_cases": [
@@ -9499,6 +9650,17 @@
       "description": "Canonical binjgb (Game Boy Color emulator core) translation graph, rooted at src/binjgb_all.c; src/binjgb_bench_all.c is the same graph with the timing entry.",
       "entry": "tests/manual/binjgb/src/binjgb_all.c",
       "id": "binjgb"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-Iinclude",
+        "-Iupstream/doomgeneric/doomgeneric",
+        "-Isrc"
+      ],
+      "description": "doomgeneric engine plus the corpus platform layer, rooted at src/doom_all.c; src/doom_bench_all.c is the same graph with the timing entry.",
+      "entry": "tests/manual/doomgeneric/src/doom_all.c",
+      "id": "doomgeneric"
     },
     {
       "compile_commands": "tests/production/real-archive-secret/cc_all.json",

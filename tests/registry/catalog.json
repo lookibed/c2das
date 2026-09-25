@@ -171,6 +171,16 @@
       "status": "inventory-only"
     },
     {
+      "c_graph": "doomgeneric",
+      "entrypoint": "graph-member",
+      "expected_kind": "unregistered",
+      "glob": "tests/manual/doomgeneric/src/*.c",
+      "id": "doomgeneric",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "status": "inventory-only"
+    },
+    {
       "c_graph": "single-tu",
       "entrypoint": "unregistered",
       "expected_kind": "unregistered",
@@ -270,6 +280,17 @@
       "description": "Canonical binjgb (Game Boy Color emulator core) translation graph, rooted at src/binjgb_all.c; src/binjgb_bench_all.c is the same graph with the timing entry.",
       "entry": "tests/manual/binjgb/src/binjgb_all.c",
       "id": "binjgb"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-Iinclude",
+        "-Iupstream/doomgeneric/doomgeneric",
+        "-Isrc"
+      ],
+      "description": "doomgeneric engine plus the corpus platform layer, rooted at src/doom_all.c; src/doom_bench_all.c is the same graph with the timing entry.",
+      "entry": "tests/manual/doomgeneric/src/doom_all.c",
+      "id": "doomgeneric"
     },
     {
       "compile_commands": "tests/production/real-archive-secret/cc_all.json",
