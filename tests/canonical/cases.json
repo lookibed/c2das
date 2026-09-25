@@ -1140,6 +1140,22 @@
       "runtime": "required"
     },
     {
+      "id": "p100-redundant-conversions",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p100_redundant_conversions.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "redundant_conversions_runtime", "return_type": "int" },
+      "das_entrypoint": "redundant_conversions_runtime",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p100_conversions_of_values_already_of_the_target_type_are_dropped",
+      "runtime": "required"
+    },
+    {
       "id": "wasm3-fib32-std",
       "status": "ready",
       "source_root": "tests/manual/wasm3",

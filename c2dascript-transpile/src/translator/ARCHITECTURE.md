@@ -56,8 +56,21 @@ as `2`, `8u`, `8l`, `8ul`, `8u8`, or `int16(4464)` for the three types without a
 constant's variant carries only the spelling (`ConstUInt`: a C hex/octal constant, printed in
 hex once unsigned).  What stays a conversion: anything whose operand is not a constant or a
 same-type conversion, real → integer (truncation), integer → real that rounds, and targets
-that are aliases or qualified.  `p97-constant-conversions` is the runtime fixture.  The one
-non-constant elision is made where the type is known by construction: a compound assignment or
+that are aliases or qualified.  `p97-constant-conversions` is the runtime fixture.
+
+The pass runs over the whole module (`fold_module_conversions`), so it also drops a
+conversion of a *non-constant* operand whose daScript type provably is the target: a local,
+parameter or global of that declared type, a load `p[i]`/`*p` through a `T?`, a field of a
+module structure, a call of a function the module declares once whose arguments are exactly
+its parameter types, a conversion or `reinterpret` to `T`, and `+ - * / %`, bitwise and
+shift operators on two operands of one `int`/`uint`/`int64`/`uint64` (daScript demands the
+same type on both sides and defines none of them on the storage types).  The type is read off
+the daScript AST, never off C: a C comparison is `int`, its daScript value `bool`.
+`T(U(x))` with `U` holding every value of `x`'s integer type is `T(x)`, and
+`c ? T(a) : T(b)` with `a`, `b` of one type is `T(c ? a : b)`.  Anything the rule cannot type
+— an unknown name, a builtin or overloaded call, a `null` argument, a `for` variable — keeps
+its conversion.  `p100-redundant-conversions` is the runtime fixture.  The one
+non-constant elision made in a lowering is where the type is known by construction: a compound assignment or
 `++`/`--` computes in the promoted C type `CArith` (`promote_operand`), so storing it back to an
 object whose storage is that same daScript type writes no conversion
 (`abi::narrow_arith_to_storage`).

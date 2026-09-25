@@ -245,6 +245,33 @@ fn p99_conditionals_without_statements_are_daslang_expressions() {
 }
 
 #[test]
+fn p100_conversions_of_values_already_of_the_target_type_are_dropped() {
+    let d = transpile("p100_redundant_conversions");
+    // An `int` index, a `u32` call with `u32` arguments, arithmetic of two
+    // `int64`s and a load through a `const` pointer are already the type
+    // the conversion names.
+    assert!(d.contains("total = total + unsafe(unsafe(addr(table_0[0]))[i_0])"));
+    assert!(d.contains("bits = get_bits(word_0, 8u)\n"));
+    assert!(d.contains("more = 16u * get_bits(word_0, 4u)\n"));
+    assert!(d.contains("return ns / 1000000000l\n"));
+    assert!(d.contains("return unsafe(unsafe(reinterpret<uint8 const?>(in_0))[i])\n"));
+    assert!(d.contains("from_const = unsafe(unsafe(addr(table_0[0]))[ci])\n"));
+    // `uint8(c ? int(t1) : int(t2))` of two `uint8`s is the conditional.
+    assert!(d.contains("return int(t2) == 255 ? t1 : t2\n"));
+    // Conversions that change the type stay.
+    for kept in [
+        "u = uint(negative)\n",
+        "widened = int(b)\n",
+        "less = i_1 < negative ? 1 : 0\n",
+        "narrowed = int(big)\n",
+        "from_const_unsigned = uint(ci)\n",
+        "b = load(unsafe(addr<uint8 const?>(BYTES[0])), i_1)\n",
+    ] {
+        assert!(d.contains(kept), "missing `{}`", kept.trim_end());
+    }
+}
+
+#[test]
 fn p96_copies_reach_the_builtin_past_a_source_defined_memmove() {
     let d = transpile("p96_memcpy_builtin");
     assert!(

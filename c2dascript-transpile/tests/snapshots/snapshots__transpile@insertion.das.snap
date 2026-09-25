@@ -282,18 +282,18 @@ def insertion_sort(var n : int; var p : int?) {
     }
     return
     label 1:
-    tmp = unsafe(unsafe(reinterpret<int?>(p))[int(i)])
+    tmp = unsafe(unsafe(reinterpret<int?>(p))[i])
     j = i
     label 2:
-    if (j > 0 && unsafe(unsafe(reinterpret<int?>(p))[int(j - 1)]) > tmp) {
+    if (j > 0 && unsafe(unsafe(reinterpret<int?>(p))[j - 1]) > tmp) {
         goto label 3
     }
-    unsafe(unsafe(reinterpret<int?>(p))[int(j)]) = tmp
+    unsafe(unsafe(reinterpret<int?>(p))[j]) = tmp
     c2da_postinc_0 = i
     i = i + 1
     goto label 0
     label 3:
-    unsafe(unsafe(reinterpret<int?>(p))[int(j)]) = unsafe(unsafe(reinterpret<int?>(p))[int(j - 1)])
+    unsafe(unsafe(reinterpret<int?>(p))[j]) = unsafe(unsafe(reinterpret<int?>(p))[j - 1])
     c2da_postinc = j
     j = j - 1
     goto label 2

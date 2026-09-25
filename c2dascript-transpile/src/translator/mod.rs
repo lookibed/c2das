@@ -3840,10 +3840,10 @@ fn translate_impl(
     // constant is a constant of the target type, a conversion to the type the
     // operand already has is none — not a lowering decision, so it is applied
     // once here, over the translated C and every generated prelude alike
-    // (`das_ast::fold`).
-    for decl in &mut module_decls {
-        decl.fold_numeric_conversions();
-    }
+    // (`das_ast::fold`).  The pass sees the whole module, so the declared
+    // daScript types of its globals, locals, functions and structures tell it
+    // when a non-constant operand already has the target type.
+    das_ast::fold::fold_module_conversions(&mut module_decls);
 
     // Build the daScript module.  The header is the caller's choice: an
     // anonymous `options gen2` module by default, `module <stem> public` and

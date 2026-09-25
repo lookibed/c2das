@@ -121,6 +121,11 @@ Counts are occurrences in the module text.
    explains was not counted.
 3. **Literal casts.**  C integer literals are printed as `int(N)` even where the context is
    already `int` (PERF020), and as `uint(int(N))` for an unsigned context instead of `Nu`.
+   *Addressed:* literals print in their target type, and the module fold also drops a
+   conversion of a non-constant operand whose daslang type provably is the target
+   (`translator/ARCHITECTURE.md`, `das_ast::fold`; fixture `p100-redundant-conversions`).
+   PERF020 383 / 1 589 / 959 → 0 / 9 / 0 (the 9 are calls with a `null` argument, whose
+   type the rule does not claim), PERF021 0 / 0 / 7 → 0 / 0 / 0.
 4. **Condition temporaries.**  C `&&`/`||`/`?:` are lowered to a `c2da_freshN` flag set to
    0, then conditionally to 1, then tested (`plm_get_width`), and `?:` to a temporary set in
    both branches (the h264bsd `payload_bytes` case above).  These initial stores are the

@@ -3829,6 +3829,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p100-redundant-conversions",
+      "canonical_cases": [
+        "p100-redundant-conversions"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "redundant_conversions_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p100_redundant_conversions",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p100_redundant_conversions.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-p10-ptr-swap",
       "canonical_cases": [
         "legacy-p10-ptr-swap"
