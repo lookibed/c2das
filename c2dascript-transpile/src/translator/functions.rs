@@ -471,7 +471,7 @@ impl<'c> Translation<'c> {
                     && !matches!(arg_val, DaExpr::ConstNull)
                     && Self::infer_type(&arg_val).map_or(true, |actual| actual != expected_da)
                 {
-                    arg_val = self.abi_pointer_cast(arg_val, expected_da);
+                    arg_val = self.abi_pointer_cast_from(arg_val, arg, expected_da)?;
                 }
             }
             // Canonical runtime ABI is raw-address/uint64 based.  This cast is

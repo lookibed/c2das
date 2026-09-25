@@ -745,11 +745,7 @@ impl<'c> Translation<'c> {
                                         && Self::infer_type(&ws.val)
                                             .map_or(true, |inferred| inferred != ret_da)
                                     {
-                                        DaExpr::Unsafe(Box::new(DaExpr::Cast {
-                                            kind: das_ast::CastKind::Reinterpret,
-                                            expr: Box::new(ws.val),
-                                            to: ret_da,
-                                        }))
+                                        DaExpr::reinterpret(ws.val, ret_da)
                                     } else {
                                         ws.val
                                     }
@@ -1387,11 +1383,7 @@ impl<'c> Translation<'c> {
                     } else if matches!(target_type.kind, DaTypeKind::Pointer(_)) {
                         WithStmts::new_val(self.abi_pointer_cast(inner.val, target_type))
                     } else {
-                        WithStmts::new_val(DaExpr::Unsafe(Box::new(DaExpr::Cast {
-                            kind: das_ast::CastKind::Reinterpret,
-                            expr: Box::new(inner.val),
-                            to: target_type,
-                        })))
+                        WithStmts::new_val(DaExpr::reinterpret(inner.val, target_type))
                     };
                     return Ok(cast
                         .prepend_stmts(inner.stmts)
@@ -1560,11 +1552,7 @@ impl<'c> Translation<'c> {
                     } else {
                         WithStmts::new_val(inner.val)
                     };
-                    pointer.map(|pointer| DaExpr::Cast {
-                        kind: das_ast::CastKind::Reinterpret,
-                        expr: Box::new(pointer),
-                        to: target_type,
-                    })
+                    pointer.map(|pointer| DaExpr::reinterpret(pointer, target_type))
                 } else {
                     // Everything left is a value conversion in C — including
                     // `(some_enum_t)n`, which daScript can only express as a

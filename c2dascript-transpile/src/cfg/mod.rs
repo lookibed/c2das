@@ -589,17 +589,9 @@ impl CfgBuilder {
                                 .get_qual_type()
                                 .map_or(false, |qty| tr.is_pointer_type(qty.ctype));
                             if matches!(ret_da.kind, DaTypeKind::UInt64) && expr_is_ptr {
-                                DaExpr::Unsafe(Box::new(DaExpr::Cast {
-                                    kind: das_ast::CastKind::Reinterpret,
-                                    expr: Box::new(ws.val),
-                                    to: DaType::uint64(),
-                                }))
+                                DaExpr::reinterpret(ws.val, DaType::uint64())
                             } else if matches!(ret_da.kind, DaTypeKind::Pointer(_)) {
-                                DaExpr::Unsafe(Box::new(DaExpr::Cast {
-                                    kind: das_ast::CastKind::Reinterpret,
-                                    expr: Box::new(ws.val),
-                                    to: ret_da,
-                                }))
+                                DaExpr::reinterpret(ws.val, ret_da)
                             } else {
                                 ws.val
                             }

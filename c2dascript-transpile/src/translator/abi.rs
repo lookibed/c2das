@@ -221,11 +221,7 @@ impl<'c> Translation<'c> {
             };
         }
         if matches!(target.kind, DaTypeKind::Named(_)) && !target.is_numeric() {
-            return DaExpr::Unsafe(Box::new(DaExpr::Cast {
-                kind: das_ast::CastKind::Reinterpret,
-                expr: Box::new(expr),
-                to: target,
-            }));
+            return DaExpr::reinterpret(expr, target);
         }
         DaExpr::Cast {
             kind: das_ast::CastKind::Cast,
@@ -343,19 +339,11 @@ impl<'c> Translation<'c> {
     /// The target may be any nullable daScript type — `T?` for a C object
     /// pointer, a named function type for a C function pointer.
     pub(crate) fn raw_address_to_pointer(&self, raw_address: DaExpr, pointer: DaType) -> DaExpr {
-        DaExpr::Unsafe(Box::new(DaExpr::Cast {
-            kind: das_ast::CastKind::Reinterpret,
-            expr: Box::new(raw_address),
-            to: pointer,
-        }))
+        DaExpr::reinterpret(raw_address, pointer)
     }
 
     pub(crate) fn pointer_to_raw_address(&self, pointer: DaExpr) -> DaExpr {
-        DaExpr::Unsafe(Box::new(DaExpr::Cast {
-            kind: das_ast::CastKind::Reinterpret,
-            expr: Box::new(pointer),
-            to: DaType::uint64(),
-        }))
+        DaExpr::reinterpret(pointer, DaType::uint64())
     }
 
     /// Reinterpret a value already represented as a daScript pointer (or an
@@ -365,11 +353,62 @@ impl<'c> Translation<'c> {
         if matches!(pointer, DaExpr::ConstNull) {
             return self.null_pointer(&target);
         }
-        DaExpr::Unsafe(Box::new(DaExpr::Cast {
-            kind: das_ast::CastKind::Reinterpret,
-            expr: Box::new(pointer),
-            to: target,
-        }))
+        DaExpr::reinterpret(pointer, target)
+    }
+
+    /// [`Self::abi_pointer_cast`] for the translation `pointer` of the C
+    /// expression `source`.
+    ///
+    /// When the C type of the value `pointer` holds converts to exactly the
+    /// daScript type `target` names, C asks for no conversion and none is
+    /// emitted: a `reinterpret` to a pointer's own type is the identity
+    /// (daslang's inference folds it away, `InferTypes::visit(ExprCast*)`,
+    /// `isSameExactType`), so it would be only an `unsafe` wrapper.  The
+    /// decision is made on the two types, never on the printed operand.
+    ///
+    /// The C type is read below the casts this translator lowers to nothing
+    /// (parentheses, `NoOp`, `ConstCast`, lvalue-to-rvalue): their operand's
+    /// value is what reaches here, so a qualifier such a cast adds or drops in
+    /// C is not a type the daScript value has.  It is trusted only for the C
+    /// expressions whose daScript value is typed by `convert_type` of their
+    /// own C type — a variable, a call result, a member — and compared with
+    /// its top-level `const` kept: daScript passes a pointer to a (`var`)
+    /// pointer parameter only if the value adds no constness, and the
+    /// `reinterpret` is what drops a `const` value's.  An array decay is not
+    /// trusted: its `addr(a[0])` is `const` when the array is, whatever the C
+    /// pointer type says.
+    pub(crate) fn abi_pointer_cast_from(
+        &self,
+        pointer: DaExpr,
+        source: CExprId,
+        target: DaType,
+    ) -> TranslationResult<DaExpr> {
+        let mut value = source;
+        loop {
+            match self.ast_context[value].kind {
+                CExprKind::Paren(_, inner)
+                | CExprKind::ImplicitCast(
+                    _,
+                    inner,
+                    CastKind::NoOp | CastKind::ConstCast | CastKind::LValueToRValue,
+                    _,
+                    _,
+                )
+                | CExprKind::ExplicitCast(_, inner, CastKind::NoOp | CastKind::ConstCast, _, _) => {
+                    value = inner
+                }
+                _ => break,
+            }
+        }
+        if let CExprKind::DeclRef(source, ..)
+        | CExprKind::Call(source, ..)
+        | CExprKind::Member(source, ..) = self.ast_context[value].kind
+        {
+            if self.convert_type(source)? == writable_type(target.clone()) {
+                return Ok(pointer);
+            }
+        }
+        Ok(self.abi_pointer_cast(pointer, target))
     }
 
     pub(crate) fn null_pointer(&self, pointer: &DaType) -> DaExpr {

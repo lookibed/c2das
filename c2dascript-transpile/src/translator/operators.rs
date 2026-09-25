@@ -187,13 +187,14 @@ impl<'c> Translation<'c> {
             lhs_da.is_some() && rhs_da.is_some() && lhs_da != rhs_da && !is_ptr && !any_ptr;
 
         match op {
-            // daScript compares two `T?` values directly.  Only a mixed
+            // daScript compares two `T?` values directly, and safely: the
+            // comparison itself needs no `unsafe`.  Only a mixed
             // pointer/integer comparison needs the raw-address ABI.
             EqualEqual | NotEqual if lhs_is_ptr && rhs_is_ptr => {
                 let das_op = convert_binop(op).map_err(TranslationError::generic)?;
                 Ok(lhs_val
                     .zip(rhs_val)
-                    .map(|(l, r)| DaExpr::Unsafe(Box::new(mk().binary_op(das_op, l, r)))))
+                    .map(|(l, r)| mk().binary_op(das_op, l, r)))
             }
             EqualEqual | NotEqual | Less | Greater | LessEqual | GreaterEqual if any_ptr => {
                 let das_op = convert_binop(op).map_err(TranslationError::generic)?;
@@ -204,12 +205,12 @@ impl<'c> Translation<'c> {
                     self.abi_pointer_comparison_operand(lhs_val, lhs_is_ptr, lhs_da.as_ref());
                 let rhs_val =
                     self.abi_pointer_comparison_operand(rhs_val, rhs_is_ptr, rhs_da.as_ref());
-                Ok(lhs_val.zip(rhs_val).map(|(l, r)| {
-                    DaExpr::Unsafe(Box::new(DaExpr::Op2 {
-                        op: das_op,
-                        left: Box::new(l),
-                        right: Box::new(r),
-                    }))
+                // Both operands are `uint64` addresses by now (each carrying
+                // its own `unsafe`), so the comparison is an ordinary one.
+                Ok(lhs_val.zip(rhs_val).map(|(l, r)| DaExpr::Op2 {
+                    op: das_op,
+                    left: Box::new(l),
+                    right: Box::new(r),
                 }))
             }
             Add => {
@@ -901,7 +902,7 @@ impl<'c> Translation<'c> {
             let pointer = self.materialize_place_once(pointer, ptr_ty)?;
             let is_unsafe = pointer.is_unsafe;
             return Ok(pointer
-                .map(|v| DaExpr::Unsafe(Box::new(DaExpr::Deref(Box::new(v)))))
+                .map(|v| DaExpr::Deref(Box::new(v)))
                 .merge_unsafe(is_unsafe));
         }
         self.convert_expr(ctx, expr_id, Some(expr_type_id))
@@ -985,9 +986,9 @@ impl<'c> Translation<'c> {
         let ptr_val = self.convert_expr(ctx.used(), ptr_expr, None)?;
         let mutable_ptr_ty = DaType::pointer(writable_type(target_ty));
         Ok(Some(
-            WithStmts::new_val(DaExpr::Unsafe(Box::new(DaExpr::Deref(Box::new(
+            WithStmts::new_val(DaExpr::Deref(Box::new(
                 self.abi_pointer_cast(ptr_val.val, mutable_ptr_ty),
-            )))))
+            )))
             .prepend_stmts(ptr_val.stmts)
             .merge_unsafe(true),
         ))

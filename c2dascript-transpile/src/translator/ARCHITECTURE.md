@@ -49,6 +49,25 @@ The printer renders a declaration's annotations as one bracketed, comma-separate
 (`[export, unsafe_deref]`).  daScript's grammar accepts exactly one block per declaration;
 two consecutive `[...]` lines are a syntax error.
 
+## One `unsafe` per node
+
+daslang's call-shaped `unsafe(expr)` is shallow: it marks only the root node of `expr`
+(`ds2_parser.ypp` sets `alwaysSafe` on the subexpression; `InferTypes::safeExpression`
+reads only that flag or an enclosing `unsafe { }` block).  So every node that needs it —
+a `reinterpret`, a pointer index, pointer arithmetic, `addr` — carries its own wrapper,
+and `unsafe(reinterpret<T?>(unsafe(reinterpret<uint64>(p)))[k])` is the minimal form of a
+field load, not a nesting to collapse.  What is removed is only what marks nothing:
+
+- the AST holds each `reinterpret` as `DaExpr::reinterpret` (`unsafe` included) and the
+  printer adds none of its own; `DaExpr::unsafe_of` never wraps an `unsafe(...)` again;
+- `reinterpret<T?>(addr(x))` is built as daslang's `addr<T?>(x)` — the parser's own
+  desugaring of that sugar, whose one `unsafe` covers the generated `addr`;
+- `*p` and a pointer `==`/`!=` get no wrapper (daslang's deref is checked and needs none);
+- a call argument whose C type (below the casts lowered to nothing) converts to exactly the
+  parameter's daScript type gets no `reinterpret` (`abi.rs abi_pointer_cast_from`); an
+  array decay is not trusted, because `addr(a[0])` of a `const` array is a `const` value
+  that only the `reinterpret` lets reach a `var` pointer parameter.
+
 ## Memory copies go to daslang's builtins
 
 C `memcpy` and `memmove` are lowered to daslang's builtin `memcpy` / `memmove`

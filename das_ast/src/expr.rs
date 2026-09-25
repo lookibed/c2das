@@ -195,6 +195,57 @@ impl DaBlock {
     }
 }
 
+// ── Smart constructors ───────────────────────────────────────────────
+//
+// daScript's call-shaped `unsafe(expr)` is *shallow*: the parser sets
+// `alwaysSafe` on the root node of `expr` and returns that node (no
+// `ExprUnsafe` is built; `ds2_parser.ypp`, `DAS_UNSAFE '(' expr ')'`), and
+// `InferTypes::safeExpression` consults only that node's flag, or the depth of
+// enclosing `unsafe { }` *blocks*.  So in `unsafe(reinterpret<T?>(a)[0])` the
+// index is covered but the reinterpret below it is not: every node that needs
+// `unsafe` carries its own wrapper, and a wrapper directly around another one
+// sets the same flag on the same node twice.  The constructors below keep
+// exactly one wrapper per node and never remove a wrapper from a descendant.
+
+impl DaExpr {
+    /// `unsafe(expr)` — idempotent: a wrapper directly around another
+    /// call-shaped wrapper marks the same node, so it is not built twice.  The
+    /// statement form `unsafe { … }` is a different construct and is always
+    /// wrapped.
+    pub fn unsafe_of(expr: DaExpr) -> DaExpr {
+        match expr {
+            DaExpr::Unsafe(inner) if !matches!(*inner, DaExpr::Block(_)) => DaExpr::Unsafe(inner),
+            expr => DaExpr::Unsafe(Box::new(expr)),
+        }
+    }
+
+    /// `unsafe(reinterpret<to>(expr))`, the only spelling of a bit
+    /// reinterpretation.
+    ///
+    /// When `to` is a pointer and `expr` is `addr(x)` (with or without its own
+    /// wrapper), the result is daScript's `addr<to>(x)`: the parser builds that
+    /// sugar as exactly this `ExprCast(reinterpret, ExprRef2Ptr(x))`, and its
+    /// single `unsafe` covers the generated `addr` under it
+    /// (`InferTypes::preVisit(ExprCast*)`, `fromAddrSugar`), so the shape is
+    /// kept here with a bare `Addr` and printed as the sugar.
+    pub fn reinterpret(expr: DaExpr, to: DaType) -> DaExpr {
+        let expr = match expr {
+            DaExpr::Unsafe(inner)
+                if matches!(to.kind, crate::DaTypeKind::Pointer(_))
+                    && matches!(*inner, DaExpr::Addr(_)) =>
+            {
+                *inner
+            }
+            expr => expr,
+        };
+        DaExpr::unsafe_of(DaExpr::Cast {
+            kind: CastKind::Reinterpret,
+            expr: Box::new(expr),
+            to,
+        })
+    }
+}
+
 // ── Display implementations ──────────────────────────────────────────
 
 fn write_block(f: &mut fmt::Formatter, block: &DaBlock, indent: usize) -> fmt::Result {
@@ -594,16 +645,27 @@ impl DaExpr {
                 // reinterpretation (pointer ↔ integer, pointer ↔ pointer, union
                 // punning, integer → enumeration), and it says so by building
                 // `CastKind::Reinterpret`.
+                //
+                // `reinterpret`/`upcast` need `unsafe` in daScript; the AST
+                // says so with its own `Unsafe` node (`DaExpr::reinterpret`),
+                // which the printer does not add a second time.
                 if *kind == CastKind::Cast && to.is_numeric() {
                     write!(f, "{}({})", to, expr)
+                } else if let (CastKind::Reinterpret, DaExpr::Addr(place), true) = (
+                    kind,
+                    &**expr,
+                    matches!(to.kind, crate::DaTypeKind::Pointer(_)),
+                ) {
+                    // daScript's own parse of `addr<T?>(x)`; see
+                    // `DaExpr::reinterpret`.
+                    write!(f, "addr<{}>({})", to, place)
                 } else if *kind == CastKind::Reinterpret || *kind == CastKind::Upcast {
-                    // reinterpret/upcast require `unsafe()` in daScript
                     let kw = match kind {
                         CastKind::Reinterpret => "reinterpret",
                         CastKind::Upcast => "upcast",
                         _ => unreachable!(),
                     };
-                    write!(f, "unsafe({}<{}>({}))", kw, to, expr)
+                    write!(f, "{}<{}>({})", kw, to, expr)
                 } else {
                     let kw = match kind {
                         CastKind::Cast => "cast",
@@ -683,5 +745,57 @@ impl fmt::Display for DaExpr {
 impl fmt::Display for DaBlock {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write_block(f, self, 0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn var(name: &str) -> DaExpr {
+        DaExpr::Var(name.to_string())
+    }
+
+    #[test]
+    fn unsafe_of_is_idempotent_on_its_own_node_only() {
+        let once = DaExpr::unsafe_of(DaExpr::Addr(Box::new(var("x"))));
+        assert_eq!(DaExpr::unsafe_of(once).to_string(), "unsafe(addr(x))");
+        // A wrapper one node down marks a different node and stays.
+        let index = DaExpr::Index(
+            Box::new(DaExpr::reinterpret(
+                var("a"),
+                DaType::pointer(DaType::int()),
+            )),
+            Box::new(DaExpr::ConstInt(0)),
+        );
+        assert_eq!(
+            DaExpr::unsafe_of(index).to_string(),
+            "unsafe(unsafe(reinterpret<int?>(a))[0])"
+        );
+    }
+
+    #[test]
+    fn reinterpret_carries_exactly_one_unsafe() {
+        let raw = DaExpr::reinterpret(var("p"), DaType::uint64());
+        assert_eq!(raw.to_string(), "unsafe(reinterpret<uint64>(p))");
+        let typed = DaExpr::reinterpret(raw, DaType::pointer(DaType::uint64()));
+        assert_eq!(
+            typed.to_string(),
+            "unsafe(reinterpret<uint64?>(unsafe(reinterpret<uint64>(p))))"
+        );
+    }
+
+    #[test]
+    fn reinterpret_of_address_to_pointer_is_addr_sugar() {
+        let address = DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(var("x")))));
+        assert_eq!(
+            DaExpr::reinterpret(address.clone(), DaType::pointer(DaType::uint8())).to_string(),
+            "unsafe(addr<uint8?>(x))"
+        );
+        // Not a pointer target: the address keeps its own wrapper.
+        assert_eq!(
+            DaExpr::reinterpret(address, DaType::uint64()).to_string(),
+            "unsafe(reinterpret<uint64>(unsafe(addr(x))))"
+        );
     }
 }

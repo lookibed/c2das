@@ -174,9 +174,7 @@ fn p19_runtime_memory_calls_use_canonical_raw_memory_abi() {
     // raw addresses; the source-typed pointers never reach them directly.
     for builtin in ["memcpy(", "memmove("] {
         assert!(
-            d.contains(&format!(
-                "unsafe({builtin}unsafe(unsafe(reinterpret<void?>("
-            )),
+            d.contains(&format!("unsafe({builtin}unsafe(reinterpret<void?>(")),
             "missing builtin {builtin} over raw addresses"
         );
     }
@@ -186,6 +184,26 @@ fn p19_runtime_memory_calls_use_canonical_raw_memory_abi() {
             "source call survived: {source_name}"
         );
     }
+}
+
+#[test]
+fn p98_pointer_argument_of_the_parameter_type_crosses_as_itself() {
+    let d = transpile("p98_pointer_arg_same_type");
+    // `self` already is a `counter_t?`: no reinterpret, no unsafe.
+    assert!(
+        d.contains("counter_has(self_0, int(1))"),
+        "same-type argument was converted"
+    );
+    // A decayed const table is a `const` value; the reinterpret that lets it
+    // reach the `var` parameter stays, as daslang's `addr<T?>` sugar.
+    assert!(d.contains("table_value(unsafe(addr<entry_t const?>(TABLE[0])), int(1))"));
+    assert!(d.contains("first_byte(unsafe(addr<uint8 const?>(word)))"));
+    // A field load keeps one wrapper per node that needs one: the index and
+    // each reinterpret, never a second one around the same node.
+    assert!(
+        !d.contains("unsafe(unsafe(unsafe("),
+        "wrapper around a wrapper"
+    );
 }
 
 #[test]

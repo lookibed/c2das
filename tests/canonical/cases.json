@@ -1092,6 +1092,22 @@
       "runtime": "required"
     },
     {
+      "id": "p98-pointer-arg-same-type",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p98_pointer_arg_same_type.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "pointer_arg_same_type_runtime", "return_type": "int" },
+      "das_entrypoint": "pointer_arg_same_type_runtime",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p98_pointer_argument_of_the_parameter_type_crosses_as_itself",
+      "runtime": "required"
+    },
+    {
       "id": "wasm3-fib32-std",
       "status": "ready",
       "source_root": "tests/manual/wasm3",

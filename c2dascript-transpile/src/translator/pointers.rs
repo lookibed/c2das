@@ -33,11 +33,11 @@ impl<'c> Translation<'c> {
         }
         let inner = self.convert_expr(ctx.used(), arg, None)?;
         let is_unsafe = inner.is_unsafe;
-        Ok(
-            WithStmts::new_val(DaExpr::Unsafe(Box::new(DaExpr::Deref(Box::new(inner.val)))))
-                .prepend_stmts(inner.stmts)
-                .merge_unsafe(is_unsafe),
-        )
+        // daScript's `*p` is a checked dereference (`ExprPtr2Ref`) and needs
+        // no `unsafe`; the operand carries whatever wrapper its own root needs.
+        Ok(WithStmts::new_val(DaExpr::Deref(Box::new(inner.val)))
+            .prepend_stmts(inner.stmts)
+            .merge_unsafe(is_unsafe))
     }
 
     pub fn convert_array_subscript(

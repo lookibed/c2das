@@ -221,7 +221,7 @@ fn canonical_abi_owns_storage_literals_bool_and_pointer_raw_conversions() {
     ] {
         let source = std::fs::read_to_string(translator.join(file)).expect("translator source");
         assert!(
-            !source.contains("CastKind::Reinterpret"),
+            !source.contains("CastKind::Reinterpret") && !source.contains("DaExpr::reinterpret("),
             "{file} must use translator/abi.rs for pointer/raw reinterpret"
         );
     }

@@ -154,7 +154,7 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
 def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
-        unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[i]) = value
+        unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = value
         i = i + 0x1
     }
     return dst
@@ -173,7 +173,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
 def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
-        unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[i]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[i])
+        unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
         i = i + 0x1
     }
     return dst
@@ -181,10 +181,10 @@ def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
 def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
     var i : uint64 = 0x0
     while (i < count) {
-        if (uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(left)))[i])) < uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(right)))[i]))) {
+        if (uint(unsafe(unsafe(reinterpret<uint8?>(left))[i])) < uint(unsafe(unsafe(reinterpret<uint8?>(right))[i]))) {
             return -1
         }
-        if (uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(left)))[i])) > uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(right)))[i]))) {
+        if (uint(unsafe(unsafe(reinterpret<uint8?>(left))[i])) > uint(unsafe(unsafe(reinterpret<uint8?>(right))[i]))) {
             return 1
         }
         i = i + 0x1
@@ -195,14 +195,14 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     if (dst < src) {
         var i : uint64 = 0x0
         while (i < count) {
-            unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[i]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[i])
+            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
             i = i + 0x1
         }
     } else {
         var i : uint64 = count
         while (i > 0x0) {
             i = i - 0x1
-            unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[i]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[i])
+            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
         }
     }
     return dst
@@ -210,7 +210,7 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
 def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
-        if (unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[i]) == value) {
+        if (unsafe(unsafe(reinterpret<uint8?>(src))[i]) == value) {
             return src + i
         }
         i = i + 0x1
@@ -346,7 +346,7 @@ def insertion_sort(var n : int; var p : int?) {
     }
     return
     label 1:
-    tmp = unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(i)])
+    tmp = unsafe(unsafe(reinterpret<int?>(p))[int(i)])
     j = i
     label 2:
     c2da_fresh1 = int(0)
@@ -356,7 +356,7 @@ def insertion_sort(var n : int; var p : int?) {
     c2da_fresh3 = 0
     if (c2da_fresh1 != 0) {
         c2da_fresh2 = int(0)
-        if (unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(j - int(1))]) > tmp) {
+        if (unsafe(unsafe(reinterpret<int?>(p))[int(j - int(1))]) > tmp) {
             c2da_fresh2 = int(1)
         }
         if (c2da_fresh2 != 0) {
@@ -366,12 +366,12 @@ def insertion_sort(var n : int; var p : int?) {
     if (c2da_fresh3 != 0) {
         goto label 3
     }
-    unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(j)]) = tmp
+    unsafe(unsafe(reinterpret<int?>(p))[int(j)]) = tmp
     c2da_postinc_0 = i
     i = int(i + 1)
     goto label 0
     label 3:
-    unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(j)]) = unsafe(unsafe(unsafe(reinterpret<int?>(p)))[int(j - int(1))])
+    unsafe(unsafe(reinterpret<int?>(p))[int(j)]) = unsafe(unsafe(reinterpret<int?>(p))[int(j - int(1))])
     c2da_postinc = j
     j = int(j - 1)
     goto label 2
