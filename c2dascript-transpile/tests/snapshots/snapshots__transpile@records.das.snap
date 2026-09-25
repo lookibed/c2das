@@ -21,7 +21,7 @@ var c2da_rt_alloc_free : array<int>
 
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
-        reserve(c2da_rt_heap, int64(0x40000000))
+        reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
@@ -166,7 +166,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     var address : uint64 = c2da_rt_malloc(total)
     if (address != 0x0) {
-        c2da_rt_memset(address, uint8(0x0), total)
+        c2da_rt_memset(address, 0x0u8, total)
     }
     return address
 }
@@ -227,7 +227,7 @@ def c2da_rt_frame_leave(mark : int) {
     }
 }
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C local")
     }
@@ -235,7 +235,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     return address
 }
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C static object")
     }
@@ -338,47 +338,47 @@ struct InsideStruct {
     yup : int
 }
 struct AnonEnumInUnion {
-    c2da_storage : uint64 = c2da_rt_calloc(uint64(1), uint64(4))
+    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)
 }
 struct AnonStructInUnion {
-    c2da_storage : uint64 = c2da_rt_calloc(uint64(1), uint64(4))
+    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)
 }
 struct Unnamed_0 {
     some_number : int
 }
 struct NestedStructInUnion {
-    c2da_storage : uint64 = c2da_rt_calloc(uint64(1), uint64(4))
+    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)
 }
 struct InsideUnion {
     yup : int
 }
-var VALUE2 : int = int(1)
+var VALUE2 : int = 1
 
-var VALUE1 : int = int(0)
+var VALUE1 : int = 0
 
-var VALUE4 : int = int(1)
+var VALUE4 : int = 1
 
-var VALUE3 : int = int(0)
+var VALUE3 : int = 0
 
 [export]
 def struct_declaration() {
-    var value : int = int(0)
+    var value : int = 0
     var a : AnonEnumInStruct = AnonEnumInStruct()
     var b : AnonStructInStruct = AnonStructInStruct()
     var c : NestedStructInStruct = NestedStructInStruct()
     var d : InsideStruct = InsideStruct()
     value = VALUE2
-    b.c2da_unnamed.some_number = int(7)
+    b.c2da_unnamed.some_number = 7
     return
 }
 [export]
 def union_declaration() {
-    var value_0 : int = int(0)
-    var a_0 : AnonEnumInUnion = AnonEnumInUnion(c2da_storage = c2da_rt_calloc(uint64(1), uint64(4)))
-    var b_0 : AnonStructInUnion = AnonStructInUnion(c2da_storage = c2da_rt_calloc(uint64(1), uint64(4)))
-    var c_0 : NestedStructInUnion = NestedStructInUnion(c2da_storage = c2da_rt_calloc(uint64(1), uint64(4)))
+    var value_0 : int = 0
+    var a_0 : AnonEnumInUnion = AnonEnumInUnion(c2da_storage = c2da_rt_calloc(1ul, 4ul))
+    var b_0 : AnonStructInUnion = AnonStructInUnion(c2da_storage = c2da_rt_calloc(1ul, 4ul))
+    var c_0 : NestedStructInUnion = NestedStructInUnion(c2da_storage = c2da_rt_calloc(1ul, 4ul))
     var d_0 : InsideUnion = InsideUnion()
     value_0 = VALUE4
-    unsafe(unsafe(reinterpret<int?>(b_0.c2da_storage))[0]) = int(99)
+    unsafe(unsafe(reinterpret<int?>(b_0.c2da_storage))[0]) = 99
     return
 }

@@ -1245,7 +1245,7 @@ mod tests {
         assert!(rendered.contains("def c2da_rt_realloc"));
         assert!(rendered.contains("def c2da_rt_reset"));
         assert!(rendered.contains("resize(c2da_rt_alloc_addrs, 0)"));
-        assert!(rendered.contains("c2da_rt_memset(address, uint8("));
+        assert!(rendered.contains("c2da_rt_memset(address, 0x0u8, total)"));
         assert!(rendered.contains("reserve(c2da_rt_heap"));
         assert!(rendered.contains("c2da_rt_alloc_addrs[record] = address"));
         assert!(rendered.contains("intptr(unsafe(addr(c2da_rt_heap[start])))"));
@@ -1280,7 +1280,7 @@ mod tests {
         assert!(malloc.contains("var record : uint64 = uint64(long_length(c2da_rt_alloc_addrs))"));
         assert!(malloc.contains("resize(c2da_rt_alloc_addrs, int64(record + 0x1))"));
         let memcpy = rendered_function("c2da_rt_memcpy");
-        assert!(memcpy.contains("reinterpret<uint8?>(dst)))[i]"));
+        assert!(memcpy.contains("reinterpret<uint8?>(dst))[i]"));
     }
 
     #[test]
@@ -1322,9 +1322,7 @@ mod tests {
         assert_eq!(HEAP_RESERVE_BYTES % HEAP_ALIGN_BYTES, 0);
         let init = rendered_function("c2da_rt_init_heap");
         assert!(init.contains("if (empty(c2da_rt_heap)) {"));
-        assert!(init.contains(&format!(
-            "reserve(c2da_rt_heap, int64({HEAP_RESERVE_BYTES:#x}))"
-        )));
+        assert!(init.contains(&format!("reserve(c2da_rt_heap, {HEAP_RESERVE_BYTES}l)")));
     }
 
     #[test]
@@ -1364,7 +1362,7 @@ mod tests {
         assert!(realloc.contains("c2da_rt_memcpy(replacement, address, capacity)"));
         let calloc = rendered_function("c2da_rt_calloc");
         // A reused block holds its previous owner's bytes: calloc clears it.
-        assert!(calloc.contains("c2da_rt_memset(address, uint8(0x0), total)"));
+        assert!(calloc.contains("c2da_rt_memset(address, 0x0u8, total)"));
     }
 
     #[test]

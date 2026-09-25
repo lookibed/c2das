@@ -1,4 +1,5 @@
 pub mod expr;
+pub mod fold;
 pub mod stmt;
 pub mod r#type;
 

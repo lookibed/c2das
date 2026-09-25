@@ -130,29 +130,32 @@ impl Translation<'_> {
             .resolve_type(ty.ctype)
             .kind
             .is_unsigned_integral_type();
-        // If target type maps to uint64 in daScript, wrap literal in explicit uint64() cast.
-        // This ensures hex literals used in uint64 context have `uL` suffix via the Cast Display.
         let target_type = self.ast_context.resolve_type(ty.ctype).kind.clone();
         match lit {
             CLiteral::Integer(0, _) if self.is_pointer_type(ty.ctype) => self.null_for_type(ty),
-            CLiteral::Integer(val, _base) => {
-                let base = if target_is_unsigned || *val > 0x7FFFFFFF {
-                    DaExpr::ConstUInt(*val)
-                } else {
-                    DaExpr::ConstInt(*val as i64)
-                };
+            CLiteral::Integer(val, radix) => {
                 // C integer literals acquire their type from their C use-site.
                 // Preserve that contract explicitly in daScript AST instead of
-                // relying on the printer's default int/uint literal spelling.
+                // relying on the printer's default int/uint literal spelling:
+                // the result is a typed literal of the target (printed `2`,
+                // `8u`, `8ul`, …), or the conversion itself for a target that
+                // has no literal form.
                 let target_da = type_kind_to_datype(&target_type);
                 if target_da.is_numeric() && !matches!(target_da.kind, DaTypeKind::Bool) {
-                    Ok(DaExpr::Cast {
-                        kind: das_ast::CastKind::Cast,
-                        expr: Box::new(base),
-                        to: target_da,
-                    })
+                    // Inside a typed literal the constant's variant carries
+                    // only the spelling (`das_ast::fold`): `ConstUInt` for a
+                    // C hex or octal constant, which reads as a mask and is
+                    // printed in hex once it is unsigned, `ConstInt` for a
+                    // decimal one.
+                    let spelled = match radix {
+                        IntBase::Dec if *val <= i64::MAX as u64 => DaExpr::ConstInt(*val as i64),
+                        _ => DaExpr::ConstUInt(*val),
+                    };
+                    Ok(DaExpr::numeric_conversion(spelled, target_da))
+                } else if target_is_unsigned || *val > 0x7FFFFFFF {
+                    Ok(DaExpr::ConstUInt(*val))
                 } else {
-                    Ok(base)
+                    Ok(DaExpr::ConstInt(*val as i64))
                 }
             }
             CLiteral::Character(val) => {

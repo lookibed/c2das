@@ -1092,6 +1092,22 @@
       "runtime": "required"
     },
     {
+      "id": "p97-constant-conversions",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p97_constant_conversions.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "constant_conversions_runtime", "return_type": "int" },
+      "das_entrypoint": "constant_conversions_runtime",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p97_constant_conversions_print_as_literals_of_their_target_type",
+      "runtime": "required"
+    },
+    {
       "id": "p98-pointer-arg-same-type",
       "status": "ready",
       "source_root": "tests/syntax",

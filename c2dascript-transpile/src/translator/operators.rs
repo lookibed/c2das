@@ -664,8 +664,9 @@ impl<'c> Translation<'c> {
                         );
                         let current = current.map(|v| self.promote_operand(v, &lhs_kind, common));
                         current.zip(rhs_val).map(|(left, right)| {
-                            self.narrow_to_storage(
+                            self.narrow_arith_to_storage(
                                 mk().binary_op(das_op, left, right),
+                                common,
                                 &writable_type(lhs_da_type.clone()),
                             )
                         })
@@ -762,8 +763,9 @@ impl<'c> Translation<'c> {
             let stmts = lhs_val.stmts;
             let is_unsafe = lhs_val.is_unsafe || rhs_val.is_unsafe;
             let rhs_stmts = rhs_val.stmts;
-            let value = self.narrow_to_storage(
+            let value = self.narrow_arith_to_storage(
                 mk().binary_op(das_op, promoted_place, rhs_val.val),
+                common,
                 &writable_type(lhs_da_type.clone()),
             );
             let assign = DaExpr::Assign(Box::new(place.clone()), Box::new(value));
@@ -1491,7 +1493,7 @@ impl<'c> Translation<'c> {
             self.integer_literal_for_type(DaExpr::ConstInt(1), arith.da_type())
         };
         let promoted = self.promote_operand(current, kind, arith);
-        Ok(self.narrow_to_storage(mk().binary_op(das_op, promoted, one), storage))
+        Ok(self.narrow_arith_to_storage(mk().binary_op(das_op, promoted, one), arith, storage))
     }
 
     /// The address-backed C object place a member expression names, together

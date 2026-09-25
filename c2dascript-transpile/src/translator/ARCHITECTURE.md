@@ -45,6 +45,23 @@ their offsets is always correct for what this translator writes.  `unsafe_deref`
 is undefined behaviour, so dropping the check is faithful, but the program then faults instead
 of raising daslang's located exception.
 
+Constant numeric conversions are folded once there too (`das_ast::fold`, called from `mod.rs`
+after every owner has contributed): owners keep building the conversion C asks for — a C `8`
+reaching a `size_t` use-site is `uint64(int(8))` in the AST — and the module pass replaces a
+conversion of an integer constant by the constant of the target type that daScript's own
+conversion (`static_cast`, modulo 2^width) produces, a conversion to the type its operand
+already has by that operand, and `-c` by a negative constant where it cannot overflow.  The
+result is a *typed integer literal* (`Cast` of an in-range constant), which the printer spells
+as `2`, `8u`, `8l`, `8ul`, `8u8`, or `int16(4464)` for the three types without a literal; the
+constant's variant carries only the spelling (`ConstUInt`: a C hex/octal constant, printed in
+hex once unsigned).  What stays a conversion: anything whose operand is not a constant or a
+same-type conversion, real → integer (truncation), integer → real that rounds, and targets
+that are aliases or qualified.  `p97-constant-conversions` is the runtime fixture.  The one
+non-constant elision is made where the type is known by construction: a compound assignment or
+`++`/`--` computes in the promoted C type `CArith` (`promote_operand`), so storing it back to an
+object whose storage is that same daScript type writes no conversion
+(`abi::narrow_arith_to_storage`).
+
 The printer renders a declaration's annotations as one bracketed, comma-separated block
 (`[export, unsafe_deref]`).  daScript's grammar accepts exactly one block per declaration;
 two consecutive `[...]` lines are a syntax error.

@@ -3866,6 +3866,17 @@ fn translate_impl(
         apply_unsafe_deref(&mut module_decls);
     }
 
+    // Every owner builds its numeric conversions as the conversion C asks
+    // for, so a C literal reaches its use-site as `uint64(int(8))`.  Folding
+    // them is a daScript fact about the finished AST — a conversion of a
+    // constant is a constant of the target type, a conversion to the type the
+    // operand already has is none — not a lowering decision, so it is applied
+    // once here, over the translated C and every generated prelude alike
+    // (`das_ast::fold`).
+    for decl in &mut module_decls {
+        decl.fold_numeric_conversions();
+    }
+
     // Build the daScript module.  The header is the caller's choice: an
     // anonymous `options gen2` module by default, `module <stem> public` and
     // extra `options` lines when the build that consumes the output asks

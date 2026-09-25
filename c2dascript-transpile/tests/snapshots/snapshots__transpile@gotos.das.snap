@@ -21,7 +21,7 @@ var c2da_rt_alloc_free : array<int>
 
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
-        reserve(c2da_rt_heap, int64(0x40000000))
+        reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
@@ -166,7 +166,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     var address : uint64 = c2da_rt_malloc(total)
     if (address != 0x0) {
-        c2da_rt_memset(address, uint8(0x0), total)
+        c2da_rt_memset(address, 0x0u8, total)
     }
     return address
 }
@@ -227,7 +227,7 @@ def c2da_rt_frame_leave(mark : int) {
     }
 }
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C local")
     }
@@ -235,7 +235,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     return address
 }
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C static object")
     }
@@ -326,19 +326,19 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
 def sum(var count : int) : int {
-    var x : int = int(0)
-    var c2da_fresh0 : int = int(0)
-    x = int(0)
+    var x : int = 0
+    var c2da_fresh0 : int = 0
+    x = 0
     label 0:
-    c2da_fresh0 = int(0)
-    if (count <= int(0)) {
-        c2da_fresh0 = int(1)
+    c2da_fresh0 = 0
+    if (count <= 0) {
+        c2da_fresh0 = 1
     }
     if (c2da_fresh0 != 0) {
         goto label 1
     }
-    x = int(x + count)
-    count = int(count - 1)
+    x = x + count
+    count = count - 1
     goto label 0
     label 1:
     return x
@@ -348,24 +348,24 @@ def goto_error_simple(var x_0 : int) : int {
     if (x_0 != 0) {
         goto label 3
     }
-    x_0 = int(x_0 + int(3))
+    x_0 = x_0 + 3
     if (x_0 != 0) {
         goto label 1
     }
     label 0:
-    return x_0 + int(5)
+    return x_0 + 5
     label 1:
-    x_0 = int(x_0 + int(4))
+    x_0 = x_0 + 4
     label 2:
-    return x_0 + int(6)
+    return x_0 + 6
     label 3:
-    x_0 = int(x_0 + int(1))
+    x_0 = x_0 + 1
     if (x_0 != 0) {
         goto label 4
     }
     goto label 0
     label 4:
-    x_0 = int(x_0 + int(2))
+    x_0 = x_0 + 2
     goto label 2
     panic("unreachable: fell out of a translated control-flow graph")
 }
@@ -378,10 +378,10 @@ def goto_error_minimal(var x_1 : int) : int {
         goto label 1
     }
     label 0:
-    return x_1 + int(1)
+    return x_1 + 1
     label 1:
     label 2:
-    return x_1 + int(2)
+    return x_1 + 2
     label 3:
     if (x_1 != 0) {
         goto label 4
@@ -403,19 +403,19 @@ def multi_goto_error(var x_2 : int) : int {
     label 1:
     return x_2
     label 2:
-    x_2 = int(x_2 + int(3))
+    x_2 = x_2 + 3
     if (x_2 != 0) {
         goto label 6
     }
     label 3:
-    x_2 = int(x_2 + int(4))
+    x_2 = x_2 + 4
     if (x_2 != 0) {
         goto label 4
     }
     goto label 1
     label 4:
     label 5:
-    return x_2 + int(20)
+    return x_2 + 20
     label 6:
     if (x_2 != 0) {
         goto label 7
@@ -423,14 +423,14 @@ def multi_goto_error(var x_2 : int) : int {
     goto label 3
     label 7:
     label 8:
-    return x_2 + int(10)
+    return x_2 + 10
     label 9:
-    x_2 = int(x_2 + int(1))
+    x_2 = x_2 + 1
     if (x_2 != 0) {
         goto label 12
     }
     label 10:
-    x_2 = int(x_2 + int(2))
+    x_2 = x_2 + 2
     if (x_2 != 0) {
         goto label 11
     }
@@ -458,21 +458,21 @@ def multi_goto_error_common(var x_3 : int) : int {
     label 1:
     return x_3
     label 2:
-    x_3 = int(x_3 + int(3))
+    x_3 = x_3 + 3
     if (x_3 != 0) {
         goto label 7
     }
     label 3:
-    x_3 = int(x_3 + int(4))
+    x_3 = x_3 + 4
     if (x_3 != 0) {
         goto label 4
     }
     goto label 1
     label 4:
     label 5:
-    x_3 = int(x_3 + int(6))
+    x_3 = x_3 + 6
     label 6:
-    return x_3 + int(10)
+    return x_3 + 10
     label 7:
     if (x_3 != 0) {
         goto label 8
@@ -480,15 +480,15 @@ def multi_goto_error_common(var x_3 : int) : int {
     goto label 3
     label 8:
     label 9:
-    x_3 = int(x_3 + int(5))
+    x_3 = x_3 + 5
     goto label 6
     label 10:
-    x_3 = int(x_3 + int(1))
+    x_3 = x_3 + 1
     if (x_3 != 0) {
         goto label 13
     }
     label 11:
-    x_3 = int(x_3 + int(2))
+    x_3 = x_3 + 2
     if (x_3 != 0) {
         goto label 12
     }

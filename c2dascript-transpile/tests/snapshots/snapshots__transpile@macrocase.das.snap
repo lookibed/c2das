@@ -21,7 +21,7 @@ var c2da_rt_alloc_free : array<int>
 
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
-        reserve(c2da_rt_heap, int64(0x40000000))
+        reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
@@ -166,7 +166,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     var address : uint64 = c2da_rt_malloc(total)
     if (address != 0x0) {
-        c2da_rt_memset(address, uint8(0x0), total)
+        c2da_rt_memset(address, 0x0u8, total)
     }
     return address
 }
@@ -227,7 +227,7 @@ def c2da_rt_frame_leave(mark : int) {
     }
 }
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C local")
     }
@@ -235,7 +235,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     return address
 }
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C static object")
     }
@@ -328,26 +328,26 @@ enum ZSTD_dParameter {
     ZSTD_d_windowLogMax = 100
     ZSTD_d_experimentalParam1 = 1000
 }
-var ZSTD_d_experimentalParam1 : int = int(1000)
+var ZSTD_d_experimentalParam1 : int = 1000
 
-var ZSTD_d_windowLogMax : int = int(100)
+var ZSTD_d_windowLogMax : int = 100
 
 [export]
 def ZSTD_dParam_getBounds(var dParam : ZSTD_dParameter) : int {
     var c2da_fresh0 : uint
-    var bounds : int = int(0)
-    bounds = int(0)
+    var bounds : int = 0
+    bounds = 0
     c2da_fresh0 = uint(dParam)
-    if (c2da_fresh0 == uint(0x64)) {
+    if (c2da_fresh0 == 0x64u) {
         goto label 0
-    } elif (c2da_fresh0 == uint(0x3e8)) {
+    } elif (c2da_fresh0 == 0x3e8u) {
         goto label 1
     }
     return bounds
     label 0:
-    bounds = int(1)
+    bounds = 1
     return bounds
     label 1:
-    bounds = int(5)
+    bounds = 5
     return bounds
 }

@@ -1,5 +1,6 @@
 use crate::DaStmt;
 use crate::DaType;
+use crate::DaTypeKind;
 use std::fmt;
 
 /// daScript expression. Analogous to [`syn::Expr`].
@@ -337,7 +338,8 @@ fn expr_precedence(expr: &DaExpr) -> u8 {
         // A negative numeric literal prints with a leading `-`, so it binds
         // exactly like a unary expression rather than like an atom.
         DaExpr::ConstInt(n) => {
-            if *n < 0 {
+            // The two minimums print parenthesised (`write_signed_literal`).
+            if *n < 0 && *n != i32::MIN as i64 && *n != i64::MIN {
                 PREC_UNARY
             } else {
                 PREC_ATOM
@@ -350,6 +352,12 @@ fn expr_precedence(expr: &DaExpr) -> u8 {
                 PREC_ATOM
             }
         }
+        DaExpr::Cast { .. } => match crate::fold::typed_integer_literal(expr) {
+            Some((value, kind, _)) if value < 0 && typed_literal_is_suffixed(kind, value) => {
+                PREC_UNARY
+            }
+            _ => PREC_ATOM,
+        },
         DaExpr::Op2 { op, .. } => binary_op_info(op).0,
         DaExpr::Assign(_, _) | DaExpr::AssignOp { .. } => PREC_ASSIGN,
         DaExpr::Op3 { .. } => PREC_TERNARY,
@@ -437,7 +445,10 @@ fn write_escaped_string(f: &mut fmt::Formatter, value: &str) -> fmt::Result {
 /// `int` and an `l`-suffixed one as `int64`; `i64::MIN` has no direct spelling
 /// because the lexer range-checks the unsigned magnitude first.
 fn write_signed_literal(f: &mut fmt::Formatter, value: i64) -> fmt::Result {
-    if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
+    if value == i32::MIN as i64 {
+        // `-2147483648` is `-` applied to `2147483648`, which is not an `int`.
+        write!(f, "(-2147483647 - 1)")
+    } else if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
         write!(f, "{}", value)
     } else if value == i64::MIN {
         write!(f, "(-9223372036854775807l - 1l)")
@@ -453,6 +464,47 @@ fn write_unsigned_literal(f: &mut fmt::Formatter, value: u64) -> fmt::Result {
         write!(f, "0x{:x}", value)
     } else {
         write!(f, "0x{:x}uL", value)
+    }
+}
+
+/// Whether a typed integer literal of `kind` is spelled as a bare suffixed
+/// literal — and so, when negative, starts with a unary `-` — rather than as
+/// a parenthesised minimum or a conversion call.
+fn typed_literal_is_suffixed(kind: &DaTypeKind, value: i128) -> bool {
+    match kind {
+        DaTypeKind::Int => value != i32::MIN as i128,
+        DaTypeKind::Int64 => value != i64::MIN as i128,
+        DaTypeKind::UInt | DaTypeKind::UInt64 | DaTypeKind::UInt8 => true,
+        _ => false,
+    }
+}
+
+/// Spells a typed integer literal (see `fold`) as a literal of its own type.
+/// daScript lexes a plain decimal as `int`, `l` as `int64`, `u` as `uint`,
+/// `ul` as `uint64` and `u8` as `uint8`; `int8`, `int16` and `uint16` have no
+/// literal, so their value is the conversion of the `int` literal, which that
+/// type represents exactly.
+fn write_typed_integer_literal(
+    f: &mut fmt::Formatter,
+    value: i128,
+    kind: &DaTypeKind,
+    hex: bool,
+) -> fmt::Result {
+    let digits = if hex {
+        format!("0x{:x}", value)
+    } else {
+        format!("{}", value)
+    };
+    match kind {
+        DaTypeKind::Int => write_signed_literal(f, value as i64),
+        DaTypeKind::Int64 if value == i64::MIN as i128 => {
+            write!(f, "(-9223372036854775807l - 1l)")
+        }
+        DaTypeKind::Int64 => write!(f, "{}l", digits),
+        DaTypeKind::UInt => write!(f, "{}u", digits),
+        DaTypeKind::UInt64 => write!(f, "{}ul", digits),
+        DaTypeKind::UInt8 => write!(f, "{}u8", digits),
+        other => write!(f, "{}({})", DaType::new(other.clone()), digits),
     }
 }
 
@@ -649,7 +701,13 @@ impl DaExpr {
                 // `reinterpret`/`upcast` need `unsafe` in daScript; the AST
                 // says so with its own `Unsafe` node (`DaExpr::reinterpret`),
                 // which the printer does not add a second time.
-                if *kind == CastKind::Cast && to.is_numeric() {
+                //
+                // A conversion of an integer constant that is already a value
+                // of the target type changes only the type, and daScript has a
+                // literal of that type: it is spelled as that literal.
+                if let Some((value, kind, hex)) = crate::fold::typed_integer_literal(self) {
+                    write_typed_integer_literal(f, value, kind, hex)
+                } else if *kind == CastKind::Cast && to.is_numeric() {
                     write!(f, "{}({})", to, expr)
                 } else if let (CastKind::Reinterpret, DaExpr::Addr(place), true) = (
                     kind,

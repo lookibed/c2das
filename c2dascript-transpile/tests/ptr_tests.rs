@@ -136,7 +136,7 @@ fn u03_unsafe_swap() {
 fn p17_runtime_malloc_uses_canonical_raw_memory_abi() {
     let d = transpile("p17_runtime_malloc");
     assert!(
-        d.contains("c2da_rt_malloc(uint64("),
+        d.contains("c2da_rt_malloc(4ul)"),
         "malloc calls must lower to the canonical runtime before printing"
     );
     assert!(
@@ -152,7 +152,7 @@ fn p17_runtime_malloc_uses_canonical_raw_memory_abi() {
 #[test]
 fn p18_runtime_calloc_and_memset_use_canonical_raw_memory_abi() {
     let d = transpile("p18_runtime_calloc_memset");
-    assert!(d.contains("c2da_rt_calloc(uint64(4), uint64(1))"));
+    assert!(d.contains("c2da_rt_calloc(4ul, 1ul)"));
     assert!(d.contains("c2da_rt_memset("));
     assert!(!d.contains("unsafe(calloc("));
     assert!(!d.contains("unsafe(memset("));
@@ -191,12 +191,12 @@ fn p98_pointer_argument_of_the_parameter_type_crosses_as_itself() {
     let d = transpile("p98_pointer_arg_same_type");
     // `self` already is a `counter_t?`: no reinterpret, no unsafe.
     assert!(
-        d.contains("counter_has(self_0, int(1))"),
+        d.contains("counter_has(self_0, 1)"),
         "same-type argument was converted"
     );
     // A decayed const table is a `const` value; the reinterpret that lets it
     // reach the `var` parameter stays, as daslang's `addr<T?>` sugar.
-    assert!(d.contains("table_value(unsafe(addr<entry_t const?>(TABLE[0])), int(1))"));
+    assert!(d.contains("table_value(unsafe(addr<entry_t const?>(TABLE[0])), 1)"));
     assert!(d.contains("first_byte(unsafe(addr<uint8 const?>(word)))"));
     // A field load keeps one wrapper per node that needs one: the index and
     // each reinterpret, never a second one around the same node.
@@ -221,6 +221,35 @@ fn p96_copies_reach_the_builtin_past_a_source_defined_memmove() {
     assert!(d.contains("unsafe(memcpy(") && d.contains("unsafe(memmove("));
     // A size that is not a nonzero constant guards the copy (C's n == 0 no-op).
     assert!(d.contains(" != 0x0) {\n        unsafe(memcpy("));
+}
+
+#[test]
+fn p97_constant_conversions_print_as_literals_of_their_target_type() {
+    let d = transpile("p97_constant_conversions");
+    // A constant conversion is its exact C result, spelled in the target type.
+    for folded in [
+        "narrowed = 44u8\n",
+        "wrapped = 4294967295u\n",
+        "wide = 0xfffffffffffffffful\n",
+        "from_unsigned = (-2147483647 - 1)\n",
+        "ll_min = (-9223372036854775807l - 1l)\n",
+        "short_wrap = int16(4464)\n",
+        "ushort_wrap = uint16(65534)\n",
+        "hex_byte = 0xabu8\n",
+        "mask = 0xff000000u >> 24u\n",
+        "shifted = 0xfful << 8ul\n",
+        "negative_wide = -5l\n",
+        "real = 3.0lf\n",
+        "var failures : int = 0\n",
+    ] {
+        assert!(d.contains(folded), "missing folded constant {folded:?}");
+    }
+    // `int8` has no literal, and a float that rounds keeps its conversion.
+    assert!(d.contains("negative_byte = int8(-1)\n"));
+    assert!(d.contains("single = float(16777217)\n"));
+    // The narrowing of a size argument is part of the C value.
+    assert!(d.contains(", 0u8, 4ul)"));
+    assert!(!d.contains("int(int(") && !d.contains("uint64(int("));
 }
 
 #[test]
@@ -258,7 +287,7 @@ fn p26_variadic_sum_uses_the_canonical_packed_abi() {
     assert!(d.contains("struct C2daVaArg"));
     assert!(d.contains("def sum(var count : int; var c2da_va_args : array<C2daVaArg>)"));
     assert!(d.contains("def variadic_sum_runtime() : int"));
-    assert!(d.contains("C2daVaArg(tag = 1, i64 = int64(int(10))"));
+    assert!(d.contains("C2daVaArg(tag = 1, i64 = 10l"));
     assert!(d.contains("c2da_va_item"));
     assert!(!d.contains("__builtin_va_start"));
     assert!(!d.contains("va_arg not supported"));
@@ -387,10 +416,7 @@ fn p33_sizeof_and_builtin_expect_use_explicit_lowering() {
     let d = transpile("p33_predefined_sizeof_builtin");
     assert!(d.contains("def predefined_sizeof_builtin_runtime() : int"));
     assert!(!d.contains("__builtin_expect"));
-    assert!(
-        d.contains("int(12)"),
-        "sizeof must remain a numeric AST value"
-    );
+    assert!(d.contains("12ul"), "sizeof must remain a numeric AST value");
 }
 
 #[test]
@@ -398,11 +424,11 @@ fn p34_records_and_unions_use_clang_layout_facts() {
     let d = transpile("p34_c_layout_records");
     assert!(d.contains("def c_layout_records_runtime() : int"));
     assert!(
-        d.contains("uint64(12)"),
+        d.contains("12ul"),
         "struct size must be emitted from Clang layout"
     );
     assert!(
-        d.contains("uint64(4)"),
+        d.contains("4ul"),
         "align/offsetof/union layout must be emitted from Clang layout"
     );
     assert!(!d.contains("unsupported sizeof type layout"));
@@ -465,14 +491,14 @@ fn p41_raw_array_field_decays_from_its_address_not_a_das_array_value() {
         !d.contains("aggregate C object rvalue from raw storage is not implemented"),
         "array field decay must use its C object address"
     );
-    assert!(d.contains("[int(0)]") && d.contains("[int(3)]"));
+    assert!(d.contains(")[0]") && d.contains(")[3]"));
 }
 
 #[test]
 fn p38_local_union_uses_raw_storage_wrapper() {
     let d = transpile("p38_local_union_init");
     assert!(d.contains("struct local_overlay") && d.contains("c2da_storage : uint64"));
-    assert!(d.contains("c2da_rt_calloc(uint64(1), uint64(4))"));
+    assert!(d.contains("c2da_rt_calloc(1ul, 4ul)"));
     assert!(!d.contains("value.word") && !d.contains("value.byte"));
 }
 
@@ -480,7 +506,7 @@ fn p38_local_union_uses_raw_storage_wrapper() {
 fn p40_bitfields_use_masked_raw_rmw() {
     let d = transpile("p40_bitfield_rmw");
     assert!(d.contains("def bitfield_rmw_runtime() : int"));
-    assert!(d.contains("& uint(0x7)") && d.contains("<< uint(3)"));
+    assert!(d.contains("& 0x7u") && d.contains("<< 3u"));
     assert!(!d.contains("value.low") && !d.contains("value.high"));
 }
 
@@ -488,16 +514,18 @@ fn p40_bitfields_use_masked_raw_rmw() {
 fn p41_union_cast_initializes_raw_storage() {
     let d = transpile("p41_union_cast");
     assert!(d.contains("struct cast_overlay") && d.contains("c2da_storage"));
-    assert!(d.contains("c2da_rt_calloc(uint64(1), uint64(4))"));
+    assert!(d.contains("c2da_rt_calloc(1ul, 4ul)"));
     assert!(!d.contains("cast_overlay(uint(0x11223344))"));
 }
 
 #[test]
 fn p22_literals_follow_their_c_target_types() {
     let d = transpile("p22_typed_literals");
-    assert!(d.contains("byte = uint8("));
-    assert!(d.contains("uint64(0x100000000uL)"));
-    assert!(d.contains("int(42)"));
+    // Each literal is spelled directly in its C target type, hex kept hex.
+    assert!(d.contains("byte = 0xabu8"));
+    assert!(d.contains("wide = 0x100000000ul"));
+    assert!(d.contains("signed_value = 42\n"));
+    assert!(!d.contains("int(42)") && !d.contains("uint8(int("));
     assert!(d.contains("def return_byte_literal() : uint8"));
     assert!(d.contains("def return_u64_literal() : uint64"));
     assert!(d.contains("def return_int_literal() : int"));
@@ -509,7 +537,7 @@ fn p23_bool_to_numeric_is_statement_lowered_at_every_value_site() {
     assert!(!d.contains("int(left < right)"));
     assert!(!d.contains("int(left == right)"));
     assert!(d.contains("var c2da_fresh"));
-    assert!(d.contains("= int(1)"));
+    assert!(d.contains(" = 1\n"));
 }
 
 #[test]
@@ -530,8 +558,8 @@ fn p25_array_initializers_are_aggregate_ast_not_numeric_casts() {
     // A C array of constant extent owns inline storage, so it is a daScript
     // fixed array `T[N]`, never a heap `array<T>` handle.
     assert!(d.contains("var values : uint8[3]"));
-    assert!(d.contains("values = fixed_array<uint8>(uint8(int(3)), uint8(int(5)), uint8(0))"));
-    assert!(d.contains("zeros = fixed_array<uint8>(uint8(0), uint8(0))"));
+    assert!(d.contains("values = fixed_array<uint8>(3u8, 5u8, 0u8)"));
+    assert!(d.contains("zeros = fixed_array<uint8>(0u8, 0u8)"));
     assert!(!d.contains("cast<array<uint8>>(0)"));
     assert!(!d.contains("array<uint8> = []"));
 }

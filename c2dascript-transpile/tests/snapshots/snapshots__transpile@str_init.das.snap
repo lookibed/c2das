@@ -21,7 +21,7 @@ var c2da_rt_alloc_free : array<int>
 
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
-        reserve(c2da_rt_heap, int64(0x40000000))
+        reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
@@ -166,7 +166,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     var address : uint64 = c2da_rt_malloc(total)
     if (address != 0x0) {
-        c2da_rt_memset(address, uint8(0x0), total)
+        c2da_rt_memset(address, 0x0u8, total)
     }
     return address
 }
@@ -227,7 +227,7 @@ def c2da_rt_frame_leave(mark : int) {
     }
 }
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C local")
     }
@@ -235,7 +235,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     return address
 }
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C static object")
     }
@@ -337,7 +337,7 @@ var array_of_arrays_static___S : int8[3][10] const = fixed_array<int8[10]>(fixed
 
 var array_of_arrays_static_struct___S : s const = s(entries = fixed_array<int8[10]>(fixed_array<int8>(int8(104), int8(101), int8(108), int8(108), int8(111), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0))))
 
-var curl_alpn_spec___ALPN_SPEC_H11 : alpn_spec const = alpn_spec(entries = fixed_array<int8[10]>(fixed_array<int8>(int8(104), int8(116), int8(116), int8(112), int8(47), int8(49), int8(46), int8(49), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0))), count = uint(int(1)))
+var curl_alpn_spec___ALPN_SPEC_H11 : alpn_spec const = alpn_spec(entries = fixed_array<int8[10]>(fixed_array<int8>(int8(104), int8(116), int8(116), int8(112), int8(47), int8(49), int8(46), int8(49), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0))), count = 1u)
 
 [export]
 def ptr() {
@@ -359,8 +359,8 @@ def array_0() {
 }
 [export]
 def int_array_extra_braces() {
-    var _a : int[3][10] = fixed_array<int[10]>(fixed_array<int>(int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0)), fixed_array<int>(int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0)), fixed_array<int>(int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0)))
-    _a = fixed_array<int[10]>(fixed_array<int>(int(1), int(2), int(3), int(0), int(0), int(0), int(0), int(0), int(0), int(0)), fixed_array<int>(int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0)), fixed_array<int>(int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0), int(0)))
+    var _a : int[3][10] = fixed_array<int[10]>(fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    _a = fixed_array<int[10]>(fixed_array<int>(1, 2, 3, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     return
 }
 [export]

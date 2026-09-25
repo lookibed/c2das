@@ -21,7 +21,7 @@ var c2da_rt_alloc_free : array<int>
 
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
-        reserve(c2da_rt_heap, int64(0x40000000))
+        reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
@@ -166,7 +166,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     var address : uint64 = c2da_rt_malloc(total)
     if (address != 0x0) {
-        c2da_rt_memset(address, uint8(0x0), total)
+        c2da_rt_memset(address, 0x0u8, total)
     }
     return address
 }
@@ -227,7 +227,7 @@ def c2da_rt_frame_leave(mark : int) {
     }
 }
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C local")
     }
@@ -235,7 +235,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     return address
 }
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C static object")
     }
@@ -331,10 +331,10 @@ var volatile_global_struct : S
 
 [export]
 def test_volatile() {
-    var vi : int = int(0)
-    var i : int = int(0)
+    var vi : int = 0
+    var i : int = 0
     var pvi : int? = null
-    vi = int(0)
+    vi = 0
     i = vi
     vi = i
     pvi = unsafe(addr(vi))

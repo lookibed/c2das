@@ -239,13 +239,34 @@ impl<'c> Translation<'c> {
         self.cast_to_type(expr, target.clone())
     }
 
-    /// Canonical typed integer literal boundary for runtime parameters.
-    pub(crate) fn integer_literal_for_type(&self, expr: DaExpr, target: DaType) -> DaExpr {
-        DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr: Box::new(strip_numeric_literal_casts(expr)),
-            to: target,
+    /// Store the result of a C arithmetic operation performed in `arith` into
+    /// an object whose daScript storage type is `target`.
+    ///
+    /// Both operands were raised to `arith` (`promote_operand`), so the
+    /// operation's daScript value has type `arith.da_type()`.  When that is
+    /// already the storage type, C's conversion back to the object's type is
+    /// the identity (`i += 1` on an `int`, `u -= 1u` on an `unsigned`) and no
+    /// daScript conversion is written; any other storage is narrowed.
+    pub(crate) fn narrow_arith_to_storage(
+        &self,
+        expr: DaExpr,
+        arith: CArith,
+        target: &DaType,
+    ) -> DaExpr {
+        if arith.da_type() == super::writable_type(target.clone()) {
+            return expr;
         }
+        self.narrow_to_storage(expr, target)
+    }
+
+    /// Canonical typed integer literal boundary for runtime parameters.
+    ///
+    /// The operand's own conversions are folded first, never stripped: in
+    /// `(unsigned char)300` passed as a size the narrowing is part of the C
+    /// value (44), not noise around the literal.
+    pub(crate) fn integer_literal_for_type(&self, mut expr: DaExpr, target: DaType) -> DaExpr {
+        expr.fold_numeric_conversions();
+        DaExpr::numeric_conversion(expr, target)
     }
 
     /// daScript has no scalar bool-to-number conversion. Materialize C's 0/1
@@ -548,28 +569,6 @@ pub(crate) fn is_pointer_arithmetic(expr: &DaExpr) -> bool {
         }
         DaExpr::Op2 { op, .. } => matches!(*op, "+" | "-"),
         _ => false,
-    }
-}
-
-fn strip_numeric_literal_casts(expr: DaExpr) -> DaExpr {
-    match expr {
-        DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr,
-            to,
-        } if to.is_numeric() => {
-            let inner = strip_numeric_literal_casts(*expr);
-            if matches!(inner, DaExpr::ConstInt(_) | DaExpr::ConstUInt(_)) {
-                inner
-            } else {
-                DaExpr::Cast {
-                    kind: das_ast::CastKind::Cast,
-                    expr: Box::new(inner),
-                    to,
-                }
-            }
-        }
-        expr => expr,
     }
 }
 

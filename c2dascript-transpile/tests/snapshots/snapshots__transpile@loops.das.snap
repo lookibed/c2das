@@ -21,7 +21,7 @@ var c2da_rt_alloc_free : array<int>
 
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
-        reserve(c2da_rt_heap, int64(0x40000000))
+        reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
@@ -166,7 +166,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     var address : uint64 = c2da_rt_malloc(total)
     if (address != 0x0) {
-        c2da_rt_memset(address, uint8(0x0), total)
+        c2da_rt_memset(address, 0x0u8, total)
     }
     return address
 }
@@ -227,7 +227,7 @@ def c2da_rt_frame_leave(mark : int) {
     }
 }
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C local")
     }
@@ -235,7 +235,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     return address
 }
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
-    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
         panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C static object")
     }
@@ -332,43 +332,43 @@ def while_loop(var x : int) : int {
     }
     return x
     label 1:
-    x = int(x + int(1))
+    x = x + 1
     goto label 0
     panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def for_loop(var x_0 : int) : int {
-    var i : int = int(0)
-    var c2da_fresh0 : int = int(0)
-    var c2da_postinc : int = int(0)
-    i = int(0)
+    var i : int = 0
+    var c2da_fresh0 : int = 0
+    var c2da_postinc : int = 0
+    i = 0
     label 0:
-    c2da_fresh0 = int(0)
-    if (i < int(10)) {
-        c2da_fresh0 = int(1)
+    c2da_fresh0 = 0
+    if (i < 10) {
+        c2da_fresh0 = 1
     }
     if (c2da_fresh0 != 0) {
         goto label 1
     }
     return x_0
     label 1:
-    x_0 = int(x_0 + int(1))
+    x_0 = x_0 + 1
     c2da_postinc = i
-    i = int(i + 1)
+    i = i + 1
     goto label 0
     panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def infinite_loop(var x_1 : int) {
     label 0:
-    x_1 = int(x_1 + int(1))
+    x_1 = x_1 + 1
     goto label 0
     panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def goto_loop(var x_2 : int) : int {
     label 0:
-    x_2 = int(x_2 + int(1))
+    x_2 = x_2 + 1
     if (x_2 != 0) {
         goto label 1
     }
@@ -380,7 +380,7 @@ def goto_loop(var x_2 : int) : int {
 [export]
 def do_while_loop(var x_3 : int) : int {
     label 0:
-    x_3 = int(x_3 + int(1))
+    x_3 = x_3 + 1
     if (x_3 != 0) {
         goto label 0
     }
@@ -399,10 +399,10 @@ def break_while(var x_4 : int) : int {
         goto label 4
     }
     label 3:
-    x_4 = int(x_4 + int(2))
+    x_4 = x_4 + 2
     goto label 0
     label 4:
-    x_4 = int(x_4 + int(1))
+    x_4 = x_4 + 1
     if (x_4 != 0) {
         goto label 5
     }
@@ -423,10 +423,10 @@ def continue_while(var x_5 : int) : int {
         goto label 3
     }
     label 2:
-    x_5 = int(x_5 + int(2))
+    x_5 = x_5 + 2
     goto label 0
     label 3:
-    x_5 = int(x_5 + int(1))
+    x_5 = x_5 + 1
     if (x_5 != 0) {
         goto label 4
     }
@@ -455,7 +455,7 @@ def trivial_nested_while(var x_6 : int) {
     }
     goto label 2
     label 5:
-    x_6 = int(x_6 + int(1))
+    x_6 = x_6 + 1
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
@@ -471,63 +471,63 @@ def nested_while(var x_7 : int) {
     if (x_7 != 0) {
         goto label 3
     }
-    x_7 = int(x_7 + int(3))
+    x_7 = x_7 + 3
     goto label 0
     label 3:
     label 4:
     if (x_7 != 0) {
         goto label 5
     }
-    x_7 = int(x_7 + int(2))
+    x_7 = x_7 + 2
     goto label 2
     label 5:
-    x_7 = int(x_7 + int(1))
+    x_7 = x_7 + 1
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def nested_for(var x_8 : int) {
-    var i_0 : int = int(0)
-    var j : int = int(0)
-    var c2da_fresh1 : int = int(0)
-    var c2da_fresh2 : int = int(0)
-    var c2da_postinc_2 : int = int(0)
-    var c2da_postinc_0 : int = int(0)
-    var c2da_postinc_1 : int = int(0)
-    i_0 = int(0)
+    var i_0 : int = 0
+    var j : int = 0
+    var c2da_fresh1 : int = 0
+    var c2da_fresh2 : int = 0
+    var c2da_postinc_2 : int = 0
+    var c2da_postinc_0 : int = 0
+    var c2da_postinc_1 : int = 0
+    i_0 = 0
     label 0:
-    c2da_fresh1 = int(0)
-    if (i_0 < int(5)) {
-        c2da_fresh1 = int(1)
+    c2da_fresh1 = 0
+    if (i_0 < 5) {
+        c2da_fresh1 = 1
     }
     if (c2da_fresh1 != 0) {
         goto label 1
     }
     return
     label 1:
-    j = int(0)
+    j = 0
     label 2:
-    c2da_fresh2 = int(0)
-    if (j < int(5)) {
-        c2da_fresh2 = int(1)
+    c2da_fresh2 = 0
+    if (j < 5) {
+        c2da_fresh2 = 1
     }
     if (c2da_fresh2 != 0) {
         goto label 3
     }
     c2da_postinc_2 = i_0
-    i_0 = int(i_0 + 1)
+    i_0 = i_0 + 1
     goto label 0
     label 3:
     c2da_postinc_0 = x_8
-    x_8 = int(x_8 + 1)
+    x_8 = x_8 + 1
     c2da_postinc_1 = j
-    j = int(j + 1)
+    j = j + 1
     goto label 2
     panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def exit_nested_loops(var x_9 : int) : int {
-    var c2da_postinc_3 : int = int(0)
+    var c2da_postinc_3 : int = 0
     label 0:
     if (x_9 != 0) {
         goto label 2
@@ -545,7 +545,7 @@ def exit_nested_loops(var x_9 : int) : int {
         goto label 5
     }
     c2da_postinc_3 = x_9
-    x_9 = int(x_9 + 1)
+    x_9 = x_9 + 1
     goto label 3
     label 5:
     goto label 1
@@ -553,7 +553,7 @@ def exit_nested_loops(var x_9 : int) : int {
 }
 [export]
 def continue_nested_loops(var x_10 : int) : int {
-    var c2da_postinc_4 : int = int(0)
+    var c2da_postinc_4 : int = 0
     label 0:
     label 1:
     if (x_10 != 0) {
@@ -565,14 +565,14 @@ def continue_nested_loops(var x_10 : int) : int {
     if (x_10 != 0) {
         goto label 4
     }
-    x_10 = int(x_10 + int(2))
+    x_10 = x_10 + 2
     goto label 1
     label 4:
     if (x_10 != 0) {
         goto label 5
     }
     c2da_postinc_4 = x_10
-    x_10 = int(x_10 + 1)
+    x_10 = x_10 + 1
     goto label 3
     label 5:
     goto label 0
@@ -580,7 +580,7 @@ def continue_nested_loops(var x_10 : int) : int {
 }
 [export]
 def break_and_continue_nested_loops(var x_11 : int) : int {
-    var c2da_postinc_5 : int = int(0)
+    var c2da_postinc_5 : int = 0
     label 0:
     label 1:
     if (x_11 != 0) {
@@ -593,7 +593,7 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
     if (x_11 != 0) {
         goto label 5
     }
-    x_11 = int(x_11 + int(2))
+    x_11 = x_11 + 2
     goto label 1
     label 5:
     if (x_11 != 0) {
@@ -603,7 +603,7 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
         goto label 6
     }
     c2da_postinc_5 = x_11
-    x_11 = int(x_11 + 1)
+    x_11 = x_11 + 1
     goto label 4
     label 6:
     goto label 0
@@ -613,14 +613,14 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
 }
 [export]
 def for_loop_single_continue(var x_12 : int) : int {
-    var i_1 : int = int(0)
-    var c2da_fresh3 : int = int(0)
-    var c2da_postinc_6 : int = int(0)
-    i_1 = int(0)
+    var i_1 : int = 0
+    var c2da_fresh3 : int = 0
+    var c2da_postinc_6 : int = 0
+    i_1 = 0
     label 0:
-    c2da_fresh3 = int(0)
-    if (i_1 < int(10)) {
-        c2da_fresh3 = int(1)
+    c2da_fresh3 = 0
+    if (i_1 < 10) {
+        c2da_fresh3 = 1
     }
     if (c2da_fresh3 != 0) {
         goto label 1
@@ -631,10 +631,10 @@ def for_loop_single_continue(var x_12 : int) : int {
         goto label 4
     }
     label 2:
-    x_12 = int(x_12 + int(1))
+    x_12 = x_12 + 1
     label 3:
     c2da_postinc_6 = i_1
-    i_1 = int(i_1 + 1)
+    i_1 = i_1 + 1
     goto label 0
     label 4:
     if (x_12 != 0) {
@@ -647,14 +647,14 @@ def for_loop_single_continue(var x_12 : int) : int {
 }
 [export]
 def for_loop_multi_continue(var x_13 : int) : int {
-    var i_2 : int = int(0)
-    var c2da_fresh4 : int = int(0)
-    var c2da_postinc_7 : int = int(0)
-    i_2 = int(0)
+    var i_2 : int = 0
+    var c2da_fresh4 : int = 0
+    var c2da_postinc_7 : int = 0
+    i_2 = 0
     label 0:
-    c2da_fresh4 = int(0)
-    if (i_2 < int(10)) {
-        c2da_fresh4 = int(1)
+    c2da_fresh4 = 0
+    if (i_2 < 10) {
+        c2da_fresh4 = 1
     }
     if (c2da_fresh4 != 0) {
         goto label 1
@@ -665,15 +665,15 @@ def for_loop_multi_continue(var x_13 : int) : int {
         goto label 7
     }
     label 2:
-    x_13 = int(x_13 + int(1))
+    x_13 = x_13 + 1
     if (x_13 != 0) {
         goto label 5
     }
     label 3:
-    x_13 = int(x_13 + int(2))
+    x_13 = x_13 + 2
     label 4:
     c2da_postinc_7 = i_2
-    i_2 = int(i_2 + 1)
+    i_2 = i_2 + 1
     goto label 0
     label 5:
     if (x_13 != 0) {
@@ -698,7 +698,7 @@ def do_loop_single_continue(var x_14 : int) : int {
         goto label 3
     }
     label 1:
-    x_14 = int(x_14 + int(1))
+    x_14 = x_14 + 1
     label 2:
     if (x_14 != 0) {
         goto label 0
@@ -720,12 +720,12 @@ def do_loop_multi_continue(var x_15 : int) : int {
         goto label 6
     }
     label 1:
-    x_15 = int(x_15 + int(1))
+    x_15 = x_15 + 1
     if (x_15 != 0) {
         goto label 4
     }
     label 2:
-    x_15 = int(x_15 + int(2))
+    x_15 = x_15 + 2
     label 3:
     if (x_15 != 0) {
         goto label 0
@@ -750,58 +750,58 @@ def do_loop_multi_continue(var x_15 : int) : int {
 [export]
 def explicit_loop_multi_exit(var x_16 : int) : int {
     label 0:
-    if (x_16 == int(1)) {
+    if (x_16 == 1) {
         goto label 2
-    } elif (x_16 == int(2)) {
+    } elif (x_16 == 2) {
         goto label 3
     }
-    x_16 = int(x_16 + int(6))
+    x_16 = x_16 + 6
     label 1:
-    x_16 = int(x_16 + int(4))
+    x_16 = x_16 + 4
     return x_16
     label 2:
-    x_16 = int(x_16 + int(1))
+    x_16 = x_16 + 1
     goto label 0
     label 3:
-    x_16 = int(x_16 + int(2))
+    x_16 = x_16 + 2
     if (x_16 != 0) {
         goto label 5
     }
-    x_16 = int(x_16 + int(4))
+    x_16 = x_16 + 4
     label 4:
-    x_16 = int(x_16 + int(5))
+    x_16 = x_16 + 5
     goto label 1
     label 5:
-    x_16 = int(x_16 + int(3))
+    x_16 = x_16 + 3
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def implicit_loop_multi_exit(var x_17 : int) : int {
     label 0:
-    if (x_17 == int(1)) {
+    if (x_17 == 1) {
         goto label 2
-    } elif (x_17 == int(2)) {
+    } elif (x_17 == 2) {
         goto label 3
     }
-    x_17 = int(x_17 + int(6))
+    x_17 = x_17 + 6
     label 1:
-    x_17 = int(x_17 + int(4))
+    x_17 = x_17 + 4
     return x_17
     label 2:
-    x_17 = int(x_17 + int(1))
+    x_17 = x_17 + 1
     goto label 0
     label 3:
-    x_17 = int(x_17 + int(2))
+    x_17 = x_17 + 2
     if (x_17 != 0) {
         goto label 5
     }
-    x_17 = int(x_17 + int(4))
+    x_17 = x_17 + 4
     label 4:
-    x_17 = int(x_17 + int(5))
+    x_17 = x_17 + 5
     goto label 1
     label 5:
-    x_17 = int(x_17 + int(3))
+    x_17 = x_17 + 3
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
@@ -813,20 +813,20 @@ def loop_returns(var x_18 : int) : int {
     }
     return x_18
     label 1:
-    x_18 = int(x_18 + int(1))
+    x_18 = x_18 + 1
     if (x_18 != 0) {
         goto label 3
     }
-    x_18 = int(x_18 + int(3))
+    x_18 = x_18 + 3
     if (x_18 != 0) {
         goto label 2
     }
     goto label 0
     label 2:
-    x_18 = int(x_18 + int(4))
+    x_18 = x_18 + 4
     return x_18
     label 3:
-    x_18 = int(x_18 + int(2))
+    x_18 = x_18 + 2
     return x_18
 }
 [export]
@@ -837,22 +837,22 @@ def loop_gotos(var x_19 : int) : int {
     }
     return x_19
     label 1:
-    x_19 = int(x_19 + int(1))
+    x_19 = x_19 + 1
     if (x_19 != 0) {
         goto label 4
     }
-    x_19 = int(x_19 + int(3))
+    x_19 = x_19 + 3
     if (x_19 != 0) {
         goto label 2
     }
-    x_19 = int(x_19 + int(5))
+    x_19 = x_19 + 5
     goto label 0
     label 2:
-    x_19 = int(x_19 + int(4))
+    x_19 = x_19 + 4
     label 3:
     return -x_19
     label 4:
-    x_19 = int(x_19 + int(2))
+    x_19 = x_19 + 2
     goto label 3
     panic("unreachable: fell out of a translated control-flow graph")
 }
@@ -864,13 +864,13 @@ def loop_early_return(var x_20 : int) : int {
     }
     return -x_20
     label 1:
-    x_20 = int(x_20 + int(1))
+    x_20 = x_20 + 1
     if (x_20 != 0) {
         goto label 2
     }
     goto label 0
     label 2:
-    x_20 = int(x_20 + int(2))
+    x_20 = x_20 + 2
     return x_20
 }
 [export]
@@ -885,7 +885,7 @@ def if_else_loops(var x_21 : int) {
     label 1:
     return
     label 2:
-    x_21 = int(x_21 + int(2))
+    x_21 = x_21 + 2
     goto label 0
     label 3:
     label 4:
@@ -894,7 +894,7 @@ def if_else_loops(var x_21 : int) {
     }
     goto label 1
     label 5:
-    x_21 = int(x_21 + int(1))
+    x_21 = x_21 + 1
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
@@ -904,7 +904,7 @@ def goto_loops(var x_22 : int) : int {
         goto label 3
     }
     label 0:
-    x_22 = int(x_22 + int(2))
+    x_22 = x_22 + 2
     if (x_22 != 0) {
         goto label 2
     }
@@ -914,7 +914,7 @@ def goto_loops(var x_22 : int) : int {
     goto label 0
     label 3:
     label 4:
-    x_22 = int(x_22 + int(1))
+    x_22 = x_22 + 1
     if (x_22 != 0) {
         goto label 5
     }
@@ -929,7 +929,7 @@ def goto_into_loops(var x_23 : int) {
         goto label 3
     }
     label 0:
-    x_23 = int(x_23 + int(2))
+    x_23 = x_23 + 2
     if (x_23 != 0) {
         goto label 2
     }
@@ -939,7 +939,7 @@ def goto_into_loops(var x_23 : int) {
     goto label 0
     label 3:
     label 4:
-    x_23 = int(x_23 + int(1))
+    x_23 = x_23 + 1
     if (x_23 != 0) {
         goto label 5
     }
@@ -954,7 +954,7 @@ def goto_separate_loops(var x_24 : int) {
         goto label 2
     }
     label 0:
-    x_24 = int(x_24 + int(2))
+    x_24 = x_24 + 2
     if (x_24 != 0) {
         goto label 0
     }
@@ -962,7 +962,7 @@ def goto_separate_loops(var x_24 : int) {
     return
     label 2:
     label 3:
-    x_24 = int(x_24 + int(1))
+    x_24 = x_24 + 1
     if (x_24 != 0) {
         goto label 3
     }

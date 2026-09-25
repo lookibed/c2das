@@ -6252,6 +6252,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p97-constant-conversions",
+      "canonical_cases": [
+        "p97-constant-conversions"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "constant_conversions_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p97_constant_conversions",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p97_constant_conversions.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p98-pointer-arg-same-type",
       "canonical_cases": [
         "p98-pointer-arg-same-type"
