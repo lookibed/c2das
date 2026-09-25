@@ -269,8 +269,10 @@ impl<'c> Translation<'c> {
         DaExpr::numeric_conversion(expr, target)
     }
 
-    /// daScript has no scalar bool-to-number conversion. Materialize C's 0/1
-    /// value in statements before another expression consumes it.
+    /// daScript has no scalar bool-to-number conversion: a numeric cast of a
+    /// `bool` becomes C's 0/1 as `b ? 1 : 0` ([`Self::materialize_bool_as_number`]).
+    /// The statement list is always empty; it stays in the signature so a
+    /// caller splices whatever a lowering needs without knowing which.
     pub(crate) fn bool_to_integer_cast(&self, expr: DaExpr) -> Option<(Vec<DaStmt>, DaExpr)> {
         let DaExpr::Cast { kind, expr, to } = expr else { return None; };
         let bool_expr = unwrap_numeric_casts(expr);
@@ -288,62 +290,33 @@ impl<'c> Translation<'c> {
         {
             return None;
         }
-        let tmp = self.renamer.borrow_mut().fresh();
-        let one = self.integer_literal_for_type(DaExpr::ConstInt(1), to.clone());
-        let zero = self.integer_literal_for_type(DaExpr::ConstInt(0), to.clone());
-        Some((
-            vec![
-                DaStmt::Var {
-                    name: tmp.clone(),
-                    var_type: to,
-                    init: Some(zero),
-                },
-                mk().expr_stmt(DaExpr::IfThenElse {
-                    cond: Box::new(bool_expr),
-                    then: Box::new(DaExpr::Block(DaBlock {
-                        stmts: vec![DaStmt::Expr(DaExpr::Assign(
-                            Box::new(DaExpr::Var(tmp.clone())),
-                            Box::new(one),
-                        ))],
-                    })),
-                    elifs: vec![],
-                    else_: None,
-                }),
-            ],
-            DaExpr::Var(tmp),
-        ))
+        Some((vec![], self.bool_as_number(bool_expr, to)))
     }
 
-    /// `var t : T = 0; if (b) { t = 1 }` — C's 0/1 value of a boolean.
+    /// `b ? 1 : 0` — C's 0/1 value of a boolean, in `target`.
+    ///
+    /// daScript's `int(bool)` does not exist; its conditional expression
+    /// evaluates `b` exactly once, in place, and both arms are the same
+    /// typed literal, so the value needs no statements and no temporary.
     pub(crate) fn materialize_bool_as_number(
         &self,
         value: DaExpr,
         target: DaType,
     ) -> (Vec<DaStmt>, DaExpr) {
-        let tmp = self.renamer.borrow_mut().fresh();
-        let one = self.integer_literal_for_type(DaExpr::ConstInt(1), target.clone());
-        let zero = self.integer_literal_for_type(DaExpr::ConstInt(0), target.clone());
         (
-            vec![
-                DaStmt::Var {
-                    name: tmp.clone(),
-                    var_type: target,
-                    init: Some(zero),
-                },
-                mk().expr_stmt(DaExpr::IfThenElse {
-                    cond: Box::new(self.as_bool_condition(value)),
-                    then: Box::new(DaExpr::Block(DaBlock {
-                        stmts: vec![DaStmt::Expr(DaExpr::Assign(
-                            Box::new(DaExpr::Var(tmp.clone())),
-                            Box::new(one),
-                        ))],
-                    })),
-                    elifs: vec![],
-                    else_: None,
-                }),
-            ],
-            DaExpr::Var(tmp),
+            vec![],
+            self.bool_as_number(self.as_bool_condition(value), target),
         )
+    }
+
+    fn bool_as_number(&self, cond: DaExpr, target: DaType) -> DaExpr {
+        let one = self.integer_literal_for_type(DaExpr::ConstInt(1), target.clone());
+        let zero = self.integer_literal_for_type(DaExpr::ConstInt(0), target);
+        DaExpr::Op3 {
+            cond: Box::new(cond),
+            then: Box::new(one),
+            else_: Box::new(zero),
+        }
     }
 
     pub(crate) fn bool_to_integer(&self, value: WithStmts<DaExpr>) -> WithStmts<DaExpr> {

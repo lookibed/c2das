@@ -1729,8 +1729,6 @@ impl<'c> Translation<'c> {
                 "designated init expr not supported",
             )),
             // Ternary conditional — cond ? then : else
-            // daScript не поддерживает if-then-else как выражение.
-            // Разворачиваем в var _tmp; if (c) _tmp = a else _tmp = b; val = _tmp
             Conditional(ty, cond, then, else_) => {
                 // C evaluates exactly one arm.  Every statement an arm needed
                 // to hoist therefore has to move *inside* that arm's block,
@@ -1740,19 +1738,40 @@ impl<'c> Translation<'c> {
                 let cond_e = self.convert_condition(ctx, true, *cond)?;
                 let then_e = self.convert_expr(ctx.used(), *then, Some(*ty))?;
                 let else_e = self.convert_expr(ctx.used(), *else_, Some(*ty))?;
-                if then_e.is_pure() && else_e.is_pure() {
-                    if let Some(minmax) =
-                        lower_minmax_conditional(&cond_e.val, &then_e.val, &else_e.val)
-                    {
-                        return Ok(WithStmts {
-                            stmts: cond_e.stmts,
-                            val: minmax,
-                            is_unsafe: cond_e.is_unsafe || then_e.is_unsafe || else_e.is_unsafe,
-                        });
-                    }
-                }
                 let tmp_type = writable_type(self.convert_type(*ty)?);
                 let is_unsafe = cond_e.is_unsafe || then_e.is_unsafe || else_e.is_unsafe;
+                // Neither arm hoisted a statement, so each is one daScript
+                // expression, and daScript's own `c ? a : b` evaluates exactly
+                // one of them after `c`, as C does.  Clang has already
+                // converted both arms to the result type (the usual
+                // arithmetic conversions); `coerce_branch_value` spells that
+                // type for the daScript operator, which requires both arms to
+                // have the same one.  Arithmetic and pointer results only: a
+                // record, array or function value keeps the temporary.  A
+                // pointer arm must provably be of the result's daScript type
+                // already (`conditional_pointer_arm_is_exact`), because
+                // daScript's `?:` does not add `const` to a pointee the way
+                // an assignment to the temporary does.
+                let is_arith = tmp_type.is_numeric() && !matches!(tmp_type.kind, DaTypeKind::Void);
+                let is_pointer = matches!(tmp_type.kind, DaTypeKind::Pointer(_))
+                    && !crate::convert_type::is_function_value_type(&tmp_type)
+                    && self.conditional_pointer_arm_is_exact(*then, &tmp_type)?
+                    && self.conditional_pointer_arm_is_exact(*else_, &tmp_type)?;
+                if then_e.is_pure() && else_e.is_pure() && (is_arith || is_pointer) {
+                    let then_v = self.coerce_branch_value(then_e.val, &tmp_type);
+                    let else_v = self.coerce_branch_value(else_e.val, &tmp_type);
+                    return Ok(WithStmts {
+                        stmts: cond_e.stmts,
+                        val: DaExpr::Op3 {
+                            cond: Box::new(cond_e.val),
+                            then: Box::new(then_v),
+                            else_: Box::new(else_v),
+                        },
+                        is_unsafe,
+                    });
+                }
+                // An arm with statements: `var t = 0; if (c) { <a's stmts>;
+                // t = a } else { <b's stmts>; t = b }`.
                 let mut c_stmts = cond_e.stmts;
                 let (tmp_var, decl_and_if) = self.guarded_value_branches(
                     &tmp_type,
@@ -2022,6 +2041,9 @@ impl<'c> Translation<'c> {
                 }
                 DaExpr::Op1 { expr, .. } => has_effect(expr),
                 DaExpr::Op2 { left, right, .. } => has_effect(left) || has_effect(right),
+                DaExpr::Op3 { cond, then, else_ } => {
+                    has_effect(cond) || has_effect(then) || has_effect(else_)
+                }
                 DaExpr::Cast { expr, .. }
                 | DaExpr::Unsafe(expr)
                 | DaExpr::Addr(expr)
@@ -2442,8 +2464,27 @@ impl<'c> Translation<'c> {
         _used: bool,
         expr_id: CExprId,
     ) -> TranslationResult<WithStmts<DaExpr>> {
+        // A C comparison, `&&`, `||` or `!` has type `int`, but its daScript
+        // value is a `bool`.  Converted as a value it would be materialized as
+        // C's 0/1 (`b ? 1 : 0`) only to be tested against 0 again here, so a
+        // condition takes the operator's own `bool` instead.
+        // Anything else it lowers to — the `int` flag of a `&&`/`||` whose
+        // right operand needed statements (`convert_short_circuit`) — is
+        // tested below exactly like the C value it is.
         let expr_ty = self.ast_context[expr_id].kind.get_qual_type();
-        let val = self.convert_expr(ctx.used(), expr_id, expr_ty)?;
+        let val = match self.c_boolean_operator(expr_id) {
+            Some(operator) => {
+                let val = self.convert_c_boolean_operator(ctx, operator)?;
+                if Self::infer_type(&val.val)
+                    .map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool))
+                    || is_boolean_expression(&val.val)
+                {
+                    return Ok(val);
+                }
+                val
+            }
+            None => self.convert_expr(ctx.used(), expr_id, expr_ty)?,
+        };
         if Self::infer_type(&val.val).map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool)) {
             return self.normalize_condition_comparison(expr_id, val);
         }
@@ -2515,6 +2556,89 @@ impl<'c> Translation<'c> {
             }
         }
         Ok(val)
+    }
+
+    /// The C expression under `expr_id`'s parentheses when it is one of C's
+    /// boolean-valued operators: a relational or equality comparison, `&&`,
+    /// `||` or `!`.  C types each of them `int`; daScript types each `bool`.
+    pub(crate) fn c_boolean_operator(&self, expr_id: CExprId) -> Option<CExprId> {
+        let mut expr_id = expr_id;
+        while let CExprKind::Paren(_, inner) = &self.ast_context[expr_id].kind {
+            expr_id = *inner;
+        }
+        match &self.ast_context[expr_id].kind {
+            CExprKind::Binary(_, op, ..)
+                if matches!(
+                    op,
+                    CBinOp::EqualEqual
+                        | CBinOp::NotEqual
+                        | CBinOp::Less
+                        | CBinOp::Greater
+                        | CBinOp::LessEqual
+                        | CBinOp::GreaterEqual
+                        | CBinOp::And
+                        | CBinOp::Or
+                ) =>
+            {
+                Some(expr_id)
+            }
+            CExprKind::Unary(_, CUnOp::Not, ..) => Some(expr_id),
+            _ => None,
+        }
+    }
+
+    /// Whether a pointer arm of a C `?:` lowers to a value of exactly the
+    /// result's daScript pointer type `result`, so both arms of daScript's
+    /// `c ? a : b` agree.  A null pointer constant always does.  An arm whose
+    /// outermost C node is a conversion the lowering spells as nothing — a
+    /// qualification (`char *` → `const char *`), an array or function
+    /// decay, a bit cast — is not trusted: its daScript value keeps the type
+    /// it had before the conversion.  Any other arm is judged by its own C
+    /// type.
+    fn conditional_pointer_arm_is_exact(
+        &self,
+        arm: CExprId,
+        result: &DaType,
+    ) -> TranslationResult<bool> {
+        let mut arm = arm;
+        while let CExprKind::Paren(_, inner) = &self.ast_context[arm].kind {
+            arm = *inner;
+        }
+        match &self.ast_context[arm].kind {
+            CExprKind::ImplicitCast(_, _, CastKind::NullToPointer, _, _)
+            | CExprKind::ExplicitCast(_, _, CastKind::NullToPointer, _, _) => Ok(true),
+            CExprKind::ImplicitCast(_, _, kind, _, _)
+            | CExprKind::ExplicitCast(_, _, kind, _, _)
+                if !matches!(kind, CastKind::LValueToRValue) =>
+            {
+                Ok(false)
+            }
+            kind => match kind.get_qual_type() {
+                Some(ty) => Ok(writable_type(self.convert_type(ty)?) == *result),
+                None => Ok(false),
+            },
+        }
+    }
+
+    /// One of [`Self::c_boolean_operator`]'s operators at its daScript
+    /// result, before any use-site materializes C's `int` 0/1 from it — the
+    /// `bool` the value path would otherwise turn into `b ? 1 : 0`.
+    fn convert_c_boolean_operator(
+        &self,
+        ctx: ExprContext,
+        expr_id: CExprId,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        match self.ast_context[expr_id].kind.clone() {
+            CExprKind::Binary(ty, op, lhs, rhs, opt_lhs, opt_rhs) => {
+                self.convert_binary_expr(ctx.used(), ty, op, lhs, rhs, opt_lhs, opt_rhs)
+            }
+            CExprKind::Unary(ty, op, arg, _) => {
+                self.convert_unary_operator(ctx.used(), op, ty, arg)
+            }
+            _ => Err(TranslationError::generic(
+                "not a C boolean operator (internal: c_boolean_operator mismatch)",
+            )),
+        }
     }
 
     fn normalize_condition_comparison(
@@ -3106,46 +3230,6 @@ fn zero_for_datype(ty: &DaType) -> DaExpr {
     }
 }
 
-fn lower_minmax_conditional(cond: &DaExpr, then_e: &DaExpr, else_e: &DaExpr) -> Option<DaExpr> {
-    let DaExpr::Op2 { op, left, right } = cond else {
-        return None;
-    };
-    if !matches!(*op, "<" | "<=" | ">" | ">=") {
-        return None;
-    }
-
-    let left_is_then = expr_text_eq(left, then_e);
-    let right_is_else = expr_text_eq(right, else_e);
-    let right_is_then = expr_text_eq(right, then_e);
-    let left_is_else = expr_text_eq(left, else_e);
-
-    let op_kind = match (
-        *op,
-        left_is_then && right_is_else,
-        right_is_then && left_is_else,
-    ) {
-        ("<" | "<=", true, _) => "min",
-        (">" | ">=", true, _) => "max",
-        ("<" | "<=", _, true) => "max",
-        (">" | ">=", _, true) => "min",
-        _ => return None,
-    };
-    let helper_ty = minmax_helper_type(left.as_ref(), right.as_ref());
-    let fn_name = format!("c2da_{}_{}", op_kind, helper_ty.suffix);
-
-    Some(DaExpr::Call(
-        Box::new(DaExpr::Var(fn_name.to_string())),
-        vec![
-            cast_minmax_arg(left.as_ref().clone(), helper_ty.ty.clone()),
-            cast_minmax_arg(right.as_ref().clone(), helper_ty.ty),
-        ],
-    ))
-}
-
-fn expr_text_eq(lhs: &DaExpr, rhs: &DaExpr) -> bool {
-    format!("{}", lhs) == format!("{}", rhs)
-}
-
 fn is_zero_initializer_expr(expr: &DaExpr) -> bool {
     match expr {
         DaExpr::ConstInt(0) | DaExpr::ConstUInt(0) => true,
@@ -3154,82 +3238,10 @@ fn is_zero_initializer_expr(expr: &DaExpr) -> bool {
     }
 }
 
-#[derive(Clone)]
-struct MinMaxHelperType {
-    suffix: &'static str,
-    ty: DaType,
-}
-
-fn minmax_helper_type(left: &DaExpr, right: &DaExpr) -> MinMaxHelperType {
-    match (minmax_numeric_type(left), minmax_numeric_type(right)) {
-        (Some(MinMaxNumericType::UInt64), _) | (_, Some(MinMaxNumericType::UInt64)) => {
-            MinMaxHelperType {
-                suffix: "uint64",
-                ty: DaType::uint64(),
-            }
-        }
-        (Some(MinMaxNumericType::Int64), _) | (_, Some(MinMaxNumericType::Int64)) => {
-            MinMaxHelperType {
-                suffix: "int64",
-                ty: DaType::int64(),
-            }
-        }
-        (Some(MinMaxNumericType::UInt), Some(MinMaxNumericType::UInt)) => MinMaxHelperType {
-            suffix: "uint",
-            ty: DaType::uint(),
-        },
-        _ => MinMaxHelperType {
-            suffix: "int",
-            ty: DaType::int(),
-        },
-    }
-}
-
-#[derive(Copy, Clone)]
-enum MinMaxNumericType {
-    Int,
-    UInt,
-    Int64,
-    UInt64,
-}
-
-fn minmax_numeric_type(expr: &DaExpr) -> Option<MinMaxNumericType> {
-    match expr {
-        DaExpr::ConstUInt(_) => Some(MinMaxNumericType::UInt),
-        DaExpr::ConstInt(_) => Some(MinMaxNumericType::Int),
-        DaExpr::Cast { to, .. } => match to.kind {
-            DaTypeKind::UInt64 => Some(MinMaxNumericType::UInt64),
-            DaTypeKind::Int64 => Some(MinMaxNumericType::Int64),
-            DaTypeKind::UInt | DaTypeKind::UInt16 | DaTypeKind::UInt8 => {
-                Some(MinMaxNumericType::UInt)
-            }
-            DaTypeKind::Int | DaTypeKind::Int16 | DaTypeKind::Int8 => Some(MinMaxNumericType::Int),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-fn cast_minmax_arg(expr: DaExpr, to: DaType) -> DaExpr {
-    DaExpr::Cast {
-        kind: das_ast::CastKind::Cast,
-        expr: Box::new(expr),
-        to,
-    }
-}
-
 fn c2da_runtime_helpers() -> Vec<DaDecl> {
     let mut helpers = runtime::declarations();
     helpers.extend(variadic::declarations());
     helpers.extend([
-        c2da_minmax_helper("c2da_min_int", DaType::int(), "<"),
-        c2da_minmax_helper("c2da_max_int", DaType::int(), ">"),
-        c2da_minmax_helper("c2da_min_uint", DaType::uint(), "<"),
-        c2da_minmax_helper("c2da_max_uint", DaType::uint(), ">"),
-        c2da_minmax_helper("c2da_min_int64", DaType::int64(), "<"),
-        c2da_minmax_helper("c2da_max_int64", DaType::int64(), ">"),
-        c2da_minmax_helper("c2da_min_uint64", DaType::uint64(), "<"),
-        c2da_minmax_helper("c2da_max_uint64", DaType::uint64(), ">"),
         c2da_clip_uint_helper(),
         c2da_bool_to_uint_helper(),
         c2da_assert_fail_helper(),
@@ -3360,50 +3372,6 @@ fn c2da_clip_uint_helper() -> DaDecl {
                     to: DaType::uint(),
                 })))),
             ],
-        })),
-        annotations: vec![],
-        is_public: false,
-        is_unsafe: false,
-    })
-}
-
-fn c2da_minmax_helper(name: &str, ty: DaType, op: &'static str) -> DaDecl {
-    DaDecl::Function(DaFunction {
-        name: name.to_string(),
-        params: vec![
-            DaStmt::Param {
-                name: "a".to_string(),
-                param_type: ty.clone(),
-                default: None,
-                is_mutable: false,
-            },
-            DaStmt::Param {
-                name: "b".to_string(),
-                param_type: ty.clone(),
-                default: None,
-                is_mutable: false,
-            },
-        ],
-        ret_type: ty,
-        body: Some(DaExpr::Block(DaBlock {
-            stmts: vec![DaStmt::Expr(DaExpr::IfThenElse {
-                cond: Box::new(DaExpr::Op2 {
-                    op,
-                    left: Box::new(DaExpr::Var("a".to_string())),
-                    right: Box::new(DaExpr::Var("b".to_string())),
-                }),
-                then: Box::new(DaExpr::Block(DaBlock {
-                    stmts: vec![DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Var(
-                        "a".to_string(),
-                    )))))],
-                })),
-                elifs: vec![],
-                else_: Some(Box::new(DaExpr::Block(DaBlock {
-                    stmts: vec![DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Var(
-                        "b".to_string(),
-                    )))))],
-                }))),
-            })],
         })),
         annotations: vec![],
         is_public: false,

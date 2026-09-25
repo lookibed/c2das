@@ -250,62 +250,6 @@ struct C2daVaArg {
 struct C2daVaCursor {
     index : int
 }
-def c2da_min_int(a : int; b : int) : int {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_int(a : int; b : int) : int {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_uint(a : uint; b : uint) : uint {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_uint(a : uint; b : uint) : uint {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_int64(a : int64; b : int64) : int64 {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_int64(a : int64; b : int64) : int64 {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
 def c2da_clip_uint(v : int) : uint {
     if (v < 0) {
         return 0x0
@@ -342,58 +286,6 @@ def test_bool() {
     ident1 = 1 != 0
     macro_int1 = 1 != 0
     macro_ident1 = 1 != 0
-    var c2da_fresh0 : int = 0
-    if (0 != 0) {
-        c2da_fresh0 = 2
-    } else {
-        c2da_fresh0 = 3
-    }
-    var c2da_fresh1 : int = 0
-    if (0 != 0) {
-        c2da_fresh1 = 2
-    } else {
-        c2da_fresh1 = 3
-    }
-    var c2da_fresh2 : int = 0
-    if (0 != 0) {
-        c2da_fresh2 = 2
-    } else {
-        c2da_fresh2 = 3
-    }
-    var c2da_fresh3 : int = 0
-    if (0 != 0) {
-        c2da_fresh3 = 2
-    } else {
-        c2da_fresh3 = 3
-    }
-    var c2da_fresh4 : int = 0
-    if (1 != 0) {
-        c2da_fresh4 = 2
-    } else {
-        c2da_fresh4 = 3
-    }
-    var c2da_fresh5 : int = 0
-    if (1 != 0) {
-        c2da_fresh5 = 2
-    } else {
-        c2da_fresh5 = 3
-    }
-    var c2da_fresh6 : int = 0
-    if (1 != 0) {
-        c2da_fresh6 = 2
-    } else {
-        c2da_fresh6 = 3
-    }
-    var c2da_fresh7 : int = 0
-    if (1 != 0) {
-        c2da_fresh7 = 2
-    } else {
-        c2da_fresh7 = 3
-    }
-    var c2da_fresh8 : int = 0
-    if (int1 == true) {
-        c2da_fresh8 = 1
-    }
-    int0 = (int(int0) | c2da_fresh8) != 0
+    int0 = (int(int0) | (int1 == true ? 1 : 0)) != 0
     return
 }

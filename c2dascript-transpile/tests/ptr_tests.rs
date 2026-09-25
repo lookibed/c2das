@@ -207,6 +207,44 @@ fn p98_pointer_argument_of_the_parameter_type_crosses_as_itself() {
 }
 
 #[test]
+fn p99_conditionals_without_statements_are_daslang_expressions() {
+    let d = transpile("p99_direct_conditionals");
+    // `?:` whose arms are one expression each: daslang's `c ? a : b`, the
+    // condition a `bool`, only the chosen call evaluated.
+    assert!(d.contains("value_0 = x < y ? note(1, 10) : note(2, 20)"));
+    // `&&`/`||` stored as a value: short-circuit on `bool`, C's 0/1 once.
+    assert!(d.contains("value_0 = note(3, 0) != 0 && note(4, 1) != 0 ? 1 : 0"));
+    assert!(d.contains("both = a != 0 && b != 0 ? 1 : 0"));
+    assert!(d.contains("neither = !(a != 0 || b != 0) ? 1 : 0"));
+    assert!(d.contains("not_less = !(a < b) ? 1 : 0"));
+    // Mixed arms convert to the usual arithmetic type, the chosen arm only.
+    assert!(d.contains("as_unsigned = sel != 0 ? uint(negative) : big"));
+    assert!(d.contains("real = sel != 0 ? half : double(negative)"));
+    // Pointer arms and pointer operands.
+    assert!(d.contains("value_0 = *(null_p != null ? null_p : p_0)"));
+    assert!(d.contains("value_0 = p_0 != null && *p_0 == 9 ? 1 : 0"));
+    // A condition takes the `bool` itself, never `(b ? 1 : 0) != 0`.
+    assert!(d.contains("if (x < y && note(14, 1) != 0) {"));
+    assert!(
+        !d.contains("? 1 : 0) != 0"),
+        "int round trip in a condition"
+    );
+    // A right operand or an arm with statements keeps the guarded flag, so
+    // `i++` runs only when C evaluates it.
+    assert!(d.contains(
+        "if (x > y) {\n        c2da_postinc_2 = i_0\n        i_0 = i_0 + 1\n        if (c2da_postinc_2 != 0) {"
+    ));
+    assert!(d.contains(" = note(10, i_0)\n    }\n    value_0 = c2da_fresh"));
+    // A pointer arm whose conversion to the result type the lowering spells
+    // as nothing (an array decay to `const char *`) keeps the temporary:
+    // daslang's `?:` wants both arms of one type.
+    assert!(d.contains("} else {\n            c2da_fresh0 = unsafe(addr(c2da_str_0[0]))\n"));
+    // The min/max rewrite of `a < b ? a : b` is gone: it guessed `int` for
+    // operands of unknown type.
+    assert!(!d.contains("c2da_min_") && !d.contains("c2da_max_"));
+}
+
+#[test]
 fn p96_copies_reach_the_builtin_past_a_source_defined_memmove() {
     let d = transpile("p96_memcpy_builtin");
     assert!(
@@ -532,12 +570,17 @@ fn p22_literals_follow_their_c_target_types() {
 }
 
 #[test]
-fn p23_bool_to_numeric_is_statement_lowered_at_every_value_site() {
+fn p23_bool_to_numeric_is_materialized_at_every_value_site() {
     let d = transpile("p23_bool_numeric");
+    // daslang has no `int(bool)`: C's 0/1 is `b ? 1 : 0`, in place, with no
+    // temporary.
     assert!(!d.contains("int(left < right)"));
     assert!(!d.contains("int(left == right)"));
-    assert!(d.contains("var c2da_fresh"));
-    assert!(d.contains(" = 1\n"));
+    assert!(d.contains("return left < right ? 1 : 0\n"));
+    assert!(d.contains("assigned = left_0 < right_0 ? 1 : 0\n"));
+    assert!(d.contains("take_int(left_0 == right_0 ? 1 : 0)"));
+    assert!(d.contains("+ (left_0 != right_0 ? 1 : 0)"));
+    assert!(!d.contains("var c2da_fresh"));
 }
 
 #[test]

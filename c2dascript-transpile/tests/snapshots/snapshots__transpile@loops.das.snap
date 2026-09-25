@@ -250,62 +250,6 @@ struct C2daVaArg {
 struct C2daVaCursor {
     index : int
 }
-def c2da_min_int(a : int; b : int) : int {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_int(a : int; b : int) : int {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_uint(a : uint; b : uint) : uint {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_uint(a : uint; b : uint) : uint {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_int64(a : int64; b : int64) : int64 {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_int64(a : int64; b : int64) : int64 {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
 def c2da_clip_uint(v : int) : uint {
     if (v < 0) {
         return 0x0
@@ -339,15 +283,10 @@ def while_loop(var x : int) : int {
 [export]
 def for_loop(var x_0 : int) : int {
     var i : int = 0
-    var c2da_fresh0 : int = 0
     var c2da_postinc : int = 0
     i = 0
     label 0:
-    c2da_fresh0 = 0
     if (i < 10) {
-        c2da_fresh0 = 1
-    }
-    if (c2da_fresh0 != 0) {
         goto label 1
     }
     return x_0
@@ -489,29 +428,19 @@ def nested_while(var x_7 : int) {
 def nested_for(var x_8 : int) {
     var i_0 : int = 0
     var j : int = 0
-    var c2da_fresh1 : int = 0
-    var c2da_fresh2 : int = 0
     var c2da_postinc_2 : int = 0
     var c2da_postinc_0 : int = 0
     var c2da_postinc_1 : int = 0
     i_0 = 0
     label 0:
-    c2da_fresh1 = 0
     if (i_0 < 5) {
-        c2da_fresh1 = 1
-    }
-    if (c2da_fresh1 != 0) {
         goto label 1
     }
     return
     label 1:
     j = 0
     label 2:
-    c2da_fresh2 = 0
     if (j < 5) {
-        c2da_fresh2 = 1
-    }
-    if (c2da_fresh2 != 0) {
         goto label 3
     }
     c2da_postinc_2 = i_0
@@ -614,15 +543,10 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
 [export]
 def for_loop_single_continue(var x_12 : int) : int {
     var i_1 : int = 0
-    var c2da_fresh3 : int = 0
     var c2da_postinc_6 : int = 0
     i_1 = 0
     label 0:
-    c2da_fresh3 = 0
     if (i_1 < 10) {
-        c2da_fresh3 = 1
-    }
-    if (c2da_fresh3 != 0) {
         goto label 1
     }
     return x_12
@@ -648,15 +572,10 @@ def for_loop_single_continue(var x_12 : int) : int {
 [export]
 def for_loop_multi_continue(var x_13 : int) : int {
     var i_2 : int = 0
-    var c2da_fresh4 : int = 0
     var c2da_postinc_7 : int = 0
     i_2 = 0
     label 0:
-    c2da_fresh4 = 0
     if (i_2 < 10) {
-        c2da_fresh4 = 1
-    }
-    if (c2da_fresh4 != 0) {
         goto label 1
     }
     return x_13

@@ -529,7 +529,7 @@ impl<'c> Translation<'c> {
             stmts.extend(converted.stmts);
             // The same crossing an ordinary call performs: daScript has no
             // conversion from `bool` at all, so a C `_Bool` argument has to be
-            // materialized as a number through statements first.
+            // materialized as C's 0/1 number (`b ? 1 : 0`) first.
             let mut value = converted.val;
             if let Some((lowered_stmts, lowered)) = self.bool_to_integer_cast(value.clone()) {
                 stmts.extend(lowered_stmts);
@@ -694,12 +694,11 @@ impl<'c> Translation<'c> {
 
     /// The guard of one chain arm as a daScript boolean *expression*.
     ///
-    /// [`Translation::convert_condition`] is the statement-position lowering:
-    /// it converts the C condition at the C type C gives it — `int` for a
-    /// comparison — and daScript has no conversion from `bool` to a number, so
-    /// the 0/1 has to be materialized through control flow.  A conditional
-    /// expression has nowhere to put those statements, so the comparison is
-    /// taken at its own daScript type instead.
+    /// Unlike [`Translation::convert_condition`], which may return statements
+    /// (a `&&` whose right operand hoisted some), a guard of a substituted
+    /// chain has nowhere to put them, so any operand that needs statements
+    /// declines the substitution; the comparison is taken at its own daScript
+    /// type.
     fn inline_condition(
         &self,
         ctx: ExprContext,
@@ -709,10 +708,10 @@ impl<'c> Translation<'c> {
         while let CExprKind::Paren(_, inner) = &self.ast_context[expr].kind {
             expr = *inner;
         }
-        // A C comparison has type `int`, and every value path in this
-        // translator therefore materializes its 0/1 through statements.  Going
-        // straight to the binary lowering keeps the `bool` daScript already
-        // produced, which is what a condition slot wants anyway.
+        // A C comparison has type `int`, and its value path materializes C's
+        // 0/1 (`b ? 1 : 0`).  Going straight to the binary lowering keeps the
+        // `bool` daScript already produced, which is what a condition slot
+        // wants anyway.
         if let CExprKind::Binary(ty, op, lhs, rhs, opt_lhs, opt_rhs) =
             self.ast_context[expr].kind.clone()
         {

@@ -85,6 +85,33 @@ field load, not a nesting to collapse.  What is removed is only what marks nothi
   array decay is not trusted, because `addr(a[0])` of a `const` array is a `const` value
   that only the `reinterpret` lets reach a `var` pointer parameter.
 
+## Conditions and C's 0/1
+
+C types a comparison, `&&`, `||` and `!` as `int`; daslang types them `bool` and has no
+`int(bool)`.  Two rules keep the translation direct:
+
+- **A condition takes the `bool`.**  `convert_condition` recognises these operators
+  (`c_boolean_operator`, through parentheses) and uses the operator's own `bool` for an `if`,
+  a loop, the selector of `?:`, an operand of `&&`/`||`/`!` or a `_Bool` conversion; C's 0/1
+  is never built only to be tested against 0 again.
+- **A value gets C's 0/1 once, in place**: `b ? 1 : 0` in the use-site's type
+  (`abi::materialize_bool_as_number` / `bool_to_integer_cast`, whose statement list is now
+  always empty).
+
+`&&`/`||` lower to daslang's short-circuit operators and `?:` to daslang's `c ? a : b` when
+the right operand (or both arms) is one expression — daslang evaluates it only when C would,
+calls included.  An operand that had to hoist statements (`i++`, an assignment, a copy)
+keeps the guarded lowering: `&&`/`||` an `int` flag set inside `if (lhs)`, `?:` a temporary
+assigned in each arm's block, so the statements run only when C evaluates that operand.
+The expression `?:` is limited to arithmetic results and to pointer results whose arms are
+provably of the result's daslang type (`conditional_pointer_arm_is_exact`: a qualification
+or decay the lowering spells as nothing would give the arms two types, which daslang's `?:`
+rejects while an assignment accepts it); records, arrays and function values keep the
+temporary.  GNU `a ?: b` keeps its temporary (it names `a` once).  `p99-direct-conditionals`
+is the runtime fixture.  The former `a < b ? a : b` → `c2da_min_*`/`c2da_max_*` rewrite and
+its helpers are gone: it was unreachable while conditions were flags, and it guessed `int`
+for operands of unknown daslang type.
+
 ## Memory copies go to daslang's builtins
 
 C `memcpy` and `memmove` are lowered to daslang's builtin `memcpy` / `memmove`

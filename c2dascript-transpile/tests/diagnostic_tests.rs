@@ -207,13 +207,16 @@ fn inline_knob_modes_and_the_no_inline_alias() {
         "p71's static helpers must be substituted under `--inline=on`"
     );
     // Under `off` every helper is still reached by a call; under `on` the
-    // clamp shape has become a conditional-expression chain instead.
+    // clamp shape has become a conditional-expression chain instead.  (The C
+    // `?:`/`&&` the fixture writes itself are conditional expressions under
+    // both modes, so the chain is recognised by the clamp's own arm.)
+    let clamp_chain = " > 255 ? 255 : ";
     assert!(
-        off.contains("clamp255(") && !off.contains(" ? "),
+        off.contains("clamp255(") && !off.contains(clamp_chain),
         "`--inline=off` must keep the calls and write no substituted chain:\n{off}"
     );
     assert!(
-        on.contains(" ? "),
+        on.contains(clamp_chain),
         "`--inline=on` must write the substituted chain:\n{on}"
     );
 

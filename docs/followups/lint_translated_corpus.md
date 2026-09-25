@@ -126,6 +126,12 @@ Counts are occurrences in the module text.
    both branches (the h264bsd `payload_bytes` case above).  These initial stores are the
    likely source of most LINT010 dead stores; the split between them and other dead stores
    was not counted.
+   *Addressed:* every C comparison/`&&`/`||`/`!` was materialized as such a flag, even in a
+   plain `if`.  Conditions now take the daslang `bool`, a value gets `b ? 1 : 0`, and
+   `&&`/`||`/`?:` whose operands need no statements are daslang's own operators
+   (`translator/ARCHITECTURE.md`, "Conditions and C's 0/1"; fixture
+   `p99-direct-conditionals`).  `var c2da_freshN` 588 / 3 622 / 2 904 → 201 / 962 / 517,
+   LINT010 211 / 856 / 1 953 → 171 / 585 / 1 414; `goto label` unchanged.
 5. **Double `return`.**  `void` functions end in `return` directly followed by `return`
    (pl_mpeg `plm_set_audio_stream`); lint reports it as LINT001 in 3 of the 78 pl_mpeg
    places.  Where in the translator the second one is emitted was not traced.

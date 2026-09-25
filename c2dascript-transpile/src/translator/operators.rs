@@ -1216,6 +1216,13 @@ impl<'c> Translation<'c> {
             Plus => self.convert_expr(ctx.used(), arg, Some(cqual_type)),
             Not => {
                 // daScript `!` works only on bool. For non-bool, generate `expr == 0` / `expr == null`.
+                // `!(a < b)`, `!(a && b)`, `!!x`: the operand is itself one of
+                // C's boolean operators, whose `bool` is negated as is rather
+                // than first materialized as C's 0/1 and compared with 0.
+                if self.c_boolean_operator(arg).is_some() {
+                    let val = self.convert_condition(ctx.used(), true, arg)?;
+                    return Ok(val.map(|v| mk().unary_op("!", v)));
+                }
                 let arg_ty_opt = self.ast_context[arg].kind.get_qual_type();
                 let val = self.convert_expr(ctx.used(), arg, arg_ty_opt)?;
                 // C types `!p`, `a < b` and `a && b` as `int`, but the value

@@ -250,62 +250,6 @@ struct C2daVaArg {
 struct C2daVaCursor {
     index : int
 }
-def c2da_min_int(a : int; b : int) : int {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_int(a : int; b : int) : int {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_uint(a : uint; b : uint) : uint {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_uint(a : uint; b : uint) : uint {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_int64(a : int64; b : int64) : int64 {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_int64(a : int64; b : int64) : int64 {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
 def c2da_clip_uint(v : int) : uint {
     if (v < 0) {
         return 0x0
@@ -326,31 +270,16 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
 def irreducible(var x : int) : int {
-    var c2da_fresh0 : int = 0
-    var c2da_fresh1 : int = 0
-    var c2da_fresh2 : int = 0
     label 0:
-    c2da_fresh0 = 0
     if (x < 6) {
-        c2da_fresh0 = 1
-    }
-    if (c2da_fresh0 != 0) {
         goto label 5
     }
     label 1:
-    c2da_fresh1 = 0
     if (x < 9) {
-        c2da_fresh1 = 1
-    }
-    if (c2da_fresh1 != 0) {
         goto label 4
     }
     label 2:
-    c2da_fresh2 = 0
     if (x < 20) {
-        c2da_fresh2 = 1
-    }
-    if (c2da_fresh2 != 0) {
         goto label 3
     }
     return x

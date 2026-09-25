@@ -6308,6 +6308,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p99-direct-conditionals",
+      "canonical_cases": [
+        "p99-direct-conditionals"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "direct_conditionals_runtime",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p99_direct_conditionals",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p99_direct_conditionals.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-s01-switch-basic",
       "canonical_cases": [
         "legacy-s01-switch-basic"

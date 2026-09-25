@@ -94,7 +94,7 @@
       "c_reference": { "entrypoint": "bool_numeric_runtime", "return_type": "int" },
       "das_entrypoint": "bool_numeric_runtime",
       "expected": { "stdout": "", "exit_code": 0 },
-      "rust_assertion": "ptr_tests::p23_bool_to_numeric_is_statement_lowered_at_every_value_site",
+      "rust_assertion": "ptr_tests::p23_bool_to_numeric_is_materialized_at_every_value_site",
       "runtime": "required"
     },
     {
@@ -1121,6 +1121,22 @@
         "exit_code": 0
       },
       "rust_assertion": "ptr_tests::p98_pointer_argument_of_the_parameter_type_crosses_as_itself",
+      "runtime": "required"
+    },
+    {
+      "id": "p99-direct-conditionals",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p99_direct_conditionals.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "direct_conditionals_runtime", "return_type": "int" },
+      "das_entrypoint": "direct_conditionals_runtime",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p99_conditionals_without_statements_are_daslang_expressions",
       "runtime": "required"
     },
     {

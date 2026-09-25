@@ -250,62 +250,6 @@ struct C2daVaArg {
 struct C2daVaCursor {
     index : int
 }
-def c2da_min_int(a : int; b : int) : int {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_int(a : int; b : int) : int {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_uint(a : uint; b : uint) : uint {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_uint(a : uint; b : uint) : uint {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_int64(a : int64; b : int64) : int64 {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_int64(a : int64; b : int64) : int64 {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_min_uint64(a : uint64; b : uint64) : uint64 {
-    if (a < b) {
-        return a
-    } else {
-        return b
-    }
-}
-def c2da_max_uint64(a : uint64; b : uint64) : uint64 {
-    if (a > b) {
-        return a
-    } else {
-        return b
-    }
-}
 def c2da_clip_uint(v : int) : uint {
     if (v < 0) {
         return 0x0
@@ -339,12 +283,7 @@ def simple_if_else(var x : int) : int {
 }
 [export]
 def if_no_else(var x_0 : int) : int {
-    var c2da_fresh0 : int = 0
-    c2da_fresh0 = 0
     if (x_0 > 0) {
-        c2da_fresh0 = 1
-    }
-    if (c2da_fresh0 != 0) {
         goto label 1
     }
     label 0:
@@ -375,24 +314,14 @@ def multiple_ifs(var x_1 : int) : int {
 }
 [export]
 def nested_if_else(var x_2 : int) : int {
-    var c2da_fresh1 : int = 0
-    var c2da_fresh2 : int = 0
-    c2da_fresh1 = 0
     if (x_2 > 0) {
-        c2da_fresh1 = 1
-    }
-    if (c2da_fresh1 != 0) {
         goto label 1
     }
     x_2 = x_2 - 1
     label 0:
     return x_2
     label 1:
-    c2da_fresh2 = 0
     if (x_2 < 10) {
-        c2da_fresh2 = 1
-    }
-    if (c2da_fresh2 != 0) {
         goto label 3
     }
     x_2 = x_2 + 2
@@ -405,24 +334,14 @@ def nested_if_else(var x_2 : int) : int {
 }
 [export]
 def nested_if_no_else(var x_3 : int) : int {
-    var c2da_fresh3 : int = 0
-    var c2da_fresh4 : int = 0
-    c2da_fresh3 = 0
     if (x_3 > 0) {
-        c2da_fresh3 = 1
-    }
-    if (c2da_fresh3 != 0) {
         goto label 1
     }
     x_3 = x_3 - 1
     label 0:
     return x_3
     label 1:
-    c2da_fresh4 = 0
     if (x_3 < 10) {
-        c2da_fresh4 = 1
-    }
-    if (c2da_fresh4 != 0) {
         goto label 3
     }
     label 2:
@@ -435,29 +354,14 @@ def nested_if_no_else(var x_3 : int) : int {
 }
 [export]
 def early_returns(var a : int) : int {
-    var c2da_fresh5 : int = 0
-    var c2da_fresh6 : int = 0
-    var c2da_fresh7 : int = 0
-    c2da_fresh5 = 0
     if (a == 2) {
-        c2da_fresh5 = 1
-    }
-    if (c2da_fresh5 != 0) {
         goto label 3
     }
-    c2da_fresh6 = 0
     if (a == 3) {
-        c2da_fresh6 = 1
-    }
-    if (c2da_fresh6 != 0) {
         goto label 2
     }
     label 0:
-    c2da_fresh7 = 0
     if (a == 4) {
-        c2da_fresh7 = 1
-    }
-    if (c2da_fresh7 != 0) {
         goto label 1
     }
     return 0
