@@ -70,6 +70,25 @@ programs, inside noise (`docs/corpus-build-recipe.md`, step 4).  The das-harness
 column was inflated by the translated heap's first 64 MiB reservation landing inside the
 timer (317 µs → 22 µs once reserved first); fixed in the four `*_bench_entry.das` (step 7).
 
+## Re-measured on daslang with upstream #4089 (memcpy/memmove intrinsics), 2026-09-25
+
+The toolchain moved to the fork's `69a589623` (upstream #4111 on top of #4089, which
+lowers daslang's builtin `memcpy`/`memmove` to LLVM intrinsics under `-jit`); the
+translator already emits those builtins for C `memcpy`/`memmove`.  Same tree
+(`14ea133b5`), quiet machine, ratio to `clang -O3 -march=native`, before → after the
+toolchain update:
+
+| program | interp | jit | exe | aot |
+|---|---|---|---|---|
+| pl_mpeg 320×240 | 61.9 → 61.7× | 1.08 → 1.06× | 1.16 → 1.12× | 1.23 → 1.18×\* |
+| h264bsd 640×360 | 90.4 → 92.4× | 1.08 → 1.07× | 1.07 → 1.09× | 1.23 → 1.27×\* |
+| wasm3 fib32 | 87.7 → 70.9× | 2.64 → 2.47× | 2.47 → 2.33× | 1.50 → 1.45× |
+
+wasm3, whose `return_call` path runs a `memmove` per call, gains 5–6 % under `-jit`/`-exe`
+and 19 % in the interpreter; the decoders move within noise (their hot copies are 9–21
+bytes behind a dynamic size, so the guard plus call remains).  Convergence: every mode
+byte-identical on the new toolchain.
+
 ## What the daslang pipeline is (read from source)
 
 `-jit`: LLVM `default<O3>`, loop/SLP vectorizers and unrolling on, inline threshold 1024
