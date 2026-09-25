@@ -28,6 +28,20 @@ source-located diagnostic rather than given another target's integers.  A `std` 
 carries C library *text* — `strerror`'s catalogue — ships that text as one named implementation's
 (glibc's), spelled out in this module, never derived.
 
+## Natural records and storage-backed records
+
+A C struct is emitted as a daScript struct with its fields only when `layout.rs`
+(`is_storage_backed_record`) finds daScript's layout of those fields equal to Clang's;
+otherwise it is a storage-backed wrapper owning Clang's bytes, and every field is a Clang
+offset.  A zero-sized field (GNU empty struct, zero-length array, or an array of either) makes
+the record storage-backed: Clang gives it no bytes, daScript gives every record field at least
+one, so every later offset would differ.  An empty struct on its own is 0 bytes in both and
+stays a daScript struct.  Natural record fields have one builder
+(`structs_unions.rs natural_record_fields`), shared by `convert_struct` and the
+typedef-of-anonymous-struct path; a field whose type does not convert is a source-located
+error, never a dropped field.  `p103-zero-sized-fields` and
+`n12-typedef-record-field-unsupported` are the fixtures.
+
 ## Module-wide policy
 
 Facts that hold for the whole output rather than for one lowering — the `options` header and

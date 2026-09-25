@@ -459,31 +459,13 @@ impl<'c> Translation<'c> {
                                         }
                                     }
                                 }
-                                let das_fields = fields
-                                    .as_ref()
-                                    .map(|fids| {
-                                        fids.iter()
-                                            .filter_map(|fid| {
-                                                if let CDeclKind::Field { ref name, typ, .. } =
-                                                    self.ast_context[*fid].kind
-                                                {
-                                                    let ft = self.convert_type(typ.clone()).ok()?;
-                                                    Some(DaField {
-                                                        name: self
-                                                            .type_converter
-                                                            .borrow()
-                                                            .resolve_field_name(Some(*rec_id), *fid)
-                                                            .unwrap_or_else(|| name.clone()),
-                                                        field_type: ft,
-                                                        default: None,
-                                                    })
-                                                } else {
-                                                    None
-                                                }
-                                            })
-                                            .collect::<Vec<_>>()
-                                    })
-                                    .unwrap_or_default();
+                                // The one natural-record field builder: a
+                                // field that does not convert is a located
+                                // error, never a dropped field.
+                                let das_fields = match fields {
+                                    Some(fids) => self.natural_record_fields(*rec_id, fids)?,
+                                    None => vec![],
+                                };
                                 return Ok(DaDecl::Structure(DaStructure {
                                     name: self
                                         .type_converter

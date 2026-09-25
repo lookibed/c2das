@@ -3559,6 +3559,36 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "n12-typedef-record-field-unsupported",
+      "canonical_cases": [
+        "n12-typedef-record-field-unsupported"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "unsupported record field type LongDouble in field x",
+          "location": "n12_typedef_record_field_unsupported.c",
+          "operation": "type declaration lowering",
+          "type": "Struct"
+        }
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n12_typedef_record_field_unsupported",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n12_typedef_record_field_unsupported.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-p01-ptr-deref",
       "canonical_cases": [
         "legacy-p01-ptr-deref"
@@ -3909,6 +3939,34 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p102_local_declarations.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p103-zero-sized-fields",
+      "canonical_cases": [
+        "p103-zero-sized-fields"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "sizes 0 8 4 4 8 4 2 12\noffsets 4 2 4 1 8\nlocal b=42\nstored b=7 a=1\nraw[1]=7\nmake a=3 b=4 copy b=14\nheap 11 22\nafter empty copy a=1 b=7\nempty array s=5 t=6\nmid zero b=9 via z=9\ntail sum=600\nanon xy\nouter 2 3\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p103_zero_sized_fields",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p103_zero_sized_fields.c",
       "status": "supported"
     },
     {

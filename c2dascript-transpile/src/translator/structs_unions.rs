@@ -60,71 +60,89 @@ impl<'c> Translation<'c> {
             if self.is_storage_backed_record(decl_id) {
                 return self.storage_backed_record_decl(decl_id, sname);
             }
-            for &fid in ids {
-                if let CDeclKind::Field { ref name, typ, .. } = self.ast_context[fid].kind {
-                    // A field type that has no daScript representation is a
-                    // gap in the translation, not something to approximate:
-                    // substituting `int64`/`auto` would silently change the
-                    // record's layout and the meaning of every access to it.
-                    let ft = self
-                        .convert_type(typ.clone())
-                        .and_then(|ft| {
-                            // A typedef does not make an unrepresentable C
-                            // type representable. A record field needs a type
-                            // daScript can actually lay out, so the whole
-                            // typedef chain is resolved before the field is
-                            // accepted.
-                            let mut underlying = typ.clone();
-                            underlying.ctype = self.ast_context.resolve_type_id(typ.ctype);
-                            self.convert_type(underlying)?;
-                            Ok(ft)
-                        })
-                        .map_err(|error| {
-                            let kind = self
-                                .ast_context
-                                .resolve_type(self.ast_context.resolve_type_id(typ.ctype))
-                                .kind
-                                .clone();
-                            format_translation_err!(
-                                self.ast_context.display_loc(&self.ast_context[fid].loc),
-                                "unsupported {} field type {:?} in field {}: {}",
-                                unrepresentable_field_kind(&kind),
-                                kind,
-                                name,
-                                error
-                            )
-                        })?;
-                    let field_name = self
-                        .type_converter
-                        .borrow()
-                        .resolve_field_name(Some(decl_id), fid)
-                        .unwrap_or_else(|| {
-                            if name.is_empty() {
-                                "_unnamed".into()
-                            } else {
-                                name.clone()
-                            }
-                        });
-                    // A storage-backed member is raw storage the containing
-                    // object owns, so every instance of this record has to
-                    // allocate its own.  The field default is what daScript
-                    // evaluates per construction, which is exactly the C
-                    // lifetime; it also satisfies daScript's rule that a
-                    // record field of record type be initialized.
-                    let default = self.storage_field_default(typ)?;
-                    das_fields.push(DaField {
-                        name: field_name,
-                        field_type: ft,
-                        default,
-                    });
-                }
-            }
+            das_fields = self.natural_record_fields(decl_id, ids)?;
         }
         Ok(DaDecl::Structure(DaStructure {
             name: sname,
             fields: das_fields,
             annotations: vec![],
         }))
+    }
+
+    /// The daScript fields of a C struct whose layout `layout.rs` reports as
+    /// natural (not storage-backed), in declaration order, one per C field.
+    ///
+    /// This is the only builder of natural record fields: `convert_struct`
+    /// and the typedef-of-anonymous-struct path both use it.  A field whose
+    /// type has no daScript representation is a source-located error, never
+    /// a dropped field — a missing field would shift every later daScript
+    /// offset away from Clang's.
+    pub(crate) fn natural_record_fields(
+        &self,
+        decl_id: CRecordId,
+        ids: &[CFieldId],
+    ) -> TranslationResult<Vec<DaField>> {
+        let mut das_fields = vec![];
+        for &fid in ids {
+            if let CDeclKind::Field { ref name, typ, .. } = self.ast_context[fid].kind {
+                // A field type that has no daScript representation is a
+                // gap in the translation, not something to approximate:
+                // substituting `int64`/`auto` would silently change the
+                // record's layout and the meaning of every access to it.
+                let ft = self
+                    .convert_type(typ.clone())
+                    .and_then(|ft| {
+                        // A typedef does not make an unrepresentable C
+                        // type representable. A record field needs a type
+                        // daScript can actually lay out, so the whole
+                        // typedef chain is resolved before the field is
+                        // accepted.
+                        let mut underlying = typ.clone();
+                        underlying.ctype = self.ast_context.resolve_type_id(typ.ctype);
+                        self.convert_type(underlying)?;
+                        Ok(ft)
+                    })
+                    .map_err(|error| {
+                        let kind = self
+                            .ast_context
+                            .resolve_type(self.ast_context.resolve_type_id(typ.ctype))
+                            .kind
+                            .clone();
+                        format_translation_err!(
+                            self.ast_context.display_loc(&self.ast_context[fid].loc),
+                            "unsupported {} field type {:?} in field {}: {}",
+                            unrepresentable_field_kind(&kind),
+                            kind,
+                            name,
+                            error
+                        )
+                    })?;
+                let field_name = self
+                    .type_converter
+                    .borrow()
+                    .resolve_field_name(Some(decl_id), fid)
+                    .unwrap_or_else(|| {
+                        if name.is_empty() {
+                            "_unnamed".into()
+                        } else {
+                            name.clone()
+                        }
+                    });
+                // A storage-backed member is raw storage the containing
+                // object owns, so every instance of this record has to
+                // allocate its own.  The field default is what daScript
+                // evaluates per construction, which is exactly the C
+                // lifetime; it also satisfies daScript's rule that a
+                // record field of record type be initialized.
+                let default = self.storage_field_default(typ)?;
+                das_fields.push(DaField {
+                    name: field_name,
+                    field_type: ft,
+                    default,
+                });
+            }
+        }
+        Ok(das_fields)
     }
 
     pub fn convert_union(

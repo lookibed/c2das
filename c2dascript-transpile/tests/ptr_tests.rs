@@ -346,6 +346,53 @@ fn p102_locals_are_declared_bare_and_initialised_in_place() {
 }
 
 #[test]
+fn p103_records_with_zero_sized_fields_are_storage_backed() {
+    let d = transpile_with_libc(
+        "p103_zero_sized_fields",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // daslang gives an empty-struct or zero-length-array field at least one
+    // byte, so no record holding one may be a daslang struct with its fields:
+    // each owns Clang's bytes (the object size is Clang's).
+    for (record, size) in [
+        ("WithEmpty", 8),
+        ("TrailingEmpty", 4),
+        ("EmptyArray", 4),
+        ("MidZero", 8),
+        ("Tail", 4),
+        ("AnonWithEmpty", 2),
+        ("Outer", 12),
+    ] {
+        assert!(
+            d.contains(&format!(
+                "struct {record} {{\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, {size}ul)\n}}\n"
+            )),
+            "{record} must be storage-backed with Clang's size {size}"
+        );
+    }
+    assert!(
+        !d.contains("    e : Empty\n") && !d.contains("    es : Empty[4]\n"),
+        "no daslang field of an empty struct"
+    );
+    // The empty struct on its own is 0 bytes in both, and stays a struct.
+    assert!(d.contains("struct Empty {\n}\n"));
+    // `p->b` reads Clang's offset 4.
+    assert!(d.contains(
+        "def read_b(var p : WithEmpty?) : int {\n    return unsafe(unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(p))))[1])\n}"
+    ));
+}
+
+#[test]
+fn n12_typedef_record_field_is_diagnosed_not_dropped() {
+    assert_precise_translation_error(
+        "n12_typedef_record_field_unsupported",
+        "operation=type declaration lowering",
+        "Struct",
+        "unsupported record field type LongDouble in field x",
+    );
+}
+
+#[test]
 fn p96_copies_reach_the_builtin_past_a_source_defined_memmove() {
     let d = transpile("p96_memcpy_builtin");
     assert!(

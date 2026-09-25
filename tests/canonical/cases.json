@@ -1189,6 +1189,28 @@
       "runtime": "required"
     },
     {
+      "id": "p103-zero-sized-fields",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p103_zero_sized_fields.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "sizes 0 8 4 4 8 4 2 12\noffsets 4 2 4 1 8\nlocal b=42\nstored b=7 a=1\nraw[1]=7\nmake a=3 b=4 copy b=14\nheap 11 22\nafter empty copy a=1 b=7\nempty array s=5 t=6\nmid zero b=9 via z=9\ntail sum=600\nanon xy\nouter 2 3\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p103_records_with_zero_sized_fields_are_storage_backed",
+      "runtime": "required"
+    },
+    {
+      "id": "n12-typedef-record-field-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n12_typedef_record_field_unsupported.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"
+    },
+    {
       "id": "wasm3-fib32-std",
       "status": "ready",
       "source_root": "tests/manual/wasm3",

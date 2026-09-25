@@ -128,6 +128,10 @@ impl<'c> Translation<'c> {
     /// * a bitfield has no daScript field at all;
     /// * a field that is itself storage-backed occupies eight bytes of address
     ///   in daScript rather than its C bytes inline;
+    /// * a zero-sized field (a GNU empty struct, a zero-length array, or an
+    ///   array of either) takes no bytes in Clang's layout, while daScript
+    ///   gives every record field at least one byte, so every later offset
+    ///   and the record's size would diverge;
     /// * otherwise the natural layout is recomputed field by field and
     ///   compared against Clang's offsets, size and alignment.
     pub(crate) fn is_storage_backed_record(&self, record: CRecordId) -> bool {
@@ -198,7 +202,7 @@ impl<'c> Translation<'c> {
             let Some(natural) = self.natural_layout_of(typ.ctype) else {
                 return true;
             };
-            if natural.align_bytes == 0 {
+            if natural.align_bytes == 0 || natural.size_bytes == 0 {
                 return true;
             }
             offset = align_up(offset, natural.align_bytes);
