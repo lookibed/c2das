@@ -267,11 +267,11 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
 def insertion_sort(var n : int; var p : int?) {
-    var i : int = 0
-    var tmp : int = 0
-    var j : int = 0
-    var c2da_postinc_0 : int = 0
-    var c2da_postinc : int = 0
+    var i : int
+    var tmp : int
+    var j : int
+    var c2da_postinc_0 : int
+    var c2da_postinc : int
     i = 1
     label 0:
     if (i < n) {

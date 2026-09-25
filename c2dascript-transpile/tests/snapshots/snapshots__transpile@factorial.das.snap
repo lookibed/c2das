@@ -267,9 +267,9 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
 def factorial(var n : uint16) : uint16 {
-    var result_0 : uint16 = uint16(0)
-    var i : uint16 = uint16(0)
-    var c2da_postinc : uint16 = uint16(0)
+    var result_0 : uint16
+    var i : uint16
+    var c2da_postinc : uint16
     result_0 = uint16(1)
     i = uint16(1)
     label 0:

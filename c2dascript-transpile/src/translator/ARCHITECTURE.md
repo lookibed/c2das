@@ -125,6 +125,28 @@ is the runtime fixture.  The former `a < b ? a : b` → `c2da_min_*`/`c2da_max_*
 its helpers are gone: it was unreachable while conditions were flags, and it guessed `int`
 for operands of unknown daslang type.
 
+## Local declarations
+
+The flat `label`/`goto` back end (`cfg/labels.rs`) hoists every C local and every site
+temporary to the top of the function: C gives a block-scope object storage for the whole
+block however control enters it, and daslang's AOT prints each `var` as an initialised C++
+declaration (`int32_t x = 0;`, `das_zero(x)`), past which C++ forbids a forward `goto`.  The C
+initializer is an assignment at the C declaration point, so it runs every time control passes
+it (a loop body re-initialises).
+
+The hoisted `var` is bare when daslang's zero-fill of `var x : T` is the value the translator
+would otherwise spell out (`Translation::declaration_zero_fills` on the C type,
+`da_type_zero_fills` on a temporary's daScript type): numbers, `bool`, pointers, function
+values, aliases of them, and plain structs and fixed arrays of those.  daslang documents and
+performs this zero-fill in every run mode.  A C local without an initializer is indeterminate,
+so the zero is daslang's, not a store the program relies on.  Explicit values stay where
+zero-fill differs or is refused: a storage-backed record wrapper (its field initializer
+allocates the bytes; daslang rejects a bare `var` of a struct with field initializers), a
+daslang `enum` (daslang does not zero-fill an enumeration with no zero member), a VLA's
+`array<T>`.
+When the body's first statement stores the last hoisted declaration, and the value does not
+name it, the value moves into the declaration.  `p102-local-declarations` is the fixture.
+
 ## Memory copies go to daslang's builtins
 
 C `memcpy` and `memmove` are lowered to daslang's builtin `memcpy` / `memmove`

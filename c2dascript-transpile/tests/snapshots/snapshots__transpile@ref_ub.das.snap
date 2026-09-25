@@ -276,8 +276,8 @@ def dec(var f : Foo?) {
 }
 [export]
 def main_0() : int {
-    var f_0 : Foo = Foo()
-    var fp : Foo? = null
+    var f_0 : Foo
+    var fp : Foo?
     f_0 = Foo(len = 5)
     fp = unsafe(addr(f_0))
     dec(fp)

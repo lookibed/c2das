@@ -1093,3 +1093,38 @@ pub(crate) fn default_initializer_for_datype(ty: &DaType) -> DaExpr {
         _ => zero_for_datype(ty),
     }
 }
+
+/// Whether daslang's own `var x : T`, with no initializer, already gives the
+/// object the value [`default_initializer_for_datype`] would store.
+///
+/// daslang zero-fills a local declared without an initializer in every run
+/// mode: a number is `0`, a `bool` is `false`, a pointer and a function value
+/// are `null` (daslang reference, `statements.rst` "Local Variable
+/// Declarations" and `pointers.rst`; the AOT back end prints `T x = 0;` or
+/// `das_zero(x)`).  For these kinds the explicit zero is a store nothing reads
+/// before the translated program's own first one, so a hoisted declaration
+/// leaves it out.  Everything else keeps its explicit value: a named type may
+/// be a storage-backed record wrapper whose field initializer allocates its
+/// bytes, or an enumeration — and daslang does *not* zero-fill an enumeration
+/// that has no zero member (its uninitialised local reads stack garbage in the
+/// interpreter and fails to simulate under the JIT).
+pub(crate) fn zero_filled_by_declaration(ty: &DaType) -> bool {
+    if crate::convert_type::is_function_value_type(ty) {
+        return true;
+    }
+    matches!(
+        ty.kind,
+        DaTypeKind::Bool
+            | DaTypeKind::Int
+            | DaTypeKind::Int8
+            | DaTypeKind::Int16
+            | DaTypeKind::Int64
+            | DaTypeKind::UInt
+            | DaTypeKind::UInt8
+            | DaTypeKind::UInt16
+            | DaTypeKind::UInt64
+            | DaTypeKind::Float
+            | DaTypeKind::Double
+            | DaTypeKind::Pointer(_)
+    )
+}

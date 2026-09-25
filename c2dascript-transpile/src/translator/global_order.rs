@@ -227,7 +227,7 @@ fn resolve_dependencies(
 /// from the other's bodies — are a cycle through nothing but `@@`, and
 /// daScript rejects it (`error[31104]: global variable initialization loop`)
 /// unless one of the two is routed through `[init]`.
-fn collect_names(expr: &DaExpr, out: &mut Vec<String>) {
+pub(crate) fn collect_names(expr: &DaExpr, out: &mut Vec<String>) {
     use DaExpr::*;
     match expr {
         ConstInt(_)

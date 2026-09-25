@@ -277,7 +277,6 @@ var ZSTD_d_windowLogMax : int = 100
 def ZSTD_dParam_getBounds(var dParam : ZSTD_dParameter) : int {
     var c2da_fresh0 : uint
     var bounds : int = 0
-    bounds = 0
     c2da_fresh0 = uint(dParam)
     if (c2da_fresh0 == 0x64u) {
         goto label 0

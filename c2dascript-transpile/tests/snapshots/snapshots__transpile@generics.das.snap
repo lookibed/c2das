@@ -273,18 +273,18 @@ struct t {
 }
 [export]
 def foo() {
-    var x : int = 0
-    var y : double = 0.0lf
-    var z : float = 0.0
-    var n : int = 0
-    var m : int = 0
-    var s : s = s()
-    var p1 : s? = null
-    var p2 : s const? = null
-    var t1 : t? = null
-    var t2 : t const? = null
-    var cx : int = 0
-    var ut_y : int = 0
+    var x : int
+    var y : double
+    var z : float
+    var n : int
+    var m : int
+    var s : s
+    var p1 : s?
+    var p2 : s const?
+    var t1 : t?
+    var t2 : t const?
+    var cx : int
+    var ut_y : int
     x = 42 + 1
     y = 42.0lf + 1.0lf
     z = 42.0 + 1.0

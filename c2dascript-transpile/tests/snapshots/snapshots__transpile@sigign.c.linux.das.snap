@@ -267,7 +267,6 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
 def foo() {
-    var handler : function<(var _arg0:int):void> = default<function<(var _arg0:int):void>>
-    handler = unsafe(reinterpret<function<(var _arg0:int):void>>(1))
+    var handler : function<(var _arg0:int):void> = unsafe(reinterpret<function<(var _arg0:int):void>>(1))
     return
 }

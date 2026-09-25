@@ -149,7 +149,8 @@ fn p17_runtime_malloc_uses_canonical_raw_memory_abi() {
         "source malloc must not survive as the backend call target"
     );
     assert!(
-        d.contains("var value : int? = null") && d.contains("reinterpret<int?>(c2da_rt_malloc("),
+        d.contains("var value : int? = unsafe(reinterpret<int?>(")
+            && d.contains("reinterpret<int?>(c2da_rt_malloc("),
         "runtime raw address must materialize directly as the demanded int?"
     );
 }
@@ -313,6 +314,38 @@ fn p100_conversions_of_values_already_of_the_target_type_are_dropped() {
 }
 
 #[test]
+fn p102_locals_are_declared_bare_and_initialised_in_place() {
+    let d = transpile("p102_local_declarations");
+    // Numbers, pointers, pointer aliases and plain structs are hoisted with no
+    // initializer: daslang zero-fills them.
+    assert!(d.contains(
+        "def loop_reinit(var n : int) : int {\n    var total : int\n    var i : int\n    var acc : int\n    var pt : point\n"
+    ));
+    // The C initializer stays where C wrote it, inside the loop.
+    assert!(d.contains("label 1:\n    acc = 10\n    pt = point(x = i, y = i * 2, tag = null)\n"));
+    assert!(d.contains("    var p_0 : int?\n    var pt_0 : point\n    var cur : cursor_t\n"));
+    assert!(d.contains("    var wr : wrapped\n"));
+    // A hoisted site temporary of a pointer alias is bare too.
+    assert!(d.contains("    var c2da_postinc_2 : cursor_t\n"));
+    // A storage-backed union and a daslang `enum` keep their explicit value.
+    assert!(d.contains("var b_0 : bits = bits(c2da_storage = c2da_rt_calloc(1ul, 4ul))"));
+    assert!(d.contains("var c : colour = colour()"));
+    // A store that opens the body is the last declaration's value, and only
+    // that one's; a store naming its own object stays an assignment.
+    assert!(d.contains("def first_store(var k_2 : int) : int {\n    var bias : int = k_2 + 1\n"));
+    assert!(d.contains("    var bias_0 : int\n    doubled = k_3 * 2\n    bias_0 = 1\n"));
+    assert!(d.contains("var c2da_fresh0 : int = int(op) + 1\n"));
+    assert!(d.contains("    var self : uint8?\n    self = unsafe(addr<uint8?>(self))\n"));
+    // One `return` closes a void function whose early `return` was laid out
+    // after the closing one.
+    assert!(d.contains("    g_state = g_state + b_1\n    return\n}\n"));
+    assert!(
+        !d.contains("    return\n    return\n"),
+        "unreachable second return"
+    );
+}
+
+#[test]
 fn p96_copies_reach_the_builtin_past_a_source_defined_memmove() {
     let d = transpile("p96_memcpy_builtin");
     assert!(
@@ -346,7 +379,7 @@ fn p97_constant_conversions_print_as_literals_of_their_target_type() {
         "shifted = 0xfful << 8ul\n",
         "negative_wide = -5l\n",
         "real = 3.0lf\n",
-        "var failures : int = 0\n",
+        "failures = 0\n",
     ] {
         assert!(d.contains(folded), "missing folded constant {folded:?}");
     }
@@ -367,7 +400,7 @@ fn p20_pointer_abi_edges_stay_typed_outside_raw_boundaries() {
         "void* must stay pointer-shaped"
     );
     assert!(d.contains("var restored : uint8?"));
-    assert!(d.contains("var nil : uint8? = null"));
+    assert!(d.contains("var nil : uint8?\n") && d.contains("nil = null\n"));
     assert!(!d.contains("uint8? = uint64("));
     assert!(!d.contains("cast<uint8?>(0)"));
 }

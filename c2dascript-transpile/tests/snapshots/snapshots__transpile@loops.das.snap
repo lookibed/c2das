@@ -279,8 +279,8 @@ def while_loop(var x : int) : int {
 }
 [export]
 def for_loop(var x_0 : int) : int {
-    var i : int = 0
-    var c2da_postinc : int = 0
+    var i : int
+    var c2da_postinc : int
     i = 0
     label 0:
     if (i < 10) {
@@ -423,11 +423,11 @@ def nested_while(var x_7 : int) {
 }
 [export]
 def nested_for(var x_8 : int) {
-    var i_0 : int = 0
-    var j : int = 0
-    var c2da_postinc_2 : int = 0
-    var c2da_postinc_0 : int = 0
-    var c2da_postinc_1 : int = 0
+    var i_0 : int
+    var j : int
+    var c2da_postinc_2 : int
+    var c2da_postinc_0 : int
+    var c2da_postinc_1 : int
     i_0 = 0
     label 0:
     if (i_0 < 5) {
@@ -453,7 +453,7 @@ def nested_for(var x_8 : int) {
 }
 [export]
 def exit_nested_loops(var x_9 : int) : int {
-    var c2da_postinc_3 : int = 0
+    var c2da_postinc_3 : int
     label 0:
     if (x_9 != 0) {
         goto label 2
@@ -479,7 +479,7 @@ def exit_nested_loops(var x_9 : int) : int {
 }
 [export]
 def continue_nested_loops(var x_10 : int) : int {
-    var c2da_postinc_4 : int = 0
+    var c2da_postinc_4 : int
     label 0:
     label 1:
     if (x_10 != 0) {
@@ -506,7 +506,7 @@ def continue_nested_loops(var x_10 : int) : int {
 }
 [export]
 def break_and_continue_nested_loops(var x_11 : int) : int {
-    var c2da_postinc_5 : int = 0
+    var c2da_postinc_5 : int
     label 0:
     label 1:
     if (x_11 != 0) {
@@ -539,8 +539,8 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
 }
 [export]
 def for_loop_single_continue(var x_12 : int) : int {
-    var i_1 : int = 0
-    var c2da_postinc_6 : int = 0
+    var i_1 : int
+    var c2da_postinc_6 : int
     i_1 = 0
     label 0:
     if (i_1 < 10) {
@@ -568,8 +568,8 @@ def for_loop_single_continue(var x_12 : int) : int {
 }
 [export]
 def for_loop_multi_continue(var x_13 : int) : int {
-    var i_2 : int = 0
-    var c2da_postinc_7 : int = 0
+    var i_2 : int
+    var c2da_postinc_7 : int
     i_2 = 0
     label 0:
     if (i_2 < 10) {

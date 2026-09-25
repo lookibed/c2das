@@ -272,9 +272,9 @@ var volatile_global_struct : S
 
 [export]
 def test_volatile() {
-    var vi : int = 0
-    var i : int = 0
-    var pvi : int? = null
+    var vi : int
+    var i : int
+    var pvi : int?
     vi = 0
     i = vi
     vi = i

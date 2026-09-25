@@ -268,7 +268,6 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 [export]
 def sum(var count : int) : int {
     var x : int = 0
-    x = 0
     label 0:
     if (count <= 0) {
         goto label 1

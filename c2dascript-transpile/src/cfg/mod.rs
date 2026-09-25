@@ -1258,5 +1258,5 @@ pub fn convert_function_body(
     }
     graph.validate_edges()?;
 
-    labels::render(graph, store)
+    labels::render(graph, store, &|ty| translator.da_type_zero_fills(ty))
 }

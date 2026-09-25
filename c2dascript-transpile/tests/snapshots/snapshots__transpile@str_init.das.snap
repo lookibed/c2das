@@ -282,50 +282,42 @@ var curl_alpn_spec___ALPN_SPEC_H11 : alpn_spec const = alpn_spec(entries = fixed
 
 [export]
 def ptr() {
-    var _s : int8 const? = null
-    _s = unsafe(addr(c2da_str_0[0]))
+    var _s : int8 const? = unsafe(addr(c2da_str_0[0]))
     return
 }
 [export]
 def array_deduced_length() {
-    var _s_0 : int8[6] = fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0))
-    _s_0 = fixed_array<int8>(int8(104), int8(101), int8(108), int8(108), int8(111), int8(0))
+    var _s_0 : int8[6] = fixed_array<int8>(int8(104), int8(101), int8(108), int8(108), int8(111), int8(0))
     return
 }
 [export]
 def array_0() {
-    var _s_1 : int8[10] = fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0))
-    _s_1 = fixed_array<int8>(int8(104), int8(101), int8(108), int8(108), int8(111), int8(0), int8(0), int8(0), int8(0), int8(0))
+    var _s_1 : int8[10] = fixed_array<int8>(int8(104), int8(101), int8(108), int8(108), int8(111), int8(0), int8(0), int8(0), int8(0), int8(0))
     return
 }
 [export]
 def int_array_extra_braces() {
-    var _a : int[3][10] = fixed_array<int[10]>(fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
-    _a = fixed_array<int[10]>(fixed_array<int>(1, 2, 3, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    var _a : int[3][10] = fixed_array<int[10]>(fixed_array<int>(1, 2, 3, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), fixed_array<int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     return
 }
 [export]
 def ptr_extra_braces() {
-    var _s_2 : int8 const? = null
-    _s_2 = unsafe(addr(c2da_str_0[0]))
+    var _s_2 : int8 const? = unsafe(addr(c2da_str_0[0]))
     return
 }
 [export]
 def array_extra_braces() {
-    var _s_3 : int8[10] = fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0))
-    _s_3 = fixed_array<int8>(c2da_str_0, int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0))
+    var _s_3 : int8[10] = fixed_array<int8>(c2da_str_0, int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0))
     return
 }
 [export]
 def array_of_ptrs() {
-    var _s_4 : int8 const? [3] = fixed_array<int8 const?>(null, null, null)
-    _s_4 = fixed_array<int8 const?>(unsafe(addr(c2da_str_0[0])), null, null)
+    var _s_4 : int8 const? [3] = fixed_array<int8 const?>(unsafe(addr(c2da_str_0[0])), null, null)
     return
 }
 [export]
 def array_of_arrays() {
-    var _s_5 : int8[3][10] = fixed_array<int8[10]>(fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)))
-    _s_5 = fixed_array<int8[10]>(fixed_array<int8>(int8(104), int8(101), int8(108), int8(108), int8(111), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)))
+    var _s_5 : int8[3][10] = fixed_array<int8[10]>(fixed_array<int8>(int8(104), int8(101), int8(108), int8(108), int8(111), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)), fixed_array<int8>(int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0), int8(0)))
     return
 }
 [export]

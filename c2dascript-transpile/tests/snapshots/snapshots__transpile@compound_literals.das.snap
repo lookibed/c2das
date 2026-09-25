@@ -279,18 +279,18 @@ var static_int_array_ptr : int[2]? = unsafe(addr<int[2]?>(fixed_array<int>(42, 9
 
 [export]
 def local_compound_literals() {
-    var single_int : int = 0
-    var single_int_ptr : int? = null
-    var int_ptr_to_array : int? = null
-    var char_ptr_to_array : int8? = null
-    var int_array_ptr : int[2]? = null
-    var char_array_ptr : int8[6]? = null
-    var macro_single_int : int = 0
-    var macro_single_int_ptr : int? = null
-    var macro_int_ptr_to_array : int? = null
-    var macro_char_ptr_to_array : int8? = null
-    var macro_int_array_ptr : int[2]? = null
-    var macro_char_array_ptr : int8[6]? = null
+    var single_int : int
+    var single_int_ptr : int?
+    var int_ptr_to_array : int?
+    var char_ptr_to_array : int8?
+    var int_array_ptr : int[2]?
+    var char_array_ptr : int8[6]?
+    var macro_single_int : int
+    var macro_single_int_ptr : int?
+    var macro_int_ptr_to_array : int?
+    var macro_char_ptr_to_array : int8?
+    var macro_int_array_ptr : int[2]?
+    var macro_char_array_ptr : int8[6]?
     single_int = 42
     single_int_ptr = unsafe(addr(42))
     int_ptr_to_array = unsafe(addr(fixed_array<int>(42, 9001)[0]))

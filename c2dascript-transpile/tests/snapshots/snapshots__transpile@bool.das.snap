@@ -267,14 +267,14 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
 def test_bool() {
-    var int0 : bool = false
-    var ident0 : bool = false
-    var macro_int0 : bool = false
-    var macro_ident0 : bool = false
-    var int1 : bool = false
-    var ident1 : bool = false
-    var macro_int1 : bool = false
-    var macro_ident1 : bool = false
+    var int0 : bool
+    var ident0 : bool
+    var macro_int0 : bool
+    var macro_ident0 : bool
+    var int1 : bool
+    var ident1 : bool
+    var macro_int1 : bool
+    var macro_ident1 : bool
     int0 = 0 != 0
     ident0 = 0 != 0
     macro_int0 = 0 != 0

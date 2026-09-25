@@ -278,6 +278,6 @@ var scope : Scope? = unsafe(addr<Scope?>(Scope(next = null)))
 
 [export]
 def foo() {
-    var f : Foo_s = Foo_s()
+    var f : Foo_s
     return
 }

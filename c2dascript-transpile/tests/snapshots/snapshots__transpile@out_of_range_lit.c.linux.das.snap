@@ -268,10 +268,10 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 typedef int32_t = int
 [export]
 def f() {
-    var a : int = 0
-    var b : int = 0
-    var c : int = 0
-    var d : int = 0
+    var a : int
+    var b : int
+    var c : int
+    var d : int
     a = (-2147483647 - 1)
     b = (-2147483647 - 1)
     c = 0

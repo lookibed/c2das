@@ -270,10 +270,10 @@ struct bar {
 }
 [export]
 def foo() : int {
-    var x : int = 0
-    var px : int? = null
-    var sx : uint64 = 0ul
-    var y : bar = bar()
+    var x : int
+    var px : int?
+    var sx : uint64
+    var y : bar
     x = 42
     px = unsafe(addr(x))
     sx = 4ul

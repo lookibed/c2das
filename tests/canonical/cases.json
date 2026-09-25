@@ -1173,6 +1173,22 @@
       "runtime": "required"
     },
     {
+      "id": "p102-local-declarations",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p102_local_declarations.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "local_declarations_runtime", "return_type": "int" },
+      "das_entrypoint": "local_declarations_runtime",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p102_locals_are_declared_bare_and_initialised_in_place",
+      "runtime": "required"
+    },
+    {
       "id": "wasm3-fib32-std",
       "status": "ready",
       "source_root": "tests/manual/wasm3",

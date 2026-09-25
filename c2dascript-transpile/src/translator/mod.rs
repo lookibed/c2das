@@ -47,7 +47,8 @@ mod structs_unions;
 pub(crate) mod value_lowering;
 mod variadic;
 
-pub(crate) use self::functions::default_initializer_for_datype;
+pub(crate) use self::functions::{default_initializer_for_datype, zero_filled_by_declaration};
+pub(crate) use self::global_order::collect_names;
 use self::value_lowering::ValueSite;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
@@ -257,6 +258,8 @@ pub struct Translation<'c> {
     /// daScript record with the same fields. See
     /// [`Translation::is_storage_backed_record`].
     pub(crate) storage_backed_cache: RefCell<HashMap<CRecordId, bool>>,
+    /// [`Translation::da_type_zero_fills`]'s verdict per named daScript type.
+    pub(crate) named_zero_fill_cache: RefCell<HashMap<String, bool>>,
     /// Module-level variables synthesised while lowering function bodies.
     /// Currently only C function-scope `static` storage, which has to outlive
     /// the call that declares it. Drained once, by `translate_impl`.
@@ -299,6 +302,7 @@ impl<'c> Translation<'c> {
             emitted_anon_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             layout_cache: RefCell::new(HashMap::new()),
             storage_backed_cache: RefCell::new(HashMap::new()),
+            named_zero_fill_cache: RefCell::new(HashMap::new()),
             hoisted_statics: RefCell::new(vec![]),
             hoisted_types: RefCell::new(vec![]),
             inline_candidates: RefCell::new(HashMap::new()),
@@ -2818,11 +2822,22 @@ impl<'c> Translation<'c> {
                     ));
                 }
                 let var_type = self.convert_type(typ)?;
-                let default_init = self.default_initializer_for_ctype(typ.ctype)?;
+                // The declaration is hoisted to the top of the function
+                // (`cfg::labels`), and the C initializer, if any, is assigned
+                // where C wrote it — every time control passes that point.
+                // The hoisted `var` carries a value only when daslang's own
+                // zero-fill would not produce the same one; C leaves an
+                // uninitialised local indeterminate, so the zero it gets is a
+                // fact of daslang, never something the program relies on.
+                let default_init = if self.declaration_zero_fills(typ.ctype) {
+                    None
+                } else {
+                    Some(self.default_initializer_for_ctype(typ.ctype)?)
+                };
                 let decl_stmt = DaStmt::Var {
                     name: rust_name.clone(),
                     var_type: var_type.clone(),
-                    init: Some(default_init),
+                    init: default_init,
                 };
 
                 // A C variable-length array is an object whose extent is the
@@ -3021,6 +3036,95 @@ impl<'c> Translation<'c> {
             ],
         )));
         Ok(Some(stmts))
+    }
+
+    /// Whether a local of C type `ty` declared as a bare `var x : T` already
+    /// holds [`Self::default_initializer_for_ctype`]'s value, so the hoisted
+    /// declaration needs no explicit initializer (see
+    /// `functions::zero_filled_by_declaration` for the daslang facts).
+    ///
+    /// A C pointer lowers to a daslang pointer, raw address or function value,
+    /// all zero-filled to null.  A record qualifies
+    /// only when it is a plain daslang struct — not storage-backed, whose
+    /// wrapper allocates its bytes in a field initializer — and every field
+    /// qualifies in turn: daslang then zero-fills the whole struct, which is
+    /// what its `T()` constructor produces for a struct with no field
+    /// initializers (`structs.rst`).  A fixed array qualifies with its element.
+    /// Everything else, a daslang `enum` included, keeps its explicit value.
+    pub(crate) fn declaration_zero_fills(&self, ty: CTypeId) -> bool {
+        match self.ast_context.resolve_type(ty).kind {
+            CTypeKind::ConstantArray(element, _) => self.declaration_zero_fills(element),
+            CTypeKind::Struct(record) => self.record_declaration_zero_fills(record),
+            CTypeKind::Union(_) | CTypeKind::VariableArray(..) | CTypeKind::IncompleteArray(_) => {
+                false
+            }
+            // Scalars and pointers answer by the daslang type they lower to,
+            // with the C typedef stripped so an alias of a pointer is seen as
+            // the pointer.  An enumeration lowered to its integer type (an
+            // anonymous C `enum`) is a number; one lowered to a daslang `enum`
+            // is a named type and keeps its explicit value.
+            _ => self
+                .convert_type(CQualTypeId::new(self.ast_context.resolve_type_id(ty)))
+                .map(|da| zero_filled_by_declaration(&da))
+                .unwrap_or(false),
+        }
+    }
+
+    /// [`Self::declaration_zero_fills`] for a C `struct`.
+    fn record_declaration_zero_fills(&self, record: CRecordId) -> bool {
+        if self.is_storage_backed_record(record) {
+            return false;
+        }
+        let CDeclKind::Struct {
+            fields: Some(ref fields),
+            ..
+        } = self.ast_context[record].kind
+        else {
+            return false;
+        };
+        fields
+            .iter()
+            .all(|&field| match self.ast_context[field].kind {
+                CDeclKind::Field { typ, .. } => self.declaration_zero_fills(typ.ctype),
+                _ => false,
+            })
+    }
+
+    /// [`Self::declaration_zero_fills`] for a daScript type the statement
+    /// lowering gave one of its own temporaries, which carries no C type.
+    ///
+    /// A builtin kind answers for itself (`functions::zero_filled_by_declaration`).
+    /// A named type is looked up among the C declarations the type converter
+    /// has named: a `typedef` answers with its target (`pc_t`, an alias of a
+    /// pointer, is null when zero-filled), a `struct` with its fields.  A name
+    /// with no such declaration — an enumeration, a union, anything unknown —
+    /// keeps its explicit value.
+    pub(crate) fn da_type_zero_fills(&self, ty: &DaType) -> bool {
+        if zero_filled_by_declaration(ty) {
+            return true;
+        }
+        let DaTypeKind::Named(name) = &ty.kind else {
+            return false;
+        };
+        if let Some(known) = self.named_zero_fill_cache.borrow().get(name).copied() {
+            return known;
+        }
+        let declared = self.ast_context.iter_decls().find_map(|(&decl_id, decl)| {
+            match decl.kind {
+                CDeclKind::Typedef { .. } | CDeclKind::Struct { .. } => {}
+                _ => return None,
+            }
+            let named = self.type_converter.borrow().resolve_decl_name(decl_id)?;
+            (named == *name).then_some(decl_id)
+        });
+        let verdict = declared.map_or(false, |decl_id| match self.ast_context[decl_id].kind {
+            CDeclKind::Typedef { typ, .. } => self.declaration_zero_fills(typ.ctype),
+            _ => self.record_declaration_zero_fills(decl_id),
+        });
+        self.named_zero_fill_cache
+            .borrow_mut()
+            .insert(name.clone(), verdict);
+        verdict
     }
 
     pub(crate) fn default_initializer_for_ctype(&self, ty: CTypeId) -> TranslationResult<DaExpr> {

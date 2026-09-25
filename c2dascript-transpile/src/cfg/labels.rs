@@ -18,7 +18,23 @@
 //!    blocks that a planned jump actually targets, then the statements are
 //!    concatenated.
 //! 4. **Dead-tail repair** — a label that no executable statement follows is
-//!    turned back into a plain `return`; see [`dead_tail_labels`].
+//!    turned back into a plain `return`; see [`dead_tail_labels`].  A `return`
+//!    left directly after another one by that repair is dropped
+//!    ([`drop_returns_after_return`]).
+//!
+//! A hoisted declaration carries no initializer when daslang's own zero-fill
+//! of a bare `var x : T` is the value it would be given — numbers, pointers,
+//! function values, aliases of them and plain structs and fixed arrays of
+//! them (`Translation::declaration_zero_fills` for C declarations,
+//! `Translation::da_type_zero_fills` for site temporaries).  A C local
+//! without an initializer is indeterminate, so that zero is daslang's, never
+//! a store the program relies on; a C initializer is an assignment at the C
+//! declaration point and runs every time control passes it.  The one
+//! exception is the body's first statement: when it stores the last hoisted
+//! declaration, nothing lies between the two and the value moves into the
+//! declaration ([`initialise_last_declaration`]).  AOT prints a bare `var` as
+//! an initialised C++ declaration too (`int32_t x = 0;`, `das_zero(x)`), so the
+//! hoisting below is still what keeps a forward `goto` legal C++.
 //!
 //! Everything a block declares lands in the function's own scope: daScript
 //! scopes a `var` to its enclosing block, and here that block is the function
@@ -36,7 +52,7 @@
 //!   of the same text and has to compile too.
 
 use super::*;
-use das_ast::{DaBlock, DaExpr, DaStmt, DaTypeKind};
+use das_ast::{DaBlock, DaExpr, DaStmt, DaType, DaTypeKind};
 
 /// What has to be emitted after a block's own statements.
 enum Tail {
@@ -74,14 +90,20 @@ impl Tail {
 }
 
 /// Render a pruned, edge-validated CFG as a flat daScript statement list.
+///
+/// `zero_fills` tells whether a bare `var x : T` already holds `T`'s default
+/// value (`Translation::da_type_zero_fills`); a hoisted site temporary of such
+/// a type is declared without an explicit one.
 pub(crate) fn render(
     cfg: Cfg<Label, StmtOrDecl>,
     mut store: DeclStmtStore,
+    zero_fills: &dyn Fn(&DaType) -> bool,
 ) -> TranslationResult<Vec<DaStmt>> {
     let order = layout(&cfg);
 
     // Every local declaration is split: the `var` is hoisted to the top of the
-    // function with its default value, and only the C initializer stays where
+    // function (bare, or with its default value when daslang's zero-fill is
+    // not that value), and only the C initializer stays where
     // the declaration was.  C gives a block-scope object storage for the whole
     // block regardless of where control enters, and a `goto` may well jump over
     // a declaration and then read the object; hoisting is what makes that
@@ -204,15 +226,92 @@ pub(crate) fn render(
     // Step 4: a body with jumps in it must also be valid C++ once daslang's AOT
     // has emitted it; see `hoist_site_temporaries`.
     if !label_ids.is_empty() {
-        hoist_site_temporaries(&mut out, hoisted_len);
+        hoist_site_temporaries(&mut out, hoisted_len, zero_fills);
     }
 
-    // Step 5: repair labels daScript would leave dangling at the end of the body.
-    for label in dead_tail_labels(&out) {
-        retarget_to_return(&mut out, &label);
+    // Step 5: repair labels daScript would leave dangling at the end of the
+    // body.  Dropping a label can put two `return`s next to each other, and
+    // dropping the second of those can leave a label above nothing but the
+    // body's closing `return` again, so the two alternate until neither
+    // changes anything.
+    loop {
+        drop_returns_after_return(&mut out);
+        let dangling = dead_tail_labels(&out);
+        if dangling.is_empty() {
+            break;
+        }
+        for label in dangling {
+            retarget_to_return(&mut out, &label);
+        }
     }
+
+    // Step 6: the body's first statement may be the store that initialises
+    // the last hoisted declaration; see `initialise_last_declaration`.
+    initialise_last_declaration(&mut out);
 
     Ok(out)
+}
+
+/// Give the last hoisted `var` its value when the body opens by storing it.
+///
+/// Hoisting leaves `var x : T` (daslang's zero, see
+/// `translator::zero_filled_by_declaration`) at the top and `x = init` where
+/// the C declaration stood.  When that store is the very first statement after
+/// the declarations, nothing — no label, no other statement — lies between
+/// the two, so `var x : T = init` runs the same code once, at the same moment,
+/// and every `goto` in the body still lands after it.  Only a declaration with
+/// no initializer of its own qualifies (anything else would lose a store), and
+/// only when `init` does not name `x` itself, which a declaration's own
+/// initializer cannot read.
+fn initialise_last_declaration(out: &mut Vec<DaStmt>) {
+    let Some(first) = out
+        .iter()
+        .position(|stmt| !matches!(stmt, DaStmt::Var { .. }))
+    else {
+        return;
+    };
+    if first == 0 {
+        return;
+    }
+    let (DaStmt::Var {
+        name, init: None, ..
+    }, DaStmt::Expr(DaExpr::Assign(target, value))) = (&out[first - 1], &out[first])
+    else {
+        return;
+    };
+    if !matches!(target.as_ref(), DaExpr::Var(assigned) if assigned == name) {
+        return;
+    }
+    let mut read: Vec<String> = Vec::new();
+    crate::translator::collect_names(value, &mut read);
+    if read.iter().any(|read| read == name) {
+        return;
+    }
+    let value = (**value).clone();
+    out.remove(first);
+    if let DaStmt::Var { init, .. } = &mut out[first - 1] {
+        *init = Some(value);
+    }
+}
+
+/// Remove a top-level `return` that directly follows another one.
+///
+/// A block that ends the function lays out as its own `return`, and the next
+/// block in layout order is reached only through a jump, i.e. through a
+/// `label N:` of its own.  Two adjacent `return`s therefore arise where
+/// [`dead_tail_labels`] dropped the label between them: a C `return;` laid out
+/// last, after the function's own closing `return`, is such a label's only
+/// node.  With the label gone the second `return` can never run, daScript
+/// reports it as unreachable code, and the body is the same program without
+/// it.
+fn drop_returns_after_return(out: &mut Vec<DaStmt>) {
+    let mut previous_returns = false;
+    out.retain(|stmt| {
+        let returns = matches!(stmt, DaStmt::Expr(DaExpr::Return(_)));
+        let keep = !(returns && previous_returns);
+        previous_returns = returns;
+        keep
+    });
 }
 
 /// Move every `var` the statement lowering left at its use site to the top of
@@ -236,19 +335,32 @@ pub(crate) fn render(
 /// of its own) declares its temporaries at its own level, and a jump inside
 /// that region past one of them is the same C++ error.  Every name is already
 /// unique in the function (the renamer sees to that), so moving a declaration
-/// up a few scopes cannot capture or shadow anything.  The hoisted `var`
-/// carries the type's default value — the same `default_initializer_for_datype`
-/// the C declarations get — because daslang refuses an uninitialised `var` of
-/// a record type outright.
+/// up a few scopes cannot capture or shadow anything.
+///
+/// The hoisted `var` is bare when daslang's own zero-fill is the type's
+/// default value (`zero_fills`, `Translation::da_type_zero_fills`: numbers,
+/// pointers, function values, aliases of them and plain structs of them), as
+/// for a C declaration.  Any other type carries
+/// `default_initializer_for_datype` explicitly: daslang refuses a bare `var`
+/// of a record with field initializers — a storage-backed wrapper allocates
+/// its bytes in one — and does not zero-fill an enumeration with no zero
+/// member.
 ///
 /// A `var` without an explicit type or with a reference type is left alone —
 /// it could not be redeclared without its initializer — and so is a container
 /// initializer, whose declaration-only spelling differs from its assignment
 /// spelling (`typed_initializer_text` in `das_ast`).
-fn hoist_site_temporaries(out: &mut Vec<DaStmt>, at: usize) {
+fn hoist_site_temporaries(out: &mut Vec<DaStmt>, at: usize, zero_fills: &dyn Fn(&DaType) -> bool) {
     let mut declarations: Vec<DaStmt> = Vec::new();
     let body: Vec<DaStmt> = out.drain(at..).collect();
     let body = hoist_in_stmts(body, &mut declarations);
+    for declaration in &mut declarations {
+        if let DaStmt::Var { var_type, init, .. } = declaration {
+            if zero_fills(var_type) {
+                *init = None;
+            }
+        }
+    }
     out.extend(declarations);
     out.extend(body);
 }
