@@ -334,9 +334,12 @@ pub const DASCRIPT_STD_LIBC_VALUE_NAMESPACE: &[&str] = &[
     "ref_time_ticks",
     "get_clock",
     "push",
+    "empty",
     // strings
     "to_char",
     "character_at",
+    "first_character",
+    "is_number",
     "ends_with",
     "to_double",
     // fio_core / daslib/fio

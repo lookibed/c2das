@@ -180,7 +180,8 @@ fn set_errno(code: Errno) -> DaStmt {
 /// Module names the std prelude stands on. They are added to the generated
 /// module's `require` list only when a std helper is actually emitted.
 ///
-/// `strings` provides `to_char`/`character_at`/`ends_with`, `daslib/fio` the
+/// `strings` provides `to_char`/`character_at`/`first_character`/`is_number`/
+/// `ends_with`, `daslib/fio` the
 /// file API and `exit_now`/`funbuffered`. `fmt`, `print`, `panic`,
 /// `get_command_line_arguments`, `ref_time_ticks` and `get_clock` are builtins
 /// and need no `require` of their own.
@@ -927,7 +928,7 @@ fn build(name: &str) -> DaDecl {
         VFPRINTF => build_vfprintf(),
         FWRITE => build_fwrite(),
         ISSPACE => build_isspace(),
-        ISDIGIT => build_ctype(ISDIGIT, in_range(48, 57)),
+        ISDIGIT => build_ctype(ISDIGIT, is_digit("c")),
         ISALPHA => build_ctype(ISALPHA, letter()),
         ISALNUM => build_isalnum(),
         ISUPPER => build_ctype(ISUPPER, in_range(65, 90)),
@@ -937,7 +938,7 @@ fn build(name: &str) -> DaDecl {
             ISXDIGIT,
             op2(
                 "||",
-                in_range(48, 57),
+                is_digit("c"),
                 op2("||", in_range(97, 102), in_range(65, 70)),
             ),
         ),
@@ -1922,16 +1923,12 @@ fn build_number() -> DaDecl {
     let octal_prefix = if_then(
         op2("==", var("base"), DaExpr::ConstInt(8)),
         vec![if_chain(
-            op2(
-                "==",
-                call("length", vec![var("digits")]),
-                DaExpr::ConstInt(0),
-            ),
+            call("empty", vec![var("digits")]),
             vec![assign(var("digits"), text("0"))],
             vec![(
                 op2(
                     "!=",
-                    call("character_at", vec![var("digits"), DaExpr::ConstInt(0)]),
+                    call("first_character", vec![var("digits")]),
                     DaExpr::ConstInt(48),
                 ),
                 vec![assign(var("digits"), op2("+", text("0"), var("digits")))],
@@ -2491,13 +2488,7 @@ fn build_vformat() -> DaDecl {
         advance("j"),
     ]);
 
-    let digit_guard = |name: &str| {
-        op2(
-            "||",
-            op2("<", var(name), DaExpr::ConstInt(48)),
-            op2(">", var(name), DaExpr::ConstInt(57)),
-        )
-    };
+    let digit_guard = |name: &str| not(is_digit(name));
 
     // `%*d` takes the field width from the argument list; a negative one means
     // "left-adjusted, this wide", exactly as a `-` flag would.
@@ -2723,17 +2714,10 @@ fn build_fopen() -> DaDecl {
     let sanitize = vec![
         local("spelled", DaType::string(), call(STRING, vec![var("mode")])),
         if_then(
-            op2(
-                "==",
-                call("length", vec![var("spelled")]),
-                DaExpr::ConstInt(0),
-            ),
+            call("empty", vec![var("spelled")]),
             vec![set_errno(Errno::Einval), ret(uint64_const(0))],
         ),
-        let_(
-            "head",
-            call("character_at", vec![var("spelled"), DaExpr::ConstInt(0)]),
-        ),
+        let_("head", call("first_character", vec![var("spelled")])),
         if_then(
             op2(
                 "&&",
@@ -4478,7 +4462,7 @@ fn build_main_wrapper(translated_main: &str, arity: usize) -> DaDecl {
     let mut stmts = vec![
         let_("raw", call("get_command_line_arguments", vec![])),
         if_then(
-            op2("==", call("length", vec![var("raw")]), DaExpr::ConstInt(0)),
+            call("empty", vec![var("raw")]),
             vec![if arity == 1 {
                 ret(call(translated_main, vec![DaExpr::ConstInt(0)]))
             } else {
@@ -4626,10 +4610,12 @@ fn main_wrapper_decl(stmts: Vec<DaStmt>) -> DaDecl {
 // helpers below are the only place these helpers touch a byte.
 
 /// `unsafe(reinterpret<uint8?>(base))[index]` — one byte of the raw heap.
+/// `index` is a `uint64` and indexes the pointer as it is: narrowing it to
+/// `int` would wrap an offset past 2^31 to a negative one.
 fn raw_slot(base: DaExpr, index: DaExpr) -> DaExpr {
     DaExpr::Unsafe(Box::new(DaExpr::Index(
         Box::new(reinterpret(base, DaType::pointer(DaType::uint8()))),
-        Box::new(cast(index, DaType::int())),
+        Box::new(index),
     )))
 }
 
@@ -5124,7 +5110,7 @@ fn build_digit() -> DaDecl {
         vec![
             local("v", DaType::int(), DaExpr::ConstInt(-1)),
             if_chain(
-                between("ch", 48, 57),
+                is_digit("ch"),
                 vec![assign(var("v"), op2("-", var("ch"), DaExpr::ConstInt(48)))],
                 vec![
                     (
@@ -5845,6 +5831,12 @@ fn between(name: &str, lo: i64, hi: i64) -> DaExpr {
 
 fn in_range(lo: i64, hi: i64) -> DaExpr {
     between("c", lo, hi)
+}
+
+/// `is_number(name)` — daslib `strings`' `ch >= '0' && ch <= '9'` over an
+/// `int` byte, the C locale's `isdigit`.
+fn is_digit(name: &str) -> DaExpr {
+    call("is_number", vec![var(name)])
 }
 
 fn letter() -> DaExpr {

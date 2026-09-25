@@ -78,8 +78,16 @@ without it they are libc calls, and the measured gain is the interpreter's (6–
   request that does not fit returns `NULL`, as C's `malloc` may.  The reserve is address
   space only: daslang's `reserve` leaves the pages untouched (a program's maximum RSS
   measured the same with no reserve and with 64 MiB to 1.5 GiB), and only bytes below the
-  high-water mark are `resize`d, i.e. committed.  1 GiB keeps every offset inside the `int`
-  daslang indexes arrays with.
+  high-water mark are `resize`d, i.e. committed.
+- **Sizes are 64-bit.** Heap offsets, sizes and byte counts stay `uint64`: the arena and
+  the record table grow through the `int64` `resize`/`reserve` overloads, lengths are read
+  with `long_length`, and the heap and raw pointers are indexed with the `uint64` offset
+  itself (daslang bounds-checks a 64-bit index as 64-bit).  Nothing is narrowed to `int`,
+  so a size past 2^31 is refused or panics, never truncated.  Record and free-list
+  indices are `int`; a compile-time assertion keeps the reserve's block count inside it.
+- **Object storage fails closed.** `c2da_rt_local` / `c2da_rt_static` (addressable C
+  locals and statics) panic when the reserve cannot hold the object: unlike `malloc`, C
+  gives such an object no `NULL` to return.
 - **Blocks.** A block's capacity is its request rounded up to 16 bytes and its start
   address is 16-aligned (`alignof(max_align_t)`); `malloc(0)` returns `NULL`.  Records are
   appended only when the bump pointer (`c2da_rt_next`) carves a new block, so the address

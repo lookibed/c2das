@@ -20,8 +20,8 @@ var c2da_rt_alloc_live : array<bool>
 var c2da_rt_alloc_free : array<int>
 
 def c2da_rt_init_heap() {
-    if (length(c2da_rt_heap) == 0) {
-        reserve(c2da_rt_heap, int(0x40000000))
+    if (empty(c2da_rt_heap)) {
+        reserve(c2da_rt_heap, int64(0x40000000))
         resize(c2da_rt_heap, 1)
     }
 }
@@ -86,24 +86,24 @@ def c2da_rt_malloc(size : uint64) : uint64 {
         c2da_rt_alloc_live[reused] = true
         return c2da_rt_alloc_addrs[reused]
     }
-    var base : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[int(0x0)]))))
+    var base : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[0x0]))))
     var start : uint64 = (base + c2da_rt_next + 0xf) / 0x10 * 0x10 - base
     var end : uint64 = start + need
     if (end > 0x40000000) {
         return 0x0
     }
-    if (int(end) > length(c2da_rt_heap)) {
-        resize(c2da_rt_heap, int(end))
+    if (int64(end) > long_length(c2da_rt_heap)) {
+        resize(c2da_rt_heap, int64(end))
     }
     c2da_rt_next = end
-    var address : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[int(start)]))))
-    var record : uint64 = uint64(length(c2da_rt_alloc_addrs))
-    resize(c2da_rt_alloc_addrs, int(record + 0x1))
-    resize(c2da_rt_alloc_sizes, int(record + 0x1))
-    resize(c2da_rt_alloc_live, int(record + 0x1))
-    c2da_rt_alloc_addrs[int(record)] = address
-    c2da_rt_alloc_sizes[int(record)] = need
-    c2da_rt_alloc_live[int(record)] = true
+    var address : uint64 = unsafe(intptr(unsafe(addr(c2da_rt_heap[start]))))
+    var record : uint64 = uint64(long_length(c2da_rt_alloc_addrs))
+    resize(c2da_rt_alloc_addrs, int64(record + 0x1))
+    resize(c2da_rt_alloc_sizes, int64(record + 0x1))
+    resize(c2da_rt_alloc_live, int64(record + 0x1))
+    c2da_rt_alloc_addrs[record] = address
+    c2da_rt_alloc_sizes[record] = need
+    c2da_rt_alloc_live[record] = true
     return address
 }
 def c2da_rt_free(address : uint64) {
@@ -133,11 +133,11 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
         return 0x0
     }
     var need : uint64 = (size + 0xf) / 0x10 * 0x10
-    var start : uint64 = address - unsafe(intptr(unsafe(addr(c2da_rt_heap[int(0x0)]))))
+    var start : uint64 = address - unsafe(intptr(unsafe(addr(c2da_rt_heap[0x0]))))
     var end : uint64 = start + need
     if (start + capacity == c2da_rt_next && end <= 0x40000000) {
-        if (int(end) > length(c2da_rt_heap)) {
-            resize(c2da_rt_heap, int(end))
+        if (int64(end) > long_length(c2da_rt_heap)) {
+            resize(c2da_rt_heap, int64(end))
         }
         c2da_rt_next = end
         c2da_rt_alloc_sizes[record] = need
@@ -154,7 +154,7 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
 def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
-        unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[int(i)]) = value
+        unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[i]) = value
         i = i + 0x1
     }
     return dst
@@ -173,7 +173,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
 def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
-        unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[int(i)]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[int(i)])
+        unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[i]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[i])
         i = i + 0x1
     }
     return dst
@@ -181,10 +181,10 @@ def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
 def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
     var i : uint64 = 0x0
     while (i < count) {
-        if (uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(left)))[int(i)])) < uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(right)))[int(i)]))) {
+        if (uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(left)))[i])) < uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(right)))[i]))) {
             return -1
         }
-        if (uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(left)))[int(i)])) > uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(right)))[int(i)]))) {
+        if (uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(left)))[i])) > uint(unsafe(unsafe(unsafe(reinterpret<uint8?>(right)))[i]))) {
             return 1
         }
         i = i + 0x1
@@ -195,14 +195,14 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     if (dst < src) {
         var i : uint64 = 0x0
         while (i < count) {
-            unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[int(i)]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[int(i)])
+            unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[i]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[i])
             i = i + 0x1
         }
     } else {
         var i : uint64 = count
         while (i > 0x0) {
             i = i - 0x1
-            unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[int(i)]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[int(i)])
+            unsafe(unsafe(unsafe(reinterpret<uint8?>(dst)))[i]) = unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[i])
         }
     }
     return dst
@@ -210,7 +210,7 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
 def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
-        if (unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[int(i)]) == value) {
+        if (unsafe(unsafe(unsafe(reinterpret<uint8?>(src)))[i]) == value) {
             return src + i
         }
         i = i + 0x1
@@ -227,12 +227,19 @@ def c2da_rt_frame_leave(mark : int) {
     }
 }
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
-    var address : uint64 = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    if (address == 0x0) {
+        panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C local")
+    }
     push(c2da_rt_locals, address)
     return address
 }
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
-    return c2da_rt_calloc(uint64(0x1), size + 0x1)
+    let address = c2da_rt_calloc(uint64(0x1), size + 0x1)
+    if (address == 0x0) {
+        panic("c2da runtime: the 1073741824-byte heap reserve cannot hold storage for a C static object")
+    }
+    return address
 }
 struct C2daVaArg {
     tag : int

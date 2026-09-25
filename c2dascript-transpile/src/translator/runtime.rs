@@ -15,14 +15,22 @@ use das_ast::{CastKind, DaBlock, DaDecl, DaExpr, DaFunction, DaStmt, DaType, DaV
 /// touch the pages (measured: a daslang program's maximum RSS is the same with
 /// no reserve and with a 64 MiB, 256 MiB, 1 GiB or 1.5 GiB one), and only the
 /// bytes below the allocation high-water mark are ever `resize`d, i.e. zeroed
-/// and committed.  1 GiB keeps every heap offset inside the `int` that daslang's
-/// array indexing and `resize` take.
+/// and committed.  Heap offsets and sizes stay `uint64` in the runtime: the
+/// arena is grown with the `int64` `resize` overload and indexed with the
+/// 64-bit offset itself, so no size is narrowed to daslang's 32-bit `int`.  A
+/// request past the reserve is refused (`malloc` returns `NULL`, as C's may),
+/// never truncated.
 pub const HEAP_RESERVE_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// C's `malloc` returns storage aligned for any object type, 16 bytes on the
 /// supported targets (`alignof(max_align_t)`).  Every block starts at an
 /// address that is a multiple of this, and every block capacity is one.
 const HEAP_ALIGN_BYTES: u64 = 16;
+
+// Allocation records and free-list slots are `int` indices (one record per
+// block, every block at least `HEAP_ALIGN_BYTES` long), so the reserve must not
+// hold more blocks than an `int` can count.
+const _: () = assert!(HEAP_RESERVE_BYTES / HEAP_ALIGN_BYTES <= i32::MAX as u64);
 
 const HEAP: &str = "c2da_rt_heap";
 /// Arena offset of the first byte no block has ever covered (the bump pointer).
@@ -158,11 +166,14 @@ fn block(stmts: Vec<DaStmt>) -> Box<DaExpr> {
     Box::new(DaExpr::Block(DaBlock { stmts }))
 }
 
-fn uint_to_int(expr: DaExpr) -> DaExpr {
+/// A `uint64` size or offset as the `int64` that daslang's 64-bit
+/// `resize`/`reserve` overloads and `long_length` use.  Every value converted
+/// is bounded by `HEAP_RESERVE_BYTES`, so it is exact.
+fn uint_to_int64(expr: DaExpr) -> DaExpr {
     DaExpr::Cast {
         kind: CastKind::Cast,
         expr: Box::new(expr),
-        to: DaType::int(),
+        to: DaType::int64(),
     }
 }
 
@@ -183,12 +194,13 @@ fn byte_to_uint(expr: DaExpr) -> DaExpr {
 }
 
 fn heap_address(offset: DaExpr) -> DaExpr {
-    // intptr(addr(heap[int(offset)])) is the sole pointer->raw-address
-    // conversion used by the runtime.
+    // intptr(addr(heap[offset])) is the sole pointer->raw-address conversion
+    // used by the runtime.  The `uint64` offset indexes the array directly:
+    // daslang bounds-checks a 64-bit index as a 64-bit value.
     DaExpr::Unsafe(Box::new(call(
         "intptr",
         vec![DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(
-            DaExpr::Index(Box::new(var(HEAP)), Box::new(uint_to_int(offset))),
+            DaExpr::Index(Box::new(var(HEAP)), Box::new(offset)),
         ))))],
     )))
 }
@@ -196,14 +208,16 @@ fn heap_address(offset: DaExpr) -> DaExpr {
 fn raw_byte_at(address: DaExpr, offset: DaExpr) -> DaExpr {
     // The runtime owns the only raw-address -> typed-pointer conversion used
     // for byte-wise libc operations.  Source-level pointer lowering must not
-    // manufacture this representation itself.
+    // manufacture this representation itself.  The `uint64` offset indexes
+    // the pointer directly, so a count past 2^31 does not wrap to a negative
+    // `int` offset.
     DaExpr::Unsafe(Box::new(DaExpr::Index(
         Box::new(DaExpr::Unsafe(Box::new(DaExpr::Cast {
             kind: CastKind::Reinterpret,
             expr: Box::new(address),
             to: DaType::pointer(DaType::uint8()),
         }))),
-        Box::new(uint_to_int(offset)),
+        Box::new(offset),
     )))
 }
 
@@ -257,6 +271,12 @@ fn length_of(array: &str) -> DaExpr {
     call("length", vec![var(array)])
 }
 
+/// The 64-bit element count of `array` (`long_length`), for comparisons with
+/// and conversions to a `uint64` size.
+fn long_length_of(array: &str) -> DaExpr {
+    call("long_length", vec![var(array)])
+}
+
 /// `value` rounded up to a multiple of `HEAP_ALIGN_BYTES`.  `value` is a
 /// size already bounded by `HEAP_RESERVE_BYTES` or an address inside the
 /// arena, so the addition cannot wrap.
@@ -276,12 +296,46 @@ fn align_up(value: DaExpr) -> DaExpr {
 /// the caller has checked), so `addr(heap[offset])` is valid below `end`.
 fn materialize_heap_to(end: DaExpr) -> DaStmt {
     when(
-        op(">", uint_to_int(end.clone()), length_of(HEAP)),
+        op(">", uint_to_int64(end.clone()), long_length_of(HEAP)),
         vec![DaStmt::Expr(call(
             "resize",
-            vec![var(HEAP), uint_to_int(end)],
+            vec![var(HEAP), uint_to_int64(end)],
         ))],
     )
+}
+
+/// `let address = c2da_rt_calloc(1, size + 1)`, then a panic when the arena
+/// cannot hold it.  C's `malloc` may return `NULL`, but a C object with
+/// automatic or static storage duration cannot fail to exist: a `NULL` here
+/// would be dereferenced as the object's address, so running out of the
+/// reserve stops the program with a message instead.
+fn object_storage(what: &str) -> Vec<DaStmt> {
+    vec![
+        DaStmt::Let {
+            name: "address".to_owned(),
+            init: Some(call(
+                "c2da_rt_calloc",
+                vec![
+                    DaExpr::Cast {
+                        kind: CastKind::Cast,
+                        expr: Box::new(DaExpr::ConstUInt(1)),
+                        to: DaType::uint64(),
+                    },
+                    op("+", var("size"), DaExpr::ConstUInt(1)),
+                ],
+            )),
+        },
+        when(
+            op("==", var("address"), DaExpr::ConstUInt(0)),
+            vec![DaStmt::Expr(call(
+                "panic",
+                vec![DaExpr::ConstString(format!(
+                    "c2da runtime: the {HEAP_RESERVE_BYTES}-byte heap reserve cannot hold \
+                     storage for {what}"
+                ))],
+            ))],
+        ),
+    ]
 }
 
 /// The daScript parameter count of the runtime function `name`, or `None` when
@@ -323,17 +377,13 @@ pub fn declarations() -> Vec<DaDecl> {
         vec![],
         DaType::void(),
         vec![DaStmt::Expr(DaExpr::IfThenElse {
-            cond: Box::new(op(
-                "==",
-                call("length", vec![var(HEAP)]),
-                DaExpr::ConstInt(0),
-            )),
+            cond: Box::new(call("empty", vec![var(HEAP)])),
             then: block(vec![
                 DaStmt::Expr(call(
                     "reserve",
                     vec![
                         var(HEAP),
-                        uint_to_int(DaExpr::ConstUInt(HEAP_RESERVE_BYTES)),
+                        uint_to_int64(DaExpr::ConstUInt(HEAP_RESERVE_BYTES)),
                     ],
                 )),
                 // `addr(heap[0])` needs a materialized first byte even for an
@@ -536,7 +586,7 @@ pub fn declarations() -> Vec<DaDecl> {
                 var_type: uint64.clone(),
                 init: Some(DaExpr::Cast {
                     kind: CastKind::Cast,
-                    expr: Box::new(call("length", vec![var(ALLOC_ADDRS)])),
+                    expr: Box::new(long_length_of(ALLOC_ADDRS)),
                     to: uint64.clone(),
                 }),
             },
@@ -544,44 +594,26 @@ pub fn declarations() -> Vec<DaDecl> {
                 "resize",
                 vec![
                     var(ALLOC_ADDRS),
-                    uint_to_int(op("+", var("record"), DaExpr::ConstUInt(1))),
+                    uint_to_int64(op("+", var("record"), DaExpr::ConstUInt(1))),
                 ],
             )),
             DaStmt::Expr(call(
                 "resize",
                 vec![
                     var(ALLOC_SIZES),
-                    uint_to_int(op("+", var("record"), DaExpr::ConstUInt(1))),
+                    uint_to_int64(op("+", var("record"), DaExpr::ConstUInt(1))),
                 ],
             )),
             DaStmt::Expr(call(
                 "resize",
                 vec![
                     var(ALLOC_LIVE),
-                    uint_to_int(op("+", var("record"), DaExpr::ConstUInt(1))),
+                    uint_to_int64(op("+", var("record"), DaExpr::ConstUInt(1))),
                 ],
             )),
-            DaStmt::Expr(DaExpr::Assign(
-                Box::new(DaExpr::Index(
-                    Box::new(var(ALLOC_ADDRS)),
-                    Box::new(uint_to_int(var("record"))),
-                )),
-                Box::new(var("address")),
-            )),
-            DaStmt::Expr(DaExpr::Assign(
-                Box::new(DaExpr::Index(
-                    Box::new(var(ALLOC_SIZES)),
-                    Box::new(uint_to_int(var("record"))),
-                )),
-                Box::new(var("need")),
-            )),
-            DaStmt::Expr(DaExpr::Assign(
-                Box::new(DaExpr::Index(
-                    Box::new(var(ALLOC_LIVE)),
-                    Box::new(uint_to_int(var("record"))),
-                )),
-                Box::new(DaExpr::ConstBool(true)),
-            )),
+            store(at(ALLOC_ADDRS, var("record")), var("address")),
+            store(at(ALLOC_SIZES, var("record")), var("need")),
+            store(at(ALLOC_LIVE, var("record")), DaExpr::ConstBool(true)),
             ret(var("address")),
         ],
     );
@@ -1093,25 +1125,15 @@ pub fn declarations() -> Vec<DaDecl> {
             },
         ],
         uint64.clone(),
-        vec![
-            DaStmt::Var {
-                name: "address".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(call(
-                    "c2da_rt_calloc",
-                    vec![
-                        DaExpr::Cast {
-                            kind: CastKind::Cast,
-                            expr: Box::new(DaExpr::ConstUInt(1)),
-                            to: DaType::uint64(),
-                        },
-                        op("+", var("size"), DaExpr::ConstUInt(1)),
-                    ],
-                )),
-            },
-            DaStmt::Expr(call("push", vec![var(LOCALS), var("address")])),
-            ret(var("address")),
-        ],
+        {
+            let mut stmts = object_storage("a C local");
+            stmts.push(DaStmt::Expr(call(
+                "push",
+                vec![var(LOCALS), var("address")],
+            )));
+            stmts.push(ret(var("address")));
+            stmts
+        },
     );
     let static_ = function(
         "c2da_rt_static",
@@ -1130,17 +1152,11 @@ pub fn declarations() -> Vec<DaDecl> {
             },
         ],
         uint64.clone(),
-        vec![ret(call(
-            "c2da_rt_calloc",
-            vec![
-                DaExpr::Cast {
-                    kind: CastKind::Cast,
-                    expr: Box::new(DaExpr::ConstUInt(1)),
-                    to: DaType::uint64(),
-                },
-                op("+", var("size"), DaExpr::ConstUInt(1)),
-            ],
-        ))],
+        {
+            let mut stmts = object_storage("a C static object");
+            stmts.push(ret(var("address")));
+            stmts
+        },
     );
 
     vec![
@@ -1231,9 +1247,59 @@ mod tests {
         assert!(rendered.contains("resize(c2da_rt_alloc_addrs, 0)"));
         assert!(rendered.contains("c2da_rt_memset(address, uint8("));
         assert!(rendered.contains("reserve(c2da_rt_heap"));
-        assert!(rendered.contains("c2da_rt_alloc_addrs[int(record)] = address"));
-        assert!(rendered.contains("intptr(unsafe(addr(c2da_rt_heap[int(start)])))"));
+        assert!(rendered.contains("c2da_rt_alloc_addrs[record] = address"));
+        assert!(rendered.contains("intptr(unsafe(addr(c2da_rt_heap[start])))"));
         assert!(!rendered.contains(".replace("));
+    }
+
+    #[test]
+    fn heap_sizes_and_offsets_are_never_narrowed_to_int() {
+        // A heap or record-table size is a `uint64`; narrowing it to `int`
+        // would silently truncate past 2^31 instead of failing closed.
+        let rendered = declarations()
+            .into_iter()
+            .map(|decl| decl.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        for narrowing in [
+            "resize(c2da_rt_heap, int(",
+            "reserve(c2da_rt_heap, int(",
+            "uint64(length(",
+            "c2da_rt_heap[int(",
+            "[int(record)]",
+            "[int(i)]",
+        ] {
+            assert!(
+                !rendered.contains(narrowing),
+                "runtime narrows a size: {narrowing}\n{rendered}"
+            );
+        }
+        let malloc = rendered_function("c2da_rt_malloc");
+        assert!(malloc.contains("if (int64(end) > long_length(c2da_rt_heap)) {"));
+        assert!(malloc.contains("resize(c2da_rt_heap, int64(end))"));
+        assert!(malloc.contains("var record : uint64 = uint64(long_length(c2da_rt_alloc_addrs))"));
+        assert!(malloc.contains("resize(c2da_rt_alloc_addrs, int64(record + 0x1))"));
+        let memcpy = rendered_function("c2da_rt_memcpy");
+        assert!(memcpy.contains("reinterpret<uint8?>(dst)))[i]"));
+    }
+
+    #[test]
+    fn object_storage_fails_closed_when_the_reserve_is_exhausted() {
+        // C may see `NULL` from malloc, but not as the address of a local or
+        // static object: the runtime panics instead of handing it out.
+        for name in ["c2da_rt_local", "c2da_rt_static"] {
+            let function = rendered_function(name);
+            let check = function
+                .find("if (address == 0x0) {")
+                .unwrap_or_else(|| panic!("{name} checks its allocation:\n{function}"));
+            assert!(function[check..].contains("panic(\"c2da runtime: the"));
+            assert!(
+                check
+                    < function
+                        .find("return address")
+                        .expect("returns the address")
+            );
+        }
     }
 
     fn rendered_function(name: &str) -> String {
@@ -1247,15 +1313,17 @@ mod tests {
     }
 
     #[test]
-    fn heap_reserve_is_large_and_stays_inside_int_indexing() {
-        // The reserve is address space only (measured, see the constant), and
-        // every arena offset must fit the `int` daslang indexes arrays with.
+    fn heap_reserve_is_large_and_reserved_with_the_int64_overload() {
+        // The reserve is address space only (measured, see the constant); it
+        // is passed to the `int64` overload, and the record count it bounds
+        // fits the `int` record indices.
         assert!(HEAP_RESERVE_BYTES >= 512 * 1024 * 1024);
-        assert!(HEAP_RESERVE_BYTES <= i32::MAX as u64);
+        assert!(HEAP_RESERVE_BYTES / HEAP_ALIGN_BYTES <= i32::MAX as u64);
         assert_eq!(HEAP_RESERVE_BYTES % HEAP_ALIGN_BYTES, 0);
         let init = rendered_function("c2da_rt_init_heap");
+        assert!(init.contains("if (empty(c2da_rt_heap)) {"));
         assert!(init.contains(&format!(
-            "reserve(c2da_rt_heap, int({HEAP_RESERVE_BYTES:#x}))"
+            "reserve(c2da_rt_heap, int64({HEAP_RESERVE_BYTES:#x}))"
         )));
     }
 
@@ -1275,7 +1343,7 @@ mod tests {
         // Capacity and start address are both rounded to the 16-byte C alignment.
         assert!(malloc.contains("var need : uint64 = (size + 0xf) / 0x10 * 0x10"));
         assert!(malloc.contains("(base + c2da_rt_next + 0xf) / 0x10 * 0x10 - base"));
-        assert!(malloc.contains("c2da_rt_alloc_sizes[int(record)] = need"));
+        assert!(malloc.contains("c2da_rt_alloc_sizes[record] = need"));
 
         let free = rendered_function("c2da_rt_free");
         assert!(free.contains("c2da_rt_find_record(address)"));
