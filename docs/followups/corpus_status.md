@@ -8,7 +8,7 @@
 | wasm3 (interpreter core, no WASI) | `tests/manual/wasm3/UPSTREAM.md`: wasm3 `deeaca9ce` (MIT); `fixtures/fib32.wasm`, `fib64.wasm` are upstream's own test vectors | ready | `wasm3-fib32-std`: `src/all_host.c` (graph + C host over the `.wasm` named by the last argument) translated under `--libc std` with `das_options: ["stack = 4194304"]`, `program_args: fixtures/fib32.wasm` | `fib[n]=` for n in 1,2,5,10,15,20,24 plus `bytes=62` and `count=7`, pinned in `cases.json`; C reference == fresh daslang in every run mode | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md`; `docs/followups/translator_gaps_wasm3.md` has the first per-mode measurement and the story; both daslang-side issues are avoided translator-side — record order in `global_order.rs` ([#2](https://github.com/lookibed/daScript/issues/2), case `p84-struct-definition-order`) and the named pointer value in `abi.rs` ([#3](https://github.com/lookibed/daScript/issues/3), case `p85-pointer-sum-compare`); decisions on the four translator gaps still due |
 | h264bsd + minimp4, 640×360 | same revisions; `fixtures/test_640x360.mp4` is upstream's `test/test_640x360.h264` muxed without re-encoding (`UPSTREAM.md`) | ready | `h264bsd-mp4-640x360`, same graph, file entries `src/h264_file_*` reading the fixture at run time | YUV hash of every decoded picture (73 pictures, 640×368 output, constrained baseline), pinned in `cases.json` | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md` |
 | binjgb (Game Boy Color emulator core) | `tests/manual/binjgb/UPSTREAM.md`: binjgb `8191a5d6` (MIT); `fixtures/cgb-acid2.gbc` is Matt Currie's cgb-acid2 `v1.1` (MIT) | known-red | `binjgb-cgb-acid2-std`: `src/binjgb_all.c` (graph + platform layer + C entry over the ROM named by the last argument) translated under `--libc std`, `program_args: fixtures/cgb-acid2.gbc` | cartridge header lines, RGB555 FNV-1a hash of each of 60 emulated frames (A held on frames 8–9), `frames=60`, `ticks=5378896`, pinned in `cases.json` from the clang-18 C reference | blocked: the translated module does not compile in daslang, "binjgb: translation blockers" below; not in `docs/corpus-convergence.md` / `docs/corpus-benchmark.md` until ready |
-| doomgeneric (Doom engine) | `tests/manual/doomgeneric/UPSTREAM.md`: doomgeneric `dcb7a8dbc` (GPL-2.0); `fixtures/doom1.wad` is the unmodified shareware 1.9 IWAD | known-red | `doomgeneric-demo1-std`: `src/doom_all.c` (engine + platform layer + C entry) under `--libc std`, `program_args: fixtures/doom1.wad`; no `corpus` block yet (see below) | RGB hash of each of the first 70 frames of `-timedemo demo1` (320×200, palette applied), pinned in `cases.json`; C `-O0` == `-O2` == `-O3 -march=native` | first blocker: `unsupported external call: system` at `i_system.c:342:14`; the full gap list is the section "doomgeneric: translation gaps" below |
+| doomgeneric (Doom engine) | `tests/manual/doomgeneric/UPSTREAM.md`: doomgeneric `dcb7a8dbc` (GPL-2.0); `fixtures/doom1.wad` is the unmodified shareware 1.9 IWAD | known-red | `doomgeneric-demo1-std`: `src/doom_all.c` (engine + platform layer + C entry) under `--libc std`, `program_args: fixtures/doom1.wad`; no `corpus` block yet (see below) | RGB hash of each of the first 70 frames of `-timedemo demo1` (320×200, palette applied), pinned in `cases.json`; C `-O0` == `-O2` == `-O3 -march=native` | translation completes (58,320 lines); first blocker: daslang `error[20512]: structure is already defined actionf_t` (gap 10), then gap 14; the full gap list is the section "doomgeneric: translation gaps" below |
 
 The two 320×240 / 640×360 rows exist twice in `cases.json`: once over a fixture-owned
 daslang entry (`plmpeg-stream-320x240`, `h264bsd-mp4-640x360`) and once as
@@ -243,3 +243,38 @@ the natural one.  One more thing to watch once the module runs: `p_maputl.c:849`
 other globals when a trace crosses more than 128 intercepts; a raw daslang address differs
 from a C one, so if the demo ever triggers the emulation the frame hashes can diverge for a
 reason that is not a translator defect.
+
+### Status after the libc and translator fixes (2026-09-26)
+
+Closed, each with a canonical case:
+
+| # | Fix | Case |
+|---|---|---|
+| 1–9 | `--libc std` gains `strdup`, `strcasecmp`, `strncasecmp`, `atof`, `abs`, `fabs` (sign bit cleared: exact for `-0.0` and NaN), `sscanf` (`%d %i %o %u %x %X` without width/`*`/length modifier, white space, ordinary bytes, `%%`, glibc's reading of the subject; any other directive is a source-located translation error for a literal format, a panic for a computed one), and two documented choices ISO C / POSIX permit: `system` has no command processor (`system(NULL)` is 0, a command runs nothing and returns -1 with `ENOSYS`), `mkdir` creates nothing and returns -1 with `EPERM` (daslib's `mkdir` ignores the mode and reports no `errno`; the engine ignores the result, and no `./.savegame/` is created) | `p110-std-string-extras`, `p111-std-sscanf`, `p112-std-sscanf-unsupported` |
+| 11 | a block-scope function declaration emits nothing in the body; when it is the function's first (canonical) declaration, the C AST import lists it at top level in place of its file-scope definition | `p113-block-scope-function-decl` |
+| 12 | a call argument is always lowered as a used value, so `V_DrawPatch(x -= 8, …)` hoists the store and passes `x` | `p114-assignment-arguments` |
+| 13 | a decayed function designator whose C type (an unprototyped declaration, `void A_Light0();`) differs from the emitted function's is converted to that type (`abi_pointer_cast`); the 448 `error[30915]` are gone | `p115-unprototyped-function-values` |
+| 15 | an initializer that reaches its own object — by name (`S_sfx`'s `&S_sfx[i]`) or through a call or `@@f` whose body reads it — is a cycle of one and is assigned by `[init]` (`c2da_gset_<name>`); the former exclusion of the self edge let daslang reject it with `error[30177]`, or with `error[31104]` for a table of functions that read the table | `p116-self-referencing-initializer` |
+
+Strict translation of `src/doom_all.c` under `--libc std` now succeeds (58,320 lines).  The
+first daslang failure is gap 10, verbatim:
+
+```
+error[20512]: structure is already defined actionf_t
+.../generated/doom_all.das:1604:7
+struct actionf_t {
+       ^^^^^^^^^
+```
+
+(also `mobj_s`, `thinker_s`, `actionf_t` again, `column_t`).  With those duplicates dropped
+in a scratch copy of the output (never committed), daslang stops on gap 14 only: seven
+`error[31014]: Uninitialized variable <name> is unsafe` — `colors`, `itemrespawnque`,
+`playerstarts`, `deathmatchstarts`, `thinkercap`, `intercepts`, and now `states`: the
+`states[]` table (storage-backed, `state_t` holds the `actionf_t` union) is a cycle of one
+through its `A_*` actions, which read `states`, so it is assigned by `[init]` and declared
+without an initializer.  `states`'s initializer takes no element address, so replacing it in
+`[init]` is sound; the general hazard — the address of a storage-backed element is its
+`c2da_storage` block, which `[init]` replaces — is written down in
+`translator/ARCHITECTURE.md` ("Arguments, function designators and self-referencing
+globals") for whoever gives uninitialised storage-backed globals their storage.  What lies
+behind gap 14 is unknown.

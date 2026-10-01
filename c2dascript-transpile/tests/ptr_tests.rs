@@ -346,6 +346,59 @@ fn p102_locals_are_declared_bare_and_initialised_in_place() {
 }
 
 #[test]
+fn p113_block_scope_function_declarations_emit_the_function_at_module_scope() {
+    let d = transpile("p113_block_scope_function_decl");
+    // The block-scope declaration is no statement of its own.
+    assert!(d.contains("def run_twice() : int {\n    return later(1) + later(2)\n}\n"));
+    // The function it declares first is emitted once, at module scope.
+    assert_eq!(d.matches("def later(").count(), 1, "later emitted once");
+    assert_eq!(d.matches("def counter_value(").count(), 1);
+    assert!(d.contains("\n[export]\ndef later(var k_0 : int) : int {\n"));
+}
+
+#[test]
+fn p114_assignment_arguments_are_hoisted_values() {
+    let d = transpile("p114_assignment_arguments");
+    // A call statement's assignment argument: the store, then its value.
+    assert!(d.contains("    x = x - 8\n    sink(x, unsafe(addr<int?>(out_0)))\n"));
+    assert!(d.contains("    *p = 7\n    sink(*p, unsafe(addr<int?>(out_0)))\n"));
+    assert!(d.contains("    bits = bits << 4u\n    note(bits)\n"));
+    assert!(d.contains("    total = total + i\n    sink(total, unsafe(addr<int?>(out_0)))\n"));
+    assert!(!d.contains("sink(x = "), "assignment printed inside a call");
+}
+
+#[test]
+fn p115_unprototyped_designators_take_the_slot_type() {
+    let d = transpile("p115_unprototyped_function_values");
+    // `bump` is designated through `void bump();`: its value is converted to
+    // the `void (*)()` type C gives it.
+    assert!(d.contains("state(tics = 1, action = unsafe(reinterpret<function<():void>>(@@bump)))"));
+    assert!(d.contains("state(tics = 2, action = unsafe(reinterpret<function<():void>>(@@add)))"));
+    // A designator whose type already is the emitted function's is not.
+    assert!(d.contains("state(tics = 3, action = @@none_0)"));
+    // The call through the slot converts back to the callee's real type.
+    assert!(d.contains("invoke(unsafe(reinterpret<action_p1>("));
+}
+
+#[test]
+fn p116_self_referencing_globals_are_initialised_by_init() {
+    let d = transpile("p116_self_referencing_initializer");
+    // The objects keep module storage and get their value in `[init]`.
+    assert!(d.contains("var sounds : sfx_s[4]\n"));
+    assert!(d.contains("[init]\ndef c2da_gset_sounds() {\n"));
+    assert!(d.contains("link = unsafe(addr(unsafe(unsafe(addr(sounds[0]))[1])))"));
+    assert!(d.contains("var ring : node\n"));
+    assert!(d.contains("        ring = node(next = unsafe(addr(ring)), value = 7)\n"));
+    // A global that depends on the self-referencing one moves with it.
+    assert!(d.contains("var loudest : sfx_s?\n"));
+    assert!(d.contains("[init]\ndef c2da_gset_loudest() {\n"));
+    assert!(!d.contains("var sounds : sfx_s[4] ="));
+    // A table reached again through the body of a function it holds.
+    assert!(d.contains("[init]\ndef c2da_gset_ops() {\n"));
+    assert!(d.contains("        ops = fixed_array<function<(var _arg0:int):int>>(@@op_self)\n"));
+}
+
+#[test]
 fn p103_records_with_zero_sized_fields_are_storage_backed() {
     let d = transpile_with_libc(
         "p103_zero_sized_fields",
@@ -883,4 +936,109 @@ fn p25_array_initializers_are_aggregate_ast_not_numeric_casts() {
     assert!(d.contains("zeros = fixed_array<uint8>(0u8, 0u8)"));
     assert!(!d.contains("cast<array<uint8>>(0)"));
     assert!(!d.contains("array<uint8> = []"));
+}
+
+/// The diagnostic a negative fixture's translation fails with, under `libc`.
+fn transpile_error_with_libc(name: &str, libc: c2dascript_transpile::LibcMode) -> String {
+    let c_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join(format!("tests/syntax/{}.c", name));
+    assert!(c_path.exists(), "C file not found: {:?}", c_path);
+    let (_td, cc_path) = c2dascript_transpile::create_temp_compile_commands(&[c_path]);
+    let temp = tempfile::tempdir().expect("temporary diagnostic output directory");
+    let config = c2dascript_transpile::TranspilerConfig {
+        output_dir: Some(temp.path().join("das")),
+        libc,
+        ..Default::default()
+    };
+    c2dascript_transpile::transpile_checked(config, &cc_path, &["-w"])
+        .expect_err("negative fixture must return TranslationError")
+        .to_string()
+}
+
+#[test]
+fn p110_std_string_extras_are_exact() {
+    let d = transpile_with_libc(
+        "p110_std_string_extras",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // `strdup` is a raw-heap block `free` can release, copied terminator
+    // included, and `NULL` with ENOMEM when the heap is exhausted.
+    assert!(d.contains("let base : uint64 = c2da_rt_malloc(n + 0x1ul)"));
+    assert!(d.contains(
+        "    while (i <= n) {\n        c2da_std_raw_put(base, i, c2da_std_raw_byte(s, i))"
+    ));
+    assert!(d.contains("        c2da_std_set_errno(12)\n        return 0x0ul"));
+    assert!(d.contains("unsafe(reinterpret<int8?>(c2da_std_strdup("));
+    // The case-insensitive comparisons answer glibc's byte difference.
+    assert!(d.contains("let ca = c2da_std_tolower(c2da_std_raw_byte(a, i))"));
+    assert!(d.contains("            return ca - cb\n"));
+    assert!(d.contains("def c2da_std_strncasecmp(a : uint64; b : uint64; n : uint64) : int"));
+    assert!(d.contains("    while (i < n) {\n        let ca = c2da_std_tolower("));
+    // `atof` is `strtod(nptr, NULL)`.
+    assert!(d.contains("    return c2da_std_strtod(nptr, 0x0ul)\n"));
+    // `abs` and `fabs` reach the std helpers from Clang's builtin shape too,
+    // and `fabs` clears the sign bit rather than comparing with zero.
+    assert!(d.contains("c2da_std_abs(-5)"));
+    assert!(d.contains("var y : double = c2da_std_fabs(x)"));
+    assert!(d.contains(
+        "return unsafe(reinterpret<double>(unsafe(reinterpret<uint64>(x)) & 0x7ffffffffffffffful))"
+    ));
+    assert!(!d.contains("c2da_fabs_double"));
+    // `system` has no command processor: `system(NULL)` is 0, any command
+    // runs nothing and is -1 with ENOSYS.
+    assert!(d.contains(
+        "def c2da_std_system(command : uint64) : int {\n    if (command == 0x0ul) {\n        return 0\n    }\n    c2da_std_set_errno(38)\n    return -1\n}"
+    ));
+    // `mkdir` never touches the file system: -1 with EPERM.
+    assert!(d.contains(
+        "def c2da_std_mkdir(path : uint64; mode : uint) : int {\n    c2da_std_set_errno(1)\n    return -1\n}"
+    ));
+    assert!(d.contains("c2da_std_mkdir(") && d.contains(", 0x1edu)"));
+    assert!(!d.contains("fio::mkdir") && !d.contains(" mkdir("));
+}
+
+#[test]
+fn p111_std_sscanf_implements_the_integer_conversions() {
+    let d = transpile_with_libc("p111_std_sscanf", c2dascript_transpile::LibcMode::Std);
+    assert!(
+        d.contains("def c2da_std_sscanf(s : uint64; f : uint64; args : array<C2daVaArg>) : int")
+    );
+    // The store targets are raw lanes of the canonical variadic payload.
+    assert!(d.contains("c2da_std_sscanf(unsafe(reinterpret<uint64>(input)), unsafe(reinterpret<uint64>(format)), [C2daVaArg(tag = 3,"));
+    // glibc's subject: `0x` is consumed only for a base that takes it.
+    assert!(d.contains("if ((b | 32) == 120) {"));
+    // The value is `strtol`'s or `strtoul`'s, saturated with ERANGE, and its
+    // low 32 bits are what is stored.
+    assert!(d.contains(
+        "value = c2da_std_strto(s + start, 0x0ul, base, 0x7ffffffffffffffful, 0x8000000000000000ul)"
+    ));
+    assert!(d.contains(
+        "value = c2da_std_strto(s + start, 0x0ul, base, 0xfffffffffffffffful, 0xfffffffffffffffful)"
+    ));
+    assert!(d.contains("unsafe(unsafe(reinterpret<uint?>(cell))[0]) = uint(value & 0xfffffffful)"));
+    // A computed format is checked at run time, loudly.
+    assert!(
+        d.contains("panic(\"--libc std: sscanf conversion is not implemented: \" + build_string(")
+    );
+    assert!(d.contains(
+        "panic(\"--libc std: sscanf has no pointer argument to store a conversion through\")"
+    ));
+}
+
+#[test]
+fn p112_std_sscanf_rejects_unimplemented_conversions() {
+    let error = transpile_error_with_libc(
+        "p112_std_sscanf_unsupported",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    assert!(
+        error.contains("--libc std: sscanf conversion `%5d` is not implemented"),
+        "missing the conversion: {error}"
+    );
+    assert!(
+        error.contains("p112_std_sscanf_unsupported.c:8:31"),
+        "missing the format's source location: {error}"
+    );
 }

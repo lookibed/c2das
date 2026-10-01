@@ -105,16 +105,17 @@ not a translator defect.
 
 ## Translation status
 
-Known-red.  Strict translation of `src/doom_all.c` under `--libc std` stops at
+Known-red.  Strict translation of `src/doom_all.c` under `--libc std` succeeds (58,320 lines
+of daslang); daslang then refuses the module at
 
 ```
-translation failed: operation=top-level declaration lowering; ...; declaration=ZenityErrorBox;
-cause=unsupported external call: system
---> .../upstream/doomgeneric/doomgeneric/i_system.c:342:14
+error[20512]: structure is already defined actionf_t
 ```
 
-and behind it are eight more libc entry points the `std` table lacks and six translator
-defects that show up once the module is compiled by daslang, each with a few-line reproducer:
+(a storage-backed record emitted once per typedef visit), and behind that on uninitialised
+file-scope objects of storage-backed record type (`error[31014]`).  The libc entry points and
+the other translator defects the first measurement found are fixed; the list, what is fixed
+and what still blocks, with a few-line reproducer for each gap, is in
 `docs/followups/corpus_status.md`, "doomgeneric: translation gaps".  The case has no `corpus`
 block yet, so `scripts/corpus_matrix.py` does not pick it up; that section has the block to
 add when it is promoted.

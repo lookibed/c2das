@@ -70,7 +70,7 @@ pub(crate) fn order_value_declarations(decls: Vec<DaDecl>) -> Vec<DaDecl> {
         let Some(init) = &v.init else { continue };
         let mut seed = Vec::new();
         collect_names(init, &mut seed);
-        deps[i] = resolve_dependencies(&seed, i, &var_index, &fn_refs);
+        deps[i] = resolve_dependencies(&seed, &var_index, &fn_refs);
     }
 
     // Depth-first post-order over the dependency graph, entered in the
@@ -168,10 +168,15 @@ pub(crate) fn order_value_declarations(decls: Vec<DaDecl>) -> Vec<DaDecl> {
 
 /// The `[init]` function that assigns a cyclic object once every module-level
 /// object exists.
+///
+/// Its prefix is not `c2da_ginit_`: that is the statement-carrying
+/// initializer `functions.rs` builds for an object such as a table of unions
+/// (`var states = c2da_ginit_states()`), and such an object can be cyclic too,
+/// in which case both functions exist.
 fn init_function(name: &str, init: DaExpr) -> DaDecl {
     let assign = DaExpr::Assign(Box::new(DaExpr::Var(name.to_string())), Box::new(init));
     DaDecl::Function(DaFunction {
-        name: format!("c2da_ginit_{name}"),
+        name: format!("c2da_gset_{name}"),
         params: vec![],
         ret_type: das_ast::DaType::void(),
         // Taking the address of another module-level object is an unsafe
@@ -192,9 +197,16 @@ fn init_function(name: &str, init: DaExpr) -> DaDecl {
 
 /// Expand the names an initializer mentions into the module-level variables it
 /// depends on, following calls the way daScript's own check does.
+///
+/// The object itself is one of them when the initializer names it — C's
+/// `&table[1]` inside `table`'s own initializer, an address constant (C11
+/// 6.6p9) — or reaches it through a call or a `@@f` whose body reads it.
+/// daScript rejects both (`error[30177]: global variable 'G' can't be
+/// initialized with itself`, `error[31104]: global variable initialization
+/// loop` `->G->f->G`), so the self edge is a cycle of one and the object is
+/// assigned by `[init]` like every other cyclic one.
 fn resolve_dependencies(
     seed: &[String],
-    self_index: usize,
     var_index: &HashMap<&str, usize>,
     fn_refs: &HashMap<&str, Vec<String>>,
 ) -> Vec<usize> {
@@ -206,7 +218,7 @@ fn resolve_dependencies(
             continue;
         }
         if let Some(&idx) = var_index.get(name) {
-            if idx != self_index && !out.contains(&idx) {
+            if !out.contains(&idx) {
                 out.push(idx);
             }
             continue;

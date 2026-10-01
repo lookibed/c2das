@@ -448,7 +448,12 @@ impl<'c> Translation<'c> {
                     && canonical_runtime_arg_type(runtime, idx).is_none()
                     && std_arg.is_none()
             });
-            let a = self.convert_expr(ctx, arg, expected)?;
+            // An argument's value is always used, whether or not the call's
+            // result is: `show(x -= 8)` passes the value of the assignment,
+            // which is hoisted ahead of the call like any other side effect
+            // with a value.  Lowered in the call's own context, a call
+            // statement's argument came out as a bare daScript assignment.
+            let a = self.convert_expr(ctx.used(), arg, expected)?;
             let a = if let Some(expected_ty) = expected {
                 self.lower_to_c_value(
                     a,
@@ -768,6 +773,16 @@ impl<'c> Translation<'c> {
     /// The daScript name of the function a value-position expression names, if
     /// it names one directly (`add`, `(add)`, `*add`, …).
     pub(crate) fn direct_function_reference(&self, expr: CExprId) -> Option<String> {
+        let decl_id = self.designated_function(expr)?;
+        let CDeclKind::Function { ref name, .. } = self.ast_context[decl_id].kind else {
+            return None;
+        };
+        Some(self.declare_value_name(decl_id, name))
+    }
+
+    /// The function declaration a value-position expression designates
+    /// directly (`add`, `(add)`, `*add`, …), if any.
+    fn designated_function(&self, expr: CExprId) -> Option<CDeclId> {
         let mut current = expr;
         loop {
             match &self.ast_context[current].kind {
@@ -778,15 +793,50 @@ impl<'c> Translation<'c> {
                 }
                 CExprKind::Unary(_, CUnOp::Deref, inner, _) => current = *inner,
                 CExprKind::DeclRef(_, decl_id, _) => {
-                    let CDeclKind::Function { ref name, .. } = self.ast_context[*decl_id].kind
-                    else {
-                        return None;
-                    };
-                    return Some(self.declare_value_name(*decl_id, name));
+                    return matches!(self.ast_context[*decl_id].kind, CDeclKind::Function { .. })
+                        .then_some(*decl_id);
                 }
                 _ => return None,
             }
         }
+    }
+
+    /// The function value a decayed function designator lowers to, as a
+    /// value of the pointer type `pointer_ty` C gives the decay, or `None`
+    /// when `designator` names no function directly.
+    ///
+    /// The daScript function is emitted with its defining declaration's
+    /// parameters, so `@@f` has that prototype's `function<…>` type.  C types
+    /// the designator by the declaration in scope where it is named, and that
+    /// may be one without a prototype (`void f();`, C11 6.7.6.3p14) whose
+    /// pointer type — `void (*)()` — is compatible with the definition's
+    /// (6.7.6.3p15) and is stored with no conversion at all, typically into a
+    /// `void (*)()` table slot.  daScript function types are not compatible
+    /// that way, so the value is converted to the type C gave it
+    /// (`abi.rs abi_pointer_cast`, a `reinterpret`); a call
+    /// through the slot converts it back to the callee's real type
+    /// (`invoke(reinterpret<…>(slot), …)`), which is C's own rule for calling
+    /// through an unprototyped function pointer (6.5.2.2p6).
+    pub(crate) fn function_designator_value(
+        &self,
+        designator: CExprId,
+        pointer_ty: CQualTypeId,
+    ) -> TranslationResult<Option<DaExpr>> {
+        let Some(decl_id) = self.designated_function(designator) else {
+            return Ok(None);
+        };
+        let CDeclKind::Function { ref name, typ, .. } = self.ast_context[decl_id].kind else {
+            return Ok(None);
+        };
+        let value = DaExpr::FuncRef(self.declare_value_name(decl_id, name));
+        let emitted = self.convert_type(CQualTypeId::new(typ))?;
+        let designated = self.convert_type(pointer_ty)?;
+        if emitted == designated {
+            return Ok(Some(value));
+        }
+        // A function value is a C pointer crossing to another pointer type,
+        // which is the ABI owner's conversion.
+        Ok(Some(self.abi_pointer_cast(value, designated)))
     }
 
     /// Peel the C conversions that only exist because C has no function values.

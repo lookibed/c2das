@@ -103,6 +103,7 @@ enum Errno {
     Enospc,
     Espipe,
     Erange,
+    Enosys,
     Eoverflow,
 }
 
@@ -135,6 +136,7 @@ impl ErrnoNumbering {
                 Errno::Enospc => 28,
                 Errno::Espipe => 29,
                 Errno::Erange => 34,
+                Errno::Enosys => 38,
                 Errno::Eoverflow => 75,
             },
         }
@@ -320,6 +322,15 @@ const FPUTC: &str = "c2da_std_fputc";
 const UNGETC: &str = "c2da_std_ungetc";
 const REWIND: &str = "c2da_std_rewind";
 const FILENO: &str = "c2da_std_fileno";
+const STRDUP: &str = "c2da_std_strdup";
+const STRCASECMP: &str = "c2da_std_strcasecmp";
+const STRNCASECMP: &str = "c2da_std_strncasecmp";
+const ATOF: &str = "c2da_std_atof";
+const ABS: &str = "c2da_std_abs";
+const FABS: &str = "c2da_std_fabs";
+const SYSTEM: &str = "c2da_std_system";
+const MKDIR: &str = "c2da_std_mkdir";
+const SSCANF: &str = "c2da_std_sscanf";
 
 /// A C library entry point the `std` policy replaces.
 ///
@@ -390,6 +401,17 @@ pub(crate) enum StdFunction {
     Tolower,
     Toupper,
     ErrnoLocation,
+    Strdup,
+    Strcasecmp,
+    Strncasecmp,
+    /// `atof`, which C defines as `strtod(nptr, NULL)`.
+    Atof,
+    Abs,
+    Fabs,
+    System,
+    Mkdir,
+    /// `sscanf`, which glibc's headers redirect to `__isoc99_sscanf`.
+    Sscanf,
 }
 
 impl StdFunction {
@@ -454,6 +476,15 @@ impl StdFunction {
             Self::Tolower => TOLOWER,
             Self::Toupper => TOUPPER,
             Self::ErrnoLocation => ERRNO_LOCATION,
+            Self::Strdup => STRDUP,
+            Self::Strcasecmp => STRCASECMP,
+            Self::Strncasecmp => STRNCASECMP,
+            Self::Atof => ATOF,
+            Self::Abs => ABS,
+            Self::Fabs => FABS,
+            Self::System => SYSTEM,
+            Self::Mkdir => MKDIR,
+            Self::Sscanf => SSCANF,
         }
     }
 
@@ -506,6 +537,16 @@ impl StdFunction {
             // does; only the stream handle and the output buffer are addresses.
             Self::Fprintf => &[0][..],
             Self::Snprintf | Self::Vsnprintf => &[0][..],
+            Self::Strdup | Self::Atof | Self::System => &[0][..],
+            // `mkdir`'s `mode_t` is an integer.
+            Self::Mkdir => &[0][..],
+            Self::Strcasecmp => &[0, 1][..],
+            Self::Strncasecmp => &[0, 1][..],
+            Self::Abs | Self::Fabs => &[][..],
+            // The input and the format are both read byte by byte out of raw
+            // memory; the pointers the conversions store through travel in
+            // the variadic payload, as raw lanes.
+            Self::Sscanf => &[0, 1][..],
         };
         raw.contains(&index).then_some(RuntimeArgKind::RawAddress)
     }
@@ -536,6 +577,12 @@ impl StdFunction {
                 | Self::Fgets
                 | Self::Fgetc
                 | Self::Fputc
+                // `errno` writers.
+                | Self::Strdup
+                | Self::Atof
+                | Self::System
+                | Self::Mkdir
+                | Self::Sscanf
         )
     }
 
@@ -562,6 +609,11 @@ impl StdFunction {
                 | Self::Remove
                 | Self::Rename
                 | Self::Fileno
+                | Self::Strdup
+                | Self::Atof
+                | Self::System
+                | Self::Mkdir
+                | Self::Sscanf
         )
     }
 
@@ -592,6 +644,7 @@ impl StdFunction {
                 | Self::Strerror
                 | Self::Getenv
                 | Self::Fgets
+                | Self::Strdup
         )
     }
 }
@@ -672,6 +725,20 @@ pub(crate) fn std_function(name: &str) -> Option<StdFunction> {
         // glibc's `errno` *is* this function: the data symbol is
         // `GLIBC_PRIVATE`, so no C program can reach the variable directly.
         "__errno_location" => Some(StdFunction::ErrnoLocation),
+        "strdup" | "__builtin_strdup" => Some(StdFunction::Strdup),
+        "strcasecmp" => Some(StdFunction::Strcasecmp),
+        "strncasecmp" => Some(StdFunction::Strncasecmp),
+        "atof" => Some(StdFunction::Atof),
+        // Clang knows `abs` and `fabs` as library builtins, so a call reaches
+        // here through `BuiltinFnToFnPtr` as often as through an ordinary
+        // declaration; both shapes name the same entry point.
+        "abs" | "__builtin_abs" => Some(StdFunction::Abs),
+        "fabs" | "__builtin_fabs" => Some(StdFunction::Fabs),
+        "system" => Some(StdFunction::System),
+        "mkdir" => Some(StdFunction::Mkdir),
+        // glibc's `<stdio.h>` gives `sscanf` the assembler name
+        // `__isoc99_sscanf`; Clang's declaration keeps the C name.
+        "sscanf" | "__isoc99_sscanf" | "__builtin_sscanf" => Some(StdFunction::Sscanf),
         _ => None,
     }
 }
@@ -857,6 +924,11 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         VPRINTF => &[VFORMAT, LOST_CELL],
         VFPRINTF => &[VFORMAT, WRITE, LOST_CELL],
         ISALNUM => &[ISALPHA, ISDIGIT],
+        STRDUP => &[STRLEN, RAW_BYTE, RAW_PUT, SET_ERRNO],
+        STRCASECMP | STRNCASECMP => &[RAW_BYTE, TOLOWER],
+        ATOF => &[STRTOD],
+        SYSTEM | MKDIR => &[SET_ERRNO],
+        SSCANF => &[RAW_BYTE, ISSPACE, DIGIT, STRTO, ARG_U64],
         _ => &[],
     }
 }
@@ -972,6 +1044,15 @@ fn build(name: &str) -> DaDecl {
         UNGETC => build_ungetc(),
         FGETS => build_fgets(),
         FOPEN_ERRNO => build_fopen_errno(),
+        STRDUP => build_strdup(),
+        STRCASECMP => build_strcasecmp(false),
+        STRNCASECMP => build_strcasecmp(true),
+        ATOF => build_atof(),
+        ABS => build_abs(),
+        FABS => build_fabs(),
+        SYSTEM => build_system(),
+        MKDIR => build_mkdir(),
+        SSCANF => build_sscanf(),
         other => unreachable!("unregistered std helper: {other}"),
     }
 }
@@ -1180,6 +1261,7 @@ impl<'c> Translation<'c> {
         args: &[CExprId],
     ) -> TranslationResult<()> {
         self.check_std_strtod(function, args)?;
+        self.check_std_scan_format(function, args)?;
         let Some(index) = function.and_then(StdFunction::format_argument) else {
             return Ok(());
         };
@@ -1212,7 +1294,10 @@ impl<'c> Translation<'c> {
         function: Option<StdFunction>,
         args: &[CExprId],
     ) -> TranslationResult<()> {
-        if !matches!(function, Some(StdFunction::Strtod | StdFunction::Strtof)) {
+        if !matches!(
+            function,
+            Some(StdFunction::Strtod | StdFunction::Strtof | StdFunction::Atof)
+        ) {
             return Ok(());
         }
         let Some(&arg) = args.first() else {
@@ -1227,6 +1312,38 @@ impl<'c> Translation<'c> {
         Err(format_translation_err!(
             self.ast_context.display_loc(&self.ast_context[arg].loc),
             "--libc std: strtod does not implement the `{}` form",
+            spelled
+        ))
+    }
+
+    /// Fails closed on a literal `sscanf` format that uses a directive
+    /// `c2da_std_sscanf` does not implement (see [`unsupported_scan_conversion`]).
+    ///
+    /// A field width, `*`, a length modifier or a conversion outside
+    /// `%d %i %o %u %x %X` changes how much input is consumed and what is
+    /// stored through the next pointer, so no substitute is correct; a computed
+    /// format is checked by the helper itself, which panics on the same
+    /// directives.
+    fn check_std_scan_format(
+        &self,
+        function: Option<StdFunction>,
+        args: &[CExprId],
+    ) -> TranslationResult<()> {
+        if function != Some(StdFunction::Sscanf) {
+            return Ok(());
+        }
+        let Some(&arg) = args.get(1) else {
+            return Ok(());
+        };
+        let Some(bytes) = self.string_literal_bytes(arg) else {
+            return Ok(());
+        };
+        let Some(spelled) = unsupported_scan_conversion(&bytes) else {
+            return Ok(());
+        };
+        Err(format_translation_err!(
+            self.ast_context.display_loc(&self.ast_context[arg].loc),
+            "--libc std: sscanf conversion `{}` is not implemented",
             spelled
         ))
     }
@@ -1392,6 +1509,54 @@ fn unsupported_float_subject(subject: &[u8]) -> Option<String> {
     }
     if lower(3) == b"nan" {
         return Some("nan".into());
+    }
+    None
+}
+
+/// The first conversion specification in a `sscanf` format that
+/// `c2da_std_sscanf` does not implement, spelled as the C source spells it.
+///
+/// The grammar the engine implements, in full (C11 7.21.6.2):
+///
+/// ```text
+/// white-space   skips any amount of input white space, none included
+/// ordinary byte must match the next input byte
+/// %%            matches one `%`, after skipping input white space
+/// %d %i %o %u %x %X   no width, no `*`, no length modifier
+/// ```
+///
+/// A field width, assignment suppression, every length modifier
+/// (`hh h l ll j z t L q`), glibc's `m`, and every other conversion (`%s %c
+/// %[ %n %p %f %e %g %a`…) is reported here.
+fn unsupported_scan_conversion(format: &[u8]) -> Option<String> {
+    let mut i = 0;
+    while i < format.len() {
+        if format[i] != b'%' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        // Everything that may stand between `%` and the conversion byte.
+        while i < format.len()
+            && (format[i].is_ascii_digit()
+                || matches!(
+                    format[i],
+                    b'*' | b'h' | b'l' | b'L' | b'q' | b'j' | b'z' | b't' | b'm' | b'\''
+                ))
+        {
+            i += 1;
+        }
+        let has_prefix = i > start + 1;
+        let Some(&conversion) = format.get(i) else {
+            return Some(String::from_utf8_lossy(&format[start..]).into_owned());
+        };
+        i += 1;
+        let accepted =
+            !has_prefix && matches!(conversion, b'd' | b'i' | b'o' | b'u' | b'x' | b'X' | b'%');
+        if !accepted {
+            return Some(String::from_utf8_lossy(&format[start..i]).into_owned());
+        }
     }
     None
 }
@@ -3804,6 +3969,7 @@ const STRERROR_CATALOGUE: &[(Errno, &str)] = &[
     (Errno::Enospc, "No space left on device"),
     (Errno::Espipe, "Illegal seek"),
     (Errno::Erange, "Numerical result out of range"),
+    (Errno::Enosys, "Function not implemented"),
     (Errno::Eoverflow, "Value too large for defined data type"),
 ];
 
@@ -5874,6 +6040,467 @@ fn build_toupper() -> DaDecl {
     build_case_shift(TOUPPER, 97, 122, -32)
 }
 
+// ── the string, math and process extras ──────────────────────────────
+
+/// `def c2da_std_strdup(s : uint64) : uint64`
+///
+/// `strlen(s) + 1` bytes of the raw heap (`c2da_rt_malloc`, the block C's
+/// `free` releases), the string copied into them terminator included. An
+/// allocation the heap cannot satisfy answers `NULL` with `errno` `ENOMEM`,
+/// as POSIX specifies.
+fn build_strdup() -> DaDecl {
+    helper(
+        STRDUP,
+        vec![u64_param("s")],
+        DaType::uint64(),
+        vec![
+            constant("n", DaType::uint64(), call(STRLEN, vec![var("s")])),
+            constant(
+                "base",
+                DaType::uint64(),
+                call("c2da_rt_malloc", vec![op2("+", var("n"), uint64_const(1))]),
+            ),
+            if_then(
+                op2("==", var("base"), uint64_const(0)),
+                vec![set_errno(Errno::Enomem), ret(uint64_const(0))],
+            ),
+            local("i", DaType::uint64(), uint64_const(0)),
+            while_(
+                op2("<=", var("i"), var("n")),
+                vec![
+                    DaStmt::Expr(call(
+                        RAW_PUT,
+                        vec![var("base"), var("i"), byte_of("s", var("i"))],
+                    )),
+                    advance_u64("i"),
+                ],
+            ),
+            ret(var("base")),
+        ],
+    )
+}
+
+/// `def c2da_std_strcasecmp(a : uint64; b : uint64) : int` and, `bounded`,
+/// `def c2da_std_strncasecmp(a : uint64; b : uint64; n : uint64) : int`.
+///
+/// The C locale's case folding over `unsigned char` bytes. The answer is
+/// glibc's exactly — `tolower(c1) - tolower(c2)` at the first byte that still
+/// differs after folding, zero otherwise — not merely its sign, because a
+/// program may print it.
+fn build_strcasecmp(bounded: bool) -> DaDecl {
+    let folded = |side: &str| call(TOLOWER, vec![byte_of(side, var("i"))]);
+    let body = vec![
+        let_("ca", folded("a")),
+        let_("cb", folded("b")),
+        if_then(
+            op2("!=", var("ca"), var("cb")),
+            vec![ret(op2("-", var("ca"), var("cb")))],
+        ),
+        if_then(
+            op2("==", var("ca"), DaExpr::ConstInt(0)),
+            vec![ret(DaExpr::ConstInt(0))],
+        ),
+        advance_u64("i"),
+    ];
+    let (name, mut params, walk) = if bounded {
+        (
+            STRNCASECMP,
+            vec![u64_param("a"), u64_param("b")],
+            while_(op2("<", var("i"), var("n")), body),
+        )
+    } else {
+        (
+            STRCASECMP,
+            vec![u64_param("a"), u64_param("b")],
+            while_true(body),
+        )
+    };
+    if bounded {
+        params.push(u64_param("n"));
+    }
+    helper(
+        name,
+        params,
+        DaType::int(),
+        vec![
+            local("i", DaType::uint64(), uint64_const(0)),
+            walk,
+            ret(DaExpr::ConstInt(0)),
+        ],
+    )
+}
+
+/// `def c2da_std_atof(nptr : uint64) : double` — `strtod(nptr, NULL)`, which
+/// is what C says `atof` is, `errno` included.
+fn build_atof() -> DaDecl {
+    helper(
+        ATOF,
+        vec![u64_param("nptr")],
+        DaType::double(),
+        vec![ret(call(STRTOD, vec![var("nptr"), uint64_const(0)]))],
+    )
+}
+
+/// `def c2da_std_abs(x : int) : int` — `abs(INT_MIN)` is undefined in C; the
+/// helper wraps, as the machine's negation does.
+fn build_abs() -> DaDecl {
+    helper(
+        ABS,
+        vec![param("x", DaType::int())],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("<", var("x"), DaExpr::ConstInt(0)),
+                vec![ret(op2("-", DaExpr::ConstInt(0), var("x")))],
+            ),
+            ret(var("x")),
+        ],
+    )
+}
+
+/// `def c2da_std_fabs(x : double) : double`
+///
+/// The sign bit cleared, and nothing else: `fabs(-0.0)` is `+0.0` and a NaN
+/// keeps its payload with its sign cleared, which `x < 0 ? -x : x` gets wrong
+/// on both counts.
+fn build_fabs() -> DaDecl {
+    helper(
+        FABS,
+        vec![param("x", DaType::double())],
+        DaType::double(),
+        vec![ret(reinterpret(
+            op2(
+                "&",
+                reinterpret(var("x"), DaType::uint64()),
+                uint64_const(0x7fff_ffff_ffff_ffff),
+            ),
+            DaType::double(),
+        ))],
+    )
+}
+
+/// `def c2da_std_system(command : uint64) : int`
+///
+/// A hosted implementation without a command processor, which ISO C
+/// (7.22.4.8) permits: `system(NULL)` answers zero ("no command processor is
+/// available"), and any command runs nothing and answers `-1` with `errno`
+/// `ENOSYS`. The translated module never starts a process.
+fn build_system() -> DaDecl {
+    helper(
+        SYSTEM,
+        vec![u64_param("command")],
+        DaType::int(),
+        vec![
+            if_then(
+                op2("==", var("command"), uint64_const(0)),
+                vec![ret(DaExpr::ConstInt(0))],
+            ),
+            set_errno(Errno::Enosys),
+            ret(DaExpr::ConstInt(-1)),
+        ],
+    )
+}
+
+/// `def c2da_std_mkdir(path : uint64; mode : uint) : int`
+///
+/// daslib's `mkdir` always creates with `ACCESSPERMS` and reports no `errno`,
+/// so it cannot be C's. The std `mkdir` never touches the file system: it
+/// creates nothing and answers `-1` with `errno` `EPERM`, Linux `mkdir(2)`'s
+/// "the file system containing pathname does not support the creation of
+/// directories".
+fn build_mkdir() -> DaDecl {
+    helper(
+        MKDIR,
+        vec![u64_param("path"), param("mode", DaType::uint())],
+        DaType::int(),
+        vec![set_errno(Errno::Eperm), ret(DaExpr::ConstInt(-1))],
+    )
+}
+
+/// `def c2da_std_sscanf(s : uint64; f : uint64; args : array<C2daVaArg>) : int`
+///
+/// C11 7.21.6.2 for the directives [`unsupported_scan_conversion`] accepts,
+/// with glibc's reading of the integer subject:
+///
+/// * a white-space directive skips any amount of input white space, none
+///   included; an ordinary byte must match the next input byte; `%%` skips
+///   input white space and matches one `%`;
+/// * `%d %i %o %u %x %X` skip input white space, then read an optional sign,
+///   a `0` (and, for `%x`/`%i`, an `x`/`X` after it: glibc consumes the `0x`
+///   even when no hexadecimal digit follows, and converts the `0`) and the
+///   digits of the base. The value is `strtol`'s (`%d %i`) or `strtoul`'s
+///   (`%o %u %x`) conversion of that subject — saturated with `ERANGE` on
+///   overflow — and the low 32 bits of it are stored through the next
+///   pointer argument, as glibc stores an `int` or `unsigned int`;
+/// * the answer is the number of stored items, or `EOF` when the input ends
+///   before the first conversion; a matching failure stops the scan and
+///   leaves the target of the failed conversion untouched.
+///
+/// A computed format that uses anything else panics here; a literal one never
+/// reaches the helper (`check_std_format`).
+fn build_sscanf() -> DaDecl {
+    let in_byte = |at: DaExpr| call(RAW_BYTE, vec![var("s"), at]);
+    let fmt_byte = |at: DaExpr| call(RAW_BYTE, vec![var("f"), at]);
+    let space = |byte: DaExpr| op2("!=", call(ISSPACE, vec![byte]), DaExpr::ConstInt(0));
+    let skip_input_space = || while_(space(in_byte(var("p"))), vec![advance_u64("p")]);
+    // Input failure: `EOF` before the first conversion, the count after it.
+    let input_failure = || {
+        vec![
+            if_then(
+                op2("==", var("done"), DaExpr::ConstInt(0)),
+                vec![ret(DaExpr::ConstInt(-1))],
+            ),
+            ret(var("done")),
+        ]
+    };
+    let step = |name: &str, by: u64| assign(var(name), op2("+", var(name), uint64_const(by)));
+    let continue_ = || DaStmt::Expr(DaExpr::Continue);
+    let next_input = || vec![advance_u64("p"), assign(var("b"), in_byte(var("p")))];
+    let set_base = |value: i64, signed: bool| {
+        vec![
+            assign(var("base"), DaExpr::ConstInt(value)),
+            assign(var("signed_conv"), DaExpr::ConstBool(signed)),
+        ]
+    };
+    let conv_is = |code: i64| op2("==", var("conv"), DaExpr::ConstInt(code));
+    // The specification's spelling, for the run-time refusal: `%`, whatever
+    // may stand before a conversion byte, and the byte itself.
+    let spelling = build_text(vec![
+        local("k", DaType::uint64(), var("i")),
+        while_(
+            op2(
+                "&&",
+                op2("<=", var("k"), var("j")),
+                op2("!=", fmt_byte(var("k")), DaExpr::ConstInt(0)),
+            ),
+            vec![emit_char(fmt_byte(var("k"))), advance_u64("k")],
+        ),
+    ]);
+    let prefix_byte = op2(
+        "||",
+        is_digit("sb"),
+        [42, 104, 108, 76, 113, 106, 122, 116, 109, 39]
+            .into_iter()
+            .map(|code| op2("==", var("sb"), DaExpr::ConstInt(code)))
+            .reduce(|left, right| op2("||", left, right))
+            .expect("prefix bytes"),
+    );
+    let strto = |pos: u64, neg: u64| {
+        call(
+            STRTO,
+            vec![
+                op2("+", var("s"), var("start")),
+                uint64_const(0),
+                var("base"),
+                uint64_const(pos),
+                uint64_const(neg),
+            ],
+        )
+    };
+    let loop_body = vec![
+        let_("fc", fmt_byte(var("i"))),
+        if_then(
+            op2("==", var("fc"), DaExpr::ConstInt(0)),
+            vec![DaStmt::Expr(DaExpr::Break)],
+        ),
+        // A white-space directive.
+        if_then(
+            space(var("fc")),
+            vec![
+                while_(space(fmt_byte(var("i"))), vec![advance_u64("i")]),
+                skip_input_space(),
+                continue_(),
+            ],
+        ),
+        // An ordinary byte.
+        if_then(
+            op2("!=", var("fc"), DaExpr::ConstInt(37)),
+            vec![
+                let_("oc", in_byte(var("p"))),
+                if_then(op2("==", var("oc"), DaExpr::ConstInt(0)), input_failure()),
+                if_then(op2("!=", var("oc"), var("fc")), vec![ret(var("done"))]),
+                advance_u64("p"),
+                advance_u64("i"),
+                continue_(),
+            ],
+        ),
+        let_("conv", fmt_byte(op2("+", var("i"), uint64_const(1)))),
+        // `%%`.
+        if_then(
+            conv_is(37),
+            vec![
+                skip_input_space(),
+                let_("pc", in_byte(var("p"))),
+                if_then(op2("==", var("pc"), DaExpr::ConstInt(0)), input_failure()),
+                if_then(
+                    op2("!=", var("pc"), DaExpr::ConstInt(37)),
+                    vec![ret(var("done"))],
+                ),
+                advance_u64("p"),
+                step("i", 2),
+                continue_(),
+            ],
+        ),
+        local("base", DaType::int(), DaExpr::ConstInt(-1)),
+        local("signed_conv", DaType::bool(), DaExpr::ConstBool(false)),
+        if_chain(
+            conv_is(100),
+            set_base(10, true),
+            vec![
+                (conv_is(105), set_base(0, true)),
+                (conv_is(111), set_base(8, false)),
+                (conv_is(117), set_base(10, false)),
+                (op2("||", conv_is(120), conv_is(88)), set_base(16, false)),
+            ],
+            None,
+        ),
+        if_then(
+            op2("<", var("base"), DaExpr::ConstInt(0)),
+            vec![
+                local("j", DaType::uint64(), op2("+", var("i"), uint64_const(1))),
+                while_true(vec![
+                    let_("sb", fmt_byte(var("j"))),
+                    if_then(not(prefix_byte), vec![DaStmt::Expr(DaExpr::Break)]),
+                    advance_u64("j"),
+                ]),
+                DaStmt::Expr(call(
+                    "panic",
+                    vec![op2(
+                        "+",
+                        text("--libc std: sscanf conversion is not implemented: "),
+                        spelling,
+                    )],
+                )),
+            ],
+        ),
+        step("i", 2),
+        skip_input_space(),
+        if_then(
+            op2("==", in_byte(var("p")), DaExpr::ConstInt(0)),
+            input_failure(),
+        ),
+        constant("start", DaType::uint64(), var("p")),
+        local("radix", DaType::int(), var("base")),
+        local("any", DaType::bool(), DaExpr::ConstBool(false)),
+        local("b", DaType::int(), in_byte(var("p"))),
+        if_then(
+            op2(
+                "||",
+                op2("==", var("b"), DaExpr::ConstInt(45)),
+                op2("==", var("b"), DaExpr::ConstInt(43)),
+            ),
+            next_input(),
+        ),
+        if_chain(
+            op2("==", var("b"), DaExpr::ConstInt(48)),
+            [
+                vec![assign(var("any"), DaExpr::ConstBool(true))],
+                next_input(),
+                vec![if_chain(
+                    op2(
+                        "==",
+                        op2("|", var("b"), DaExpr::ConstInt(32)),
+                        DaExpr::ConstInt(120),
+                    ),
+                    vec![if_then(
+                        op2(
+                            "||",
+                            op2("==", var("radix"), DaExpr::ConstInt(0)),
+                            op2("==", var("radix"), DaExpr::ConstInt(16)),
+                        ),
+                        [
+                            vec![assign(var("radix"), DaExpr::ConstInt(16))],
+                            next_input(),
+                        ]
+                        .concat(),
+                    )],
+                    vec![(
+                        op2("==", var("radix"), DaExpr::ConstInt(0)),
+                        vec![assign(var("radix"), DaExpr::ConstInt(8))],
+                    )],
+                    None,
+                )],
+            ]
+            .concat(),
+            vec![(
+                op2("==", var("radix"), DaExpr::ConstInt(0)),
+                vec![assign(var("radix"), DaExpr::ConstInt(10))],
+            )],
+            None,
+        ),
+        while_(
+            op2(
+                ">=",
+                call(DIGIT, vec![var("b"), var("radix")]),
+                DaExpr::ConstInt(0),
+            ),
+            [
+                vec![assign(var("any"), DaExpr::ConstBool(true))],
+                next_input(),
+            ]
+            .concat(),
+        ),
+        // A sign alone, or nothing, is a matching failure.
+        if_then(not(var("any")), vec![ret(var("done"))]),
+        local("value", DaType::uint64(), uint64_const(0)),
+        if_chain(
+            var("signed_conv"),
+            vec![assign(
+                var("value"),
+                strto(INT64_MAX_MAGNITUDE, INT64_MIN_MAGNITUDE),
+            )],
+            vec![],
+            Some(vec![assign(
+                var("value"),
+                strto(UINT64_MAX_MAGNITUDE, UINT64_MAX_MAGNITUDE),
+            )]),
+        ),
+        constant(
+            "cell",
+            DaType::uint64(),
+            call(ARG_U64, vec![var("args"), var("arg")]),
+        ),
+        if_then(
+            op2("==", var("cell"), uint64_const(0)),
+            vec![DaStmt::Expr(call(
+                "panic",
+                vec![text(
+                    "--libc std: sscanf has no pointer argument to store a conversion through",
+                )],
+            ))],
+        ),
+        assign(
+            DaExpr::Unsafe(Box::new(DaExpr::Index(
+                Box::new(reinterpret(var("cell"), DaType::pointer(DaType::uint()))),
+                Box::new(DaExpr::ConstInt(0)),
+            ))),
+            cast(
+                op2("&", var("value"), uint64_const(0xffff_ffff)),
+                DaType::uint(),
+            ),
+        ),
+        advance("arg"),
+        advance("done"),
+    ];
+    helper(
+        SSCANF,
+        vec![
+            u64_param("s"),
+            u64_param("f"),
+            param("args", va_args_type()),
+        ],
+        DaType::int(),
+        vec![
+            local("done", DaType::int(), DaExpr::ConstInt(0)),
+            local("arg", DaType::int(), DaExpr::ConstInt(0)),
+            local("i", DaType::uint64(), uint64_const(0)),
+            local("p", DaType::uint64(), uint64_const(0)),
+            while_true(loop_body),
+            ret(var("done")),
+        ],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5949,6 +6576,20 @@ mod tests {
             ("ungetc", UNGETC),
             ("rewind", REWIND),
             ("fileno", FILENO),
+            ("strdup", STRDUP),
+            ("strcasecmp", STRCASECMP),
+            ("strncasecmp", STRNCASECMP),
+            ("atof", ATOF),
+            // Clang's library-builtin spelling reaches the same helper.
+            ("abs", ABS),
+            ("__builtin_abs", ABS),
+            ("fabs", FABS),
+            ("__builtin_fabs", FABS),
+            ("system", SYSTEM),
+            ("mkdir", MKDIR),
+            // glibc's assembler name for the ISO C99 `sscanf`.
+            ("sscanf", SSCANF),
+            ("__isoc99_sscanf", SSCANF),
         ] {
             let function = std_function(source).expect("registered std symbol");
             assert_eq!(function.target_name(), target);
@@ -5994,6 +6635,78 @@ mod tests {
         assert!(StdFunction::Strchr.returns_raw_address());
         assert!(StdFunction::ErrnoLocation.returns_raw_address());
         assert!(!StdFunction::Strlen.returns_raw_address());
+        // `strdup` answers a raw-heap block; `mkdir`'s mode and `abs`/`fabs`'
+        // operands are numbers; `sscanf`'s input and format are addresses,
+        // and its store targets travel in the variadic payload.
+        assert!(StdFunction::Strdup.returns_raw_address());
+        assert_eq!(
+            StdFunction::Strdup.arg_kind(0),
+            Some(RuntimeArgKind::RawAddress)
+        );
+        assert_eq!(StdFunction::Mkdir.arg_kind(1), None);
+        assert_eq!(StdFunction::Abs.arg_kind(0), None);
+        assert_eq!(StdFunction::Fabs.arg_kind(0), None);
+        assert_eq!(
+            StdFunction::Strncasecmp.arg_kind(1),
+            Some(RuntimeArgKind::RawAddress)
+        );
+        assert_eq!(StdFunction::Strncasecmp.arg_kind(2), None);
+        assert_eq!(
+            StdFunction::Sscanf.arg_kind(1),
+            Some(RuntimeArgKind::RawAddress)
+        );
+        assert_eq!(StdFunction::Sscanf.arg_kind(2), None);
+        assert!(!StdFunction::Sscanf.returns_raw_address());
+    }
+
+    #[test]
+    fn the_scan_engine_knows_what_it_implements() {
+        for accepted in [
+            "no directive at all",
+            " 0x%x",
+            " 0X%x",
+            " 0%o",
+            " %d",
+            "%x",
+            "%i",
+            "%u %X %% x=%d,y=%d",
+            "",
+        ] {
+            assert_eq!(
+                unsupported_scan_conversion(accepted.as_bytes()),
+                None,
+                "rejected {accepted}"
+            );
+        }
+        for (rejected, spelled) in [
+            ("%5d", "%5d"),
+            ("%*d", "%*d"),
+            ("x %hd", "%hd"),
+            ("%hhx", "%hhx"),
+            ("%ld", "%ld"),
+            ("%lld", "%lld"),
+            ("%jd", "%jd"),
+            ("%zu", "%zu"),
+            ("%td", "%td"),
+            ("%Lf", "%Lf"),
+            ("%ms", "%ms"),
+            ("%s", "%s"),
+            ("%c", "%c"),
+            ("%[a-z]", "%["),
+            ("%n", "%n"),
+            ("%p", "%p"),
+            ("%f", "%f"),
+            ("%e", "%e"),
+            ("%g", "%g"),
+            ("%a", "%a"),
+            ("%d%", "%"),
+        ] {
+            assert_eq!(
+                unsupported_scan_conversion(rejected.as_bytes()).as_deref(),
+                Some(spelled),
+                "accepted {rejected}"
+            );
+        }
     }
 
     #[test]
@@ -6116,6 +6829,15 @@ mod tests {
             NUMBER,
             TAKE,
             LOST_CELL,
+            STRDUP,
+            STRCASECMP,
+            STRNCASECMP,
+            ATOF,
+            ABS,
+            FABS,
+            SYSTEM,
+            MKDIR,
+            SSCANF,
         ] {
             require(name);
         }
@@ -6184,6 +6906,7 @@ mod tests {
             (Errno::Enospc, 28),
             (Errno::Espipe, 29),
             (Errno::Erange, 34),
+            (Errno::Enosys, 38),
             (Errno::Eoverflow, 75),
         ] {
             assert_eq!(n.code(code), value, "{code:?}");

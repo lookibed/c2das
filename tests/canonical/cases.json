@@ -1245,6 +1245,97 @@
       "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"
     },
     {
+      "id": "p110-std-string-extras",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p110_std_string_extras.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "strdup: \"Doom II: Hell on Earth\" len=22 distinct=1\nafter edit: copy=\"doom II: Hell on Earth\" original=\"Doom II: Hell on Earth\"\nstrdup(\"\"): len=0 first=0\nstrcasecmp(\"doom\", \"DOOM\") = 0\nstrcasecmp(\"abc\", \"ABD\") = -1\nstrcasecmp(\"Z\", \"a\") = 25\nstrcasecmp(\"[\", \"a\") = -6\nstrcasecmp(\"\", \"x\") = -120\nstrcasecmp(\"x\", \"\") = 120\nstrcasecmp(\"a\\x80\", \"A\\x01\") = 127\nstrcasecmp(\"\\xff\", \"\\xfe\") = 1\nstrcasecmp(\"IWAD\", \"iwadx\") = -120\nstrncasecmp(\"abcX\", \"ABCy\", 3) = 0\nstrncasecmp(\"abcX\", \"ABCy\", 4) = -1\nstrncasecmp(\"a\", \"b\", 0) = 0\nstrncasecmp(\"same\", \"SAME\", 100) = 0\nstrncasecmp(\"aB\", \"Ab\\x90\", 3) = -144\natof(\"  1.5e3xyz\") = 1500\natof(\"-0.25\") = -0.25\natof(\"junk\") = 0\natof(\"\t+42\") = 42\natof(\"7e-3\") = 0.0070000000000000001\natof(\"\") = 0\natof literal = -37.5\nabs: 5 0 17 2147483647\nfabs(-2.5) = 2.5 signbit=0 inverse=0.4\nfabs(2.5) = 2.5 signbit=0 inverse=0.4\nfabs(-0) = 0 signbit=0 inverse=inf\nfabs(0) = 0 signbit=0 inverse=inf\nfabs(-1e+300) = 1e+300 signbit=0 inverse=1e-300\ndone\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p110_std_string_extras_are_exact",
+      "runtime": "required"
+    },
+    {
+      "id": "p111-std-sscanf",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p111_std_sscanf.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "M_StrToInt(\"0x1F\") = 1 value=31\nM_StrToInt(\"  0X2a\") = 1 value=42\nM_StrToInt(\"017\") = 1 value=15\nM_StrToInt(\" -42\") = 1 value=-42\nM_StrToInt(\"abc\") = 0 value=-7\nM_StrToInt(\"\") = 0 value=-7\nM_StrToInt(\"   \") = 0 value=-7\nM_StrToInt(\"0x\") = 1 value=0\nM_StrToInt(\"123abc\") = 1 value=123\nM_StrToInt(\"+7\") = 1 value=7\nM_StrToInt(\"-0x10\") = 1 value=0\nM_StrToInt(\"0\") = 1 value=0\nM_StrToInt(\"08\") = 1 value=8\nM_StrToInt(\"0xg\") = 1 value=0\nM_StrToInt(\"-\") = 0 value=-7\nM_StrToInt(\"+\") = 0 value=-7\nM_StrToInt(\"2147483647\") = 1 value=2147483647\nM_StrToInt(\"4294967295\") = 1 value=-1\nM_StrToInt(\"99999999999\") = 1 value=1215752191\nM_StrToInt(\"-2147483649\") = 1 value=2147483647\nM_StrToInt(\"0xfffffffff\") = 1 value=-1\nM_StrToInt(\"\t\n 12\") = 1 value=12\nsscanf(\"0x1F\", \"%x\") = 1 value=31\nsscanf(\"0x1F\", \"%i\") = 1 value=31\nsscanf(\"  0X2a\", \"%x\") = 1 value=42\nsscanf(\"  0X2a\", \"%i\") = 1 value=42\nsscanf(\"017\", \"%x\") = 1 value=23\nsscanf(\"017\", \"%i\") = 1 value=15\nsscanf(\" -42\", \"%x\") = 1 value=-66\nsscanf(\" -42\", \"%i\") = 1 value=-42\nsscanf(\"abc\", \"%x\") = 1 value=2748\nsscanf(\"abc\", \"%i\") = 0 value=12345\nsscanf(\"\", \"%x\") = -1 value=12345\nsscanf(\"\", \"%i\") = -1 value=12345\nsscanf(\"   \", \"%x\") = -1 value=12345\nsscanf(\"   \", \"%i\") = -1 value=12345\nsscanf(\"0x\", \"%x\") = 1 value=0\nsscanf(\"0x\", \"%i\") = 1 value=0\nsscanf(\"123abc\", \"%x\") = 1 value=1194684\nsscanf(\"123abc\", \"%i\") = 1 value=123\nsscanf(\"+7\", \"%x\") = 1 value=7\nsscanf(\"+7\", \"%i\") = 1 value=7\nsscanf(\"-0x10\", \"%x\") = 1 value=-16\nsscanf(\"-0x10\", \"%i\") = 1 value=-16\nsscanf(\"0\", \"%x\") = 1 value=0\nsscanf(\"0\", \"%i\") = 1 value=0\nsscanf(\"08\", \"%x\") = 1 value=8\nsscanf(\"08\", \"%i\") = 1 value=0\nsscanf(\"0xg\", \"%x\") = 1 value=0\nsscanf(\"0xg\", \"%i\") = 1 value=0\nsscanf(\"-\", \"%x\") = 0 value=12345\nsscanf(\"-\", \"%i\") = 0 value=12345\nsscanf(\"+\", \"%x\") = 0 value=12345\nsscanf(\"+\", \"%i\") = 0 value=12345\nsscanf(\"2147483647\", \"%x\") = 1 value=1195914823\nsscanf(\"2147483647\", \"%i\") = 1 value=2147483647\nsscanf(\"4294967295\", \"%x\") = 1 value=-1802079595\nsscanf(\"4294967295\", \"%i\") = 1 value=-1\nsscanf(\"99999999999\", \"%x\") = 1 value=-1717986919\nsscanf(\"99999999999\", \"%i\") = 1 value=1215752191\nsscanf(\"-2147483649\", \"%x\") = 1 value=-1195914825\nsscanf(\"-2147483649\", \"%i\") = 1 value=2147483647\nsscanf(\"0xfffffffff\", \"%x\") = 1 value=-1\nsscanf(\"0xfffffffff\", \"%i\") = 1 value=-1\nsscanf(\"\t\n 12\", \"%x\") = 1 value=18\nsscanf(\"\t\n 12\", \"%i\") = 1 value=12\nsscanf(\"-1\", \"%u\") = 1 value=-1\nsscanf(\"777\", \"%o\") = 1 value=511\nsscanf(\"0x0x5\", \" 0x%x\") = 1 value=5\nsscanf(\"0XAB\", \"%X\") = 1 value=171\n%%%d on \"  %5\": 1 a=5\n%%%d on \"\": -1\nb%d on \"a\": 0\nb%d on \"\": -1\nempty format: 0\n\"1 z\": 1 a=1 b=2\n\"1 \": 1 a=1 b=2\n\"x=3,y=-4\": 2 a=3 b=-4\n\"10:20\": 2 a=10 b=32\noverflow: 1 a=-1 erange=1\nwide: 1 a=1215752191 errno=0\ncomputed \"%d %i\": 2 a=21 b=21\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p111_std_sscanf_implements_the_integer_conversions",
+      "runtime": "required"
+    },
+    {
+      "id": "p112-std-sscanf-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "p112_std_sscanf_unsupported.c", "c_graph": "single-tu", "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "p112_std_sscanf_unsupported.c:8:31", "cause": "--libc std: sscanf conversion `%5d` is not implemented" }, "runtime": "not-applicable"
+    },
+    {
+      "id": "p113-block-scope-function-decl",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p113_block_scope_function_decl.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "block_scope_function_runtime", "return_type": "int" },
+      "das_entrypoint": "block_scope_function_runtime",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p113_block_scope_function_declarations_emit_the_function_at_module_scope",
+      "runtime": "required"
+    },
+    {
+      "id": "p114-assignment-arguments",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p114_assignment_arguments.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "assignment_arguments_runtime", "return_type": "int" },
+      "das_entrypoint": "assignment_arguments_runtime",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p114_assignment_arguments_are_hoisted_values",
+      "runtime": "required"
+    },
+    {
+      "id": "p115-unprototyped-function-values",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p115_unprototyped_function_values.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "unprototyped_function_values_runtime", "return_type": "int" },
+      "das_entrypoint": "unprototyped_function_values_runtime",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p115_unprototyped_designators_take_the_slot_type",
+      "runtime": "required"
+    },
+    {
+      "id": "p116-self-referencing-initializer",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p116_self_referencing_initializer.c",
+      "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "self_referencing_initializer_runtime", "return_type": "int" },
+      "das_entrypoint": "self_referencing_initializer_runtime",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "rust_assertion": "ptr_tests::p116_self_referencing_globals_are_initialised_by_init",
+      "runtime": "required"
+    },
+    {
       "id": "wasm3-fib32-std",
       "status": "ready",
       "source_root": "tests/manual/wasm3",

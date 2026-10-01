@@ -1171,10 +1171,11 @@ impl<'c> Translation<'c> {
                 }
                 // C decays a function designator to a pointer wherever a value
                 // is wanted. daScript has function values instead of function
-                // pointers, and `@@name` is how one is taken.
+                // pointers, and `@@name` is how one is taken
+                // (`functions.rs function_designator_value`).
                 if matches!(cast_kind, CastKind::FunctionToPointerDecay) {
-                    if let Some(name) = self.direct_function_reference(*expr) {
-                        return Ok(WithStmts::new_val(DaExpr::FuncRef(name)));
+                    if let Some(value) = self.function_designator_value(*expr, *ty)? {
+                        return Ok(WithStmts::new_val(value));
                     }
                 }
                 if matches!(cast_kind, CastKind::BooleanToSignedIntegral) {
@@ -2915,6 +2916,15 @@ impl<'c> Translation<'c> {
                     }
                 }
             }
+            // A block-scope function declaration (`void later(void);` inside a
+            // body) declares the file-scope function of that name (C11
+            // 6.2.2p4–5, 6.7.1p7: it cannot have a body and has linkage).  The
+            // exported C AST merges it with the function's other declarations,
+            // so its id is the function's own; the function is emitted, and
+            // named, at module scope like every other one.  The declaration
+            // itself produces nothing in the body — lowering it as a
+            // declaration statement printed the whole definition there.
+            CDeclKind::Function { .. } => Ok(crate::cfg::DeclStmtInfo::empty()),
             ref decl => {
                 let inserted = if let Some(ident) = decl.get_name() {
                     self.renamer.borrow_mut().insert(decl_id, ident).is_some()

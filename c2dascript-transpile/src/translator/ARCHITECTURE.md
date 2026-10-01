@@ -28,6 +28,21 @@ source-located diagnostic rather than given another target's integers.  A `std` 
 carries C library *text* — `strerror`'s catalogue — ships that text as one named implementation's
 (glibc's), spelled out in this module, never derived.
 
+Where a `std` entry point cannot be both exact and hosted on daslib, its behaviour is a
+documented choice ISO C or POSIX permits, never an approximation.  `system` is a hosted
+implementation without a command processor (C11 7.22.4.8): `system(NULL)` is 0 and any
+command runs nothing and returns -1 with `ENOSYS`.  `mkdir` never touches the file system
+(daslib's `mkdir` ignores the mode and reports no `errno`): it returns -1 with `EPERM`.
+`fabs` clears the sign bit, so `-0.0` and NaN come out exact (the non-std builtin
+`c2da_fabs_double` in `builtins.rs` is `x < 0 ? -x : x`, which keeps `-0.0`).  `sscanf`
+implements C11 7.21.6.2 for white-space directives, ordinary bytes, `%%` and `%d %i %o %u
+%x %X` without width, `*` or length modifier, reading the integer subject as glibc does
+(`0x` consumed for `%x`/`%i` even with no digit after it, the value `strtol`/`strtoul`'s,
+saturated with `ERANGE`, stored as its low 32 bits).  Every other directive fails closed: a
+literal format is a source-located translation error (`unsupported_scan_conversion`), a
+computed one panics in the helper.  `p110-std-string-extras`, `p111-std-sscanf` and
+`p112-std-sscanf-unsupported` are the fixtures.
+
 ## Natural records and storage-backed records
 
 A C struct is emitted as a daScript struct with its fields only when `layout.rs`
@@ -187,6 +202,41 @@ daslang `enum` (daslang does not zero-fill an enumeration with no zero member), 
 `array<T>`.
 When the body's first statement stores the last hoisted declaration, and the value does not
 name it, the value moves into the declaration.  `p102-local-declarations` is the fixture.
+
+A block-scope *function* declaration (`void later(void);` inside a body) produces no statement:
+it declares the file-scope function (C11 6.2.2p4–5).  When it is the function's first
+declaration it is Clang's canonical declaration, which the exporter gives the body and the
+definition's source range, while the file-scope definition arrives as a `NonCanonicalDecl`;
+the C AST import (`c_ast/conversion.rs`) puts the canonical declaration in the top-level
+list in that redeclaration's place, so the function is emitted once, at module scope.
+`p113-block-scope-function-decl` is the fixture.
+
+## Arguments, function designators and self-referencing globals
+
+- A call argument is always lowered as a used value (`functions.rs convert_function_call`),
+  whatever the call's own context: `show(x -= 8)` hoists the store and passes `x`.  Lowered
+  in a call statement's unused context the argument was a bare daScript assignment.
+  `p114-assignment-arguments`.
+- A decayed function designator is `@@f` of the type of `f`'s defining declaration.  C types
+  the designator by the declaration in scope, which may be unprototyped (`void f();`) and is
+  then stored in a `void (*)()` slot with no conversion (C11 6.7.6.3p15).  When the two
+  daScript types differ, `functions.rs function_designator_value` converts the value to the
+  type C gave it through `abi.rs abi_pointer_cast` (a `reinterpret`); the call through the
+  slot already converts back to the callee's type.
+  `p115-unprototyped-function-values`.
+- A module-level initializer that reaches its own object — naming it (`&table[1]` inside
+  `table`, an address constant) or through a call or `@@f` whose body reads it — is a
+  dependency cycle of one, which daslang rejects (`error[30177] ... can't be initialized with
+  itself`, `error[31104]: global variable initialization loop`).  `global_order.rs` routes
+  it, and every initializer that depends on it, through an `[init]` function
+  `c2da_gset_<name>` (not `c2da_ginit_<name>`, the statement initializer `functions.rs`
+  builds for a table of unions, which a cyclic object may also have).
+  `p116-self-referencing-initializer`.  Open hazard: the address of a storage-backed record
+  is its `c2da_storage` block, and `[init]` *replaces* the object, so an initializer that takes
+  the address of an element of a cyclic storage-backed object would read the storage of the
+  value being replaced.  Today such an object's declaration is left without an initializer,
+  which daslang refuses (`error[31014]`), so it fails closed; giving uninitialised
+  storage-backed globals their storage must also initialise a cyclic one in place.
 
 ## Memory copies go to daslang's builtins
 

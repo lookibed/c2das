@@ -481,6 +481,42 @@ impl ConversionContext {
             self.visit_node(untyped_context, node_id, new_id, expected_ty)
         }
 
+        // A function whose first declaration is at block scope (`void later(void);` inside a
+        // body) has that block-scope declaration as its canonical decl, and the exporter
+        // attaches the body and the definition's source range to the canonical one; the
+        // file-scope definition itself arrives as a `NonCanonicalDecl`.  The canonical decl is
+        // then not a Clang top-level node, so it would be emitted nowhere at module scope.
+        // It is a file-scope function (C11 6.2.2p5), so the top-level list names it in place of
+        // its top-level redeclaration.
+        let block_scope_canonical: Vec<(usize, CDeclId)> = self
+            .typed_context
+            .c_decls_top
+            .iter()
+            .enumerate()
+            .filter_map(|(index, top)| match self.typed_context.c_decls.get(top) {
+                Some(Located {
+                    kind: CDeclKind::NonCanonicalDecl { canonical_decl },
+                    ..
+                }) if matches!(
+                    self.typed_context.c_decls.get(canonical_decl),
+                    Some(Located {
+                        kind: CDeclKind::Function { .. },
+                        ..
+                    })
+                ) =>
+                {
+                    Some((index, *canonical_decl))
+                }
+                _ => None,
+            })
+            .filter(|(_, canonical)| !self.typed_context.c_decls_top.contains(canonical))
+            .collect();
+        for (index, canonical) in block_scope_canonical {
+            if !self.typed_context.c_decls_top.contains(&canonical) {
+                self.typed_context.c_decls_top[index] = canonical;
+            }
+        }
+
         // Function declarations' types look through typedefs, but we want to use the types with
         // typedefs intact in some cases during translation. To ensure that these types exist in the
         // `TypedAstContext`, iterate over all function decls, compute their adjusted type using
