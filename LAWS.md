@@ -13,8 +13,19 @@ diagnostic boundary.
 owner of raw-address/pointer/null conversions.  A daScript struct does not automatically prove a
 C struct layout.
 
+## 2026-09 — Named field access requires a daslang-checked layout proof
+
+A daScript struct still does not prove a C layout by itself.  A pointer field access may be
+spelled `p.field` only for a record `layout.rs` reports as proven, and only when the module
+carries, for that record, `static_assert`s that daslang's `sizeof`, `alignof` and every field's
+`offsetof` equal Clang's; daslang evaluates them at compile time in every run mode, so a
+divergence fails the build.  Unions, bitfields, packed or over-aligned records, storage-backed
+records, flexible array members, addresses of fields, fixed-array fields and aggregate copies
+stay on `object_memory.rs` byte offsets.
+
 ## 2026-08 — Canonical runtime and object memory
 
 Raw allocation and memory calls are declared by `runtime.rs`.  Pointer-backed C fields use
-addressed loads/stores from `object_memory.rs`; unsupported aggregate ABI and volatile/atomic
+addressed loads/stores from `object_memory.rs` (spelled by name only under the 2026-09 layout
+proof); unsupported aggregate ABI and volatile/atomic
 surfaces diagnose rather than silently degrade.

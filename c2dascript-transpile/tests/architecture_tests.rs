@@ -429,3 +429,88 @@ fn corpus_asm_simd_inventory_is_taken_from_typed_c_ast() {
         );
     }
 }
+
+/// The text of the function `name` in `source`, up to its closing brace at
+/// the method indentation.
+fn method_body<'a>(source: &'a str, name: &str) -> &'a str {
+    let start = source
+        .find(&format!("fn {name}("))
+        .unwrap_or_else(|| panic!("missing fn {name}"));
+    let end = source[start..]
+        .find("\n    }\n")
+        .unwrap_or_else(|| panic!("fn {name} has no end"));
+    &source[start..start + end]
+}
+
+/// `LAWS.md` 2026-09: a pointer field may be spelled `p.field` only for a
+/// record whose daslang layout the module proves equal to Clang's.  The
+/// source invariant: the by-name path is built in one place, which notes
+/// every record it names; module assembly refuses a named record without a
+/// proof; every natural-record declaration registers its proof.
+#[test]
+fn named_field_access_requires_a_layout_proof() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace root");
+    let translator = root.join("c2dascript-transpile/src/translator");
+    let read = |file: &str| {
+        std::fs::read_to_string(translator.join(file)).unwrap_or_else(|_| panic!("{file}"))
+    };
+    let object_memory = read("object_memory.rs");
+    let layout = read("layout.rs");
+    let mod_rs = read("mod.rs");
+
+    // One by-name lowering, and it notes every record on the path.
+    let lvalue = method_body(&object_memory, "named_field_lvalue");
+    assert!(
+        lvalue.contains("self.note_named_field_record(record)")
+            && lvalue.contains("for &record in &named.records"),
+        "named_field_lvalue must note every record it accesses by name"
+    );
+    for (index, _) in object_memory.match_indices("DaExpr::Field(Box::new(") {
+        let site = &object_memory[index..];
+        assert!(
+            site.starts_with("DaExpr::Field(Box::new(wrapper), \"c2da_storage\"")
+                || lvalue.contains(&site[..site.find('\n').unwrap_or(site.len())]),
+            "a field access outside named_field_lvalue in object_memory.rs: {}",
+            &site[..site.find('\n').unwrap_or(site.len())]
+        );
+    }
+    // The typed record pointer's conversion is an ABI crossing.
+    assert!(!object_memory.contains("DaExpr::reinterpret("));
+
+    // The by-name place is created from a proven record only.
+    for entry in std::fs::read_dir(&translator).expect("translator directory") {
+        let path = entry.expect("translator entry").path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).expect("translator source");
+        let file = path.file_name().unwrap().to_string_lossy().to_string();
+        let sites = text.matches("Some(NamedPlace {").count();
+        let expected = usize::from(file == "object_memory.rs");
+        assert_eq!(sites, expected, "NamedPlace construction in {file}");
+    }
+    let base = method_body(&object_memory, "pointer_member_address");
+    assert!(base.contains("CTypeKind::Struct(record) if self.record_has_proven_layout(record) =>"));
+    let field = method_body(&object_memory, "field_address");
+    assert!(field.contains(".filter(|&parent| self.record_has_proven_layout(parent))"));
+
+    // Module assembly refuses a record named without its proof.
+    let take = method_body(&layout, "take_layout_proof_declaration");
+    assert!(take.contains("accessed by name without a layout proof"));
+    assert_eq!(
+        mod_rs.matches("t.take_layout_proof_declaration()?").count(),
+        1
+    );
+
+    // Every natural-record declaration registers the proof of the fields it
+    // declares.
+    let structs = read("structs_unions.rs");
+    for (file, text) in [("mod.rs", &mod_rs), ("structs_unions.rs", &structs)] {
+        let builds = text.matches("self.natural_record_fields(").count();
+        let proofs = text.matches("self.register_layout_proof(").count();
+        assert!(builds > 0, "{file} builds no natural record");
+        assert_eq!(builds, proofs, "{file}: a natural record without its proof");
+    }
+}

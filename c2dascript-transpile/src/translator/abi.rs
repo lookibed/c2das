@@ -409,6 +409,71 @@ impl<'c> Translation<'c> {
         null_pointer(pointer)
     }
 
+    /// The daScript pointer type a C record pointer of type `base_ctype` is
+    /// given as the base of a field access by name (`p.field`), and whether
+    /// the pointer's own value has to be converted to it
+    /// ([`Self::named_field_base`]).
+    ///
+    /// C's `const S *p` gives `p->q` the field's declared type: a pointer
+    /// field is copied out as a plain `T *`.  daslang makes every field read
+    /// through an `S const?` itself `const`, and a `T? const` does not copy
+    /// into a `T?`.  The base is therefore the record pointer without its
+    /// pointee's `const` — exactly what the byte-offset path does when it
+    /// reinterprets the pointer to a raw `uint64` address.  A top-level
+    /// qualifier of the pointer object itself is not part of its value.
+    pub(crate) fn named_field_base_type(
+        &self,
+        base_ctype: CQualTypeId,
+    ) -> TranslationResult<(DaType, bool)> {
+        let mut base_type = writable_type(self.convert_type(base_ctype)?);
+        if let DaTypeKind::Pointer(pointee) = &mut base_type.kind {
+            let converts = pointee.is_const;
+            pointee.is_const = false;
+            return Ok((base_type, converts));
+        }
+        // A pointer typedef (`typedef struct S *SRef`) is a daScript alias of
+        // `S?`, which daslang treats as that very type; only a `const`
+        // pointee reached through the alias needs the conversion.
+        let CTypeKind::Pointer(pointee) = self.ast_context.resolve_type(base_ctype.ctype).kind
+        else {
+            return Err(TranslationError::generic(
+                "named field base is not a C pointer",
+            ));
+        };
+        let mut record = writable_type(self.convert_type(pointee)?);
+        record.is_const = false;
+        Ok((DaType::pointer(record), self.c_type_is_const(pointee)))
+    }
+
+    /// Whether a C type is `const`, directly or through the typedefs and
+    /// sugar it is spelled with.
+    fn c_type_is_const(&self, mut typ: CQualTypeId) -> bool {
+        loop {
+            if typ.qualifiers.is_const {
+                return true;
+            }
+            typ = match self.ast_context[typ.ctype].kind {
+                CTypeKind::Typedef(decl) => match self.ast_context[decl].kind {
+                    CDeclKind::Typedef { typ, .. } => typ,
+                    _ => return false,
+                },
+                CTypeKind::Attributed(inner, _) => inner,
+                CTypeKind::Elaborated(inner)
+                | CTypeKind::Paren(inner)
+                | CTypeKind::TypeOf(inner) => CQualTypeId::new(inner),
+                _ => return false,
+            };
+        }
+    }
+
+    /// Convert a `const` record pointer to the base type
+    /// [`Self::named_field_base_type`] chose.  daslang's simulation drops a
+    /// `reinterpret` (it compiles to its operand), so this costs nothing at
+    /// run time.
+    pub(crate) fn named_field_base(&self, pointer: DaExpr, base_type: &DaType) -> DaExpr {
+        DaExpr::reinterpret(pointer, base_type.clone())
+    }
+
     /// One operand of a C pointer comparison, as the `uint64` raw address the
     /// two sides are compared on, together with the statements that operand
     /// needs evaluated first.

@@ -1,9 +1,16 @@
 # Field access by name through proven records: `p.field` instead of byte offsets
 
 Recorded 2026-09-26 at `1173131c4` (daslang `69a589623`, clang 18.1.8, AMD Ryzen 7 7435HS,
-WSL2).  Research note plus a throwaway prototype measurement; nothing here is merged.
-The prototype diff was left uncommitted in the research worktree and is not part of the
-tree.
+WSL2).  Research note plus a throwaway prototype measurement.
+
+**Status: implemented** as the default lowering (no switch), per section 7's conditions:
+`LAWS.md` 2026-09, `translator/ARCHITECTURE.md` "Field access by name under a layout proof",
+fixtures `p104-field-by-name`, `p105-field-by-offset-kept` and the source invariant
+`architecture_tests::named_field_access_requires_a_layout_proof`.  The empty-struct and
+dropped-field conditions were met before it, on master (zero-sized fields make a record
+storage-backed; one natural-record field builder).  The proof covers every complete natural
+struct the module declares, not only the ones accessed by name.  The numbers below are the
+prototype's.
 
 ## The question
 

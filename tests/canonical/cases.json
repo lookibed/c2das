@@ -1206,6 +1206,40 @@
       "runtime": "required"
     },
     {
+      "id": "p104-field-by-name",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p104_field_by_name.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "kind=k count=40 tag=-3 weight=2.5 label=node flag=1\nconst label=node next=7 weight=2.50\nbump count=42 tag=-2 big=123456789abcdef0 calls=3\nchain=7\nraw count=42 tag=-2 kind=k\ncopy count=42 weight=2.5 next=7\npair=1242 lo=200\nsizes 16 56 16\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p104_proven_record_fields_are_accessed_by_name",
+      "runtime": "required"
+    },
+    {
+      "id": "p105-field-by-offset-kept",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p105_field_by_offset_kept.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "word=1020304 tag+byte=15 bits=475 packed=21 aligned=32 flex=15 buf=145\ndata[7]=8 tail=9 offsets 1 16 12\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p105_unproven_and_address_places_keep_byte_offsets",
+      "runtime": "required"
+    },
+    {
       "id": "n12-typedef-record-field-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n12_typedef_record_field_unsupported.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"

@@ -323,3 +323,24 @@ def union_declaration() {
     unsafe(unsafe(reinterpret<int?>(b_0.c2da_storage))[0]) = 99
     return
 }
+def c2da_layout_proofs() {
+    static_assert(typeinfo sizeof(type<AnonEnumInStruct>) == 0, "C layout of AnonEnumInStruct: sizeof")
+    static_assert(typeinfo alignof(type<AnonEnumInStruct>) == 1, "C layout of AnonEnumInStruct: alignof")
+    static_assert(typeinfo sizeof(type<AnonStructInStruct>) == 4, "C layout of AnonStructInStruct: sizeof")
+    static_assert(typeinfo alignof(type<AnonStructInStruct>) == 4, "C layout of AnonStructInStruct: alignof")
+    static_assert(typeinfo offsetof<c2da_unnamed>(type<AnonStructInStruct>) == 0, "C layout of AnonStructInStruct: offsetof c2da_unnamed")
+    static_assert(typeinfo sizeof(type<Unnamed>) == 4, "C layout of Unnamed: sizeof")
+    static_assert(typeinfo alignof(type<Unnamed>) == 4, "C layout of Unnamed: alignof")
+    static_assert(typeinfo offsetof<some_number>(type<Unnamed>) == 0, "C layout of Unnamed: offsetof some_number")
+    static_assert(typeinfo sizeof(type<NestedStructInStruct>) == 0, "C layout of NestedStructInStruct: sizeof")
+    static_assert(typeinfo alignof(type<NestedStructInStruct>) == 1, "C layout of NestedStructInStruct: alignof")
+    static_assert(typeinfo sizeof(type<InsideStruct>) == 4, "C layout of InsideStruct: sizeof")
+    static_assert(typeinfo alignof(type<InsideStruct>) == 4, "C layout of InsideStruct: alignof")
+    static_assert(typeinfo offsetof<yup>(type<InsideStruct>) == 0, "C layout of InsideStruct: offsetof yup")
+    static_assert(typeinfo sizeof(type<Unnamed_0>) == 4, "C layout of Unnamed_0: sizeof")
+    static_assert(typeinfo alignof(type<Unnamed_0>) == 4, "C layout of Unnamed_0: alignof")
+    static_assert(typeinfo offsetof<some_number>(type<Unnamed_0>) == 0, "C layout of Unnamed_0: offsetof some_number")
+    static_assert(typeinfo sizeof(type<InsideUnion>) == 4, "C layout of InsideUnion: sizeof")
+    static_assert(typeinfo alignof(type<InsideUnion>) == 4, "C layout of InsideUnion: alignof")
+    static_assert(typeinfo offsetof<yup>(type<InsideUnion>) == 0, "C layout of InsideUnion: offsetof yup")
+}

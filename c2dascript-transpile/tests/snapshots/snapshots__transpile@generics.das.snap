@@ -299,3 +299,11 @@ def foo() {
     ut_y = cx
     return
 }
+def c2da_layout_proofs() {
+    static_assert(typeinfo sizeof(type<s>) == 4, "C layout of s: sizeof")
+    static_assert(typeinfo alignof(type<s>) == 4, "C layout of s: alignof")
+    static_assert(typeinfo offsetof<x>(type<s>) == 0, "C layout of s: offsetof x")
+    static_assert(typeinfo sizeof(type<t>) == 4, "C layout of t: sizeof")
+    static_assert(typeinfo alignof(type<t>) == 4, "C layout of t: alignof")
+    static_assert(typeinfo offsetof<y>(type<t>) == 0, "C layout of t: offsetof y")
+}

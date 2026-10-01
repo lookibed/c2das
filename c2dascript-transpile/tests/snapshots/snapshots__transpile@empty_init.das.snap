@@ -281,3 +281,14 @@ def foo() {
     var f : Foo_s
     return
 }
+def c2da_layout_proofs() {
+    static_assert(typeinfo sizeof(type<Scope>) == 8, "C layout of Scope: sizeof")
+    static_assert(typeinfo alignof(type<Scope>) == 8, "C layout of Scope: alignof")
+    static_assert(typeinfo offsetof<next>(type<Scope>) == 0, "C layout of Scope: offsetof next")
+    static_assert(typeinfo sizeof(type<Foo_s>) == 4, "C layout of Foo_s: sizeof")
+    static_assert(typeinfo alignof(type<Foo_s>) == 4, "C layout of Foo_s: alignof")
+    static_assert(typeinfo offsetof<x>(type<Foo_s>) == 0, "C layout of Foo_s: offsetof x")
+    static_assert(typeinfo sizeof(type<Foo_t>) == 4, "C layout of Foo_t: sizeof")
+    static_assert(typeinfo alignof(type<Foo_t>) == 4, "C layout of Foo_t: alignof")
+    static_assert(typeinfo offsetof<x>(type<Foo_t>) == 0, "C layout of Foo_t: offsetof x")
+}

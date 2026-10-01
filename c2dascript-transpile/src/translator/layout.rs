@@ -27,7 +27,150 @@ pub(crate) struct CRecordLayout {
     pub field_offsets_bits: Vec<(CFieldId, u64)>,
 }
 
+/// The module's compile-time layout proofs and the records whose fields the
+/// module spells by name.
+///
+/// A natural record is emitted as a daScript struct on the strength of
+/// `is_storage_backed_record`'s model of daScript's layout.  The proof makes
+/// daslang check that model: for every natural record the module declares,
+/// `static_assert`s that daslang's `sizeof`, `alignof` and every field's
+/// `offsetof` equal Clang's.  A pointer field access spelled `p.field`
+/// (`object_memory.rs`) is only sound under that proof, so every record it
+/// names is noted here, and `take_layout_proof_declaration` refuses a module
+/// in which one of them has no proof.
+#[derive(Default)]
+pub(crate) struct LayoutProofs {
+    /// The assertions per emitted daScript struct name, in emission order.
+    proofs: indexmap::IndexMap<String, (CRecordId, Vec<DaStmt>)>,
+    /// The records whose fields are accessed by name.
+    named: IndexSet<CRecordId>,
+}
+
 impl<'c> Translation<'c> {
+    /// Whether the fields of a C record may be accessed by daScript field
+    /// name through a typed record pointer: a complete struct emitted with
+    /// its own fields (not storage-backed).  The layout equality this relies
+    /// on is proven by daslang at compile time (`register_layout_proof`).
+    pub(crate) fn record_has_proven_layout(&self, record: CRecordId) -> bool {
+        matches!(
+            self.ast_context[record].kind,
+            CDeclKind::Struct {
+                fields: Some(_),
+                ..
+            }
+        ) && !self.is_storage_backed_record(record)
+    }
+
+    /// Record the compile-time proof that the daScript struct `sname`, built
+    /// from `das_fields` for the natural C record `record`, has Clang's
+    /// size, alignment and field offsets.
+    pub(crate) fn register_layout_proof(
+        &self,
+        record: CRecordId,
+        sname: &str,
+        das_fields: &[DaField],
+    ) -> TranslationResult<()> {
+        if self.layout_proofs.borrow().proofs.contains_key(sname) {
+            return Ok(());
+        }
+        let layout = self.record_layout(record)?;
+        if layout.field_offsets_bits.len() != das_fields.len() {
+            return Err(TranslationError::generic(
+                "natural record fields do not match the Clang record layout",
+            ));
+        }
+        let ty = DaType::named(sname);
+        let assert = |trait_name: &str,
+                      subtrait: Option<&str>,
+                      expected: u64|
+         -> TranslationResult<DaStmt> {
+            let expected = i64::try_from(expected)
+                .ok()
+                .filter(|value| *value <= i64::from(i32::MAX))
+                .ok_or_else(|| {
+                    TranslationError::generic("C record layout exceeds daScript typeinfo range")
+                })?;
+            let what = match subtrait {
+                Some(field) => format!("{trait_name} {field}"),
+                None => trait_name.to_owned(),
+            };
+            Ok(DaStmt::Expr(DaExpr::Call(
+                Box::new(DaExpr::Var("static_assert".into())),
+                vec![
+                    DaExpr::Op2 {
+                        op: "==",
+                        left: Box::new(DaExpr::TypeInfo {
+                            trait_name: trait_name.to_owned(),
+                            subtrait: subtrait.map(str::to_owned),
+                            type_arg: Box::new(ty.clone()),
+                        }),
+                        right: Box::new(DaExpr::ConstInt(expected)),
+                    },
+                    DaExpr::ConstString(format!("C layout of {sname}: {what}")),
+                ],
+            )))
+        };
+        let mut stmts = vec![
+            assert("sizeof", None, layout.object.size_bytes)?,
+            assert("alignof", None, layout.object.align_bytes)?,
+        ];
+        for ((_, bits), field) in layout.field_offsets_bits.iter().zip(das_fields) {
+            if bits % 8 != 0 {
+                return Err(TranslationError::generic(
+                    "natural record field is not byte-addressable",
+                ));
+            }
+            stmts.push(assert("offsetof", Some(&field.name), bits / 8)?);
+        }
+        self.layout_proofs
+            .borrow_mut()
+            .proofs
+            .insert(sname.to_owned(), (record, stmts));
+        Ok(())
+    }
+
+    /// Note that the module accesses a field of `record` by name.
+    pub(crate) fn note_named_field_record(&self, record: CRecordId) {
+        self.layout_proofs.borrow_mut().named.insert(record);
+    }
+
+    /// The module's one layout-proof function, `None` when it declares no
+    /// natural record.
+    ///
+    /// daslang has no module-scope `static_assert`, but it infers every
+    /// function, an uncalled private one included, and a failing
+    /// `static_assert` stops the compilation in every run mode (interpreter,
+    /// `-jit`, `-exe`, `-aot`) before anything runs; the assertions compile
+    /// to nothing.  A record accessed by name without a proof is refused.
+    pub(crate) fn take_layout_proof_declaration(&self) -> TranslationResult<Option<DaDecl>> {
+        let LayoutProofs { proofs, named } = std::mem::take(&mut *self.layout_proofs.borrow_mut());
+        for record in &named {
+            if !proofs.values().any(|(proven, _)| proven == record) {
+                return Err(TranslationError::generic(
+                    "C record fields are accessed by name without a layout proof",
+                ));
+            }
+        }
+        if proofs.is_empty() {
+            return Ok(None);
+        }
+        let name = self
+            .renamer
+            .borrow_mut()
+            .pick_name_root("c2da_layout_proofs");
+        Ok(Some(DaDecl::Function(DaFunction {
+            name,
+            params: vec![],
+            ret_type: DaType::void(),
+            body: Some(DaExpr::Block(DaBlock {
+                stmts: proofs.into_values().flat_map(|(_, stmts)| stmts).collect(),
+            })),
+            annotations: vec![],
+            is_public: false,
+            is_unsafe: false,
+        })))
+    }
+
     pub(crate) fn layout_of(&self, typ: CTypeId) -> TranslationResult<CLayout> {
         if let Some(layout) = self.layout_cache.borrow().get(&typ).copied() {
             return Ok(layout);

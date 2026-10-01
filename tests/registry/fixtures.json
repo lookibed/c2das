@@ -4279,6 +4279,62 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p104-field-by-name",
+      "canonical_cases": [
+        "p104-field-by-name"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "kind=k count=40 tag=-3 weight=2.5 label=node flag=1\nconst label=node next=7 weight=2.50\nbump count=42 tag=-2 big=123456789abcdef0 calls=3\nchain=7\nraw count=42 tag=-2 kind=k\ncopy count=42 weight=2.5 next=7\npair=1242 lo=200\nsizes 16 56 16\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p104_field_by_name",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p104_field_by_name.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p105-field-by-offset-kept",
+      "canonical_cases": [
+        "p105-field-by-offset-kept"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "word=1020304 tag+byte=15 bits=475 packed=21 aligned=32 flex=15 buf=145\ndata[7]=8 tail=9 offsets 1 16 12\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p105_field_by_offset_kept",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p105_field_by_offset_kept.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-p10-ptr-swap",
       "canonical_cases": [
         "legacy-p10-ptr-swap"

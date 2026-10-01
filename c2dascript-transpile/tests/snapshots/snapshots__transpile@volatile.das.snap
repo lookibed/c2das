@@ -284,3 +284,8 @@ def test_volatile() {
     volatile_global_struct.p = unsafe(volatile_global_struct.p - 1)
     return
 }
+def c2da_layout_proofs() {
+    static_assert(typeinfo sizeof(type<S>) == 8, "C layout of S: sizeof")
+    static_assert(typeinfo alignof(type<S>) == 8, "C layout of S: alignof")
+    static_assert(typeinfo offsetof<p>(type<S>) == 0, "C layout of S: offsetof p")
+}

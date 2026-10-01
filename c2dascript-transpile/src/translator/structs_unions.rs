@@ -61,12 +61,25 @@ impl<'c> Translation<'c> {
                 return self.storage_backed_record_decl(decl_id, sname);
             }
             das_fields = self.natural_record_fields(decl_id, ids)?;
+            // Every complete natural struct the module declares carries its
+            // compile-time layout proof (`layout.rs register_layout_proof`);
+            // the typedef-of-anonymous-struct path registers it the same way.
+            self.register_layout_proof(decl_id, &sname, &das_fields)?;
         }
         Ok(DaDecl::Structure(DaStructure {
             name: sname,
             fields: das_fields,
             annotations: vec![],
         }))
+    }
+
+    /// The daScript name of a field of a natural record, exactly as
+    /// `natural_record_fields` declares it, or `None` while the record's
+    /// field names are not declared yet.
+    pub(crate) fn natural_field_name(&self, record: CRecordId, field: CFieldId) -> Option<String> {
+        self.type_converter
+            .borrow()
+            .resolve_field_name(Some(record), field)
     }
 
     /// The daScript fields of a C struct whose layout `layout.rs` reports as
@@ -332,6 +345,7 @@ impl<'c> Translation<'c> {
             ctype: CQualTypeId::new(self.record_ctype(record_id)?),
             byte_offset: 0,
             storage_size_bytes: None,
+            named: None,
         })
     }
 
@@ -688,6 +702,7 @@ impl<'c> Translation<'c> {
                 },
                 byte_offset: 0,
                 storage_size_bytes: None,
+                named: None,
             },
             field,
         )

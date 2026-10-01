@@ -258,6 +258,9 @@ pub struct Translation<'c> {
     /// daScript record with the same fields. See
     /// [`Translation::is_storage_backed_record`].
     pub(crate) storage_backed_cache: RefCell<HashMap<CRecordId, bool>>,
+    /// The natural records' compile-time layout proofs and the records
+    /// accessed by field name. See [`self::layout::LayoutProofs`].
+    pub(crate) layout_proofs: RefCell<self::layout::LayoutProofs>,
     /// [`Translation::da_type_zero_fills`]'s verdict per named daScript type.
     pub(crate) named_zero_fill_cache: RefCell<HashMap<String, bool>>,
     /// Module-level variables synthesised while lowering function bodies.
@@ -302,6 +305,7 @@ impl<'c> Translation<'c> {
             emitted_anon_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             layout_cache: RefCell::new(HashMap::new()),
             storage_backed_cache: RefCell::new(HashMap::new()),
+            layout_proofs: RefCell::default(),
             named_zero_fill_cache: RefCell::new(HashMap::new()),
             hoisted_statics: RefCell::new(vec![]),
             hoisted_types: RefCell::new(vec![]),
@@ -459,18 +463,23 @@ impl<'c> Translation<'c> {
                                         }
                                     }
                                 }
-                                // The one natural-record field builder: a
-                                // field that does not convert is a located
-                                // error, never a dropped field.
+                                // The one natural-record builder: a field
+                                // that does not convert is a located error,
+                                // never a dropped field, and the record's
+                                // layout proof is registered.
                                 let das_fields = match fields {
                                     Some(fids) => self.natural_record_fields(*rec_id, fids)?,
                                     None => vec![],
                                 };
+                                let sname = self
+                                    .type_converter
+                                    .borrow_mut()
+                                    .ensure_decl_name(decl_id, &typedef_target);
+                                if fields.is_some() {
+                                    self.register_layout_proof(*rec_id, &sname, &das_fields)?;
+                                }
                                 return Ok(DaDecl::Structure(DaStructure {
-                                    name: self
-                                        .type_converter
-                                        .borrow_mut()
-                                        .ensure_decl_name(decl_id, &typedef_target),
+                                    name: sname,
                                     fields: das_fields,
                                     annotations: vec![],
                                 }));
@@ -3902,6 +3911,11 @@ fn translate_impl(
     // The `std` entry wrapper calls the translated C `main`, so it comes after
     // every translated function.
     module_decls.extend(libc::take_entry_declarations());
+    // The compile-time proof that every natural record's daScript layout is
+    // Clang's is a fact about the module's type section, emitted once after
+    // every owner has declared its records and lowered every field access
+    // (`layout.rs take_layout_proof_declaration`).
+    module_decls.extend(t.take_layout_proof_declaration()?);
 
     // The null-dereference policy is a property of the whole module, not of
     // one lowering: daScript decides it per *function*, and every function in

@@ -17,6 +17,29 @@ pub(crate) struct CObjectAddress {
     /// Field storage width exported by Clang. This preserves the layout
     /// contract through typedef wrappers which do not own a CTypeId layout.
     pub storage_size_bytes: Option<u64>,
+    /// The same place spelled as a daScript field path below the typed
+    /// record pointer `raw`, kept only while every record on the path has a
+    /// proven layout (`layout.rs record_has_proven_layout`) and no field on
+    /// it is a bitfield.  `None` is the byte-offset place.
+    pub named: Option<NamedPlace>,
+}
+
+/// A field path below a typed C record pointer, the by-name form of a
+/// [`CObjectAddress`].  `byte_offset` of the same address stays Clang's
+/// offset of the place; the path is the daScript spelling of it, valid
+/// because the module proves at compile time that daslang lays every record
+/// on the path out at Clang's offsets.
+#[derive(Clone)]
+pub(crate) struct NamedPlace {
+    /// The daScript type of the base pointer (`S?`), without the pointee
+    /// `const` a `const S *` has (`abi.rs named_field_base_type`).
+    pub base_type: DaType,
+    /// `raw` is a `const S *` value still to be converted to `base_type`.
+    pub base_converts: bool,
+    /// Every record the path steps through, outermost first.
+    pub records: Vec<CRecordId>,
+    /// The daScript field names, outermost first.
+    pub path: Vec<String>,
 }
 
 impl<'c> Translation<'c> {
@@ -117,6 +140,7 @@ impl<'c> Translation<'c> {
                     ctype,
                     byte_offset: 0,
                     storage_size_bytes: None,
+                    named: None,
                 }))
             }
             // `p[i]` on a record pointer is `*(p + i)`, and C scales it by the
@@ -130,6 +154,7 @@ impl<'c> Translation<'c> {
                     ctype,
                     byte_offset: 0,
                     storage_size_bytes: None,
+                    named: None,
                 }))
             }
             // `q->u` and longer chains are already address-backed places.  A
@@ -157,6 +182,7 @@ impl<'c> Translation<'c> {
             ctype,
             byte_offset: 0,
             storage_size_bytes: None,
+            named: None,
         }))
     }
 
@@ -287,7 +313,24 @@ impl<'c> Translation<'c> {
                 ))
             }
         };
-        let _ = bitfield_width;
+        // The by-name spelling extends only through a typed record pointer,
+        // a record whose layout the module proves, and a field that has a
+        // daScript field of its own (a bitfield has none).
+        let named = match base.named {
+            Some(mut named) if bitfield_width.is_none() && !base.raw_is_address => self
+                .ast_context
+                .parents
+                .get(&field)
+                .copied()
+                .filter(|&parent| self.record_has_proven_layout(parent))
+                .and_then(|parent| {
+                    let name = self.natural_field_name(parent, field)?;
+                    named.records.push(parent);
+                    named.path.push(name);
+                    Some(named)
+                }),
+            _ => None,
+        };
         let offset = u64::try_from(offset)
             .map_err(|_| TranslationError::generic("negative C field offset from Clang"))?;
         let byte_offset = base
@@ -301,6 +344,7 @@ impl<'c> Translation<'c> {
             byte_offset,
             storage_size_bytes: (platform_type_bitwidth % 8 == 0)
                 .then_some(platform_type_bitwidth / 8),
+            named,
         })
     }
 
@@ -327,6 +371,7 @@ impl<'c> Translation<'c> {
             ctype,
             byte_offset,
             storage_size_bytes,
+            named,
         } = address;
         let WithStmts {
             stmts,
@@ -341,6 +386,7 @@ impl<'c> Translation<'c> {
                 ctype,
                 byte_offset,
                 storage_size_bytes,
+                named,
             },
         )
     }
@@ -366,17 +412,45 @@ impl<'c> Translation<'c> {
         if raw_address_is_reevaluable(&address.raw.val) {
             return (stmts, address);
         }
-        // The place is kept in its raw byte form: that type is known here
-        // without consulting the C type of whatever produced the address.
         let CObjectAddress {
             raw,
             raw_is_address,
             ctype,
             byte_offset,
             storage_size_bytes,
+            named,
         } = address;
         let tmp = self.renamer.borrow_mut().fresh();
         let is_unsafe = raw.is_unsafe;
+        // A by-name place keeps its typed record pointer, bound once in the
+        // base type the field path starts from.
+        if let (Some(mut named), false) = (named, raw_is_address) {
+            let base = if named.base_converts {
+                self.named_field_base(raw.val, &named.base_type)
+            } else {
+                raw.val
+            };
+            named.base_converts = false;
+            stmts.push(DaStmt::Var {
+                name: tmp.clone(),
+                var_type: named.base_type.clone(),
+                init: Some(base),
+            });
+            return (
+                stmts,
+                CObjectAddress {
+                    raw: WithStmts::new_val(DaExpr::Var(tmp)).merge_unsafe(is_unsafe),
+                    raw_is_address: false,
+                    ctype,
+                    byte_offset,
+                    storage_size_bytes,
+                    named: Some(named),
+                },
+            );
+        }
+        // Otherwise the place is kept in its raw byte form: that type is
+        // known here without consulting the C type of whatever produced the
+        // address.
         let byte_address = if raw_is_address {
             raw.val
         } else {
@@ -395,6 +469,7 @@ impl<'c> Translation<'c> {
                 ctype,
                 byte_offset,
                 storage_size_bytes,
+                named: None,
             },
         )
     }
@@ -415,6 +490,9 @@ impl<'c> Translation<'c> {
         if let Some(record_id) = self.storage_backed_record_of(address.ctype.ctype) {
             let raw = self.raw_byte_address(&address);
             return self.load_storage_object(record_id, raw);
+        }
+        if let Some(lvalue) = self.named_field_lvalue(&address) {
+            return Ok(lvalue);
         }
         if matches!(ty.kind, CTypeKind::ConstantArray(..) | CTypeKind::Struct(_)) {
             // A record or fixed array whose daScript layout matches Clang's is
@@ -501,7 +579,7 @@ impl<'c> Translation<'c> {
             return self.store_natural_aggregate(address, value);
         }
         let storage_size = self.raw_storage_size(&address)?;
-        if self.address_is_typed_aligned(&address)? {
+        if self.is_named_field_leaf(&address) || self.address_is_typed_aligned(&address)? {
             let lvalue = self.raw_load(address)?;
             let mut stmts = lvalue.stmts;
             stmts.extend(value.stmts);
@@ -802,11 +880,22 @@ impl<'c> Translation<'c> {
                 ))
             }
         };
-        match self.ast_context.resolve_type(pointee.ctype).kind {
+        let named = match self.ast_context.resolve_type(pointee.ctype).kind {
+            // A typed pointer to a record whose layout the module proves is
+            // the base of a by-name field path.
+            CTypeKind::Struct(record) if self.record_has_proven_layout(record) => {
+                let (base_type, base_converts) = self.named_field_base_type(base_ctype)?;
+                Some(NamedPlace {
+                    base_type,
+                    base_converts,
+                    records: vec![],
+                    path: vec![],
+                })
+            }
             // A pointer to a union points at the union's bytes, exactly like a
             // pointer to a struct: `&u` yields the wrapper's storage address,
             // never the wrapper itself.
-            CTypeKind::Struct(_) | CTypeKind::Union(_) => {}
+            CTypeKind::Struct(_) | CTypeKind::Union(_) => None,
             _ => {
                 return Err(TranslationError::generic(
                     "member pointer does not point to a C record",
@@ -820,9 +909,57 @@ impl<'c> Translation<'c> {
                 ctype: base_ctype,
                 byte_offset: 0,
                 storage_size_bytes: None,
+                named,
             },
             field,
         )
+    }
+
+    /// Whether an address is a scalar or pointer field spelled by name: a
+    /// non-empty field path below a typed record pointer whose leaf is not
+    /// an aggregate.  A record or fixed-array leaf is a by-value copy and a
+    /// fixed-array field decays to an address; both keep the byte form.
+    fn is_named_field_leaf(&self, address: &CObjectAddress) -> bool {
+        match &address.named {
+            Some(named) if !address.raw_is_address && !named.path.is_empty() => !matches!(
+                self.ast_context.resolve_type(address.ctype.ctype).kind,
+                CTypeKind::ConstantArray(..)
+                    | CTypeKind::IncompleteArray(..)
+                    | CTypeKind::VariableArray(..)
+                    | CTypeKind::Struct(_)
+                    | CTypeKind::Union(_)
+            ),
+            _ => false,
+        }
+    }
+
+    /// `p.f` (or `p.inner.f`) for a scalar or pointer field reached by name:
+    /// an assignable daScript lvalue of the field's own declared type.
+    ///
+    /// This is the only place a pointer field access is spelled by name.
+    /// Every record on the path is noted for the module's layout proof
+    /// (`layout.rs note_named_field_record`); module assembly refuses a
+    /// named record without one.  A null record pointer raises daslang's
+    /// located null-dereference exception here (C: undefined behaviour);
+    /// `unsafe_deref` removes that check as it removes the indexed load's.
+    fn named_field_lvalue(&self, address: &CObjectAddress) -> Option<WithStmts<DaExpr>> {
+        if !self.is_named_field_leaf(address) {
+            return None;
+        }
+        let named = address.named.as_ref()?;
+        for &record in &named.records {
+            self.note_named_field_record(record);
+        }
+        Some(address.raw.clone().map(|raw| {
+            let base = if named.base_converts {
+                self.named_field_base(raw, &named.base_type)
+            } else {
+                raw
+            };
+            named.path.iter().fold(base, |base, field| {
+                DaExpr::Field(Box::new(base), field.clone())
+            })
+        }))
     }
 
     pub(crate) fn pointer_member_lvalue(

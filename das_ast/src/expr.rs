@@ -178,9 +178,13 @@ pub enum DaExpr {
     },
 
     // -- typeinfo --
-    /// `typeinfo trait_name(type<T>)` — maps to [`ExprTypeInfo`](ast_expressions.h:1222)
+    /// `typeinfo trait_name(type<T>)`, or `typeinfo trait_name<subtrait>(type<T>)`
+    /// when the trait names a member (`typeinfo offsetof<field>(type<S>)`) —
+    /// maps to [`ExprTypeInfo`](ast_expressions.h:1222), whose `subtrait` is
+    /// the identifier between the angle brackets.
     TypeInfo {
         trait_name: String,
+        subtrait: Option<String>,
         type_arg: Box<DaType>,
     },
 }
@@ -815,10 +819,16 @@ impl DaExpr {
 
             TypeInfo {
                 trait_name,
+                subtrait,
                 type_arg,
-            } => {
-                write!(f, "typeinfo {}(type<{}>)", trait_name, type_arg)
-            }
+            } => match subtrait {
+                Some(subtrait) => write!(
+                    f,
+                    "typeinfo {}<{}>(type<{}>)",
+                    trait_name, subtrait, type_arg
+                ),
+                None => write!(f, "typeinfo {}(type<{}>)", trait_name, type_arg),
+            },
         }
     }
 }
@@ -910,6 +920,22 @@ mod tests {
              write_char(writer, 65)\n    })\n    return build_string($(var writer : \
              StringBuilderWriter) {\n        write_char(writer, 65)\n    })\n}"
         );
+    }
+
+    #[test]
+    fn typeinfo_prints_its_subtrait_between_angle_brackets() {
+        let plain = DaExpr::TypeInfo {
+            trait_name: "sizeof".to_string(),
+            subtrait: None,
+            type_arg: Box::new(DaType::named("S")),
+        };
+        assert_eq!(plain.to_string(), "typeinfo sizeof(type<S>)");
+        let member = DaExpr::TypeInfo {
+            trait_name: "offsetof".to_string(),
+            subtrait: Some("bit_index".to_string()),
+            type_arg: Box::new(DaType::named("S")),
+        };
+        assert_eq!(member.to_string(), "typeinfo offsetof<bit_index>(type<S>)");
     }
 
     #[test]

@@ -383,6 +383,126 @@ fn p103_records_with_zero_sized_fields_are_storage_backed() {
 }
 
 #[test]
+fn p104_proven_record_fields_are_accessed_by_name() {
+    let d = transpile_with_libc("p104_field_by_name", c2dascript_transpile::LibcMode::Std);
+    // Loads and stores of scalar and pointer fields, one level and nested,
+    // through a typed record pointer.
+    for line in [
+        "    n_0.count = 40\n",
+        "    n_0.inner.tag = int16(-3)\n",
+        "    n_0.inner.weight = 2.5lf\n",
+        "    n_0.next = next\n",
+        "    n_0.big = 0x123456789abcdeful\n",
+        "    return n_5.next.count\n",
+        "    return uint(p.lo) + p.hi + uint(p.owner.count)\n",
+        "    pp.hi = 1000u\n",
+    ] {
+        assert!(d.contains(line), "missing by-name access: {line:?}");
+    }
+    // A `const S *` base is converted once to `S?` (abi.rs), so a pointer
+    // field reads out as a plain pointer.
+    assert!(d.contains("def weight_of(var n_3 : Node const?) : double {\n    return unsafe(reinterpret<Node?>(n_3)).inner.weight\n}"));
+    assert!(d.contains("unsafe(reinterpret<Node?>(n_1)).label_0"));
+    // A read-modify-write through a call evaluates the call once and binds
+    // the typed record pointer, not a raw address.
+    assert!(d.contains(
+        "    var c2da_fresh0 : Node? = unsafe(reinterpret<Node?>(pick(n_4)))\n    c2da_fresh0.count = c2da_fresh0.count + 2\n"
+    ));
+    assert_eq!(d.matches("pick(n_4)").count(), 3);
+    // No byte-offset field access is left in the functions that use only
+    // scalar and pointer leaves.
+    for function in [
+        "fill",
+        "label_of",
+        "next_of",
+        "weight_of",
+        "bump",
+        "second_count",
+        "sum_pair",
+    ] {
+        let start = d
+            .find(&format!("def {function}("))
+            .unwrap_or_else(|| panic!("missing {function}"));
+        let body = &d[start..start + d[start..].find("\n}\n").expect("function end")];
+        assert!(
+            !body.contains("reinterpret<uint64>"),
+            "{function} still uses a byte offset:\n{body}"
+        );
+    }
+    // Every record accessed by name has its compile-time layout proof, the
+    // typedef'd anonymous struct included.
+    assert_eq!(d.matches("def c2da_layout_proofs() {\n").count(), 1);
+    for assertion in [
+        "static_assert(typeinfo sizeof(type<Node>) == 56, \"C layout of Node: sizeof\")",
+        "static_assert(typeinfo alignof(type<Node>) == 8, \"C layout of Node: alignof\")",
+        "static_assert(typeinfo offsetof<count>(type<Node>) == 4, \"C layout of Node: offsetof count\")",
+        "static_assert(typeinfo offsetof<inner>(type<Node>) == 8, \"C layout of Node: offsetof inner\")",
+        "static_assert(typeinfo offsetof<flag>(type<Node>) == 48, \"C layout of Node: offsetof flag\")",
+        "static_assert(typeinfo offsetof<weight>(type<Inner>) == 8, \"C layout of Inner: offsetof weight\")",
+        "static_assert(typeinfo sizeof(type<Pair>) == 16, \"C layout of Pair: sizeof\")",
+        "static_assert(typeinfo offsetof<owner>(type<Pair>) == 8, \"C layout of Pair: offsetof owner\")",
+    ] {
+        assert!(d.contains(assertion), "missing layout proof: {assertion}");
+    }
+}
+
+#[test]
+fn p105_unproven_and_address_places_keep_byte_offsets() {
+    let d = transpile_with_libc(
+        "p105_field_by_offset_kept",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // Union, a record containing one, bitfields, packed, over-aligned and a
+    // flexible array member are storage-backed: Clang offsets only.
+    for (function, access) in [
+        (
+            "word_of",
+            "unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(w))))[0])",
+        ),
+        (
+            "tag_and_byte",
+            "unsafe(unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(h))))[0])",
+        ),
+        (
+            "bits_of",
+            "unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(b))))[0]) >> 3",
+        ),
+        ("packed_of", "unsafe(reinterpret<uint64>(p)) + 1ul, 4ul)"),
+        (
+            "aligned_of",
+            "unsafe(unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(a))))[4])",
+        ),
+        (
+            "flex_sum",
+            "unsafe(unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(f))))[0])",
+        ),
+    ] {
+        let start = d
+            .find(&format!("def {function}("))
+            .unwrap_or_else(|| panic!("missing {function}"));
+        let body = &d[start..start + d[start..].find("\n}\n").expect("function end")];
+        assert!(
+            body.contains(access),
+            "{function} lost its byte offset:\n{body}"
+        );
+    }
+    for record in ["Word", "HasUnion", "Bits", "Packed", "Aligned", "Flex"] {
+        assert!(
+            !d.contains(&format!("type<{record}>")),
+            "a storage-backed record has no daslang layout to prove: {record}"
+        );
+    }
+    // In the proven `Buf`, the scalar fields go by name while the address of
+    // a field and an element of a fixed-array field stay on offsets.
+    assert!(d.contains("    s_0 = b_0.len + b_0.tail\n"));
+    assert!(d.contains("unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(b_0)) + 12ul))"));
+    assert!(d.contains("unsafe(reinterpret<uint8?>(unsafe(reinterpret<uint64>(b_0)) + 4ul))"));
+    assert!(d.contains(
+        "static_assert(typeinfo offsetof<data>(type<Buf>) == 4, \"C layout of Buf: offsetof data\")"
+    ));
+}
+
+#[test]
 fn n12_typedef_record_field_is_diagnosed_not_dropped() {
     assert_precise_translation_error(
         "n12_typedef_record_field_unsupported",
@@ -625,10 +745,15 @@ fn p34_records_and_unions_use_clang_layout_facts() {
 fn p35_pointer_backed_struct_uses_c_field_offsets() {
     let d = transpile("p35_pointer_backed_struct");
     assert!(d.contains("def pointer_backed_struct_runtime() : int"));
+    // The record's layout is proven, so the padded field is reached by name,
+    // and the module asserts that daslang puts it at Clang's offset 8.
     assert!(
-        d.contains("reinterpret<uint?>(") && d.contains("))[2]"),
-        "padded C field must use an address-backed uint lvalue at Clang offset 8"
+        d.contains("    object.value = 0x10203040u\n"),
+        "a field of a proven record is accessed by name"
     );
+    assert!(d.contains(
+        "static_assert(typeinfo offsetof<value>(type<padded_object>) == 8, \"C layout of padded_object: offsetof value\")"
+    ));
 }
 
 #[test]
@@ -662,11 +787,15 @@ fn p40_nested_raw_aggregate_is_an_address_chain_not_an_rvalue() {
         !d.contains("aggregate C object rvalue from raw storage is not implemented"),
         "nested field access must reach its scalar leaf through raw addresses"
     );
+    // `object->inner.count` is a by-name path through two proven records;
+    // the proof pins `inner` at Clang's offset 4.
     assert!(
-        d.contains("reinterpret<uint?>(") && d.contains("))[1]"),
-        "Clang offset 4 for inner.count must become the uint storage index"
+        d.contains("    object.inner.count = 0x10203040u\n"),
+        "a nested field of proven records is accessed by name"
     );
-    assert!(d.contains("0x10203040") || d.contains("270544960"));
+    assert!(d.contains(
+        "static_assert(typeinfo offsetof<inner>(type<nested_outer>) == 4, \"C layout of nested_outer: offsetof inner\")"
+    ));
 }
 
 #[test]

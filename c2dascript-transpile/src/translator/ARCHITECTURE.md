@@ -42,6 +42,33 @@ typedef-of-anonymous-struct path; a field whose type does not convert is a sourc
 error, never a dropped field.  `p103-zero-sized-fields` and
 `n12-typedef-record-field-unsupported` are the fixtures.
 
+## Field access by name under a layout proof
+
+`is_storage_backed_record` models daScript's layout from Clang's field facts; daslang checks
+that model.  Every complete natural struct the module declares registers, from both builders,
+`static_assert(typeinfo sizeof/alignof(type<S>) == ..)` and one
+`static_assert(typeinfo offsetof<f>(type<S>) == ..)` per field with Clang's numbers
+(`layout.rs register_layout_proof`).  daslang has no module-scope `static_assert`, but it infers
+every function, an uncalled private one included, so `mod.rs` emits them once as the body of
+`c2da_layout_proofs` after every owner has contributed (`take_layout_proof_declaration`).  A
+mismatch stops `daslang`, `-jit`, `-exe` and `-aot` at compile time; the assertions compile to
+nothing, and daslang's AOT C++ in turn asserts daslang's layout against the C++ compiler's.
+
+On that proof, a C pointer field access whose leaf is a scalar or pointer and whose every record
+on the path is proven (`record_has_proven_layout`) is spelled `p.field` / `p.inner.field`
+(`object_memory.rs`: `CObjectAddress::named`, extended by `field_address`, spelled only by
+`named_field_lvalue`, which notes each record; assembly refuses a noted record without a proof).
+A read-modify-write binds the typed `S?` base once (`materialize_address`).  A `const S *` base
+is reinterpreted once to `S?` (`abi.rs named_field_base_type` / `named_field_base`): daslang
+makes a field read through `S const?` const, and `T? const` does not copy into `T?`; the
+reinterpret compiles to its operand.  A null base raises daslang's located exception in the
+interpreter (the indexed load faulted) and is unchanged elsewhere; `unsafe_deref` drops the
+check as it drops the index check.  What stays on byte offsets: addresses of fields (`&p->f`),
+fixed-array fields (`p->arr[i]` — daslang bounds-checks a fixed-array index and C indexes past
+field arrays; a separate decision), whole-record and whole-array copies, bitfields, unions and
+every storage-backed record.  `p104-field-by-name`, `p105-field-by-offset-kept` and the source
+invariant `named_field_access_requires_a_layout_proof` are the fixtures.
+
 ## Module-wide policy
 
 Facts that hold for the whole output rather than for one lowering — the `options` header and
