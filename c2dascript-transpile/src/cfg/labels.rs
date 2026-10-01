@@ -65,28 +65,183 @@ enum Tail {
     IfGoto(DaExpr, Label),
     /// `if cond { goto then } else { goto else }`.
     IfElseGoto(DaExpr, Label, Label),
-    /// A `switch` dispatch: compare the scrutinee against each case value in
-    /// turn, and take the default arm otherwise.  `default` is `None` when the
-    /// default arm is the next block in layout order.
+    /// A `switch` dispatch: find the arm of the scrutinee's value through
+    /// `tree`, and take the default arm when no case matches.  `default` is
+    /// `None` when the default arm is the next block in layout order.
     Dispatch {
         scrutinee: DaExpr,
-        cases: Vec<(DaExpr, Label)>,
+        tree: DispatchTree,
         default: Option<Label>,
     },
 }
 
 impl Tail {
-    /// Every label this tail jumps to, and therefore needs a `label N:` on.
+    /// Every label this tail jumps to by name, and therefore needs a
+    /// `label N:` on.  A jump table reaches its targets by number instead,
+    /// through the aliases numbered after these (see [`render_once`]).
     fn targets(&self) -> Vec<&Label> {
         match self {
             Tail::FallThrough | Tail::End => vec![],
             Tail::Goto(l) | Tail::IfGoto(_, l) => vec![l],
             Tail::IfElseGoto(_, t, f) => vec![t, f],
-            Tail::Dispatch { cases, default, .. } => {
-                cases.iter().map(|(_, l)| l).chain(default.iter()).collect()
+            Tail::Dispatch { tree, default, .. } => {
+                let mut targets = Vec::new();
+                tree.named_targets(&mut targets);
+                targets.extend(default.iter());
+                targets
             }
         }
     }
+}
+
+/// How a `switch` dispatch finds the arm of the scrutinee's value.
+///
+/// C gives a `switch` no evaluation order among its case comparisons — the
+/// controlling expression is evaluated once (a plain read or a temporary, see
+/// `CfgBuilder`'s `Switch`) and control goes to the one matching label, the
+/// values being distinct after conversion to the promoted type (C11 6.8.4.2).
+/// So the dispatch may test the values in any order and shape, and it is
+/// shaped for the daslang interpreter, which pays one node per comparison:
+///
+/// * a range of cases dense enough ([`TABLE_SPAN_PER_CASE`]) is one bounds
+///   test and one computed `goto` — daslang's `goto <int expr>` — whose
+///   operand is the scrutinee's offset into a run of consecutive label
+///   numbers, one per value of the range, placed on the arms (holes on the
+///   default arm);
+/// * a short run ([`TESTS_MAX`] cases or fewer) is an `if`/`elif` chain of
+///   equality tests;
+/// * anything else is split at its median value, `if x < pivot`, so a sparse
+///   switch costs O(log n) comparisons.
+///
+/// None of the three nests deeper than the logarithm of the case count, so
+/// daslang's AOT — which prints each `elif` as a nested `else { if … }` —
+/// stays within a C++ compiler's bracket-nesting limit (256 for clang) for any
+/// `switch` (a 256-case `switch` used to exceed it).
+enum DispatchTree {
+    /// `if x == k0 { goto L0 } elif x == k1 { goto L1 } …`
+    Tests(Vec<(DaExpr, Label)>),
+    /// `if low <= x && x <= high { goto <number of the label for x> }`.
+    Table {
+        /// The lowest and highest case value, as the typed case constants.
+        low: DaExpr,
+        high: DaExpr,
+        /// The lowest case value as a number, in the dispatch type.
+        low_key: i128,
+        /// The arm of each value `low_key + i`, in order.
+        entries: Vec<Label>,
+        /// The label number of `entries[0]`'s alias; assigned once the
+        /// named labels are numbered.
+        base: Option<u64>,
+    },
+    /// `if x < pivot { below } else { above }`.
+    Split {
+        pivot: DaExpr,
+        below: Box<DispatchTree>,
+        above: Box<DispatchTree>,
+    },
+}
+
+/// The longest run of cases dispatched by comparing against each value.
+const TESTS_MAX: usize = 4;
+
+/// A run of cases longer than [`TESTS_MAX`] is a jump table when its range of
+/// values is at most this many times its case count (at least half of the
+/// range is cases).
+const TABLE_SPAN_PER_CASE: u128 = 2;
+
+/// A case value converted to the dispatch type, as a mathematical integer, and
+/// the arm it selects.
+struct KeyedCase {
+    key: i128,
+    value: DaExpr,
+    target: Label,
+}
+
+impl DispatchTree {
+    fn build(cases: &[KeyedCase], default: &Label) -> DispatchTree {
+        let (Some(first), Some(last)) = (cases.first(), cases.last()) else {
+            return DispatchTree::Tests(vec![]);
+        };
+        if cases.len() <= TESTS_MAX {
+            return DispatchTree::Tests(
+                cases
+                    .iter()
+                    .map(|case| (case.value.clone(), case.target.clone()))
+                    .collect(),
+            );
+        }
+        let span = (last.key - first.key) as u128 + 1;
+        if span <= TABLE_SPAN_PER_CASE * cases.len() as u128 {
+            let mut entries = vec![default.clone(); span as usize];
+            for case in cases {
+                entries[(case.key - first.key) as usize] = case.target.clone();
+            }
+            return DispatchTree::Table {
+                low: first.value.clone(),
+                high: last.value.clone(),
+                low_key: first.key,
+                entries,
+                base: None,
+            };
+        }
+        let middle = cases.len() / 2;
+        DispatchTree::Split {
+            pivot: cases[middle].value.clone(),
+            below: Box::new(DispatchTree::build(&cases[..middle], default)),
+            above: Box::new(DispatchTree::build(&cases[middle..], default)),
+        }
+    }
+
+    fn named_targets<'a>(&'a self, out: &mut Vec<&'a Label>) {
+        match self {
+            DispatchTree::Tests(tests) => out.extend(tests.iter().map(|(_, l)| l)),
+            DispatchTree::Table { .. } => {}
+            DispatchTree::Split { below, above, .. } => {
+                below.named_targets(out);
+                above.named_targets(out);
+            }
+        }
+    }
+
+    fn tables_mut<'a>(&'a mut self, out: &mut Vec<(&'a [Label], &'a mut Option<u64>)>) {
+        match self {
+            DispatchTree::Tests(_) => {}
+            DispatchTree::Table { entries, base, .. } => out.push((entries.as_slice(), base)),
+            DispatchTree::Split { below, above, .. } => {
+                below.tables_mut(out);
+                above.tables_mut(out);
+            }
+        }
+    }
+}
+
+/// The value of a case constant of the dispatch, converted to the dispatch
+/// type, as a number: `CfgBuilder` builds every case value as a conversion of
+/// the C case constant to the promoted scrutinee type.
+fn case_key(value: &DaExpr) -> Option<(i128, DaType)> {
+    let DaExpr::Cast {
+        kind: das_ast::CastKind::Cast,
+        expr,
+        to,
+    } = value
+    else {
+        return None;
+    };
+    let raw: i128 = match **expr {
+        DaExpr::ConstInt(v) => v.into(),
+        DaExpr::ConstUInt(v) => v.into(),
+        _ => return None,
+    };
+    // daScript's conversion of an integer constant is modulo 2^width, as C's
+    // conversion of a case constant to the promoted type is (C11 6.3.1.3).
+    let key = match to.kind {
+        DaTypeKind::Int => (raw as i32).into(),
+        DaTypeKind::UInt => (raw as u32).into(),
+        DaTypeKind::Int64 => (raw as i64).into(),
+        DaTypeKind::UInt64 => (raw as u64).into(),
+        _ => return None,
+    };
+    Some((key, to.clone()))
 }
 
 /// Render a pruned, edge-validated CFG as a flat daScript statement list.
@@ -96,9 +251,59 @@ impl Tail {
 /// a type is declared without an explicit one.
 pub(crate) fn render(
     cfg: Cfg<Label, StmtOrDecl>,
-    mut store: DeclStmtStore,
+    store: DeclStmtStore,
     zero_fills: &dyn Fn(&DaType) -> bool,
 ) -> TranslationResult<Vec<DaStmt>> {
+    let has_dispatch = cfg
+        .nodes
+        .values()
+        .any(|block| matches!(block.terminator, Switch { .. }));
+    if !has_dispatch {
+        return match render_once(cfg, store, zero_fills, &IndexSet::new())? {
+            Rendered::Body(out) => Ok(out),
+            Rendered::ReturnsThroughTable(_) => Err(TranslationError::generic(
+                "label rendering: a jump table without a switch",
+            )),
+        };
+    }
+    // A jump-table alias that ends up above nothing but the function's
+    // closing `return` cannot be jumped to (see `dead_tail_labels`), and a
+    // computed jump cannot be rewritten to `return` the way a named one is.
+    // Such an arm means "return", so it is rendered again with those entries
+    // sent to a `return` trampoline instead; each round adds at least one
+    // arm, so this ends.
+    let mut returning: IndexSet<Label> = IndexSet::new();
+    loop {
+        match render_once(cfg.clone(), store.clone(), zero_fills, &returning)? {
+            Rendered::Body(out) => return Ok(out),
+            Rendered::ReturnsThroughTable(arms) => {
+                let known = returning.len();
+                returning.extend(arms);
+                if returning.len() == known {
+                    return Err(TranslationError::generic(
+                        "label rendering: a jump-table arm still falls off the function",
+                    ));
+                }
+            }
+        }
+    }
+}
+
+enum Rendered {
+    Body(Vec<DaStmt>),
+    /// These arms are reached through a jump table and mean "fall off the
+    /// end of the function".
+    ReturnsThroughTable(Vec<Label>),
+}
+
+/// One rendering of the graph; `returning` are the jump-table arms to send to
+/// a `return` trampoline.
+fn render_once(
+    cfg: Cfg<Label, StmtOrDecl>,
+    mut store: DeclStmtStore,
+    zero_fills: &dyn Fn(&DaType) -> bool,
+    returning: &IndexSet<Label>,
+) -> TranslationResult<Rendered> {
     let order = layout(&cfg);
 
     // Every local declaration is split: the `var` is hoisted to the top of the
@@ -132,7 +337,7 @@ pub(crate) fn render(
             .nodes
             .get(label)
             .expect("layout only visits blocks that exist");
-        tails.push(plan(&block.terminator, next));
+        tails.push(plan(&block.terminator, next)?);
     }
 
     // Step 3: number only the labels a planned jump targets.
@@ -148,6 +353,35 @@ pub(crate) fn render(
     }
     drop(jumped_to);
 
+    // Step 3b: number the jump tables.  Each table owns a run of consecutive
+    // label numbers after the named ones, one per value of its range, and
+    // each number is an alias label on the arm of that value.  An arm in
+    // `returning` gets its alias on the `return` trampoline instead.
+    let mut next_id = label_ids.len() as u64;
+    let mut aliases: IndexMap<Label, Vec<u64>> = IndexMap::new();
+    let mut alias_arm: IndexMap<String, Label> = IndexMap::new();
+    let mut trampoline_aliases: Vec<u64> = Vec::new();
+    for tail in tails.iter_mut() {
+        let Tail::Dispatch { tree, .. } = tail else {
+            continue;
+        };
+        let mut tables = Vec::new();
+        tree.tables_mut(&mut tables);
+        for (entries, base) in tables {
+            *base = Some(next_id);
+            for arm in entries {
+                let id = next_id;
+                next_id += 1;
+                if returning.contains(arm) {
+                    trampoline_aliases.push(id);
+                } else {
+                    aliases.entry(arm.clone()).or_default().push(id);
+                    alias_arm.insert(alias_text(id), arm.clone());
+                }
+            }
+        }
+    }
+
     let goto =
         |label: &Label| -> DaStmt { DaStmt::Expr(DaExpr::Goto(label_text(&label_ids, label))) };
     let goto_block = |label: &Label| -> DaExpr {
@@ -158,9 +392,24 @@ pub(crate) fn render(
 
     let hoisted_len = hoisted.len();
     let mut out: Vec<DaStmt> = hoisted;
+    // The `return` trampoline sits at the top of the body, where no closing
+    // `return` can be folded away under it; the body jumps past it.
+    if !trampoline_aliases.is_empty() {
+        let resume = alias_text(next_id);
+        out.push(DaStmt::Expr(DaExpr::Goto(resume.clone())));
+        for id in &trampoline_aliases {
+            out.push(DaStmt::Expr(DaExpr::Label(alias_text(*id))));
+        }
+        out.push(DaStmt::Expr(DaExpr::Return(None)));
+        out.push(DaStmt::Expr(DaExpr::Label(resume)));
+    }
+    let has_labels = !label_ids.is_empty() || !aliases.is_empty() || !trampoline_aliases.is_empty();
     for (index, label) in order.iter().enumerate() {
         if label_ids.contains_key(label) {
             out.push(DaStmt::Expr(DaExpr::Label(label_text(&label_ids, label))));
+        }
+        for id in aliases.get(label).into_iter().flatten() {
+            out.push(DaStmt::Expr(DaExpr::Label(alias_text(*id))));
         }
         let block = cfg
             .nodes
@@ -171,6 +420,9 @@ pub(crate) fn render(
         }
         match &tails[index] {
             Tail::FallThrough | Tail::End => {}
+            // A block whose statements end in `return` (a C `return` inside
+            // `do { … } while (0)`) never reaches its jump.
+            Tail::Goto(_) if matches!(out.last(), Some(DaStmt::Expr(DaExpr::Return(_)))) => {}
             Tail::Goto(target) => out.push(goto(target)),
             Tail::IfGoto(cond, target) => out.push(DaStmt::Expr(DaExpr::IfThenElse {
                 cond: Box::new(cond.clone()),
@@ -188,28 +440,9 @@ pub(crate) fn render(
             }
             Tail::Dispatch {
                 scrutinee,
-                cases,
+                tree,
                 default,
-            } => {
-                let mut arms = cases.iter();
-                let Some((first_value, first_target)) = arms.next() else {
-                    // A `switch` with no `case` labels at all: only the default
-                    // arm can ever run.
-                    if let Some(default) = default {
-                        out.push(goto(default));
-                    }
-                    continue;
-                };
-                let elifs = arms
-                    .map(|(value, target)| (case_test(scrutinee, value), goto_block(target)))
-                    .collect();
-                out.push(DaStmt::Expr(DaExpr::IfThenElse {
-                    cond: Box::new(case_test(scrutinee, first_value)),
-                    then: Box::new(goto_block(first_target)),
-                    elifs,
-                    else_: default.as_ref().map(|d| Box::new(goto_block(d))),
-                }));
-            }
+            } => out.extend(dispatch_stmts(scrutinee, tree, &goto, default.as_ref())),
         }
     }
 
@@ -217,7 +450,9 @@ pub(crate) fn render(
     // of the function or an unconditional jump — but daScript checks statically
     // that a value-returning function ends on a `return` and cannot see that.
     // Close such a body with an explicitly unreachable trap.
-    if !matches!(tails.last(), Some(Tail::End) | None) {
+    if !matches!(tails.last(), Some(Tail::End) | None)
+        && !matches!(out.last(), Some(DaStmt::Expr(DaExpr::Return(_))))
+    {
         out.push(DaStmt::Expr(unreachable_trap(
             "unreachable: fell out of a translated control-flow graph",
         )));
@@ -225,7 +460,7 @@ pub(crate) fn render(
 
     // Step 4: a body with jumps in it must also be valid C++ once daslang's AOT
     // has emitted it; see `hoist_site_temporaries`.
-    if !label_ids.is_empty() {
+    if has_labels {
         hoist_site_temporaries(&mut out, hoisted_len, zero_fills);
     }
 
@@ -233,12 +468,21 @@ pub(crate) fn render(
     // body.  Dropping a label can put two `return`s next to each other, and
     // dropping the second of those can leave a label above nothing but the
     // body's closing `return` again, so the two alternate until neither
-    // changes anything.
+    // changes anything.  A dangling jump-table alias cannot be repaired
+    // here (a computed jump names no label to rewrite); its arm is handed
+    // back to `render` for the trampoline.
     loop {
         drop_returns_after_return(&mut out);
         let dangling = dead_tail_labels(&out);
         if dangling.is_empty() {
             break;
+        }
+        let through_table: Vec<Label> = dangling
+            .iter()
+            .filter_map(|name| alias_arm.get(name).cloned())
+            .collect();
+        if !through_table.is_empty() {
+            return Ok(Rendered::ReturnsThroughTable(through_table));
         }
         for label in dangling {
             retarget_to_return(&mut out, &label);
@@ -249,7 +493,7 @@ pub(crate) fn render(
     // the last hoisted declaration; see `initialise_last_declaration`.
     initialise_last_declaration(&mut out);
 
-    Ok(out)
+    Ok(Rendered::Body(out))
 }
 
 /// Give the last hoisted `var` its value when the body opens by storing it.
@@ -557,20 +801,29 @@ fn preferred_successors(terminator: &GenTerminator<Label>) -> Vec<Label> {
 }
 
 /// Turn one terminator into the statements it still has to emit.
-fn plan(terminator: &GenTerminator<Label>, next: Option<&Label>) -> Tail {
+fn plan(terminator: &GenTerminator<Label>, next: Option<&Label>) -> TranslationResult<Tail> {
     match terminator {
-        End => Tail::End,
-        Jump(target) => {
-            if Some(target) == next {
+        End => Ok(Tail::End),
+        Jump(target) => Ok(if Some(target) == next {
+            Tail::FallThrough
+        } else {
+            Tail::Goto(target.clone())
+        }),
+        // A constant condition (`while (1)`, `do … while (0)`, whose C
+        // integer constant `convert_condition` gives as a `bool` constant)
+        // always takes the same edge; testing it would print `if (true)`.
+        Branch(DaExpr::ConstBool(taken), then_target, else_target) => {
+            let target = if *taken { then_target } else { else_target };
+            Ok(if Some(target) == next {
                 Tail::FallThrough
             } else {
                 Tail::Goto(target.clone())
-            }
+            })
         }
         Branch(cond, then_target, else_target) => {
             let then_falls = Some(then_target) == next;
             let else_falls = Some(else_target) == next;
-            match (then_falls, else_falls) {
+            Ok(match (then_falls, else_falls) {
                 // Both arms continue at the same place: the condition was built
                 // by `convert_condition`, whose side effects are already in this
                 // block's statements, so nothing is lost by dropping the test.
@@ -580,28 +833,204 @@ fn plan(terminator: &GenTerminator<Label>, next: Option<&Label>) -> Tail {
                 (false, false) => {
                     Tail::IfElseGoto(cond.clone(), then_target.clone(), else_target.clone())
                 }
-            }
+            })
         }
         Switch { expr, cases } => {
-            let Some((_, default)) = cases.last() else {
-                return Tail::End;
+            let Some((_, default_target)) = cases.last() else {
+                return Ok(Tail::End);
             };
-            let default = if Some(default) == next {
+            let default = if Some(default_target) == next {
                 None
             } else {
-                Some(default.clone())
+                Some(default_target.clone())
             };
-            Tail::Dispatch {
-                scrutinee: expr.clone(),
-                cases: cases
-                    .iter()
-                    .take(cases.len() - 1)
-                    .map(|(value, target)| (value.clone(), target.clone()))
-                    .collect(),
-                default,
+            let mut keyed: Vec<KeyedCase> = Vec::with_capacity(cases.len() - 1);
+            let mut dispatch_type: Option<DaType> = None;
+            for (value, target) in cases.iter().take(cases.len() - 1) {
+                let Some((key, ty)) = case_key(value) else {
+                    return Err(TranslationError::generic(
+                        "switch dispatch: a case value is not an integer constant \
+                         of the promoted scrutinee type",
+                    ));
+                };
+                if dispatch_type.get_or_insert_with(|| ty.clone()) != &ty {
+                    return Err(TranslationError::generic(
+                        "switch dispatch: case values of different types",
+                    ));
+                }
+                keyed.push(KeyedCase {
+                    key,
+                    value: value.clone(),
+                    target: target.clone(),
+                });
             }
+            keyed.sort_by_key(|case| case.key);
+            if keyed.windows(2).any(|pair| pair[0].key == pair[1].key) {
+                return Err(TranslationError::generic(
+                    "switch dispatch: duplicate case value",
+                ));
+            }
+            Ok(Tail::Dispatch {
+                scrutinee: expr.clone(),
+                tree: DispatchTree::build(&keyed, default_target),
+                default,
+            })
         }
     }
+}
+
+/// The statements of one dispatch subtree: each jumps to the arm of a
+/// matching value; when none matches they jump to `default`, or fall out of
+/// the tree when `default` is `None`.
+fn dispatch_stmts(
+    scrutinee: &DaExpr,
+    tree: &DispatchTree,
+    goto: &dyn Fn(&Label) -> DaStmt,
+    default: Option<&Label>,
+) -> Vec<DaStmt> {
+    let goto_block = |label: &Label| -> DaExpr {
+        DaExpr::Block(DaBlock {
+            stmts: vec![goto(label)],
+        })
+    };
+    match tree {
+        DispatchTree::Tests(tests) => {
+            let mut arms = tests.iter();
+            let Some((first_value, first_target)) = arms.next() else {
+                // A `switch` with no `case` labels at all: only the default
+                // arm can ever run.
+                return default.map(goto).into_iter().collect();
+            };
+            vec![DaStmt::Expr(DaExpr::IfThenElse {
+                cond: Box::new(case_test(scrutinee, first_value)),
+                then: Box::new(goto_block(first_target)),
+                elifs: arms
+                    .map(|(value, target)| (case_test(scrutinee, value), goto_block(target)))
+                    .collect(),
+                else_: default.map(|d| Box::new(goto_block(d))),
+            })]
+        }
+        DispatchTree::Table {
+            low,
+            high,
+            low_key,
+            base,
+            ..
+        } => {
+            let base = base.expect("jump tables are numbered before emission");
+            let mut stmts = vec![DaStmt::Expr(DaExpr::IfThenElse {
+                cond: Box::new(table_bounds_test(scrutinee, low, high, *low_key)),
+                then: Box::new(DaExpr::Block(DaBlock {
+                    stmts: vec![DaStmt::Expr(DaExpr::GotoComputed(Box::new(
+                        table_label_number(scrutinee, low, *low_key, base),
+                    )))],
+                })),
+                elifs: vec![],
+                else_: None,
+            })];
+            stmts.extend(default.map(goto));
+            stmts
+        }
+        DispatchTree::Split {
+            pivot,
+            below,
+            above,
+        } => {
+            let arm = |tree: &DispatchTree| {
+                DaExpr::Block(DaBlock {
+                    stmts: dispatch_stmts(scrutinee, tree, goto, None),
+                })
+            };
+            let mut stmts = vec![DaStmt::Expr(DaExpr::IfThenElse {
+                cond: Box::new(DaExpr::Op2 {
+                    op: "<",
+                    left: Box::new(scrutinee.clone()),
+                    right: Box::new(pivot.clone()),
+                }),
+                then: Box::new(arm(below)),
+                elifs: vec![],
+                else_: Some(Box::new(arm(above))),
+            })];
+            stmts.extend(default.map(goto));
+            stmts
+        }
+    }
+}
+
+/// `low <= x && x <= high`; only `x <= high` when `low` is the smallest value
+/// of an unsigned dispatch type.
+fn table_bounds_test(scrutinee: &DaExpr, low: &DaExpr, high: &DaExpr, low_key: i128) -> DaExpr {
+    let at_most_high = DaExpr::Op2 {
+        op: "<=",
+        left: Box::new(scrutinee.clone()),
+        right: Box::new(high.clone()),
+    };
+    let unsigned = matches!(
+        case_key(low).map(|(_, ty)| ty.kind),
+        Some(DaTypeKind::UInt | DaTypeKind::UInt64)
+    );
+    if unsigned && low_key == 0 {
+        return at_most_high;
+    }
+    DaExpr::Op2 {
+        op: "&&",
+        left: Box::new(DaExpr::Op2 {
+            op: ">=",
+            left: Box::new(scrutinee.clone()),
+            right: Box::new(low.clone()),
+        }),
+        right: Box::new(at_most_high),
+    }
+}
+
+/// The `int` label number `base + (x - low)` of the alias for the value `x`,
+/// which the bounds test has already placed in `[low, high]`.
+///
+/// For an `int` dispatch the offset folds into one constant, `x + (base -
+/// low)`, when that constant is an `int`; every other type (and an `int`
+/// whose constant would not be one) subtracts `low` in its own type first —
+/// that difference is below the table's length — and converts it.
+fn table_label_number(scrutinee: &DaExpr, low: &DaExpr, low_key: i128, base: u64) -> DaExpr {
+    let int_dispatch = matches!(case_key(low).map(|(_, ty)| ty.kind), Some(DaTypeKind::Int));
+    let base = i128::from(base);
+    let plus = |left: DaExpr, offset: i128| -> DaExpr {
+        match offset.cmp(&0) {
+            std::cmp::Ordering::Equal => left,
+            std::cmp::Ordering::Greater => DaExpr::Op2 {
+                op: "+",
+                left: Box::new(left),
+                right: Box::new(DaExpr::ConstInt(offset as i64)),
+            },
+            std::cmp::Ordering::Less => DaExpr::Op2 {
+                op: "-",
+                left: Box::new(left),
+                right: Box::new(DaExpr::ConstInt((-offset) as i64)),
+            },
+        }
+    };
+    let offset = base - low_key;
+    if int_dispatch && i32::try_from(offset).is_ok() {
+        return plus(scrutinee.clone(), offset);
+    }
+    let from_low = if low_key == 0 {
+        scrutinee.clone()
+    } else {
+        DaExpr::Op2 {
+            op: "-",
+            left: Box::new(scrutinee.clone()),
+            right: Box::new(low.clone()),
+        }
+    };
+    let index = if int_dispatch {
+        from_low
+    } else {
+        DaExpr::Cast {
+            kind: das_ast::CastKind::Cast,
+            expr: Box::new(from_low),
+            to: DaType::int(),
+        }
+    };
+    plus(index, base)
 }
 
 fn case_test(scrutinee: &DaExpr, value: &DaExpr) -> DaExpr {
@@ -670,5 +1099,11 @@ fn label_text(label_ids: &IndexMap<Label, u64>, label: &Label) -> String {
     let id = label_ids
         .get(label)
         .expect("every jump target is numbered before emission");
+    format!("label {id}")
+}
+
+/// The label of a number that no named jump uses: a jump-table alias or the
+/// trampoline's resume point.
+fn alias_text(id: u64) -> String {
     format!("label {id}")
 }

@@ -1240,6 +1240,57 @@
       "runtime": "required"
     },
     {
+      "id": "p120-enum-compound-assignment",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p120_enum_compound_assignment.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "speed=1\nspeed=0\nflags Z=1 N=1 H=0 C=0\nwas=0 t=0\nwrapped=4294967295\nt=0\nt=1\npacked speed=1 small=3 size=8\nsmall=255\nsmall=1\nsigned=-6\nsigned=-1\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p120_enum_compound_assignment_computes_in_the_integer_type",
+      "runtime": "required"
+    },
+    {
+      "id": "p121-switch-dispatch",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p121_switch_dispatch.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "dense256=4009895146\nholes 108 108 3 2 108 4 8 108 48 32 -18 108 108\nsparse 1 0 2 3 0 4 5 0 6 7 8 0\nunsigned 10 12 -1 15 -1 99 -1\nwide 11 55 0 30\nrecord=14\nearly_out=6100\nduff 1 4 5 7 8\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p121_switch_dispatch_is_a_jump_table_or_a_split",
+      "runtime": "required"
+    },
+    {
+      "id": "p122-bool-conditions",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p122_bool_conditions.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "r=16 even=1,0 never=0\ncount=23\nloops=13\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p122_bool_conditions_test_the_bool_itself",
+      "runtime": "required"
+    },
+    {
       "id": "n12-typedef-record-field-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n12_typedef_record_field_unsupported.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"

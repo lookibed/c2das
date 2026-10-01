@@ -820,6 +820,7 @@ impl<'m> Folder<'m> {
             Field(inner, _)
             | SafeField(inner, _)
             | Delete(inner)
+            | GotoComputed(inner)
             | Addr(inner)
             | Deref(inner)
             | DerefExplicit(inner) => self.walk_expr(inner),

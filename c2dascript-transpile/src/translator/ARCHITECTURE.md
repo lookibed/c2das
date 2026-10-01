@@ -167,6 +167,15 @@ C types a comparison, `&&`, `||` and `!` as `int`; daslang types them `bool` and
   (`abi::materialize_bool_as_number` / `bool_to_integer_cast`, whose statement list is now
   always empty).
 
+- **A `_Bool` converted to an integer only to be tested is tested as itself**
+  (`convert_condition`, `bool_operand_of_integer_conversion`): `b && x` is `b && x`, never
+  `(b == true ? 1 : 0) != 0`.  **An integer literal condition is a `bool` constant**
+  (`integer_constant_condition`): `return 0` from a `_Bool` function is `return false`;
+  through an integer conversion only 0 and 1 qualify (a narrowing can turn another literal into
+  zero).  The flat label back end takes the one edge of a constant branch (`while (1)`,
+  `do … while (0)`) without a test, and emits no jump after a block that already returned.
+  `p122-bool-conditions` is the fixture.
+
 `&&`/`||` lower to daslang's short-circuit operators and `?:` to daslang's `c ? a : b` when
 the right operand (or both arms) is one expression — daslang evaluates it only when C would,
 calls included.  An operand that had to hoist statements (`i++`, an assignment, a copy)
@@ -180,6 +189,38 @@ temporary.  GNU `a ?: b` keeps its temporary (it names `a` once).  `p99-direct-c
 is the runtime fixture.  The former `a < b ? a : b` → `c2da_min_*`/`c2da_max_*` rewrite and
 its helpers are gone: it was unreachable while conditions were flags, and it guessed `int`
 for operands of unknown daslang type.
+
+## Compound assignment on an enumeration
+
+C11 6.5.16.2 makes `E1 op= E2` the operation `E1 op (E2)` after the usual arithmetic
+conversions, and `++`/`--` are `+= 1`/`-= 1`.  A daslang `enum` accepts no arithmetic operator,
+so an enum-typed object is read as a numeric conversion to the computation type and the result
+is narrowed to the enumeration's compatible integer type and re-read as the `enum`
+(`enums.rs object_value_as_arith` / `arith_result_to_object`, used by every compound-assignment
+and increment path in `operators.rs`, plain and address-backed).  `p120-enum-compound-assignment`
+is the fixture.
+
+## Switch dispatch
+
+A `switch` terminator of the flat label back end (`cfg/labels.rs DispatchTree`) is shaped for
+the daslang interpreter, which pays one node per comparison:
+
+- a range of at least five cases with at most twice as many values as cases is a **jump table**:
+  one bounds test and daslang's computed `goto <int expr>`, whose operand is the scrutinee's
+  offset into a run of consecutive label numbers placed on the arms (holes on the default
+  arm) after the named labels;
+- at most four cases are an `if`/`elif` chain of equality tests;
+- anything else is split at its median value (`if x < pivot`), O(log n) comparisons.
+
+None nests deeper than log n, so daslang's AOT (which prints each `elif` as a nested
+`else { if … }`) stays inside clang's bracket-nesting limit of 256 for any `switch`.  Case
+values are read back as the constants `CfgBuilder` built (the C case constant converted to the
+promoted scrutinee type); anything else is an error, not a fallback.  A jump-table alias left
+above nothing but a void function's closing `return` cannot be jumped to (see
+`dead_tail_labels`) and a computed jump cannot be rewritten to `return`, so such arms are
+re-rendered onto a `return` trampoline at the top of the body.  Measured in the interpreter on a
+256-case byte switch: 4× faster than the linear chain (the median split alone: 3×).
+`p121-switch-dispatch` is the fixture; computed `goto` is `DaExpr::GotoComputed`.
 
 ## Local declarations
 

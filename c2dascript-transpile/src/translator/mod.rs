@@ -2467,6 +2467,19 @@ impl<'c> Translation<'c> {
         // Anything else it lowers to — the `int` flag of a `&&`/`||` whose
         // right operand needed statements (`convert_short_circuit`) — is
         // tested below exactly like the C value it is.
+        // A `_Bool` converted to an integer only to be tested against zero is
+        // tested as itself: `(int)b != 0` is `b` (C11 6.3.1.2 gives a `_Bool`
+        // only the values 0 and 1).  Building C's 0/1 first would print
+        // `(b == true ? 1 : 0) != 0`.
+        if let Some(operand) = self.bool_operand_of_integer_conversion(expr_id) {
+            return self.convert_condition(ctx, _used, operand);
+        }
+        // An integer constant condition is a `bool` constant: `return 0` from
+        // a function returning `_Bool` is `return false`, `while (1)` is
+        // `while (true)`.
+        if let Some(value) = self.integer_constant_condition(expr_id) {
+            return Ok(WithStmts::new_val(DaExpr::ConstBool(value)));
+        }
         let expr_ty = self.ast_context[expr_id].kind.get_qual_type();
         let val = match self.c_boolean_operator(expr_id) {
             Some(operator) => {
@@ -2552,6 +2565,52 @@ impl<'c> Translation<'c> {
             }
         }
         Ok(val)
+    }
+
+    /// The `_Bool` operand of an integer conversion (`(int)b`, or the implicit
+    /// one Clang writes), under parentheses, when `expr_id` is one.
+    fn bool_operand_of_integer_conversion(&self, expr_id: CExprId) -> Option<CExprId> {
+        let mut expr_id = expr_id;
+        while let CExprKind::Paren(_, inner) = &self.ast_context[expr_id].kind {
+            expr_id = *inner;
+        }
+        let (CExprKind::ImplicitCast(ty, operand, CastKind::IntegralCast, _, _)
+        | CExprKind::ExplicitCast(ty, operand, CastKind::IntegralCast, _, _)) =
+            &self.ast_context[expr_id].kind
+        else {
+            return None;
+        };
+        let is_bool = |qty: CQualTypeId| {
+            matches!(
+                self.ast_context.resolve_type(qty.ctype).kind,
+                CTypeKind::Bool
+            )
+        };
+        let operand_ty = self.ast_context[*operand].kind.get_qual_type()?;
+        (is_bool(operand_ty) && !is_bool(*ty)).then_some(*operand)
+    }
+
+    /// The truth value of a condition that is an integer literal, under
+    /// parentheses and integer conversions.  Through a conversion only 0 and 1
+    /// qualify: every integer type holds them unchanged, while a narrowing
+    /// can turn another literal into zero (`(unsigned char)256`).
+    fn integer_constant_condition(&self, expr_id: CExprId) -> Option<bool> {
+        let mut expr_id = expr_id;
+        let mut converted = false;
+        loop {
+            match &self.ast_context[expr_id].kind {
+                CExprKind::Paren(_, inner) => expr_id = *inner,
+                CExprKind::ImplicitCast(_, inner, CastKind::IntegralCast, _, _)
+                | CExprKind::ExplicitCast(_, inner, CastKind::IntegralCast, _, _) => {
+                    converted = true;
+                    expr_id = *inner
+                }
+                CExprKind::Literal(_, CLiteral::Integer(value, _)) if !converted || *value <= 1 => {
+                    return Some(*value != 0)
+                }
+                _ => return None,
+            }
+        }
     }
 
     /// The C expression under `expr_id`'s parentheses when it is one of C's

@@ -4581,6 +4581,90 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p120-enum-compound-assignment",
+      "canonical_cases": [
+        "p120-enum-compound-assignment"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "speed=1\nspeed=0\nflags Z=1 N=1 H=0 C=0\nwas=0 t=0\nwrapped=4294967295\nt=0\nt=1\npacked speed=1 small=3 size=8\nsmall=255\nsmall=1\nsigned=-6\nsigned=-1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p120_enum_compound_assignment",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p120_enum_compound_assignment.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p121-switch-dispatch",
+      "canonical_cases": [
+        "p121-switch-dispatch"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "dense256=4009895146\nholes 108 108 3 2 108 4 8 108 48 32 -18 108 108\nsparse 1 0 2 3 0 4 5 0 6 7 8 0\nunsigned 10 12 -1 15 -1 99 -1\nwide 11 55 0 30\nrecord=14\nearly_out=6100\nduff 1 4 5 7 8\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p121_switch_dispatch",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p121_switch_dispatch.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p122-bool-conditions",
+      "canonical_cases": [
+        "p122-bool-conditions"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "r=16 even=1,0 never=0\ncount=23\nloops=13\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p122_bool_conditions",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p122_bool_conditions.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "checked_in_das": "tests/syntax/p12_fixed_array_default.das",
       "clang": {
         "compile_commands": null,

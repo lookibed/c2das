@@ -66,23 +66,19 @@ same way; at `-O3 -march=native` its 300 frames take about 60 ms.
 
 ## Translation status
 
-`src/binjgb_all.c` translates under `--libc std` with no translator error (14.6k lines of
-daslang), and daslang rejects the module at compile time with five errors in two families,
-each a translator gap:
+`src/binjgb_all.c` translates under `--libc std` with no translator error, and daslang
+rejects the module at compile time with three errors of one translator gap: a record with
+pointer fields copied from a const source is emitted as a plain copy that daslang refuses
+(`uint8? = uint8? const`) — `emulator.c:4910` (`e->file_data = *file_data` through
+`const FileData *`) and the by-value `JoypadStateIter` parameter of `joypad.c:140` and
+`joypad.c:156`.
 
-1. a compound assignment `^=` on an enum-typed lvalue is lowered as
-   `reinterpret<E>(lvalue ^ 1u)`, applying `^` to the enum value itself —
-   `emulator.c:4144` (`FC ^= 1` in the `CCF` macro, `Bool`) and `emulator.c:4369`
-   (`CPU_SPEED.speed ^= 1`, `Speed`);
-2. a record with pointer fields copied from a const source is emitted as a plain copy that
-   daslang refuses (`uint8? = uint8? const`) — `emulator.c:4910` (`e->file_data = *file_data`
-   through `const FileData *`) and the by-value `JoypadStateIter` parameter of `joypad.c:140`
-   and `joypad.c:156`.
+Two earlier gaps are fixed in the translator: compound assignment on an enum-typed lvalue
+(`FC ^= 1`, `CPU_SPEED.speed ^= 1`) and the 256-case `switch` (`emulator.c:4556`) whose `elif`
+chain nested deeper than clang's bracket limit in the AOT C++.
 
 `docs/followups/corpus_status.md` ("binjgb: translation blockers") has the exact diagnostics
 and a minimal reproducer for each.  Upstream is not edited to avoid them.  In a scratch copy
-with those three statements rewritten and `joypad.c` left out of the graph, the translation
-compiles and runs byte-identically to the C reference in the interpreter, under `-jit` and as
-an `-exe` binary; its AOT C++ then stops on a third gap, a 256-case `switch` (`emulator.c:4556`)
-whose `elif` chain nests deeper than clang's bracket limit of 256.  The ledger records those
-measurements, as a diagnostic, not as validation.
+with the copy statements rewritten and `joypad.c` left out of the graph, the translation
+compiles and runs byte-identically to the C reference in the interpreter and as an AOT build.
+The ledger records those measurements, as a diagnostic, not as validation.

@@ -556,6 +556,79 @@ fn p105_unproven_and_address_places_keep_byte_offsets() {
 }
 
 #[test]
+fn p120_enum_compound_assignment_computes_in_the_integer_type() {
+    let d = transpile_with_libc(
+        "p120_enum_compound_assignment",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // The enum operand is read as its compatible integer type, the operation
+    // runs there, and the result is re-read as the enum (binjgb's
+    // `CPU_SPEED.speed ^= 1` and `FC ^= 1`).
+    assert!(d.contains("s.speed = unsafe(reinterpret<Speed>(uint(s.speed) ^ 1u))"));
+    assert!(d.contains("f.C = unsafe(reinterpret<Bool>(uint(f.C) ^ 1u))"));
+    assert!(d.contains("t = unsafe(reinterpret<Speed>(uint(t) - 1u))"));
+    // `++`/`--` the same; a narrower enum is narrowed to its own integer
+    // type before it is re-read, through a storage-backed field too.
+    assert!(d.contains("enum Small : uint8 {"));
+    assert!(d.contains(
+        "unsafe(unsafe(reinterpret<Small?>(p.c2da_storage))[7]) = unsafe(reinterpret<Small>(uint8(int(unsafe(unsafe(reinterpret<Small?>(p.c2da_storage))[7])) - 1)))"
+    ));
+    // Never an operator applied to the enum value itself.
+    assert!(!d.contains("(s.speed ^ 1u)") && !d.contains("(t + 1u)"));
+}
+
+#[test]
+fn p121_switch_dispatch_is_a_jump_table_or_a_split() {
+    let d = transpile_with_libc("p121_switch_dispatch", c2dascript_transpile::LibcMode::Std);
+    // A dense switch is a bounds test and one computed jump into a run of
+    // label numbers; 256 cases are not an elif chain.
+    assert!(d.contains(
+        "    if (c2da_fresh0 >= 0 && c2da_fresh0 <= 255) {\n        goto c2da_fresh0 + 1\n    }\n"
+    ));
+    assert!(!d.contains("elif (c2da_fresh0 == 255)"));
+    // Holes in the range go to the default arm through the table.
+    assert!(d.contains("        goto x - 9\n"));
+    // 64-bit scrutinees subtract the low case in their own type.
+    assert!(d.contains("goto int(w - 0xffffffff00000000ul) + 2"));
+    // A sparse set is split at its median value.
+    assert!(d.contains("def sparse(var v : int64) : int {\n    if (v < 9l) {\n"));
+    // An arm that falls off a void function is sent to a `return` trampoline
+    // at the top of the body, where no folding can remove the `return`.
+    assert!(d.contains(
+        "def early_out(var k_0 : int) {\n    goto label 6\n    label 5:\n    return\n    label 6:\n    if (k_0 >= 1 && k_0 <= 5) {\n        goto k_0\n    }\n"
+    ));
+    // No elif chain is longer than four arms.
+    let mut elifs = 0;
+    for line in d.lines().map(str::trim_start) {
+        if line.starts_with("} elif") {
+            elifs += 1;
+            assert!(elifs <= 3, "an elif chain of more than four arms");
+        } else if !line.starts_with("goto label") {
+            elifs = 0;
+        }
+    }
+}
+
+#[test]
+fn p122_bool_conditions_test_the_bool_itself() {
+    let d = transpile_with_libc("p122_bool_conditions", c2dascript_transpile::LibcMode::Std);
+    // A `_Bool` operand of `&&`/`||`/`!` is tested as itself.
+    assert!(d.contains("if (a && o.level > 2) {"));
+    assert!(d.contains("if (b || o.verbose) {"));
+    assert!(d.contains("if (!(a && b)) {"));
+    assert!(d.contains("if (unsafe(unsafe(reinterpret<bool const?>(flags))[i]) && i >= 0) {"));
+    assert!(!d.contains("== true ? 1 : 0) != 0"));
+    // An integer constant returned as `_Bool` is a `bool` constant.
+    assert!(d.contains("    return true\n"));
+    assert!(d.contains("    return false\n"));
+    assert!(!d.contains("0 != 0") && !d.contains("1 != 0"));
+    // A constant loop condition is no test at all.
+    assert!(!d.contains("if (true)") && !d.contains("if (false)"));
+    // A narrowing conversion of a literal keeps C's value: (unsigned char)256 is 0.
+    assert!(d.contains("if (0u8 != 0x0)"));
+}
+
+#[test]
 fn n12_typedef_record_field_is_diagnosed_not_dropped() {
     assert_precise_translation_error(
         "n12_typedef_record_field_unsupported",

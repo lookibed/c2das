@@ -119,6 +119,11 @@ pub enum DaExpr {
     Continue,
     /// `goto label` — maps to [`ExprGoto`](ast_expressions.h:34)
     Goto(String),
+    /// `goto expr` — a computed jump to the label whose number the `int`
+    /// operand evaluates to; [`ExprGoto`](ast_expressions.h:34) with a
+    /// `subexpr`.  daslang reports "invalid label index" for a number no
+    /// label of the function carries.
+    GotoComputed(Box<DaExpr>),
     /// `label:` — maps to [`ExprLabel`](ast_expressions.h:21)
     Label(String),
 
@@ -398,6 +403,7 @@ fn expr_precedence(expr: &DaExpr) -> u8 {
         | DaExpr::Break
         | DaExpr::Continue
         | DaExpr::Goto(_)
+        | DaExpr::GotoComputed(_)
         | DaExpr::Label(_)
         | DaExpr::Delete(_) => PREC_STMT,
         _ => PREC_ATOM,
@@ -710,6 +716,10 @@ impl DaExpr {
             Break => write!(f, "break"),
             Continue => write!(f, "continue"),
             Goto(label) => write!(f, "goto {}", label),
+            GotoComputed(target) => {
+                write!(f, "goto ")?;
+                target.fmt_with_indent(f, indent)
+            }
             Label(label) => write!(f, "{}:", label),
 
             FuncRef(name) => write!(f, "@@{}", name),

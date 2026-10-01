@@ -261,7 +261,7 @@ pub(crate) fn collect_names(expr: &DaExpr, out: &mut Vec<String>) {
             collect_names(a, out);
             collect_names(b, out);
         }
-        Op1 { expr, .. } => collect_names(expr, out),
+        Op1 { expr, .. } | GotoComputed(expr) => collect_names(expr, out),
         Op2 { left, right, .. } | AssignOp { left, right, .. } => {
             collect_names(left, out);
             collect_names(right, out);

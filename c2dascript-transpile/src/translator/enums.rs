@@ -85,6 +85,56 @@ impl<'c> Translation<'c> {
         }))
     }
 
+    /// The current value of an object of C type `kind`, raised to the C
+    /// arithmetic type `to` a compound assignment or `++`/`--` computes in.
+    ///
+    /// C11 6.5.16.2 makes `E1 op= E2` the operation `E1 op (E2)` after the
+    /// usual arithmetic conversions, and 6.5.2.4 / 6.5.3.1 do the same for
+    /// `++`/`--`: an operand of enumeration type takes part as its value in
+    /// the enumeration's compatible integer type.  The daScript object holds a
+    /// daScript `enum`, which no arithmetic operator accepts, so that value is
+    /// spelled as a numeric conversion.  Any other operand type is the
+    /// ordinary promotion.
+    pub(crate) fn object_value_as_arith(
+        &self,
+        value: DaExpr,
+        kind: &CTypeKind,
+        to: abi::CArith,
+    ) -> DaExpr {
+        if matches!(kind, CTypeKind::Enum(_)) {
+            return DaExpr::Cast {
+                kind: das_ast::CastKind::Cast,
+                expr: Box::new(value),
+                to: to.da_type(),
+            };
+        }
+        self.promote_operand(value, kind, to)
+    }
+
+    /// The result of a compound assignment or `++`/`--` computed in `arith`,
+    /// converted back to the object of C type `kind` whose daScript storage
+    /// type is `storage` (C11 6.5.16.1: the value is converted to the type of
+    /// the assignment expression).
+    ///
+    /// For an enumeration the value is first narrowed to the enumeration's
+    /// compatible integer type (C6.3.1.3, modular for the unsigned types) and
+    /// then re-read as the daScript `enum` of that same width; any other type
+    /// is the ordinary narrowing to its storage.
+    pub(crate) fn arith_result_to_object(
+        &self,
+        value: DaExpr,
+        arith: abi::CArith,
+        kind: &CTypeKind,
+        storage: &DaType,
+    ) -> TranslationResult<DaExpr> {
+        if let CTypeKind::Enum(enum_id) = kind {
+            let underlying = self.enum_underlying_type(*enum_id)?;
+            let integer = self.narrow_arith_to_storage(value, arith, &underlying);
+            return Ok(DaExpr::reinterpret(integer, writable_type(storage.clone())));
+        }
+        Ok(self.narrow_arith_to_storage(value, arith, storage))
+    }
+
     pub fn convert_cast_from_enum(
         &self,
         target_cty: CTypeId,

@@ -662,14 +662,16 @@ impl<'c> Translation<'c> {
                         let rhs_val = self.bool_to_integer(
                             rhs_val.map(|v| self.promote_operand(v, &rhs_kind, common)),
                         );
-                        let current = current.map(|v| self.promote_operand(v, &lhs_kind, common));
-                        current.zip(rhs_val).map(|(left, right)| {
-                            self.narrow_arith_to_storage(
+                        let current =
+                            current.map(|v| self.object_value_as_arith(v, &lhs_kind, common));
+                        current.zip(rhs_val).try_map(|(left, right)| {
+                            self.arith_result_to_object(
                                 mk().binary_op(das_op, left, right),
                                 common,
+                                &lhs_kind,
                                 &writable_type(lhs_da_type.clone()),
                             )
-                        })
+                        })?
                     }
                     None if is_ptr_op => {
                         let rhs_val = self.convert_expr(ctx.used(), rhs_id, None)?;
@@ -759,15 +761,16 @@ impl<'c> Translation<'c> {
             let rhs_val =
                 self.bool_to_integer(rhs_val.map(|v| self.promote_operand(v, &rhs_kind, common)));
             let place = lhs_val.val.clone();
-            let promoted_place = self.promote_operand(place.clone(), &lhs_kind, common);
+            let promoted_place = self.object_value_as_arith(place.clone(), &lhs_kind, common);
             let stmts = lhs_val.stmts;
             let is_unsafe = lhs_val.is_unsafe || rhs_val.is_unsafe;
             let rhs_stmts = rhs_val.stmts;
-            let value = self.narrow_arith_to_storage(
+            let value = self.arith_result_to_object(
                 mk().binary_op(das_op, promoted_place, rhs_val.val),
                 common,
+                &lhs_kind,
                 &writable_type(lhs_da_type.clone()),
-            );
+            )?;
             let assign = DaExpr::Assign(Box::new(place.clone()), Box::new(value));
             return Ok(lower_assignment_expr(assign, place, is_used)
                 .prepend_stmts(rhs_stmts)
@@ -1499,8 +1502,8 @@ impl<'c> Translation<'c> {
         } else {
             self.integer_literal_for_type(DaExpr::ConstInt(1), arith.da_type())
         };
-        let promoted = self.promote_operand(current, kind, arith);
-        Ok(self.narrow_arith_to_storage(mk().binary_op(das_op, promoted, one), arith, storage))
+        let promoted = self.object_value_as_arith(current, kind, arith);
+        self.arith_result_to_object(mk().binary_op(das_op, promoted, one), arith, kind, storage)
     }
 
     /// The address-backed C object place a member expression names, together

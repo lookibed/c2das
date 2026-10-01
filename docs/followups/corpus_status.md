@@ -71,6 +71,19 @@ daslang then rejects the module at compile time — interpreter, `-jit`, `-exe` 
 alike (exit 1 / 255) — with five errors in two families.  Both are translator gaps: the C is
 valid and the generated text is what daslang refuses.
 
+**Status 2026-10-01: B1 and B3 are fixed; B2 is the only blocker.**  After the two fixes below,
+`run_c2das_cases.py --case binjgb-cgb-acid2-std` fails on exactly the three B2 errors
+(`error[30915]` at `c2da_fresh368 = *file_data_3`, `error[30344]` twice for `iter` /
+`iter_0`) and nothing else.  In a scratch copy with only the B2 statements rewritten (as in
+"Past the two gaps" below), the interpreter and the AOT build (`daslang -aot` + `aot_host`, the
+`corpus_matrix.py` recipe) both print output byte-identical to the C reference.
+
+**Gap B1 — fixed.**  `enums.rs object_value_as_arith` / `arith_result_to_object`: every
+compound assignment and `++`/`--` on an enum-typed object, plain or address-backed, reads the
+enum as a conversion to the computation type and narrows the result to the enumeration's
+integer type before re-reading it as the `enum` (`s.speed = unsafe(reinterpret<Speed>(uint(s.speed) ^ 1u))`).
+Fixture `p120-enum-compound-assignment`.  The original gap:
+
 **Gap B1 — compound assignment on an enum-typed lvalue.**  `lvalue ^= 1` where the lvalue has
 enum type is lowered as `reinterpret<E>(lvalue ^ 1u)`: the operator is applied to the enum
 value, not to its integer value.
@@ -162,10 +175,22 @@ each `elif` as a nested `else { if ... }`, and `clang++-18` stops on the generat
 binjgb_all.das.cpp:26600:1017: fatal error: bracket nesting level exceeded maximum of 256
 ```
 
-The 245-arm `switch (opcode)` at `emulator.c:4453` stays under the limit.  Owner: the switch
-lowering (`build_switch_arm`, `translator/mod.rs`); the alternative outside the translator is a
-`-fbracket-depth` in the AOT build flags, which `scripts/corpus_matrix.py` does not set.
-Neither is done here.
+The 245-arm `switch (opcode)` at `emulator.c:4453` stays under the limit.  (The owner was the
+`switch` terminator of the flat label back end, `cfg/labels.rs`; `build_switch_arm` in
+`translator/mod.rs` is the statement-expression path and dead code.)
+
+**Gap B3 — fixed.**  `cfg/labels.rs DispatchTree` (`translator/ARCHITECTURE.md`, "Switch
+dispatch"): a dense case range is one bounds test and a computed `goto` into a run of label
+numbers, a short run an `elif` chain of at most four arms, anything else a median split; no
+form nests deeper than log n.  Both opcode switches of `execute_instruction` are now jump tables
+(`goto c2da_fresh398 + 69`, `goto c2da_fresh450 + 325`), and the AOT C++ compiles.  Fixture
+`p121-switch-dispatch`.  Interpreter (the owner's priority): on a probe whose hot loop is a
+256-case byte switch, 1.05 s → 0.27 s best of 7 (master's elif chain vs the jump table; a median
+split alone measured 3× in place of 4×).  On binjgb's own 300-frame bench entry (scratch copy
+with the B2 statements rewritten, interpreter, 5 interleaved runs) the frame loop takes
+8.51 s with the elif chains and 8.54 s with the jump tables, a difference inside the run-to-run
+noise: cgb-acid2 halts the CPU between frames, so opcode dispatch is a small share of the
+time.
 
 Acceptance gate for promotion to `ready`: the unmodified `src/binjgb_all.c` compiles and matches
 the pinned oracle in `run_c2das_cases.py --case binjgb-cgb-acid2-std` and in all four modes of

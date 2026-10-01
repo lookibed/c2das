@@ -275,14 +275,14 @@ def test_bool() {
     var ident1 : bool
     var macro_int1 : bool
     var macro_ident1 : bool
-    int0 = 0 != 0
-    ident0 = 0 != 0
-    macro_int0 = 0 != 0
-    macro_ident0 = 0 != 0
-    int1 = 1 != 0
-    ident1 = 1 != 0
-    macro_int1 = 1 != 0
-    macro_ident1 = 1 != 0
+    int0 = false
+    ident0 = false
+    macro_int0 = false
+    macro_ident0 = false
+    int1 = true
+    ident1 = true
+    macro_int1 = true
+    macro_ident1 = true
     int0 = (int(int0) | (int1 == true ? 1 : 0)) != 0
     return
 }
