@@ -1,0 +1,30 @@
+options gen2
+require daslib/fio
+require strings
+
+// Descriptor for a locally staged dasSDL3 core module (same registrations as
+// dasSDL3's src/package/repository.cmake core profile, but the boost script list is
+// read from the staged dassdl3/ folder instead of being baked in at configure time).
+// ../build_aot.bat copies it to <project>/modules/dasSDL3/.das_module.
+
+[export]
+def initialize(project_path : string) {
+    register_dynamic_module("{project_path}/dasSDL3.shared_module", "Module_dasSDL3")
+    let excluded = [ "sdl3_image_boost", "sdl3_imgui", "sdl3_imgui_widgets", "sdl3_mixer_boost",
+        "sdl3_net_boost", "sdl3_sound_boost", "sdl3_ttf_boost" ]
+    dir("{project_path}/dassdl3") $(fname) {
+        if (!fname |> ends_with(".das")) {
+            return
+        }
+        let name = slice(fname, 0, length(fname) - 4)
+        if (name |> starts_with("sdl3_shader")) {
+            return
+        }
+        for (ex in excluded) {
+            if (ex == name) {
+                return
+            }
+        }
+        register_native_path("dassdl3", name, "{project_path}/dassdl3/{fname}")
+    }
+}
