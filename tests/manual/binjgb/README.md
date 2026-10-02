@@ -8,8 +8,8 @@ mappers, the PPU with CGB palettes, the APU, timers and interrupts, all behind o
 
 The corpus is the canonical case `binjgb-cgb-acid2-std` in `tests/canonical/cases.json`:
 `src/binjgb_all.c` translated under `--libc std`, run against `fixtures/cgb-acid2.gbc`.  It is
-registered **known-red**: the translation does not compile in daslang (see "Translation status"
-below and `docs/followups/corpus_status.md`).
+**ready**: the unmodified graph converges with the C reference in every daslang run mode
+(see "Translation status" below and `docs/corpus-convergence.md`).
 
 ## Layout
 
@@ -66,19 +66,11 @@ same way; at `-O3 -march=native` its 300 frames take about 60 ms.
 
 ## Translation status
 
-`src/binjgb_all.c` translates under `--libc std` with no translator error, and daslang
-rejects the module at compile time with three errors of one translator gap: a record with
-pointer fields copied from a const source is emitted as a plain copy that daslang refuses
-(`uint8? = uint8? const`) — `emulator.c:4910` (`e->file_data = *file_data` through
-`const FileData *`) and the by-value `JoypadStateIter` parameter of `joypad.c:140` and
-`joypad.c:156`.
-
-Two earlier gaps are fixed in the translator: compound assignment on an enum-typed lvalue
-(`FC ^= 1`, `CPU_SPEED.speed ^= 1`) and the 256-case `switch` (`emulator.c:4556`) whose `elif`
-chain nested deeper than clang's bracket limit in the AOT C++.
-
-`docs/followups/corpus_status.md` ("binjgb: translation blockers") has the exact diagnostics
-and a minimal reproducer for each.  Upstream is not edited to avoid them.  In a scratch copy
-with the copy statements rewritten and `joypad.c` left out of the graph, the translation
-compiles and runs byte-identically to the C reference in the interpreter and as an AOT build.
-The ledger records those measurements, as a diagnostic, not as validation.
+Ready (2026-10-02).  `src/binjgb_all.c` translates under `--libc std` and prints the pinned
+oracle in the interpreter, `-jit`, AOT and `-exe` (`docs/corpus-convergence.md`).  Three
+translator gaps stood in the way and are fixed in the translator, each with a canonical case:
+compound assignment on an enum-typed lvalue (`FC ^= 1`, `p120`), the 256-case `switch` whose
+`elif` chain exceeded clang's bracket limit in the AOT C++ (`p121`), and a record with pointer
+members copied out of a `const` place — `e->file_data = *file_data` and the by-value
+`JoypadStateIter` parameters of `joypad.c` (`p133-const-record-copy`).  Upstream is not edited.
+`docs/followups/corpus_status.md` ("binjgb: translation blockers") has the history.

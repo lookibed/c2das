@@ -12,9 +12,10 @@ The workload is vanilla Doom's own demo benchmark: the engine runs as
 recorded input is the only input.  The platform layer hashes every rendered frame.
 
 The canonical case is `doomgeneric-demo1-std` in `tests/canonical/cases.json`: `src/doom_all.c`
-translated under `--libc std`.  It is **known-red**: the C reference is pinned and green, the
-translation stops fail-closed; `docs/followups/corpus_status.md`, "doomgeneric: translation
-gaps", lists every gap found.
+translated under `--libc std`.  It is **known-red**: the C reference is pinned and green, and
+the translation compiles and matches every pinned frame under `-jit`, but the daslang
+*interpreter* stops on a daslang defect (see "Translation status");
+`docs/followups/corpus_status.md`, "doomgeneric: translation gaps", lists every gap found.
 
 ## Layout
 
@@ -105,17 +106,14 @@ not a translator defect.
 
 ## Translation status
 
-Known-red.  Strict translation of `src/doom_all.c` under `--libc std` succeeds (58,320 lines
-of daslang); daslang then refuses the module at
-
-```
-error[20512]: structure is already defined actionf_t
-```
-
-(a storage-backed record emitted once per typedef visit), and behind that on uninitialised
-file-scope objects of storage-backed record type (`error[31014]`).  The libc entry points and
-the other translator defects the first measurement found are fixed; the list, what is fixed
-and what still blocks, with a few-line reproducer for each gap, is in
-`docs/followups/corpus_status.md`, "doomgeneric: translation gaps".  The case has no `corpus`
-block yet, so `scripts/corpus_matrix.py` does not pick it up; that section has the block to
-add when it is promoted.
+Known-red (2026-10-02).  Strict translation of `src/doom_all.c` under `--libc std` succeeds,
+the module compiles in daslang (`das_options: ["stack = 4194304"]`: the generated initializer
+of the 967-entry `states[]` table needs more than daslang's default stack), and `daslang -jit`
+prints all 70 pinned frame hashes.  The interpreter stops at startup in `Z_CheckHeap` with
+`EXCEPTION: jump to label 0 failed`: daslang's if-return folding moves the statements after
+an `if (...) { return }` — labels included — into a nested `else` block, and a `goto` back to
+a label outside it then fails.  It is a daslang defect with a pure-daslang reproducer in
+`docs/followups/corpus_status.md`, "doomgeneric: translation gaps", which also lists every
+translator gap found and fixed.  The case carries its `corpus` block; `corpus_matrix.py` runs
+it only under `--case` while it is known-red.  The intercepts-overrun emulation of
+`p_maputl.c:849` does not affect the 70 pinned frames (the `-jit` run matches C).

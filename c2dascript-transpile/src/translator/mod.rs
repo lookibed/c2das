@@ -273,6 +273,16 @@ pub struct Translation<'c> {
     /// function-scope `static` becomes a module-level object. Drained once, by
     /// `translate_impl`, into the type section of the module.
     pub(crate) hoisted_types: RefCell<Vec<DaDecl>>,
+    /// File-scope objects that own storage-backed records, by daScript name:
+    /// the zeroed storage C gives them and the in-place write of a value into
+    /// it.  `global_order.rs` uses both for such an object when its
+    /// initializer is on a cycle and moves to `[init]`
+    /// (`structs_unions.rs storage_global_init`).
+    pub(crate) storage_globals: RefCell<HashMap<String, global_order::StorageGlobal>>,
+    /// The functions that build an array of storage-backed record wrappers
+    /// over one contiguous block (`structs_unions.rs contiguous_record_array`),
+    /// by name.  Drained once, by `translate_impl`.
+    pub(crate) record_array_helpers: RefCell<std::collections::BTreeMap<String, DaDecl>>,
     /// Which C functions may be substituted at their direct call sites, by
     /// the rule in [`self::inline`]. `None` means "not a candidate"; a
     /// declaration is seeded with `None` while it is being analysed, which is
@@ -309,6 +319,8 @@ impl<'c> Translation<'c> {
             named_zero_fill_cache: RefCell::new(HashMap::new()),
             hoisted_statics: RefCell::new(vec![]),
             hoisted_types: RefCell::new(vec![]),
+            storage_globals: RefCell::new(HashMap::new()),
+            record_array_helpers: RefCell::default(),
             inline_candidates: RefCell::new(HashMap::new()),
             inline_stack: RefCell::new(vec![]),
             inline_frames: RefCell::new(vec![]),
@@ -1067,14 +1079,17 @@ impl<'c> Translation<'c> {
                 // of the object at that address.  A decayed fixed array really
                 // is a daScript array of wrappers and keeps its own lowering.
                 if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
-                    if !self.is_array_decay(*arr) {
+                    if !self.is_wrapper_array_decay(*arr) {
                         if let Some(address) = self.storage_object_address(ctx, expr_id)? {
                             let raw = self.raw_address_of_place(&address);
                             return self.load_storage_object(record_id, raw);
                         }
                     }
                 }
-                let arr_val = self.convert_expr(ctx, *arr, None)?;
+                let arr_val = match self.wrapper_array_base(ctx, *arr)? {
+                    Some(base) => base,
+                    None => self.convert_expr(ctx, *arr, None)?,
+                };
                 let idx_val = self.convert_expr(ctx, *idx, None)?;
                 // ArraySubscript — daScript requires Index on pointer/array to be
                 // inside `unsafe()`. The C AST type check (is_pointer_type) sometimes
@@ -1293,9 +1308,13 @@ impl<'c> Translation<'c> {
                     let mut stmts = inner.stmts;
                     let inner_val = inner.val;
                     // C spells "integer value crossing into an enumeration" as
-                    // an integral cast too; `cast_to_type` picks the
-                    // reinterpretation daScript requires there and the plain
-                    // conversion everywhere else.
+                    // an integral cast too; `enums.rs value_to_enum` converts
+                    // to the enumeration's integer type and re-reads that as
+                    // the `enum`, `cast_to_type` is the plain conversion
+                    // everywhere else.
+                    if let Some(value) = self.value_to_enum(inner_val.clone(), source_ty, *ty)? {
+                        return Ok(WithStmts::new(stmts, value).merge_unsafe(inner_unsafe));
+                    }
                     let cast = self.cast_to_type(inner_val.clone(), target_type.clone());
                     if let Some((lowered_stmts, lowered_val)) =
                         self.bool_to_integer_cast(cast.clone())
@@ -1343,6 +1362,33 @@ impl<'c> Translation<'c> {
                     }
                     let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                     let idx = mk().int_lit(0);
+                    // An array of storage-backed records decays to the byte
+                    // address of its first element, the one pointer model of
+                    // such a record; its elements are contiguous
+                    // (`structs_unions.rs contiguous_record_array`).
+                    let element = match self.ast_context.resolve_type(ty.ctype).kind {
+                        CTypeKind::Pointer(pointee) => Some(pointee.ctype),
+                        _ => None,
+                    };
+                    if element.map_or(false, |e| self.storage_backed_record_of(e).is_some()) {
+                        if !self.is_wrapper_array_decay(expr_id) {
+                            return Err(format_translation_err!(
+                                self.ast_context.display_loc(&self.ast_context[expr_id].loc),
+                                "unsupported decay of an array of storage-backed records that \
+                                 is neither an array object nor a record field",
+                            ));
+                        }
+                        let target = self.convert_type(*ty)?;
+                        let first = DaExpr::Field(
+                            Box::new(DaExpr::Index(Box::new(inner.val), Box::new(idx))),
+                            "c2da_storage".into(),
+                        );
+                        return Ok(
+                            WithStmts::new_val(self.raw_address_to_pointer(first, target))
+                                .prepend_stmts(inner.stmts)
+                                .merge_unsafe(true),
+                        );
+                    }
                     return Ok(WithStmts::new_val(DaExpr::Unsafe(Box::new(DaExpr::Addr(
                         Box::new(DaExpr::Index(Box::new(inner.val), Box::new(idx))),
                     ))))
@@ -1360,14 +1406,13 @@ impl<'c> Translation<'c> {
                         && matches!(target_type.kind, DaTypeKind::Pointer(_))
                     {
                         WithStmts::new_val(self.raw_address_to_pointer(inner.val, target_type))
-                    } else if matches!(cast_kind, CastKind::PointerToIntegral)
-                        && matches!(target_type.kind, DaTypeKind::UInt64)
-                    {
+                    } else if matches!(cast_kind, CastKind::PointerToIntegral) {
                         // `(uintptr_t)(p + n)` reads the raw address of a
                         // pointer sum, which the daslang interpreter cannot do
                         // in place; the pointer is named first.  Its daScript
                         // type comes from the C operand, because a pointer
-                        // sum's own shape does not name one.
+                        // sum's own shape does not name one.  `(int)p` is the
+                        // raw address converted (`abi.rs pointer_to_integer`).
                         let operand_type = self.ast_context[*expr]
                             .kind
                             .get_qual_type()
@@ -1375,7 +1420,7 @@ impl<'c> Translation<'c> {
                             .transpose()?
                             .map(writable_type);
                         self.named_pointer_value(inner.val, operand_type.as_ref())
-                            .map(|pointer| self.pointer_to_raw_address(pointer))
+                            .map(|pointer| self.pointer_to_integer(pointer, target_type.clone()))
                     } else if matches!(target_type.kind, DaTypeKind::Pointer(_)) {
                         WithStmts::new_val(self.abi_pointer_cast(inner.val, target_type))
                     } else {
@@ -1401,6 +1446,14 @@ impl<'c> Translation<'c> {
                     );
                 }
                 let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
+                // Reading a record object drops the qualifiers of the place
+                // (`structs_unions.rs record_lvalue_conversion`).
+                if matches!(cast_kind, CastKind::LValueToRValue) {
+                    return self.record_lvalue_conversion(
+                        inner,
+                        self.ast_context[*expr].kind.get_qual_type(),
+                    );
+                }
                 Ok(WithStmts::new_val(inner.val)
                     .prepend_stmts(inner.stmts)
                     .merge_unsafe(inner.is_unsafe))
@@ -1548,12 +1601,21 @@ impl<'c> Translation<'c> {
                     } else {
                         WithStmts::new_val(inner.val)
                     };
-                    pointer.map(|pointer| DaExpr::reinterpret(pointer, target_type))
+                    if matches!(cast_kind, CastKind::PointerToIntegral) {
+                        pointer.map(|pointer| self.pointer_to_integer(pointer, target_type))
+                    } else {
+                        pointer.map(|pointer| DaExpr::reinterpret(pointer, target_type))
+                    }
                 } else {
                     // Everything left is a value conversion in C — including
-                    // `(some_enum_t)n`, which daScript can only express as a
-                    // reinterpretation.  `cast_to_type` decides which.
-                    WithStmts::new_val(self.cast_to_type(inner.val, target_type))
+                    // `(some_enum_t)n`, which `enums.rs value_to_enum` spells
+                    // as a conversion to the enumeration's integer type re-read
+                    // as the `enum`.
+                    let source = self.ast_context[*expr].kind.get_qual_type();
+                    match self.value_to_enum(inner.val.clone(), source, *ty)? {
+                        Some(value) => WithStmts::new_val(value),
+                        None => WithStmts::new_val(self.cast_to_type(inner.val, target_type)),
+                    }
                 };
                 Ok(value
                     .prepend_stmts(inner.stmts)
@@ -2907,6 +2969,42 @@ impl<'c> Translation<'c> {
                     ));
                 }
 
+                // A storage-backed record, or an array of them, already owns
+                // its (contiguous) storage from the hoisted declaration; the
+                // C initializer writes its bytes there, every time control
+                // passes the declaration, so the object — and every address
+                // taken of it — stays the same one.
+                if let Some(expr_id) = initializer {
+                    if self.object_holds_storage_records(typ.ctype) {
+                        let value = self.convert_expr(ctx.used(), expr_id, Some(typ))?;
+                        let mut assign_stmts = value.stmts;
+                        let source = match value.val {
+                            place if structs_unions::is_wrapper_place(&place) => place,
+                            other => {
+                                let tmp = self.renamer.borrow_mut().fresh();
+                                assign_stmts.push(DaStmt::Var {
+                                    name: tmp.clone(),
+                                    var_type: writable_type(var_type.clone()),
+                                    init: Some(other),
+                                });
+                                DaExpr::Var(tmp)
+                            }
+                        };
+                        assign_stmts.extend(self.storage_in_place_copy(
+                            DaExpr::Var(rust_name.clone()),
+                            source,
+                            typ.ctype,
+                        )?);
+                        let mut decl_and_assign = vec![decl_stmt.clone()];
+                        decl_and_assign.extend(assign_stmts.clone());
+                        return Ok(crate::cfg::DeclStmtInfo::new(
+                            vec![decl_stmt],
+                            assign_stmts,
+                            decl_and_assign,
+                        ));
+                    }
+                }
+
                 let has_self_reference = initializer
                     .map(|expr_id| self.has_decl_reference(decl_id, expr_id))
                     .unwrap_or(false);
@@ -3188,6 +3286,14 @@ impl<'c> Translation<'c> {
     }
 
     pub(crate) fn default_initializer_for_ctype(&self, ty: CTypeId) -> TranslationResult<DaExpr> {
+        // An array of storage-backed records is one contiguous block.
+        if matches!(
+            self.ast_context.resolve_type(ty).kind,
+            CTypeKind::ConstantArray(..)
+        ) && self.object_holds_storage_records(ty)
+        {
+            return self.contiguous_record_array(ty);
+        }
         if let Some(record_id) = self.storage_backed_record_of(ty) {
             let name = match self.convert_type(CQualTypeId::new(ty))?.kind {
                 DaTypeKind::Named(name) => name,
@@ -3761,10 +3867,17 @@ fn translate_impl(
                 decl_id,
             ) {
                 Ok(das_decl) => {
-                    // Track emitted type declarations for dedup.
-                    // Named structs/enums dedup by name; anonymous structs
-                    // dedup by (name, field_type_signature) for accuracy.
-                    t.claim_type_declaration(&das_decl);
+                    // One daScript declaration per daScript type name.  A
+                    // storage-backed record is named once, by its record id
+                    // (`storage_record_name`), and every C declaration that
+                    // reaches it — the record itself, its typedef, a typedef
+                    // of that typedef — lowers to the same wrapper; only the
+                    // first is emitted (daslang: `error[20512]: structure is
+                    // already defined`).  Anonymous structs dedup by
+                    // (name, field_type_signature).
+                    if !t.claim_type_declaration(&das_decl) {
+                        continue;
+                    }
                     // Skip duplicate typedefs and named structs (daScript rejects them).
                     let type_name = decl.kind.get_name().map(|s| s.to_string());
                     if let Some(ref name) = type_name {
@@ -3960,6 +4073,7 @@ fn translate_impl(
     // address — and before any initializer that points into it.
     module_decls.extend(literals::take_string_literal_declarations());
     module_decls.extend(builtins::take_builtin_helper_declarations());
+    module_decls.extend(std::mem::take(&mut *t.record_array_helpers.borrow_mut()).into_values());
     // The `--libc std` replacement prelude, if this translation unit used any
     // of it. In the default `nostd` mode this is empty and the module is
     // unchanged.
@@ -3976,7 +4090,11 @@ fn translate_impl(
     // dependencies before they are emitted.
     let mut ordered = t.take_hoisted_statics();
     ordered.extend(value_decls);
-    module_decls.extend(global_order::order_value_declarations(ordered));
+    let storage_globals = std::mem::take(&mut *t.storage_globals.borrow_mut());
+    module_decls.extend(global_order::order_value_declarations(
+        ordered,
+        &storage_globals,
+    ));
     // The `std` entry wrapper calls the translated C `main`, so it comes after
     // every translated function.
     module_decls.extend(libc::take_entry_declarations());

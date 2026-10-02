@@ -7,8 +7,8 @@
 | PLMPEG stream, 320×240 | same pl_mpeg revision; `fixtures/testsrc2_320x240.m1v` synthesized with ffmpeg (command and sha256 in `UPSTREAM.md`) | ready | `plmpeg-stream-320x240`, same graph, file entries `src/plmpeg_file_*` reading the fixture at run time | RGB hash of every decoded frame (59 frames, 320×240, GOP 12, no B-frames), pinned in `cases.json` | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md` |
 | wasm3 (interpreter core, no WASI) | `tests/manual/wasm3/UPSTREAM.md`: wasm3 `deeaca9ce` (MIT); `fixtures/fib32.wasm`, `fib64.wasm` are upstream's own test vectors | ready | `wasm3-fib32-std`: `src/all_host.c` (graph + C host over the `.wasm` named by the last argument) translated under `--libc std` with `das_options: ["stack = 4194304"]`, `program_args: fixtures/fib32.wasm` | `fib[n]=` for n in 1,2,5,10,15,20,24 plus `bytes=62` and `count=7`, pinned in `cases.json`; C reference == fresh daslang in every run mode | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md`; `docs/followups/translator_gaps_wasm3.md` has the first per-mode measurement and the story; both daslang-side issues are avoided translator-side — record order in `global_order.rs` ([#2](https://github.com/lookibed/daScript/issues/2), case `p84-struct-definition-order`) and the named pointer value in `abi.rs` ([#3](https://github.com/lookibed/daScript/issues/3), case `p85-pointer-sum-compare`); decisions on the four translator gaps still due |
 | h264bsd + minimp4, 640×360 | same revisions; `fixtures/test_640x360.mp4` is upstream's `test/test_640x360.h264` muxed without re-encoding (`UPSTREAM.md`) | ready | `h264bsd-mp4-640x360`, same graph, file entries `src/h264_file_*` reading the fixture at run time | YUV hash of every decoded picture (73 pictures, 640×368 output, constrained baseline), pinned in `cases.json` | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md` |
-| binjgb (Game Boy Color emulator core) | `tests/manual/binjgb/UPSTREAM.md`: binjgb `8191a5d6` (MIT); `fixtures/cgb-acid2.gbc` is Matt Currie's cgb-acid2 `v1.1` (MIT) | known-red | `binjgb-cgb-acid2-std`: `src/binjgb_all.c` (graph + platform layer + C entry over the ROM named by the last argument) translated under `--libc std`, `program_args: fixtures/cgb-acid2.gbc` | cartridge header lines, RGB555 FNV-1a hash of each of 60 emulated frames (A held on frames 8–9), `frames=60`, `ticks=5378896`, pinned in `cases.json` from the clang-18 C reference | blocked: the translated module does not compile in daslang, "binjgb: translation blockers" below; not in `docs/corpus-convergence.md` / `docs/corpus-benchmark.md` until ready |
-| doomgeneric (Doom engine) | `tests/manual/doomgeneric/UPSTREAM.md`: doomgeneric `dcb7a8dbc` (GPL-2.0); `fixtures/doom1.wad` is the unmodified shareware 1.9 IWAD | known-red | `doomgeneric-demo1-std`: `src/doom_all.c` (engine + platform layer + C entry) under `--libc std`, `program_args: fixtures/doom1.wad`; no `corpus` block yet (see below) | RGB hash of each of the first 70 frames of `-timedemo demo1` (320×200, palette applied), pinned in `cases.json`; C `-O0` == `-O2` == `-O3 -march=native` | translation completes (58,320 lines); first blocker: daslang `error[20512]: structure is already defined actionf_t` (gap 10), then gap 14; the full gap list is the section "doomgeneric: translation gaps" below |
+| binjgb (Game Boy Color emulator core) | `tests/manual/binjgb/UPSTREAM.md`: binjgb `8191a5d6` (MIT); `fixtures/cgb-acid2.gbc` is Matt Currie's cgb-acid2 `v1.1` (MIT) | ready | `binjgb-cgb-acid2-std`: `src/binjgb_all.c` (graph + platform layer + C entry over the ROM named by the last argument) translated under `--libc std`, `program_args: fixtures/cgb-acid2.gbc` | cartridge header lines, RGB555 FNV-1a hash of each of 60 emulated frames (A held on frames 8–9), `frames=60`, `ticks=5378896`, pinned in `cases.json` from the clang-18 C reference | C reference == fresh daslang in every run mode: `docs/corpus-convergence.md` (last verified 2026-10-02 on top of `d2e5d6f33`); not yet timed in `docs/corpus-benchmark.md` |
+| doomgeneric (Doom engine) | `tests/manual/doomgeneric/UPSTREAM.md`: doomgeneric `dcb7a8dbc` (GPL-2.0); `fixtures/doom1.wad` is the unmodified shareware 1.9 IWAD | known-red | `doomgeneric-demo1-std`: `src/doom_all.c` (engine + platform layer + C entry) under `--libc std`, `program_args: fixtures/doom1.wad`; no `corpus` block yet (see below) | RGB hash of each of the first 70 frames of `-timedemo demo1` (320×200, palette applied), pinned in `cases.json`; C `-O0` == `-O2` == `-O3 -march=native` | `-jit` matches all 70 pinned frames; the interpreter stops on a daslang defect (`jump to label 0 failed`, if-return folding moves labels into a nested block), so the case stays known-red; `corpus` block added (run only under `--case` while known-red); "doomgeneric: translation gaps" below, "Status 2026-10-02" |
 
 The two 320×240 / 640×360 rows exist twice in `cases.json`: once over a fixture-owned
 daslang entry (`plmpeg-stream-320x240`, `h264bsd-mp4-640x360`) and once as
@@ -70,6 +70,14 @@ The C reference (`clang-18`, `-O0`/`-O2`/`-O3 -march=native`, and `-O0` with
 daslang then rejects the module at compile time — interpreter, `-jit`, `-exe` and `daslang -aot`
 alike (exit 1 / 255) — with five errors in two families.  Both are translator gaps: the C is
 valid and the generated text is what daslang refuses.
+
+**Status 2026-10-02: ready.**  B2 is fixed: reading a record object drops the place's
+qualifiers (C11 6.3.2.1p2), so a record with pointer members read from a `const` place or a
+read-only record parameter is read through its address converted to the unqualified record
+(`abi.rs unqualified_record_value`; `*unsafe(reinterpret<FileData?>(file_data))`,
+`*unsafe(addr<JoypadStateIter?>(incoming))`), fixture `p133-const-record-copy`.  The unmodified
+graph matches the pinned oracle in `run_c2das_cases.py --case binjgb-cgb-acid2-std` and in all
+four modes of `corpus_matrix.py converge --case binjgb-cgb-acid2-std`; the case is `ready`.
 
 **Status 2026-10-01: B1 and B3 are fixed; B2 is the only blocker.**  After the two fixes below,
 `run_c2das_cases.py --case binjgb-cgb-acid2-std` fails on exactly the three B2 errors
@@ -206,9 +214,11 @@ come out the same at `-O0`, `-O2` and `-O3 -march=native`, and the 1000-frame be
 entry agrees with them on its first 70 frames.  The translation is not: the case is
 registered `known-red` and translation stops, fail-closed, on the first item below.
 
-The case carries no `corpus` block yet, on purpose: `scripts/corpus_matrix.py` selects
-every case that has one, whatever its status, so a known-red case with the block would turn
-`converge --check` and the full `bench` red.  At promotion, add
+(Superseded 2026-10-02: `corpus_matrix.py` now runs a known-red case only under `--case`, and
+the block below is in `cases.json`.)  The case carried no `corpus` block at first, on purpose:
+`scripts/corpus_matrix.py` then selected every case that had one, whatever its status, so a
+known-red case with the block would have turned `converge --check` and the full `bench` red.
+At promotion, add
 
 ```json
 "corpus": {
@@ -303,3 +313,71 @@ without an initializer.  `states`'s initializer takes no element address, so rep
 `translator/ARCHITECTURE.md` ("Arguments, function designators and self-referencing
 globals") for whoever gives uninitialised storage-backed globals their storage.  What lies
 behind gap 14 is unknown.
+
+### Status 2026-10-02: compiles, `-jit`/AOT/`-exe` converge, the interpreter is blocked by daslang
+
+Closed in the translator (on top of `d2e5d6f33`), each with a canonical case; the storage-backed
+object model is now written down in `translator/ARCHITECTURE.md`, "Storage-backed objects: one
+wrapper, one block, one identity":
+
+| # | Fix | Case |
+|---|---|---|
+| 10 | a storage-backed record reached through a `typedef` (or a `typedef` of one) is one wrapper, declared once (module assembly emits one declaration per daScript type name) | `p130-typedef-storage-records` |
+| 14 | a file-scope object of storage-backed type, or array of them, is declared with its zeroed storage; an array is one contiguous block whose wrappers name slices of it (`c2da_records_<T>_<dims>`); an initialised array, and a cyclic object (`states`), keep that storage and `[init]` copies the initializer's bytes in, so addresses into the object stay valid | `p131-storage-record-arrays`, `p132-storage-object-identity` |
+| 16 | pointer arithmetic on a pointer to a storage-backed record stepped by the eight-byte wrapper (`filerover++` over the packed `filelump_t` WAD directory: every lump name after the first was garbage, `W_GetNumForName: S_END not found!`); it now runs on the raw address scaled by Clang's size, for `±`, `-`, `++`, `+=`; an array decays to its first element's byte address | `p131-storage-record-arrays` |
+| 17 | a subscript of an array *field* of a storage-backed record (`&mtexture->patches[0]`) was read as a wrapper array and memcpy'd 10 bytes over 8 (crash in `R_InitTextures`); it is a Clang offset into the record | `p131-storage-record-arrays` |
+| 18 | `s = t`, `a[i] = t` and a block-scope declaration's initializer replaced the wrapper (fresh allocation, old addresses dangling); they copy bytes into the object's storage — `dg_hash_frame`'s `struct color c = colors[...]` no longer allocates per pixel | `p132-storage-object-identity` |
+| 19 | a global another initializer takes the address of (`intercepts_overrun[]` → `lowfloor`, `joybuttons = &joyarray[1]`) had no initializer, which daslang counts as "initialized after" its reader (`error[30173]`); its C zero is spelled `default<T>` | `p135-static-zero-spelled` |
+| 20 | `(int) intercept->d.thing` (`p_maputl.c:849`) was `reinterpret<int>` of an 8-byte pointer, an internal error of daslang's LLVM JIT (`trunc ptr to i32`); the raw address is converted | `p134-pointer-integer-enum-conversions` |
+| 21 | `skill = *demo_p++` reinterpreted a `uint8` as the 4-byte `skill_t` (demo played on skill 4, extra monsters spawned, frame 12 on diverged); the byte is converted to the enum's integer type first, and an assignment `e = *p` is no longer re-read through `reinterpret<E?>(p)` when a value conversion stands between | `p134-pointer-integer-enum-conversions` |
+
+The case also declares `das_options: ["stack = 4194304"]` (the generated `c2da_ginit_states`
+for the 967-entry table overflows daslang's default stack, `stack overflow while calling
+c2da_ginit_states`) and its `corpus` block.  `corpus_matrix.py converge --case
+doomgeneric-demo1-std`: **jit, aot and exe print all 70 pinned frames byte-identically**; the
+interpreter stops at startup:
+
+```
+EXCEPTION: jump to label 0 failed
+ at generated/doom_all.das:<line of the second if in Z_CheckHeap>
+```
+
+**Blocker: a daslang interpreter defect, not worked around.**  daslang's if-return folding
+(`src/ast/ast_block_folding.cpp`, the `if (cond) {... return} b` → `if (cond) {... return}
+else {b}` rewrite in `visit(ExprBlock*)`) moves the statements after the `if` — `label`s
+included — into a new nested block without checking for labels; a `goto` from that block to a
+label left outside (`label 0`, the loop head) then fails in `SimNode_BlockWithLabels::eval`.
+The JIT is unaffected.  Pure-daslang reproducer (daslang 0.6.4, `~/daScript/bin/daslang`;
+prints `3` with `-jit`, raises the exception in the interpreter):
+
+```das
+options gen2
+
+def f(n : int) : int {
+    var i : int
+    label 0:
+    if (i >= 3) {
+        return i
+    }
+    if (i == 7) {
+        goto label 1
+    }
+    label 1:
+    i = i + 1
+    goto label 0
+}
+
+[export]
+def main() {
+    print("{f(1)}\n")
+}
+```
+
+Still to file on `lookibed/daScript`.  Not every such shape fails (a loop whose `goto`-target
+label is not right after the `if` passes), which is why the other corpora are unaffected.
+`p_maputl.c:849`'s intercepts-overrun emulation does not affect the 70 pinned frames (the
+compiled modes match C).
+
+Known residue: a hoisted storage-backed local allocates its storage once per function
+activation and never releases it (a few blocks per tic in Doom); the runtime's
+`c2da_rt_frame_enter`/`leave` are the intended owner.

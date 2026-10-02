@@ -57,6 +57,54 @@ typedef-of-anonymous-struct path; a field whose type does not convert is a sourc
 error, never a dropped field.  `p103-zero-sized-fields` and
 `n12-typedef-record-field-unsupported` are the fixtures.
 
+## Storage-backed objects: one wrapper, one block, one identity
+
+A storage-backed wrapper is named once, by its record (`storage_record_name`), and every C
+declaration that reaches the record — the record itself, its `typedef`, a `typedef` of that
+`typedef` — lowers to the same `DaStructure`; module assembly emits one declaration per
+daScript type name (`claim_type_declaration`).  `p130-typedef-storage-records`.
+
+The object's address is its storage: a C pointer to a storage-backed record is the byte
+address typed `T?`, never the address of a wrapper.  Everything follows from keeping that one
+address valid and C's layout around it:
+
+- **Zero value.**  A file-scope object of such a type, or an array of them, is declared with
+  its zeroed storage (C11 6.7.9p10); daslang refuses the bare declaration (`error[31014]`).
+- **Contiguous arrays.**  An array (of arrays) of storage-backed records is one zeroed block
+  of Clang's size, each wrapper naming its slice (`structs_unions.rs contiguous_record_array`,
+  helpers `c2da_records_<T>_<dims>(base)`), whether it is a global, a static or a hoisted local.
+  The array decays to its first element's byte address; a subscript of the array names the
+  element wrapper (`object_memory.rs is_wrapper_array_decay`, `wrapper_array_base`), while a
+  subscript of a pointer or of an array *field* of a record — bytes inside that record — is a
+  Clang offset.  A decay of any other array of storage-backed records is refused.
+- **Pointer arithmetic** on such a pointer runs on the raw address, scaled by Clang's object
+  size, not the wrapper's eight bytes: `p ± n`, `p - q`, `++p`, `p += n`
+  (`abi.rs storage_pointee_size`, `storage_pointer_offset`, `storage_pointer_distance`).
+- **No replacement.**  `s = t` and `a[i] = t` copy t's bytes into s's storage; a block-scope
+  declaration's initializer copies into the object the hoisted declaration already holds, each
+  time control passes it, with no allocation per pass; a file-scope array with an initializer
+  is declared over its block and its `[init]` copies the initializer's bytes in
+  (`storage_in_place_copy`).  A hoisted storage-backed local still allocates its storage once
+  per function activation and never releases it (`c2da_rt_frame_enter`/`leave` exist in the
+  runtime but are not used yet).
+
+`p131-storage-record-arrays` and `p132-storage-object-identity` are the fixtures.
+
+## Values: the lvalue conversion, pointers to integers, integers to enumerations
+
+- Reading a natural record object drops the place's qualifiers (C11 6.3.2.1p2).  daslang keeps
+  the place's `const` on every field of a copy and refuses `T? const` into `T?`, so a record
+  with a pointer member read from a `const` place, or from a read-only record parameter, is read
+  through its address converted to the unqualified record (`abi.rs unqualified_record_value`,
+  `structs_unions.rs record_lvalue_conversion`); daslang compiles the `reinterpret` to nothing.
+  `p133-const-record-copy`.
+- A pointer converted to an integer narrower than `uint64` is the raw address converted
+  (`abi.rs pointer_to_integer`): an eight-byte `reinterpret` into `int` is not a conversion,
+  and daslang's LLVM back end rejects it (`trunc ptr`).
+- An integer converted to a daslang `enum` is converted to the enumeration's integer type first
+  and then re-read as the `enum` (`enums.rs value_to_enum`): a `reinterpret<E>` of a `uint8`
+  reads bytes C never defined.  `p134-pointer-integer-enum-conversions`.
+
 ## Field access by name under a layout proof
 
 `is_storage_backed_record` models daScript's layout from Clang's field facts; daslang checks
@@ -272,12 +320,15 @@ list in that redeclaration's place, so the function is emitted once, at module s
   it, and every initializer that depends on it, through an `[init]` function
   `c2da_gset_<name>` (not `c2da_ginit_<name>`, the statement initializer `functions.rs`
   builds for a table of unions, which a cyclic object may also have).
-  `p116-self-referencing-initializer`.  Open hazard: the address of a storage-backed record
-  is its `c2da_storage` block, and `[init]` *replaces* the object, so an initializer that takes
-  the address of an element of a cyclic storage-backed object would read the storage of the
-  value being replaced.  Today such an object's declaration is left without an initializer,
-  which daslang refuses (`error[31014]`), so it fails closed; giving uninitialised
-  storage-backed globals their storage must also initialise a cyclic one in place.
+  `p116-self-referencing-initializer`.  A cyclic object that owns storage-backed records keeps
+  the zeroed storage its declaration gives it, and its `[init]` builds the value in a temporary
+  and copies the bytes into that storage (`global_order.rs StorageGlobal`), so an address
+  taken inside the initializer (`&ring[2].v` within `ring`) stays valid;
+  `p132-storage-object-identity`.
+- A module-level object an inline initializer reads — in C only ever its address — has its
+  zero spelled `default<T>` when C gave it no initializer: daslang counts a `var` without one
+  as never initialised, wherever it is declared (`ast_lint.cpp`, `error[30173]`), while C
+  zero-initialises it before the program starts (C11 6.7.9p10).  `p135-static-zero-spelled`.
 
 ## Memory copies go to daslang's builtins
 

@@ -46,6 +46,48 @@ impl<'c> Translation<'c> {
         self.enum_integral_type(integral_type)
     }
 
+    /// A C value converted to an enumeration type that is a daScript `enum`,
+    /// or `None` when `target` is not one (an anonymous C enumeration is its
+    /// integer type).
+    ///
+    /// C converts the value to the enumeration's compatible integer type
+    /// (C11 6.7.2.2p4, 6.3.1.3); a daScript `enum` has no numeric
+    /// conversion, so the integer is then re-read as the `enum`.  The
+    /// re-read has to start from a value of exactly that integer type: a
+    /// `reinterpret<E>` of a `uint8` reads four bytes of which C defined one
+    /// (`skill = *demo_p++` in Doom's `G_DoPlayDemo`).
+    pub(crate) fn value_to_enum(
+        &self,
+        value: DaExpr,
+        source: Option<CQualTypeId>,
+        target: CQualTypeId,
+    ) -> TranslationResult<Option<DaExpr>> {
+        let CTypeKind::Enum(enum_id) = self.ast_context.resolve_type(target.ctype).kind else {
+            return Ok(None);
+        };
+        let target_da = writable_type(self.convert_type(target)?);
+        if !matches!(target_da.kind, DaTypeKind::Named(_)) || target_da.is_numeric() {
+            return Ok(None);
+        }
+        if let Some(source) = source {
+            if let CTypeKind::Enum(source_enum) = self.ast_context.resolve_type(source.ctype).kind {
+                if source_enum == enum_id {
+                    return Ok(Some(value));
+                }
+            }
+        }
+        let underlying = self.enum_underlying_type(enum_id)?;
+        let source_da = source
+            .map(|source| self.convert_type(source).map(writable_type))
+            .transpose()?;
+        let integer = if source_da.as_ref() == Some(&underlying) {
+            value
+        } else {
+            self.cast_to_type(value, underlying)
+        };
+        Ok(Some(DaExpr::reinterpret(integer, target_da)))
+    }
+
     pub fn convert_enum(
         &self,
         enum_id: CEnumId,

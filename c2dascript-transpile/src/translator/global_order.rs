@@ -38,7 +38,38 @@ use std::collections::{HashMap, HashSet};
 /// position and merely act as the bodies a `var`'s dependencies are traced
 /// through.  The order is otherwise stable: a declaration moves only far
 /// enough forward to precede the initializer that names it.
-pub(crate) fn order_value_declarations(decls: Vec<DaDecl>) -> Vec<DaDecl> {
+/// What a module-level object that owns storage-backed records needs when its
+/// initializer moves to `[init]` (built by `structs_unions.rs
+/// storage_global_init`).
+///
+/// Such an object's identity is its storage: a field address, or any raw
+/// address into it, is an address inside the `c2da_storage` block of a
+/// wrapper.  Assigning a new value in `[init]` would replace those blocks,
+/// leaving every address taken earlier — by the object's own initializer
+/// (`&ring[1].v` inside `ring`) or by another initializer on the cycle —
+/// pointing into storage the object no longer owns.  The declaration
+/// therefore keeps the zeroed storage C gives it (`default`), and `[init]`
+/// builds the value in a temporary named `source` and copies its bytes into
+/// that storage (`copy`).
+///
+/// An array of storage-backed records is built that way whether or not its
+/// initializer is on a cycle (`in_place`): its default is one contiguous
+/// block (`structs_unions.rs contiguous_record_array`), while the value its
+/// initializer builds has a separate allocation per element.  C's static
+/// initializers only ever take addresses, never read another object's
+/// value, so writing the value in `[init]` changes nothing they observe.
+#[derive(Clone, Debug)]
+pub(crate) struct StorageGlobal {
+    pub default: DaExpr,
+    pub source: String,
+    pub copy: Vec<DaStmt>,
+    pub in_place: bool,
+}
+
+pub(crate) fn order_value_declarations(
+    decls: Vec<DaDecl>,
+    storage_globals: &HashMap<String, StorageGlobal>,
+) -> Vec<DaDecl> {
     let n = decls.len();
     if n == 0 {
         return decls;
@@ -140,12 +171,49 @@ pub(crate) fn order_value_declarations(decls: Vec<DaDecl>) -> Vec<DaDecl> {
         }
     }
 
+    // An object an inline initializer reads — usually takes the address of —
+    // must itself have an initializer: daslang counts a module-level `var`
+    // with none as never initialized, wherever it is declared, and rejects
+    // the reader (`error[30173]: global variable X is initialized after G`,
+    // `ast_lint.cpp`: only a variable whose own initializer was visited is
+    // "initialized").  C gives every object of static storage duration its
+    // zero value before the program starts (C11 6.7.9p10), so that zero is
+    // spelled out as `default<T>`, the same zero-fill daslang performs for
+    // the bare declaration.
+    let read_inline: HashSet<usize> = (0..n)
+        .filter(|i| !cyclic.contains(i))
+        .flat_map(|i| deps[i].iter().copied())
+        .collect();
+
     let mut slots: Vec<Option<DaDecl>> = decls.into_iter().map(Some).collect();
     let mut out: Vec<DaDecl> = Vec::with_capacity(n);
     for &i in &order {
         let Some(mut decl) = slots[i].take() else {
             continue;
         };
+        if read_inline.contains(&i) {
+            if let DaDecl::Variable(v) = &mut decl {
+                if v.init.is_none() {
+                    v.init = Some(DaExpr::DefaultValue(super::writable_type(
+                        v.var_type.clone(),
+                    )));
+                }
+            }
+        }
+        if let DaDecl::Variable(v) = &mut decl {
+            if let Some(storage) = storage_globals.get(&v.name).filter(|s| s.in_place) {
+                if !cyclic.contains(&i) {
+                    if let Some(init) = v.init.take() {
+                        v.var_type = super::writable_type(v.var_type.clone());
+                        v.init = Some(storage.default.clone());
+                        let assign = storage_init_function(&v.name, &v.var_type, init, storage);
+                        out.push(decl);
+                        out.push(assign);
+                        continue;
+                    }
+                }
+            }
+        }
         if cyclic.contains(&i) {
             if let DaDecl::Variable(v) = &mut decl {
                 if let Some(init) = v.init.take() {
@@ -154,7 +222,13 @@ pub(crate) fn order_value_declarations(decls: Vec<DaDecl>) -> Vec<DaDecl> {
                     // take it; only the value it holds is written later, by
                     // an `[init]` function that runs before `main`.
                     v.var_type = super::writable_type(v.var_type.clone());
-                    let assign = init_function(&v.name, init);
+                    let assign = match storage_globals.get(&v.name) {
+                        Some(storage) => {
+                            v.init = Some(storage.default.clone());
+                            storage_init_function(&v.name, &v.var_type, init, storage)
+                        }
+                        None => init_function(&v.name, init),
+                    };
                     out.push(decl);
                     out.push(assign);
                     continue;
@@ -175,6 +249,29 @@ pub(crate) fn order_value_declarations(decls: Vec<DaDecl>) -> Vec<DaDecl> {
 /// in which case both functions exist.
 fn init_function(name: &str, init: DaExpr) -> DaDecl {
     let assign = DaExpr::Assign(Box::new(DaExpr::Var(name.to_string())), Box::new(init));
+    init_function_of(name, vec![DaStmt::Expr(assign)])
+}
+
+/// The `[init]` function of a cyclic object that owns storage-backed records:
+/// the value is built in a temporary and its bytes are copied into the
+/// object's own storage, which keeps every address into it valid
+/// ([`StorageGlobal`]).
+fn storage_init_function(
+    name: &str,
+    var_type: &das_ast::DaType,
+    init: DaExpr,
+    storage: &StorageGlobal,
+) -> DaDecl {
+    let mut stmts = vec![DaStmt::Var {
+        name: storage.source.clone(),
+        var_type: var_type.clone(),
+        init: Some(init),
+    }];
+    stmts.extend(storage.copy.iter().cloned());
+    init_function_of(name, stmts)
+}
+
+fn init_function_of(name: &str, stmts: Vec<DaStmt>) -> DaDecl {
     DaDecl::Function(DaFunction {
         name: format!("c2da_gset_{name}"),
         params: vec![],
@@ -184,9 +281,7 @@ fn init_function(name: &str, init: DaExpr) -> DaDecl {
         // by construction.
         body: Some(DaExpr::Block(DaBlock {
             stmts: vec![DaStmt::Expr(DaExpr::Unsafe(Box::new(DaExpr::Block(
-                DaBlock {
-                    stmts: vec![DaStmt::Expr(assign)],
-                },
+                DaBlock { stmts },
             ))))],
         })),
         annotations: vec!["init".to_string()],

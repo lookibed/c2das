@@ -558,7 +558,7 @@ impl<'c> Translation<'c> {
         // wrapper has to be a place; an expression is bound to a temporary
         // first, which also evaluates it exactly once as C requires.
         let source = match value.val {
-            place @ (DaExpr::Var(_) | DaExpr::Field(..)) => place,
+            place if is_wrapper_place(&place) => place,
             other => {
                 let tmp = self.renamer.borrow_mut().fresh();
                 stmts.push(DaStmt::Var {
@@ -677,6 +677,255 @@ impl<'c> Translation<'c> {
         source: Option<CQualTypeId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
         self.copy_storage_record_by_value(value, source)
+    }
+
+    /// The lvalue conversion (C11 6.3.2.1p2) of a natural record object:
+    /// the value has the unqualified type.  A record read from a `const`
+    /// object whose members include a pointer is read through
+    /// `abi.rs unqualified_record_value`, because daslang would otherwise
+    /// keep the source's `const` on those pointer members and refuse the
+    /// copy; every other record value is the place itself.
+    pub(crate) fn record_lvalue_conversion(
+        &self,
+        value: WithStmts<DaExpr>,
+        place_type: Option<CQualTypeId>,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let Some(place_type) = place_type else {
+            return Ok(value);
+        };
+        if !self.c_type_is_const(place_type) || !self.natural_record_holds_pointer(place_type.ctype)
+        {
+            return Ok(value);
+        }
+        let record_type = self.convert_type(place_type)?;
+        Ok(value.map(|val| self.unqualified_record_value(val, &record_type)))
+    }
+
+    /// The storage a file-scope object of a storage-backed record type, or of
+    /// an array of one, is created with, or `None` for any other type.
+    ///
+    /// C gives every object of static storage duration a zero value before
+    /// the program starts (C11 6.7.9p10).  A storage-backed wrapper is
+    /// zeroed by allocating its bytes, which is the wrapper's own field
+    /// initializer, so the declaration is the type's default value
+    /// (`value_t(c2da_storage = c2da_rt_calloc(..))`, a `fixed_array` of
+    /// `T()` for an array); daslang refuses a module-level `var` of such a
+    /// struct with no initializer (`error[31014]`).
+    ///
+    /// The same object, should its C initializer sit on a dependency cycle
+    /// and move to `[init]`, keeps this storage and has the value's bytes
+    /// copied into it (`global_order.rs StorageGlobal`).
+    pub(crate) fn storage_global_init(
+        &self,
+        name: &str,
+        ctype: CTypeId,
+        has_initializer: bool,
+    ) -> TranslationResult<Option<global_order::StorageGlobal>> {
+        if !self.object_holds_storage_records(ctype) {
+            return Ok(None);
+        }
+        let source = self.renamer.borrow_mut().fresh();
+        let copy = self.storage_in_place_copy(
+            DaExpr::Var(name.to_string()),
+            DaExpr::Var(source.clone()),
+            ctype,
+        )?;
+        let is_array = matches!(
+            self.ast_context.resolve_type(ctype).kind,
+            CTypeKind::ConstantArray(..)
+        );
+        Ok(Some(global_order::StorageGlobal {
+            default: self.default_initializer_for_ctype(ctype)?,
+            source,
+            copy,
+            in_place: is_array && has_initializer,
+        }))
+    }
+
+    /// A zeroed C array (of arrays) of storage-backed records: one block of
+    /// Clang's size for the whole array, each wrapper naming its element's
+    /// bytes inside it.
+    ///
+    /// C lays an array's elements out contiguously (C11 6.2.5p20), and the
+    /// program relies on it: `&a[0] + i` is `&a[i]`, `p - a` counts
+    /// elements, `memset(a, 0, sizeof a)` clears all of them.  A pointer to a
+    /// storage-backed record is its byte address, so the wrappers of one
+    /// array must name consecutive slices of one block; a wrapper per
+    /// element with its own allocation (each `T()`) would put every element
+    /// somewhere else.
+    pub(crate) fn contiguous_record_array(&self, ctype: CTypeId) -> TranslationResult<DaExpr> {
+        let size = self.layout_of(ctype)?.size_bytes;
+        let block = DaExpr::Call(
+            Box::new(DaExpr::Var("c2da_rt_calloc".into())),
+            vec![
+                self.integer_literal_for_type(DaExpr::ConstInt(1), DaType::uint64()),
+                self.integer_literal_for_type(DaExpr::ConstInt(size as i64), DaType::uint64()),
+            ],
+        );
+        let helper = self.record_array_helper(ctype)?;
+        Ok(DaExpr::Call(Box::new(DaExpr::Var(helper)), vec![block]))
+    }
+
+    /// The function `c2da_records_<T>_<dims>(base : uint64) : T[..]` that
+    /// builds the wrappers of a C array of storage-backed records over the
+    /// bytes at `base`, registered once per array type.
+    fn record_array_helper(&self, ctype: CTypeId) -> TranslationResult<String> {
+        let CTypeKind::ConstantArray(element, count) = self.ast_context.resolve_type(ctype).kind
+        else {
+            return Err(TranslationError::generic(
+                "contiguous record array of a non-array C type",
+            ));
+        };
+        let mut dims = vec![count];
+        let mut innermost = element;
+        while let CTypeKind::ConstantArray(inner, n) = self.ast_context.resolve_type(innermost).kind
+        {
+            dims.push(n);
+            innermost = inner;
+        }
+        let record = self.storage_backed_record_of(innermost).ok_or_else(|| {
+            TranslationError::generic("contiguous record array of non-storage-backed records")
+        })?;
+        let record_name = self.storage_record_name(record)?;
+        let dims_name: Vec<String> = dims.iter().map(|n| n.to_string()).collect();
+        let name = format!("c2da_records_{}_{}", record_name, dims_name.join("x"));
+        if self.record_array_helpers.borrow().contains_key(&name) {
+            return Ok(name);
+        }
+        let element_size = self.layout_of(element)?.size_bytes;
+        let element_helper = match self.ast_context.resolve_type(element).kind {
+            CTypeKind::ConstantArray(..) => Some(self.record_array_helper(element)?),
+            _ => None,
+        };
+        let base = DaExpr::Var("base".into());
+        let items = (0..count as u64)
+            .map(|index| {
+                let address = if index == 0 {
+                    base.clone()
+                } else {
+                    DaExpr::Op2 {
+                        op: "+",
+                        left: Box::new(base.clone()),
+                        right: Box::new(self.integer_literal_for_type(
+                            DaExpr::ConstInt((index * element_size) as i64),
+                            DaType::uint64(),
+                        )),
+                    }
+                };
+                match &element_helper {
+                    Some(helper) => {
+                        DaExpr::Call(Box::new(DaExpr::Var(helper.clone())), vec![address])
+                    }
+                    None => DaExpr::MakeStruct {
+                        type_name: record_name.clone(),
+                        fields: vec![("c2da_storage".into(), address)],
+                    },
+                }
+            })
+            .collect();
+        let array_type = writable_type(self.convert_type(CQualTypeId::new(ctype))?);
+        let element_type = writable_type(self.convert_type(CQualTypeId::new(element))?);
+        let helper = DaDecl::Function(das_ast::DaFunction {
+            name: name.clone(),
+            params: vec![DaStmt::Param {
+                name: "base".into(),
+                param_type: DaType::uint64(),
+                default: None,
+                is_mutable: false,
+            }],
+            ret_type: array_type,
+            body: Some(DaExpr::Block(DaBlock {
+                stmts: vec![DaStmt::Expr(DaExpr::Return(Some(Box::new(
+                    DaExpr::MakeFixedArray {
+                        elem_type: element_type,
+                        items,
+                    },
+                ))))],
+            })),
+            annotations: vec![],
+            is_public: false,
+            is_unsafe: false,
+        });
+        self.record_array_helpers
+            .borrow_mut()
+            .insert(name.clone(), helper);
+        Ok(name)
+    }
+
+    /// Whether a C object type is a storage-backed record or an array (of
+    /// arrays) of one.
+    pub(crate) fn object_holds_storage_records(&self, ctype: CTypeId) -> bool {
+        match self.ast_context.resolve_type(ctype).kind {
+            CTypeKind::ConstantArray(element, _) => self.object_holds_storage_records(element),
+            _ => self.storage_backed_record_of(ctype).is_some(),
+        }
+    }
+
+    /// Copy the bytes of every storage-backed record in `source` into the
+    /// storage of the matching record in `dest`, both objects of `ctype`.
+    pub(crate) fn storage_in_place_copy(
+        &self,
+        dest: DaExpr,
+        source: DaExpr,
+        ctype: CTypeId,
+    ) -> TranslationResult<Vec<DaStmt>> {
+        if let Some(record_id) = self.storage_backed_record_of(ctype) {
+            let stored = self.store_storage_object(
+                record_id,
+                WithStmts::new_val(DaExpr::Field(Box::new(dest), "c2da_storage".into())),
+                WithStmts::new_val(source),
+            )?;
+            return Ok(stored.stmts);
+        }
+        let CTypeKind::ConstantArray(element, _) = self.ast_context.resolve_type(ctype).kind else {
+            return Err(TranslationError::generic(
+                "in-place copy of an object that owns no storage-backed record",
+            ));
+        };
+        let (dest_element, source_element) = {
+            let mut renamer = self.renamer.borrow_mut();
+            (renamer.fresh(), renamer.fresh())
+        };
+        let body = self.storage_in_place_copy(
+            DaExpr::Var(dest_element.clone()),
+            DaExpr::Var(source_element.clone()),
+            element,
+        )?;
+        Ok(vec![DaStmt::Expr(DaExpr::For {
+            vars: vec![dest_element, source_element],
+            sources: vec![dest, source],
+            body: Box::new(DaExpr::Block(DaBlock { stmts: body })),
+        })])
+    }
+
+    /// Whether a C type is a natural (not storage-backed) record that has a
+    /// pointer member, directly or inside a member record or array: the
+    /// records daslang refuses to copy out of a `const` place.
+    pub(crate) fn natural_record_holds_pointer(&self, ctype: CTypeId) -> bool {
+        let CTypeKind::Struct(record) = self.ast_context.resolve_type(ctype).kind else {
+            return false;
+        };
+        if self.is_storage_backed_record(record) {
+            return false;
+        }
+        let Ok(fields) = self.record_fields(record) else {
+            return false;
+        };
+        fields
+            .iter()
+            .any(|&field| match self.ast_context[field].kind {
+                CDeclKind::Field { typ, .. } => self.holds_pointer(typ.ctype),
+                _ => false,
+            })
+    }
+
+    fn holds_pointer(&self, ctype: CTypeId) -> bool {
+        match self.ast_context.resolve_type(ctype).kind {
+            CTypeKind::Pointer(_) => true,
+            CTypeKind::ConstantArray(element, _) => self.holds_pointer(element),
+            CTypeKind::Struct(_) => self.natural_record_holds_pointer(ctype),
+            _ => false,
+        }
     }
 
     /// Address of a field inside a storage-backed wrapper value.
@@ -803,6 +1052,34 @@ impl<'c> Translation<'c> {
         let stored = self.raw_store(address, WithStmts::new_val(val.val))?;
         stmts.extend(stored.stmts);
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(val.is_unsafe || stored.is_unsafe))
+    }
+}
+
+/// Whether a wrapper expression is a place whose storage address can be read
+/// in place, more than once, with no effect: a variable, a field, or an
+/// element of a wrapper array (its index statements were hoisted already).
+pub(crate) fn is_wrapper_place(expr: &DaExpr) -> bool {
+    match expr {
+        DaExpr::Var(_) | DaExpr::Field(..) => true,
+        DaExpr::Index(base, index) => is_pure_index(base) && is_pure_index(index),
+        DaExpr::Unsafe(inner) => matches!(**inner, DaExpr::Index(..)) && is_wrapper_place(inner),
+        _ => false,
+    }
+}
+
+/// An operand of a wrapper element place that reads nothing but variables,
+/// constants and their arithmetic.
+fn is_pure_index(expr: &DaExpr) -> bool {
+    match expr {
+        DaExpr::Var(_) | DaExpr::ConstInt(_) | DaExpr::ConstUInt(_) => true,
+        DaExpr::Cast { expr, .. } | DaExpr::Unsafe(expr) | DaExpr::Op1 { expr, .. } => {
+            is_pure_index(expr)
+        }
+        DaExpr::Addr(expr) => is_pure_index(expr),
+        DaExpr::Index(base, index) => is_pure_index(base) && is_pure_index(index),
+        DaExpr::Op2 { left, right, .. } => is_pure_index(left) && is_pure_index(right),
+        DaExpr::Field(base, _) => is_pure_index(base),
+        _ => false,
     }
 }
 

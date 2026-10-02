@@ -1172,7 +1172,7 @@
       "owner": "corpus graph inventory",
       "runtime": "required",
       "source": "tests/manual/binjgb/src/binjgb_all.c",
-      "status": "known-red"
+      "status": "supported"
     },
     {
       "c_graph": "binjgb",
@@ -4683,6 +4683,174 @@
       "runtime": "unverified",
       "source": "tests/syntax/p12_fixed_array_default.c",
       "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p130-typedef-storage-records",
+      "canonical_cases": [
+        "p130-typedef-storage-records"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "3 4 5 6 7 8\nsizes 4 5 8\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p130_typedef_storage_records",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p130_typedef_storage_records.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p131-storage-record-arrays",
+      "canonical_cases": [
+        "p131-storage-record-arrays"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "zero 0 0 0 0 0\narray 100 30 3 2\nstep 30 2\ncleared 0 0\nheap 30 16 5\ncolors 200 7\nfield 77 88 165 2\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p131_storage_record_arrays",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p131_storage_record_arrays.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p132-storage-object-identity",
+      "canonical_cases": [
+        "p132-storage-object-identity"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "ring 20 20 33 b\nstates 108 8 8\nassign 9 42 30\nlocal 50 5 98\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p132_storage_object_identity",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p132_storage_object_identity.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p133-const-record-copy",
+      "canonical_cases": [
+        "p133-const-record-copy"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "size=3 first=2\nempty=0 nested=4 count=2 orig=2\nplain=8\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p133_const_record_copy",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p133_const_record_copy.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p134-pointer-integer-enum-conversions",
+      "canonical_cases": [
+        "p134-pointer-integer-enum-conversions"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "span=24 low=12\nskills 2 4 0 1\nsmall 200 1\nmore 3 0\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p134_pointer_integer_enum_conversions",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p134_pointer_integer_enum_conversions.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p135-static-zero-spelled",
+      "canonical_cases": [
+        "p135-static-zero-spelled"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "6 6 1.5 0 8 6\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p135_static_zero_spelled",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p135_static_zero_spelled.c",
+      "status": "supported"
     },
     {
       "c_graph": "single-tu",

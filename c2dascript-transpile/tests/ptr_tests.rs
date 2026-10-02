@@ -629,6 +629,139 @@ fn p122_bool_conditions_test_the_bool_itself() {
 }
 
 #[test]
+fn p130_typedef_storage_records_declare_one_wrapper() {
+    let d = transpile_with_libc(
+        "p130_typedef_storage_records",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // The union, its typedef and the typedef of that typedef name one
+    // wrapper; the packed struct and its alias likewise.
+    for name in ["value_t", "post_t", "holder_s"] {
+        assert_eq!(
+            d.matches(&format!("\nstruct {name} {{\n")).count(),
+            1,
+            "struct {name} must be declared exactly once"
+        );
+    }
+    assert!(!d.contains("struct alias_t") && !d.contains("struct column_t"));
+    assert!(d.contains("var cell2 : value_t = value_t(c2da_storage = c2da_rt_calloc(1ul, 4ul))"));
+}
+
+#[test]
+fn p131_storage_record_arrays_are_contiguous_and_step_by_clang_size() {
+    let d = transpile_with_libc(
+        "p131_storage_record_arrays",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // An uninitialised file-scope array is one zeroed block, each wrapper a
+    // slice of it; a single object owns its own zeroed storage.
+    assert!(
+        d.contains("var entries : entry_t[4] = c2da_records_entry_t_4(c2da_rt_calloc(1ul, 48ul))")
+    );
+    assert!(d.contains(
+        "return fixed_array<entry_t>(entry_t(c2da_storage = base), entry_t(c2da_storage = base + 12ul), entry_t(c2da_storage = base + 24ul), entry_t(c2da_storage = base + 36ul))"
+    ));
+    assert!(d.contains("var single : entry_t = entry_t(c2da_storage = c2da_rt_calloc(1ul, 12ul))"));
+    assert!(d.contains(
+        "return fixed_array<table_t[2]>(c2da_records_table_t_2(base), c2da_records_table_t_2(base + 80ul))"
+    ));
+    // The array decays to its first element's byte address.
+    assert!(d.contains(
+        "p = unsafe(reinterpret<entry_t?>(unsafe(reinterpret<entry_t?>(entries[0].c2da_storage))))"
+    ));
+    // Pointer arithmetic steps by Clang's 12 bytes, not the wrapper's 8.
+    assert!(d.contains("p = unsafe(reinterpret<entry_t?>(unsafe(reinterpret<uint64>(p)) + 24ul))"));
+    assert!(d.contains("p = unsafe(reinterpret<entry_t?>(unsafe(reinterpret<uint64>(p)) - 12ul))"));
+    assert!(d.contains(
+        "first = unsafe(reinterpret<entry_t const?>(unsafe(reinterpret<uint64>(first)) + 12ul))"
+    ));
+    assert!(
+        d.contains(") / 12l"),
+        "a pointer difference divides by Clang's size"
+    );
+    assert!(
+        !d.contains("unsafe(p + "),
+        "no daslang pointer arithmetic on a wrapper pointer"
+    );
+}
+
+#[test]
+fn p132_storage_objects_keep_their_storage() {
+    let d = transpile_with_libc(
+        "p132_storage_object_identity",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // A cyclic array keeps its contiguous storage; `[init]` copies the
+    // initializer's bytes into it instead of replacing the wrappers.
+    assert!(d.contains("var ring : node[3] = c2da_records_node_3(c2da_rt_calloc(1ul, 63ul))"));
+    assert!(d.contains(
+        "        var c2da_fresh18 : node[3] = c2da_ginit_ring()\n        for (c2da_fresh19, c2da_fresh20 in ring, c2da_fresh18) {\n            c2da_rt_memcpy(c2da_fresh19.c2da_storage, c2da_fresh20.c2da_storage, 21ul)\n"
+    ));
+    assert!(!d.contains("ring = c2da_ginit_ring()") && !d.contains("states = c2da_ginit_states()"));
+    // An initialised (acyclic) array is built the same way.
+    assert!(
+        d.contains("var table_0 : pair_t[3] = c2da_records_pair_t_3(c2da_rt_calloc(1ul, 15ul))")
+    );
+    // Assignment writes bytes; the wrapper is never replaced.
+    assert!(d.contains("c2da_rt_memcpy(cell.c2da_storage, other.c2da_storage, 4ul)"));
+    assert!(!d.contains("    cell = "));
+    // A loop-body declaration copies into the object the function holds:
+    // no allocation per pass.
+    assert!(d.contains(
+        "    label 1:\n    c2da_rt_memcpy(local.c2da_storage, unsafe(unsafe(addr(table_0[0]))[i]).c2da_storage, 5ul)\n"
+    ));
+}
+
+#[test]
+fn p133_const_record_copy_drops_the_qualifier() {
+    let d = transpile_with_libc(
+        "p133_const_record_copy",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // `*file_data` through `const FileData *` is read as an unqualified record.
+    assert!(d.contains("var c2da_fresh0 : FileData = *unsafe(reinterpret<FileData?>(file_data))"));
+    // A by-value parameter with pointer members is copied out of the
+    // read-only daslang reference the same way.
+    assert!(d.contains("var iter : FileData = *unsafe(addr<FileData?>(c2da_fresh1))"));
+    assert!(d.contains("var n : Nested = *unsafe(addr<Nested?>(c2da_fresh2))"));
+    assert!(d.contains("e = *unsafe(addr<FileData?>(empty_0))"));
+    // A record without pointer members copies as it is.
+    assert!(d.contains("var copy : Plain = *p\n"));
+}
+
+#[test]
+fn p134_narrow_and_enum_conversions_convert_the_value() {
+    let d = transpile_with_libc(
+        "p134_pointer_integer_enum_conversions",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // `(unsigned)p` converts the raw address; it is never a reinterpret of a
+    // pointer to a narrower integer.
+    assert!(d.contains("span = uint(unsafe(reinterpret<uint64>("));
+    assert!(!d.contains("reinterpret<int>(") && !d.contains("reinterpret<uint>("));
+    // A byte converted to an enum is first the enum's integer.
+    assert!(d.contains("skill = unsafe(reinterpret<skill_t>(uint(*c2da_postinc)))"));
+    assert!(d.contains("c = unsafe(reinterpret<skill_t>(uint(*c2da_postinc_0)))"));
+    assert!(
+        !d.contains("reinterpret<skill_t?>"),
+        "the byte is never re-read as an enum"
+    );
+}
+
+#[test]
+fn p135_globals_read_by_initializers_spell_their_zero() {
+    let d = transpile_with_libc(
+        "p135_static_zero_spelled",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    assert!(d.contains("var x : int = default<int>\n"));
+    assert!(d.contains("var arr : int[4] = default<int[4]>\n"));
+    assert!(d.contains("var d : double = default<double>\n"));
+    // An object no initializer reads keeps daslang's zero-filled declaration.
+    assert!(d.contains("var untouched : int\n"));
+}
+
+#[test]
 fn n12_typedef_record_field_is_diagnosed_not_dropped() {
     assert_precise_translation_error(
         "n12_typedef_record_field_unsupported",

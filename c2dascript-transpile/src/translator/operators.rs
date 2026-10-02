@@ -113,6 +113,52 @@ impl<'c> Translation<'c> {
         let lhs_val = materialize_expr_type(lhs_val, lhs_da_from_c.as_ref());
         let rhs_val = materialize_expr_type(rhs_val, rhs_da_from_c.as_ref());
 
+        // Pointer arithmetic on a pointer to a storage-backed record runs on
+        // the raw address, scaled by Clang's object size
+        // (`abi.rs storage_pointee_size`).
+        if matches!(op, Add | Subtract) {
+            let lhs_step = match lhs_type_id {
+                Some(ty) if lhs_is_ptr_c => self.storage_pointee_size(ty)?,
+                _ => None,
+            };
+            let rhs_step = match rhs_type_id {
+                Some(ty) if rhs_is_ptr_c => self.storage_pointee_size(ty)?,
+                _ => None,
+            };
+            match (op, lhs_step, rhs_step) {
+                (Subtract, Some(size), Some(_)) => {
+                    return Ok(self
+                        .storage_pointer_distance(lhs_val, rhs_val, size)
+                        .merge_unsafe(true));
+                }
+                (Add | Subtract, Some(size), None) | (Add, None, Some(size)) => {
+                    let (pointer, offset, pointer_ty) = if lhs_step.is_some() {
+                        (lhs_val, rhs_val, lhs_da_from_c)
+                    } else {
+                        (rhs_val, lhs_val, rhs_da_from_c)
+                    };
+                    let pointer_ty = pointer_ty.ok_or_else(|| {
+                        TranslationError::generic("storage-backed record pointer has no type")
+                    })?;
+                    return Ok(pointer
+                        .zip(offset)
+                        .and_then(|(pointer, offset)| {
+                            let offset = if matches!(op, Subtract) {
+                                DaExpr::Op1 {
+                                    op: "-",
+                                    expr: Box::new(self.pointer_offset_operand(offset)),
+                                }
+                            } else {
+                                offset
+                            };
+                            self.storage_pointer_offset(pointer, offset, &pointer_ty, size)
+                        })
+                        .merge_unsafe(true));
+                }
+                _ => {}
+            }
+        }
+
         // Infer daScript types from the actual converted expressions (more accurate than C AST types,
         // because C type promotion can hide type mismatches that daScript rejects).
         let lhs_da = Self::infer_type(&lhs_val.val)
@@ -594,6 +640,20 @@ impl<'c> Translation<'c> {
             let stored = self.raw_store(address, value)?;
             return Ok(lower_raw_store(stored, is_used));
         }
+        // `s = t` on a storage-backed record named by a wrapper (a variable,
+        // an array element) overwrites the bytes the wrapper names.  The
+        // object keeps its storage — every address taken of it, and its
+        // place in a contiguous array, stays valid — so the wrapper itself
+        // is never replaced.
+        if op == CBinOp::Assign && raw_member.is_none() {
+            if let Some(record_id) = self.storage_backed_record_of(lhs_type_id.ctype) {
+                let place = self.convert_lvalue_once(ctx, lhs, lhs_type_id)?;
+                let value = self.convert_expr(ctx.used(), rhs, Some(lhs_type_id))?;
+                let raw = place.map(|place| DaExpr::Field(Box::new(place), "c2da_storage".into()));
+                let stored = self.store_storage_object(record_id, raw, value)?;
+                return Ok(lower_raw_store(stored, is_used));
+            }
+        }
         if let Some((field, address)) = raw_member {
             // C evaluates the assignment target once.  A compound assignment
             // is a read-modify-write, so its address serves a load *and* a
@@ -675,13 +735,15 @@ impl<'c> Translation<'c> {
                     }
                     None if is_ptr_op => {
                         let rhs_val = self.convert_expr(ctx.used(), rhs_id, None)?;
-                        current.zip(rhs_val).map(|(left, right)| {
-                            DaExpr::Unsafe(Box::new(mk().binary_op(
+                        current.zip(rhs_val).and_then_try(|(left, right)| {
+                            self.pointer_compound_value(
                                 das_op,
                                 left,
-                                self.pointer_offset_operand(right),
-                            )))
-                        })
+                                right,
+                                lhs_type_id,
+                                &lhs_da_type,
+                            )
+                        })?
                     }
                     None => {
                         let rhs_val = self.convert_expr(ctx.used(), rhs_id, Some(lhs_type_id))?;
@@ -722,13 +784,15 @@ impl<'c> Translation<'c> {
             let rhs_val =
                 self.convert_expr(ctx.used(), rhs, if is_ptr_op { None } else { rhs_ty })?;
             if is_ptr_op {
-                let value = rhs_val.map(|offset| {
-                    DaExpr::Unsafe(Box::new(mk().binary_op(
+                let value = rhs_val.and_then_try(|offset| {
+                    self.pointer_compound_value(
                         das_op,
                         lhs_val.val.clone(),
-                        self.pointer_offset_operand(offset),
-                    )))
-                });
+                        offset,
+                        lhs_type_id,
+                        &lhs_da_type,
+                    )
+                })?;
                 let place = lhs_val.val.clone();
                 let stmts = lhs_val.stmts;
                 let is_unsafe = lhs_val.is_unsafe || value.is_unsafe;
@@ -943,6 +1007,36 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
     }
 
+    /// `p + n` / `p - n` of a C pointer compound assignment.  A pointer to a
+    /// storage-backed record steps by Clang's object size on the raw address
+    /// (`abi.rs storage_pointer_offset`); any other pointer is daScript's
+    /// own `T? ± n`.
+    fn pointer_compound_value(
+        &self,
+        das_op: &'static str,
+        pointer: DaExpr,
+        offset: DaExpr,
+        pointer_ctype: CQualTypeId,
+        pointer_da: &DaType,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        if let Some(size) = self.storage_pointee_size(pointer_ctype)? {
+            let offset = if das_op == "-" {
+                DaExpr::Op1 {
+                    op: "-",
+                    expr: Box::new(self.pointer_offset_operand(offset)),
+                }
+            } else {
+                offset
+            };
+            return Ok(self
+                .storage_pointer_offset(pointer, offset, pointer_da, size)
+                .merge_unsafe(true));
+        }
+        Ok(WithStmts::new_val(DaExpr::Unsafe(Box::new(
+            mk().binary_op(das_op, pointer, self.pointer_offset_operand(offset)),
+        ))))
+    }
+
     /// daScript scales `T? + n` by the pointee size exactly as C does; the
     /// offset only has to be a signed integer so that `p - 1` stays negative.
     pub(crate) fn pointer_offset_operand(&self, offset: DaExpr) -> DaExpr {
@@ -999,11 +1093,28 @@ impl<'c> Translation<'c> {
         ))
     }
 
+    /// The pointer `p` of an assignment's right operand `*p`, seen through
+    /// the conversions that leave the value as it is (the lvalue read, a
+    /// qualification).  A value conversion (`skill = *demo_p++`, a `uint8`
+    /// read converted to an `enum`) is not looked through: re-reading the
+    /// pointee as the assigned type would read bytes C never converted.
     fn const_deref_pointer_expr(&self, expr: CExprId) -> Option<CExprId> {
         match self.ast_context[expr].kind {
             CExprKind::Unary(_, CUnOp::Deref, ptr_expr, _) => Some(ptr_expr),
-            CExprKind::ImplicitCast(_, inner, _, _, _)
-            | CExprKind::ExplicitCast(_, inner, _, _, _)
+            CExprKind::ImplicitCast(
+                _,
+                inner,
+                CastKind::LValueToRValue | CastKind::NoOp | CastKind::ConstCast,
+                _,
+                _,
+            )
+            | CExprKind::ExplicitCast(
+                _,
+                inner,
+                CastKind::LValueToRValue | CastKind::NoOp | CastKind::ConstCast,
+                _,
+                _,
+            )
             | CExprKind::Paren(_, inner) => self.const_deref_pointer_expr(inner),
             _ => None,
         }
@@ -1350,9 +1461,10 @@ impl<'c> Translation<'c> {
         let expr = self.strip_lvalue_wrappers(expr);
         let reached_through_pointer = match self.ast_context[expr].kind {
             CExprKind::Unary(_, CUnOp::Deref, _, _) => true,
-            // A decayed fixed array is a daScript array of wrappers, so only a
-            // subscript of a genuine C pointer names raw record bytes.
-            CExprKind::ArraySubscript(_, arr, _, _) => !self.is_array_decay(arr),
+            // A decayed array variable is a daScript array of wrappers, so
+            // only a subscript of a C pointer or of an array field names raw
+            // record bytes.
+            CExprKind::ArraySubscript(_, arr, _, _) => !self.is_wrapper_array_decay(arr),
             _ => false,
         };
         reached_through_pointer
@@ -1487,6 +1599,16 @@ impl<'c> Translation<'c> {
         kind: &CTypeKind,
         storage: &DaType,
     ) -> TranslationResult<DaExpr> {
+        if let Some(size) = self.storage_pointee_size(arg_ty)? {
+            let step = DaExpr::ConstInt(if das_op == "-" { -1 } else { 1 });
+            let stepped = self.storage_pointer_offset(current, step, storage, size);
+            if !stepped.stmts.is_empty() {
+                return Err(TranslationError::generic(
+                    "storage-backed record pointer increment needs statements",
+                ));
+            }
+            return Ok(stepped.val);
+        }
         if self.is_pointer_type(arg_ty.ctype) {
             return Ok(DaExpr::Unsafe(Box::new(DaExpr::Op2 {
                 op: das_op,

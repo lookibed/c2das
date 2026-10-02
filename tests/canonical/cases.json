@@ -1291,6 +1291,108 @@
       "runtime": "required"
     },
     {
+      "id": "p130-typedef-storage-records",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p130_typedef_storage_records.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "3 4 5 6 7 8\nsizes 4 5 8\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p130_typedef_storage_records_declare_one_wrapper",
+      "runtime": "required"
+    },
+    {
+      "id": "p131-storage-record-arrays",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p131_storage_record_arrays.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "zero 0 0 0 0 0\narray 100 30 3 2\nstep 30 2\ncleared 0 0\nheap 30 16 5\ncolors 200 7\nfield 77 88 165 2\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p131_storage_record_arrays_are_contiguous_and_step_by_clang_size",
+      "runtime": "required"
+    },
+    {
+      "id": "p132-storage-object-identity",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p132_storage_object_identity.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "ring 20 20 33 b\nstates 108 8 8\nassign 9 42 30\nlocal 50 5 98\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p132_storage_objects_keep_their_storage",
+      "runtime": "required"
+    },
+    {
+      "id": "p133-const-record-copy",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p133_const_record_copy.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "size=3 first=2\nempty=0 nested=4 count=2 orig=2\nplain=8\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p133_const_record_copy_drops_the_qualifier",
+      "runtime": "required"
+    },
+    {
+      "id": "p134-pointer-integer-enum-conversions",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p134_pointer_integer_enum_conversions.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "span=24 low=12\nskills 2 4 0 1\nsmall 200 1\nmore 3 0\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p134_narrow_and_enum_conversions_convert_the_value",
+      "runtime": "required"
+    },
+    {
+      "id": "p135-static-zero-spelled",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p135_static_zero_spelled.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "6 6 1.5 0 8 6\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p135_globals_read_by_initializers_spell_their_zero",
+      "runtime": "required"
+    },
+    {
       "id": "n12-typedef-record-field-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n12_typedef_record_field_unsupported.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"
@@ -1418,7 +1520,7 @@
     },
     {
       "id": "binjgb-cgb-acid2-std",
-      "status": "known-red",
+      "status": "ready",
       "source_root": "tests/manual/binjgb",
       "translation_entry": "src/binjgb_all.c",
       "c_graph": "binjgb",
@@ -1465,6 +1567,7 @@
       "translation_entry": "src/doom_all.c",
       "c_graph": "doomgeneric",
       "libc": "std",
+      "das_options": ["stack = 4194304"],
       "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-Iinclude", "-Iupstream/doomgeneric/doomgeneric", "-Isrc"] },
       "c_reference": { "sources": ["src/doom_all.c"] },
       "das_entrypoint": "main",
@@ -1473,7 +1576,17 @@
         "stdout": "frame[0]=-288221841\nframe[1]=-1974147103\nframe[2]=-1371333551\nframe[3]=-311612633\nframe[4]=61684155\nframe[5]=274729465\nframe[6]=-575676439\nframe[7]=839636789\nframe[8]=-1757064413\nframe[9]=597874855\nframe[10]=756133791\nframe[11]=546555967\nframe[12]=840439929\nframe[13]=-1964124787\nframe[14]=1574317281\nframe[15]=-1968558826\nframe[16]=1018789605\nframe[17]=-737365355\nframe[18]=1332884193\nframe[19]=133681673\nframe[20]=1144928681\nframe[21]=-874128881\nframe[22]=20652115\nframe[23]=1477602998\nframe[24]=2127216700\nframe[25]=-2142760767\nframe[26]=935832973\nframe[27]=-494883972\nframe[28]=-1350608116\nframe[29]=-1104928309\nframe[30]=1520901762\nframe[31]=1449564386\nframe[32]=1319215018\nframe[33]=1137127970\nframe[34]=1403493386\nframe[35]=1309546109\nframe[36]=2124821507\nframe[37]=-722706232\nframe[38]=1183685786\nframe[39]=742349402\nframe[40]=742349402\nframe[41]=742349402\nframe[42]=742349402\nframe[43]=742349402\nframe[44]=742349402\nframe[45]=-1953597393\nframe[46]=-668979122\nframe[47]=575663143\nframe[48]=600575477\nframe[49]=-899223173\nframe[50]=-1895391426\nframe[51]=-2140389343\nframe[52]=-1973890294\nframe[53]=2050982887\nframe[54]=1435611004\nframe[55]=-513844599\nframe[56]=133742381\nframe[57]=1541739105\nframe[58]=1110043847\nframe[59]=-1514565496\nframe[60]=695570021\nframe[61]=1661577531\nframe[62]=1044374416\nframe[63]=319965919\nframe[64]=543616154\nframe[65]=1012607777\nframe[66]=-1224194418\nframe[67]=87956286\nframe[68]=-711226778\nframe[69]=763190869\nframes=70\n",
         "exit_code": 0
       },
-      "runtime": "required"
+      "runtime": "required",
+      "corpus": {
+        "label": "doomgeneric (Doom engine), -timedemo demo1 of the shareware IWAD, C entry translated under --libc std",
+        "upstream": "UPSTREAM.md",
+        "fixture": "fixtures/doom1.wad",
+        "bench_c_entry": "src/doom_bench_all.c",
+        "bench_translation_entry": "src/doom_bench_all.c",
+        "optional_translator_flags": { "unsafe_deref": ["--unsafe-deref"] },
+        "headline": "doomgeneric (Doom engine), 320×200",
+        "timed": "demo tick loop"
+      }
     }
   ]
 }

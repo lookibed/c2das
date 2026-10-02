@@ -144,9 +144,10 @@ impl<'c> Translation<'c> {
                 }))
             }
             // `p[i]` on a record pointer is `*(p + i)`, and C scales it by the
-            // record's own size — not by the wrapper's.  A decayed fixed array
-            // really is a daScript array of wrappers and keeps that lowering.
-            CExprKind::ArraySubscript(_, arr, idx, _) if !self.is_array_decay(arr) => {
+            // record's own size — not by the wrapper's.  A decayed array
+            // variable really is a daScript array of wrappers and keeps that
+            // lowering (`is_wrapper_array_decay`); an array field is bytes.
+            CExprKind::ArraySubscript(_, arr, idx, _) if !self.is_wrapper_array_decay(arr) => {
                 let raw = self.record_element_raw_address(ctx, arr, idx, record_id)?;
                 Ok(Some(CObjectAddress {
                     raw,
@@ -186,14 +187,65 @@ impl<'c> Translation<'c> {
         }))
     }
 
-    /// Whether a subscript's left operand is a fixed C array that decayed,
-    /// rather than a C pointer value.
-    pub(crate) fn is_array_decay(&self, expr: CExprId) -> bool {
-        matches!(
-            self.ast_context[self.strip_lvalue_wrappers(expr)].kind,
-            CExprKind::ImplicitCast(_, _, CastKind::ArrayToPointerDecay, _, _)
-                | CExprKind::ExplicitCast(_, _, CastKind::ArrayToPointerDecay, _, _)
-        )
+    /// The daScript pointer to the first *wrapper* of a fixed C array of
+    /// storage-backed records, for a subscript `a[i]` of the array itself.
+    ///
+    /// The array's value as a C pointer is its first element's byte address
+    /// (the decay in `mod.rs`); a subscript of the array names an element
+    /// wrapper instead, whose storage is that element's slice of the
+    /// array's contiguous block.  `None` when `arr` is not such a decay.
+    pub(crate) fn wrapper_array_base(
+        &self,
+        ctx: ExprContext,
+        arr: CExprId,
+    ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        if !self.is_wrapper_array_decay(arr) {
+            return Ok(None);
+        }
+        let (CExprKind::ImplicitCast(ty, array, CastKind::ArrayToPointerDecay, _, _)
+        | CExprKind::ExplicitCast(ty, array, CastKind::ArrayToPointerDecay, _, _)) =
+            self.ast_context[self.strip_lvalue_wrappers(arr)].kind
+        else {
+            return Ok(None);
+        };
+        let CTypeKind::Pointer(element) = self.ast_context.resolve_type(ty.ctype).kind else {
+            return Ok(None);
+        };
+        if self.storage_backed_record_of(element.ctype).is_none() {
+            return Ok(None);
+        }
+        let array = self.convert_expr(ctx.used(), array, None)?;
+        Ok(Some(array.map(|array| {
+            DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(DaExpr::Index(
+                Box::new(array),
+                Box::new(DaExpr::ConstInt(0)),
+            )))))
+        })))
+    }
+
+    /// Whether a subscript's left operand is a decayed fixed C array that is
+    /// a daScript array of wrappers: a variable (or an element of one, for
+    /// an array of arrays) or a compound literal.  An array that is a field
+    /// of a record lives in that record's bytes — a record holding an array
+    /// of storage-backed records is storage-backed itself — so its elements
+    /// are raw bytes at Clang offsets, never wrappers.
+    pub(crate) fn is_wrapper_array_decay(&self, expr: CExprId) -> bool {
+        let (CExprKind::ImplicitCast(_, array, CastKind::ArrayToPointerDecay, _, _)
+        | CExprKind::ExplicitCast(_, array, CastKind::ArrayToPointerDecay, _, _)) =
+            self.ast_context[self.strip_lvalue_wrappers(expr)].kind
+        else {
+            return false;
+        };
+        self.is_wrapper_array_object(array)
+    }
+
+    fn is_wrapper_array_object(&self, expr: CExprId) -> bool {
+        match self.ast_context[self.strip_lvalue_wrappers(expr)].kind {
+            CExprKind::DeclRef(..) | CExprKind::CompoundLiteral(..) => true,
+            CExprKind::Paren(_, inner) => self.is_wrapper_array_object(inner),
+            CExprKind::ArraySubscript(_, arr, _, _) => self.is_wrapper_array_decay(arr),
+            _ => false,
+        }
     }
 
     /// `(uint64)p + i * sizeof(record)` — the address of `p[i]` for a C pointer

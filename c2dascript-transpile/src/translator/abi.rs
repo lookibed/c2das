@@ -340,6 +340,19 @@ impl<'c> Translation<'c> {
         DaExpr::reinterpret(pointer, DaType::uint64())
     }
 
+    /// A C pointer converted to an integer type (C11 6.3.2.3p6): the raw
+    /// address, converted to `target` when that is not `uint64` — GCC and
+    /// Clang keep the address's low bits for a narrower type.  A
+    /// `reinterpret` straight from an 8-byte pointer to a narrower integer
+    /// is not a conversion: daslang's LLVM back end refuses it (`trunc ptr`
+    /// to `i32`, an internal JIT error).
+    pub(crate) fn pointer_to_integer(&self, pointer: DaExpr, target: DaType) -> DaExpr {
+        if !target.is_numeric() || matches!(target.kind, DaTypeKind::UInt64) {
+            return DaExpr::reinterpret(pointer, target);
+        }
+        self.cast_to_type(self.pointer_to_raw_address(pointer), target)
+    }
+
     /// Reinterpret a value already represented as a daScript pointer (or an
     /// array-decay value) to another typed C pointer.  Null stays null rather
     /// than becoming an invalid numeric pointer cast.
@@ -447,7 +460,7 @@ impl<'c> Translation<'c> {
 
     /// Whether a C type is `const`, directly or through the typedefs and
     /// sugar it is spelled with.
-    fn c_type_is_const(&self, mut typ: CQualTypeId) -> bool {
+    pub(crate) fn c_type_is_const(&self, mut typ: CQualTypeId) -> bool {
         loop {
             if typ.qualifiers.is_const {
                 return true;
@@ -472,6 +485,145 @@ impl<'c> Translation<'c> {
     /// run time.
     pub(crate) fn named_field_base(&self, pointer: DaExpr, base_type: &DaType) -> DaExpr {
         DaExpr::reinterpret(pointer, base_type.clone())
+    }
+
+    /// Clang's size of the object a C pointer type points to, when that
+    /// object is a storage-backed record, or `None` for any other type.
+    ///
+    /// Such a pointer is the record's *byte* address typed `T?` (`T` the
+    /// wrapper), and daslang scales `T? + n` by the wrapper's own size — the
+    /// eight bytes of its storage address — not by the C object's.  Every
+    /// C pointer arithmetic on it therefore crosses to the raw address here
+    /// ([`Self::storage_pointer_offset`], [`Self::storage_pointer_distance`]).
+    pub(crate) fn storage_pointee_size(
+        &self,
+        pointer: CQualTypeId,
+    ) -> TranslationResult<Option<u64>> {
+        let CTypeKind::Pointer(pointee) = self.ast_context.resolve_type(pointer.ctype).kind else {
+            return Ok(None);
+        };
+        let Some(record) = self.storage_backed_record_of(pointee.ctype) else {
+            return Ok(None);
+        };
+        Ok(Some(self.record_layout(record)?.object.size_bytes))
+    }
+
+    /// `p + n` for a pointer to a storage-backed record of `size` bytes:
+    /// the raw address advanced by `n * size` (C11 6.5.6p8), typed back to
+    /// `pointer_type`.  A negative `n` wraps modulo 2^64, which is the same
+    /// address.
+    pub(crate) fn storage_pointer_offset(
+        &self,
+        pointer: DaExpr,
+        offset: DaExpr,
+        pointer_type: &DaType,
+        size: u64,
+    ) -> WithStmts<DaExpr> {
+        let byte_literal = |bytes: u64| {
+            self.integer_literal_for_type(DaExpr::ConstInt(bytes as i64), DaType::uint64())
+        };
+        // A constant offset is one constant byte step, forwards or back.
+        let (op, step) =
+            match constant_offset(&offset).and_then(|k| k.checked_mul(i64::try_from(size).ok()?)) {
+                Some(bytes) if bytes < 0 => ("-", byte_literal(bytes.unsigned_abs())),
+                Some(bytes) => ("+", byte_literal(bytes as u64)),
+                None => (
+                    "+",
+                    DaExpr::Op2 {
+                        op: "*",
+                        left: Box::new(DaExpr::Cast {
+                            kind: das_ast::CastKind::Cast,
+                            expr: Box::new(self.pointer_offset_operand(offset)),
+                            to: DaType::uint64(),
+                        }),
+                        right: Box::new(byte_literal(size)),
+                    },
+                ),
+            };
+        let pointer_type = writable_type(pointer_type.clone());
+        self.named_pointer_value(pointer, Some(&pointer_type))
+            .map(|pointer| {
+                self.raw_address_to_pointer(
+                    DaExpr::Op2 {
+                        op,
+                        left: Box::new(self.pointer_to_raw_address(pointer)),
+                        right: Box::new(step),
+                    },
+                    pointer_type.clone(),
+                )
+            })
+    }
+
+    /// `p - q` for two pointers to storage-backed records of `size` bytes:
+    /// the distance of the raw addresses in elements (C11 6.5.6p9), as
+    /// `ptrdiff_t`.
+    pub(crate) fn storage_pointer_distance(
+        &self,
+        left: WithStmts<DaExpr>,
+        right: WithStmts<DaExpr>,
+        size: u64,
+    ) -> WithStmts<DaExpr> {
+        let left = left.and_then(|l| {
+            self.named_pointer_value(l, None)
+                .map(|p| self.pointer_to_raw_address(p))
+        });
+        let right = right.and_then(|r| {
+            self.named_pointer_value(r, None)
+                .map(|p| self.pointer_to_raw_address(p))
+        });
+        left.zip(right).map(|(l, r)| DaExpr::Op2 {
+            op: "/",
+            left: Box::new(DaExpr::Cast {
+                kind: das_ast::CastKind::Cast,
+                expr: Box::new(DaExpr::Op2 {
+                    op: "-",
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }),
+                to: DaType::int64(),
+            }),
+            right: Box::new(
+                self.integer_literal_for_type(DaExpr::ConstInt(size as i64), DaType::int64()),
+            ),
+        })
+    }
+
+    /// The value of a natural C record object read as an rvalue, without the
+    /// qualifiers of the object it is read from.
+    ///
+    /// C11 6.3.2.1p2: an lvalue converted to the value it holds "has the
+    /// unqualified version of the type of the lvalue", so copying a `const
+    /// S` object yields an `S` whose pointer members point where they
+    /// pointed, as plain `T *`.  daslang keeps the `const` of the place on
+    /// every field of the copy and refuses `T? const` into `T?`
+    /// (`error[30915]`, `error[30344]`): a `*p` through `S const?`, a
+    /// read-only record parameter and a `let` record are such places.  The
+    /// place is therefore read through its address converted to `S?`: `*p`
+    /// becomes `*reinterpret<S?>(p)`, any other place `*addr<S?>(place)`.
+    /// daslang's simulation drops the `reinterpret`, so the read is the
+    /// plain copy it replaces.  A value that is not a place (a call result,
+    /// a constructed record) is not `const` and is returned unchanged.
+    pub(crate) fn unqualified_record_value(&self, value: DaExpr, record_type: &DaType) -> DaExpr {
+        let mut record = writable_type(record_type.clone());
+        record.is_const = false;
+        let pointer = DaType::pointer(record);
+        match value {
+            DaExpr::Deref(base) => DaExpr::Deref(Box::new(DaExpr::reinterpret(*base, pointer))),
+            place @ (DaExpr::Var(_) | DaExpr::Field(..) | DaExpr::Index(..)) => {
+                DaExpr::Deref(Box::new(DaExpr::reinterpret(
+                    DaExpr::unsafe_of(DaExpr::Addr(Box::new(place))),
+                    pointer,
+                )))
+            }
+            DaExpr::Unsafe(inner) if matches!(*inner, DaExpr::Index(..)) => {
+                let place = DaExpr::Unsafe(inner);
+                DaExpr::Deref(Box::new(DaExpr::reinterpret(
+                    DaExpr::unsafe_of(DaExpr::Addr(Box::new(place))),
+                    pointer,
+                )))
+            }
+            other => other,
+        }
     }
 
     /// One operand of a C pointer comparison, as the `uint64` raw address the
@@ -572,6 +724,23 @@ impl<'c> Translation<'c> {
             }],
             DaExpr::Var(tmp),
         )
+    }
+}
+
+/// The value of a pointer offset that is an integer constant (through
+/// integer conversions, `unsafe` and negation), or `None`.
+fn constant_offset(offset: &DaExpr) -> Option<i64> {
+    match offset {
+        DaExpr::ConstInt(v) => Some(*v),
+        DaExpr::ConstUInt(v) => i64::try_from(*v).ok(),
+        DaExpr::Cast {
+            kind: das_ast::CastKind::Cast,
+            expr,
+            to,
+        } if matches!(to.kind, DaTypeKind::Int | DaTypeKind::Int64) => constant_offset(expr),
+        DaExpr::Unsafe(inner) => constant_offset(inner),
+        DaExpr::Op1 { op: "-", expr } => constant_offset(expr)?.checked_neg(),
+        _ => None,
     }
 }
 

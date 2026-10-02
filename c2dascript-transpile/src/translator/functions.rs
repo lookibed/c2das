@@ -87,7 +87,23 @@ impl<'c> Translation<'c> {
             });
         // A daScript fixed array is zero-initialized by its declaration, at
         // any extent, so an uninitialized C array global needs no initializer
-        // expression at all.
+        // expression at all — unless its objects are storage-backed records,
+        // whose zero value is storage allocated by the wrapper
+        // (`structs_unions.rs storage_global_init`).
+        let storage = if is_static {
+            self.storage_global_init(&name, typ.ctype, init.is_some())?
+        } else {
+            None
+        };
+        let init = match (init, &storage) {
+            (None, Some(storage)) => Some(storage.default.clone()),
+            (init, _) => init,
+        };
+        if let Some(storage) = storage {
+            self.storage_globals
+                .borrow_mut()
+                .insert(name.clone(), storage);
+        }
         Ok(DaDecl::Variable(DaVariable {
             name,
             var_type: das_type,
@@ -323,11 +339,20 @@ impl<'c> Translation<'c> {
             }
             // daScript's copy duplicates scalars and inline fixed arrays, which
             // is all C asks of a record whose layout is the natural one: such a
-            // record cannot contain a storage-backed member.
+            // record cannot contain a storage-backed member.  The incoming
+            // daScript parameter is read-only, so a record with a pointer
+            // member is read as the unqualified rvalue C copies
+            // (`abi.rs unqualified_record_value`).
+            let incoming_value = DaExpr::Var(incoming.clone());
+            let init = if self.natural_record_holds_pointer(ctype.ctype) {
+                self.unqualified_record_value(incoming_value, das_ty)
+            } else {
+                incoming_value
+            };
             stmts.push(DaStmt::Var {
                 name: pname.clone(),
                 var_type: writable_type(das_ty.clone()),
-                init: Some(DaExpr::Var(incoming.clone())),
+                init: Some(init),
             });
         }
         Ok(stmts)
