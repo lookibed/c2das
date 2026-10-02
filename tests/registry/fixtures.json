@@ -1266,6 +1266,78 @@
         "kind": "unregistered",
         "value": "unregistered"
       },
+      "family": "doomgeneric-sdl-host",
+      "id": "tests--manual--doomgeneric--sdl--dg_host",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/sdl/dg_host.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "doomgeneric-sdl-host",
+      "id": "tests--manual--doomgeneric--sdl--doom_host_all",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/sdl/doom_host_all.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "doomgeneric-sdl-host",
+      "id": "tests--manual--doomgeneric--sdl--doom_sdl_host",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/sdl/doom_sdl_host.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
       "family": "doomgeneric",
       "id": "tests--manual--doomgeneric--src--all",
       "owner": "corpus graph inventory",
@@ -1326,7 +1398,7 @@
       "owner": "corpus graph inventory",
       "runtime": "required",
       "source": "tests/manual/doomgeneric/src/doom_all.c",
-      "status": "known-red"
+      "status": "supported"
     },
     {
       "c_graph": "doomgeneric",
@@ -4872,6 +4944,62 @@
       "runtime": "unverified",
       "source": "tests/syntax/p13_pointer_array_default.c",
       "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p140-early-exit-jump-targets",
+      "canonical_cases": [
+        "p140-early-exit-jump-targets"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "error: two free\nerror: size\nerror: back link\nerror: two free\n4 4\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p140_early_exit_jump_targets",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p140_early_exit_jump_targets.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p141-integer-to-pointer-width",
+      "canonical_cases": [
+        "p141-integer-to-pointer-width"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "int -1 -> ffffffffffffffff\nint 7 -> 7\nunsigned max -> ffffffff\nmark -> ffffffffffffffff\nmark equal 1, mark null 0, from -1 equal 1\nremoved=1 idle=1 calls=2\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p141_integer_to_pointer_width",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p141_integer_to_pointer_width.c",
+      "status": "supported"
     },
     {
       "c_graph": "single-tu",

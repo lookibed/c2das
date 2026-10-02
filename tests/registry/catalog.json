@@ -181,6 +181,16 @@
       "status": "inventory-only"
     },
     {
+      "c_graph": "doomgeneric",
+      "entrypoint": "graph-member",
+      "expected_kind": "unregistered",
+      "glob": "tests/manual/doomgeneric/sdl/*.c",
+      "id": "doomgeneric-sdl-host",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "status": "inventory-only"
+    },
+    {
       "c_graph": "single-tu",
       "entrypoint": "unregistered",
       "expected_kind": "unregistered",

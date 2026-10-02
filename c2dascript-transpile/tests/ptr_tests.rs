@@ -762,6 +762,46 @@ fn p135_globals_read_by_initializers_spell_their_zero() {
 }
 
 #[test]
+fn p140_early_exits_never_strand_a_jump_target() {
+    let d = transpile_with_libc(
+        "p140_early_exit_jump_targets",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    let body = d
+        .split("def check_list(")
+        .nth(1)
+        .and_then(|rest| rest.split("\n}\n").next())
+        .expect("check_list is translated");
+    // The loop exit is a jump to an out-of-line `return`, not an
+    // `if (c) { return }` that daslang's if-return folding would turn into
+    // an `else` block holding the loop's labels.
+    assert!(
+        body.contains("    if (n.next == head) {\n        goto label 7\n    }\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    goto label 0\n    label 7:\n    return\n    label 4:\n"),
+        "{body}"
+    );
+    assert!(!body.contains("{\n        return\n    }"), "{body}");
+}
+
+#[test]
+fn p141_integers_widen_to_the_address_before_becoming_pointers() {
+    let d = transpile_with_libc(
+        "p141_integer_to_pointer_width",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // The integer is a 64-bit address before it becomes a pointer or a
+    // function value; a four-byte operand is never reinterpreted as eight.
+    assert!(d.contains("reinterpret<uint8?>(uint64(n))"), "{d}");
+    assert!(d.contains("reinterpret<uint8?>(uint64(n_0))"), "{d}");
+    assert!(d.contains("return unsafe(reinterpret<action_t>(0xfffffffffffffffful))"));
+    assert!(d.contains("return unsafe(reinterpret<action_t>(uint64(n_1)))"));
+    assert!(!d.contains("reinterpret<action_t>(-1)"));
+}
+
+#[test]
 fn n12_typedef_record_field_is_diagnosed_not_dropped() {
     assert_precise_translation_error(
         "n12_typedef_record_field_unsupported",

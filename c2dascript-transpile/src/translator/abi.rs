@@ -353,6 +353,57 @@ impl<'c> Translation<'c> {
         self.cast_to_type(self.pointer_to_raw_address(pointer), target)
     }
 
+    /// A C integer converted to a pointer or a function pointer (C11
+    /// 6.3.2.3p5), as the 64-bit address the result holds.  The mapping is
+    /// implementation-defined; GCC and Clang first widen the integer to the
+    /// pointer's width — sign-extending a signed type, zero-extending an
+    /// unsigned one — and use those bits.  Clang's `IntegralToPointer` takes
+    /// the integer as it is (`(void *)i` of an `int` has no widening cast
+    /// below it), and daslang's `reinterpret` does no widening either: it
+    /// reads the target's eight bytes out of the narrower operand, so the
+    /// interpreter takes the high half from whatever follows the value and
+    /// the LLVM JIT yields zero.  `(actionf_v)(-1)`, Doom's "removed thinker"
+    /// mark, then differed between the two modes and equalled the null
+    /// function under `-jit`.  Hence the explicit widening here.
+    ///
+    /// `source` is the daScript type of `value` (the C operand's type
+    /// converted); an operand that is not one of daslang's integer types has
+    /// no exact widening here and is refused.
+    pub(crate) fn integer_to_raw_address(
+        &self,
+        value: DaExpr,
+        source: &DaType,
+    ) -> TranslationResult<DaExpr> {
+        match source.kind {
+            DaTypeKind::UInt64 => Ok(value),
+            DaTypeKind::Int | DaTypeKind::Int8 | DaTypeKind::Int16 | DaTypeKind::Int64 => {
+                Ok(self.cast_to_type(self.cast_to_type(value, DaType::int64()), DaType::uint64()))
+            }
+            DaTypeKind::UInt | DaTypeKind::UInt8 | DaTypeKind::UInt16 => {
+                Ok(self.cast_to_type(value, DaType::uint64()))
+            }
+            _ => Err(crate::format_translation_err!(
+                None,
+                "integer-to-pointer conversion from `{source}` has no exact address widening"
+            )),
+        }
+    }
+
+    /// [`Self::integer_to_raw_address`] for `value`, the translation of the C
+    /// integer expression `operand`, whose type it reads from the C AST.
+    pub(crate) fn integer_operand_address(
+        &self,
+        operand: CExprId,
+        value: DaExpr,
+    ) -> TranslationResult<DaExpr> {
+        let source = self.ast_context[operand]
+            .kind
+            .get_qual_type()
+            .ok_or_else(|| TranslationError::generic("integer-to-pointer operand has no C type"))?;
+        let source = self.convert_type(source)?;
+        self.integer_to_raw_address(value, &source)
+    }
+
     /// Reinterpret a value already represented as a daScript pointer (or an
     /// array-decay value) to another typed C pointer.  Null stays null rather
     /// than becoming an invalid numeric pointer cast.

@@ -1402,10 +1402,12 @@ impl<'c> Translation<'c> {
                 ) {
                     let inner = self.convert_expr(ctx, *expr, None)?;
                     let target_type = self.convert_type(ty.clone())?;
-                    let cast = if matches!(cast_kind, CastKind::IntegralToPointer)
-                        && matches!(target_type.kind, DaTypeKind::Pointer(_))
-                    {
-                        WithStmts::new_val(self.raw_address_to_pointer(inner.val, target_type))
+                    // An integer becomes a pointer or a function pointer
+                    // through its widened 64-bit address
+                    // (`abi.rs integer_to_raw_address`).
+                    let cast = if matches!(cast_kind, CastKind::IntegralToPointer) {
+                        let address = self.integer_operand_address(*expr, inner.val)?;
+                        WithStmts::new_val(self.raw_address_to_pointer(address, target_type))
                     } else if matches!(cast_kind, CastKind::PointerToIntegral) {
                         // `(uintptr_t)(p + n)` reads the raw address of a
                         // pointer sum, which the daslang interpreter cannot do
@@ -1527,7 +1529,22 @@ impl<'c> Translation<'c> {
                         WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(inner.is_unsafe)
                     );
                 }
-                let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
+                // A pointer ↔ integer cast converts the operand's own value,
+                // so the operand is translated as what it is: told to expect
+                // the cast's type, a call would convert its own result first
+                // (`(uintptr_t)f()` became `uint64(f())` of a pointer).  The
+                // implicit-cast path does the same.  A pointer-to-pointer
+                // `BitCast` keeps the expected type, which lets a runtime call
+                // materialize directly as the demanded pointer.
+                let operand_ty = if matches!(
+                    cast_kind,
+                    CastKind::PointerToIntegral | CastKind::IntegralToPointer
+                ) {
+                    None
+                } else {
+                    Some(*ty)
+                };
+                let inner = self.convert_expr(ctx, *expr, operand_ty)?;
                 if matches!(cast_kind, CastKind::ToUnion) {
                     let union_id = match self.ast_context.resolve_type(ty.ctype).kind {
                         CTypeKind::Union(id) => id,
@@ -1570,21 +1587,26 @@ impl<'c> Translation<'c> {
                             .merge_unsafe(inner.is_unsafe));
                     }
                 }
+                // An integer becomes a pointer or a function pointer through
+                // its widened 64-bit address (`abi.rs integer_to_raw_address`).
+                if matches!(cast_kind, CastKind::IntegralToPointer) {
+                    let address = self.integer_operand_address(*expr, inner.val)?;
+                    return Ok(WithStmts::new_val(
+                        self.raw_address_to_pointer(address, target_type),
+                    )
+                    .prepend_stmts(inner.stmts)
+                    .merge_unsafe(inner.is_unsafe));
+                }
                 if matches!(target_type.kind, DaTypeKind::Pointer(_)) {
-                    let cast = if matches!(cast_kind, CastKind::IntegralToPointer) {
-                        self.raw_address_to_pointer(inner.val, target_type)
-                    } else {
-                        self.abi_pointer_cast(inner.val, target_type)
-                    };
-                    return Ok(WithStmts::new_val(cast)
-                        .prepend_stmts(inner.stmts)
-                        .merge_unsafe(inner.is_unsafe));
+                    return Ok(
+                        WithStmts::new_val(self.abi_pointer_cast(inner.val, target_type))
+                            .prepend_stmts(inner.stmts)
+                            .merge_unsafe(inner.is_unsafe),
+                    );
                 }
                 // Pointer/integer/bitwise casts use reinterpret<T>(x) in daScript
-                let value = if matches!(
-                    cast_kind,
-                    CastKind::BitCast | CastKind::IntegralToPointer | CastKind::PointerToIntegral
-                ) {
+                let value = if matches!(cast_kind, CastKind::BitCast | CastKind::PointerToIntegral)
+                {
                     // `(uintptr_t)(p + n)` reads the raw address of a pointer
                     // sum, which the daslang interpreter cannot do in place;
                     // the pointer is named first.  Its daScript type comes

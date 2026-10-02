@@ -101,6 +101,16 @@ address valid and C's layout around it:
 - A pointer converted to an integer narrower than `uint64` is the raw address converted
   (`abi.rs pointer_to_integer`): an eight-byte `reinterpret` into `int` is not a conversion,
   and daslang's LLVM back end rejects it (`trunc ptr`).
+- An integer converted to a pointer or a function pointer is first widened to the 64-bit
+  address the way GCC and Clang do — sign-extended from a signed type, zero-extended from an
+  unsigned one — and only then reinterpreted (`abi.rs integer_to_raw_address`, used by both
+  cast paths of `mod.rs`).  Clang's `IntegralToPointer` takes an `int` directly, and a
+  `reinterpret` of four bytes into an eight-byte pointer or function value reads four bytes C
+  never defined: the interpreter and the LLVM JIT read different ones, and Doom's "removed
+  thinker" mark `(actionf_v)(-1)` equalled the null function under `-jit`.  A pointer ↔ integer
+  or bit cast translates its operand with no expected type, in the explicit-cast path as in the
+  implicit one; told to expect the cast's type, a call converted its own pointer result
+  (`(uintptr_t)f()` became `uint64(f())`).  `p141-integer-to-pointer-width`.
 - An integer converted to a daslang `enum` is converted to the enumeration's integer type first
   and then re-read as the `enum` (`enums.rs value_to_enum`): a `reinterpret<E>` of a `uint8`
   reads bytes C never defined.  `p134-pointer-integer-enum-conversions`.
@@ -269,6 +279,32 @@ above nothing but a void function's closing `return` cannot be jumped to (see
 re-rendered onto a `return` trampoline at the top of the body.  Measured in the interpreter on a
 256-case byte switch: 4× faster than the linear chain (the median split alone: 3×).
 `p121-switch-dispatch` is the fixture; computed `goto` is `DaExpr::GotoComputed`.
+
+## Early exits and the interpreter's label tables
+
+daslang's optimizer (`CondFolding::visit(ExprBlock*)`, `src/ast/ast_block_folding.cpp`)
+rewrites `if (c) { … return } rest` — an `if` without `else` whose arm is a block ending in
+`return`/`break`/`continue` — into `if (c) { … return } else { rest }`, and `rest` keeps its
+labels.  The interpreter gives every block with labels its own label table covering only its
+own statements (`sv_simulateLabels`, `src/ast/ast_simulate.cpp`), so a jump across the `if`
+breaks once `rest` holds a label: a jump from `rest` to a label above the `if` (a loop head)
+raises `jump to label N failed` (`SimNode_BlockWithLabels::eval`, `src/simulate/simulate.cpp`),
+and a jump from above the `if` to a label in `rest`, when nothing above has a label, leaves the
+function silently.  The JIT, AOT and `-exe` run the same folded tree correctly, and so does the
+interpreter under `options optimize = false`.  daslang issue:
+[lookibed/daScript#8](https://github.com/lookibed/daScript/issues/8).
+
+The flat back end produces exactly that shape when `dead_tail_labels` rewrites a jump to the
+function's end into `return` inside an `if` (Doom's `Z_CheckHeap`: `break` out of an endless
+`for` that is also the end of the void function, with the error reports' back edges below).
+`move_crossed_early_exits` (`cfg/labels.rs`), run after that repair, rewrites each such `if`
+that some jump crosses with labels below it into `if (c) { goto label X }`, which the folding
+leaves alone, and moves the arm's statements verbatim behind `label X:` into a slot nothing
+falls into: after a top-level `goto`/`return` and before the next label — or, when the body has
+no such slot, onto a skipped prologue at its top (`goto label R; label X: …; label R:`).  The
+taken exit costs one `goto` more; the untaken path is the same `if`, now without the nested
+`else` block.  An exit no jump crosses (Doom's `R_DrawColumn`: nothing above it jumps or is
+jumped to) stays `if (c) { return }`.  `p140-early-exit-jump-targets` is the fixture.
 
 ## Local declarations
 

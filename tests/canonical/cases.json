@@ -1393,6 +1393,40 @@
       "runtime": "required"
     },
     {
+      "id": "p140-early-exit-jump-targets",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p140_early_exit_jump_targets.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "error: two free\nerror: size\nerror: back link\nerror: two free\n4 4\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p140_early_exits_never_strand_a_jump_target",
+      "runtime": "required"
+    },
+    {
+      "id": "p141-integer-to-pointer-width",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p141_integer_to_pointer_width.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "int -1 -> ffffffffffffffff\nint 7 -> 7\nunsigned max -> ffffffff\nmark -> ffffffffffffffff\nmark equal 1, mark null 0, from -1 equal 1\nremoved=1 idle=1 calls=2\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p141_integers_widen_to_the_address_before_becoming_pointers",
+      "runtime": "required"
+    },
+    {
       "id": "n12-typedef-record-field-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n12_typedef_record_field_unsupported.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"
@@ -1562,7 +1596,7 @@
     },
     {
       "id": "doomgeneric-demo1-std",
-      "status": "known-red",
+      "status": "ready",
       "source_root": "tests/manual/doomgeneric",
       "translation_entry": "src/doom_all.c",
       "c_graph": "doomgeneric",

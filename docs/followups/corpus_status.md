@@ -8,7 +8,7 @@
 | wasm3 (interpreter core, no WASI) | `tests/manual/wasm3/UPSTREAM.md`: wasm3 `deeaca9ce` (MIT); `fixtures/fib32.wasm`, `fib64.wasm` are upstream's own test vectors | ready | `wasm3-fib32-std`: `src/all_host.c` (graph + C host over the `.wasm` named by the last argument) translated under `--libc std` with `das_options: ["stack = 4194304"]`, `program_args: fixtures/fib32.wasm` | `fib[n]=` for n in 1,2,5,10,15,20,24 plus `bytes=62` and `count=7`, pinned in `cases.json`; C reference == fresh daslang in every run mode | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md`; `docs/followups/translator_gaps_wasm3.md` has the first per-mode measurement and the story; both daslang-side issues are avoided translator-side — record order in `global_order.rs` ([#2](https://github.com/lookibed/daScript/issues/2), case `p84-struct-definition-order`) and the named pointer value in `abi.rs` ([#3](https://github.com/lookibed/daScript/issues/3), case `p85-pointer-sum-compare`); decisions on the four translator gaps still due |
 | h264bsd + minimp4, 640×360 | same revisions; `fixtures/test_640x360.mp4` is upstream's `test/test_640x360.h264` muxed without re-encoding (`UPSTREAM.md`) | ready | `h264bsd-mp4-640x360`, same graph, file entries `src/h264_file_*` reading the fixture at run time | YUV hash of every decoded picture (73 pictures, 640×368 output, constrained baseline), pinned in `cases.json` | same: `docs/corpus-convergence.md`, timed in `docs/corpus-benchmark.md` |
 | binjgb (Game Boy Color emulator core) | `tests/manual/binjgb/UPSTREAM.md`: binjgb `8191a5d6` (MIT); `fixtures/cgb-acid2.gbc` is Matt Currie's cgb-acid2 `v1.1` (MIT) | ready | `binjgb-cgb-acid2-std`: `src/binjgb_all.c` (graph + platform layer + C entry over the ROM named by the last argument) translated under `--libc std`, `program_args: fixtures/cgb-acid2.gbc` | cartridge header lines, RGB555 FNV-1a hash of each of 60 emulated frames (A held on frames 8–9), `frames=60`, `ticks=5378896`, pinned in `cases.json` from the clang-18 C reference | C reference == fresh daslang in every run mode: `docs/corpus-convergence.md` (last verified 2026-10-02 on top of `d2e5d6f33`); not yet timed in `docs/corpus-benchmark.md` |
-| doomgeneric (Doom engine) | `tests/manual/doomgeneric/UPSTREAM.md`: doomgeneric `dcb7a8dbc` (GPL-2.0); `fixtures/doom1.wad` is the unmodified shareware 1.9 IWAD | known-red | `doomgeneric-demo1-std`: `src/doom_all.c` (engine + platform layer + C entry) under `--libc std`, `program_args: fixtures/doom1.wad`; no `corpus` block yet (see below) | RGB hash of each of the first 70 frames of `-timedemo demo1` (320×200, palette applied), pinned in `cases.json`; C `-O0` == `-O2` == `-O3 -march=native` | `-jit` matches all 70 pinned frames; the interpreter stops on a daslang defect (`jump to label 0 failed`, if-return folding moves labels into a nested block), so the case stays known-red; `corpus` block added (run only under `--case` while known-red); "doomgeneric: translation gaps" below, "Status 2026-10-02" |
+| doomgeneric (Doom engine) | `tests/manual/doomgeneric/UPSTREAM.md`: doomgeneric `dcb7a8dbc` (GPL-2.0); `fixtures/doom1.wad` is the unmodified shareware 1.9 IWAD | ready | `doomgeneric-demo1-std`: `src/doom_all.c` (engine + platform layer + C entry) under `--libc std`, `program_args: fixtures/doom1.wad`, with its `corpus` block | RGB hash of each of the first 70 frames of `-timedemo demo1` (320×200, palette applied), pinned in `cases.json`; C `-O0` == `-O2` == `-O3 -march=native` | interp, jit, aot and exe print all 70 pinned frames byte-identically to C (`docs/corpus-convergence.md`); the interpreter's former `jump to label 0 failed` (daslang if-return folding, see "Status 2026-10-02") is avoided in the translator; "doomgeneric: translation gaps" below |
 
 The two 320×240 / 640×360 rows exist twice in `cases.json`: once over a fixture-owned
 daslang entry (`plmpeg-stream-320x240`, `h264bsd-mp4-640x360`) and once as
@@ -237,6 +237,15 @@ The benchmark entry is ready: `src/doom_bench_entry.c` renders 1000 frames (the 
 wipe inside `doomgeneric_Create`, timed as `setup_us`, then 959 demo tics as `decode_us`);
 `clang-18 -O3 -march=native` runs the tick loop in about 113 ms on the benchmark machine.
 
+Past the 70 pinned frames the translation first diverged at frame 285 (demo tic ~247: a barrel
+explosion's last frame `BEXPE0` drawn again after C had removed the object) and then hung in
+the next tick under `-jit`.  Cause: Doom marks a removed thinker with `(actionf_v)(-1)`, an
+`int` converted to a function pointer; the translator reinterpreted the four-byte `-1` as an
+eight-byte function value, which the interpreter read as `0xffffffff` and the LLVM JIT as
+`0` — the null function — so `P_RunThinkers` freed live thinkers whose function is null.
+Fixed by widening the integer to its 64-bit address first (`abi.rs integer_to_raw_address`,
+fixture `p141-integer-to-pointer-width`); with it all 1000 bench frames under `-jit` equal C's.
+
 How the list was obtained.  Strict translation stops at the first failure, so items 1–9 are
 the external calls of the graph (`nm -u` of the C object) that neither the `--libc std`
 table (`translator/libc.rs`) nor the raw-memory runtime (`translator/runtime.rs`) provides;
@@ -314,7 +323,10 @@ without an initializer.  `states`'s initializer takes no element address, so rep
 globals") for whoever gives uninitialised storage-backed globals their storage.  What lies
 behind gap 14 is unknown.
 
-### Status 2026-10-02: compiles, `-jit`/AOT/`-exe` converge, the interpreter is blocked by daslang
+### Status 2026-10-02: ready — all four modes converge
+
+(Until the early-exit placement below, `-jit`/AOT/`-exe` converged and the interpreter stopped
+at startup.)
 
 Closed in the translator (on top of `d2e5d6f33`), each with a canonical case; the storage-backed
 object model is now written down in `translator/ARCHITECTURE.md`, "Storage-backed objects: one
@@ -334,47 +346,134 @@ wrapper, one block, one identity":
 The case also declares `das_options: ["stack = 4194304"]` (the generated `c2da_ginit_states`
 for the 967-entry table overflows daslang's default stack, `stack overflow while calling
 c2da_ginit_states`) and its `corpus` block.  `corpus_matrix.py converge --case
-doomgeneric-demo1-std`: **jit, aot and exe print all 70 pinned frames byte-identically**; the
-interpreter stops at startup:
+doomgeneric-demo1-std`: **interp, jit, aot and exe print all 70 pinned frames
+byte-identically**.  Before the early-exit placement the interpreter stopped at startup:
 
 ```
 EXCEPTION: jump to label 0 failed
  at generated/doom_all.das:<line of the second if in Z_CheckHeap>
 ```
 
-**Blocker: a daslang interpreter defect, not worked around.**  daslang's if-return folding
-(`src/ast/ast_block_folding.cpp`, the `if (cond) {... return} b` → `if (cond) {... return}
-else {b}` rewrite in `visit(ExprBlock*)`) moves the statements after the `if` — `label`s
-included — into a new nested block without checking for labels; a `goto` from that block to a
-label left outside (`label 0`, the loop head) then fails in `SimNode_BlockWithLabels::eval`.
-The JIT is unaffected.  Pure-daslang reproducer (daslang 0.6.4, `~/daScript/bin/daslang`;
-prints `3` with `-jit`, raises the exception in the interpreter):
+**Cause (verified 2026-10-02, daslang 0.6.4 `69a589623`): daslang's if-return folding plus
+the interpreter's per-block label tables.**  `CondFolding::visit(ExprBlock*)`
+(`src/ast/ast_block_folding.cpp`) rewrites `if (c) { … return } rest` into
+`if (c) { … return } else { rest }`, labels included.  The simulator gives each block with
+labels its own table over its own statements only (`sv_simulateLabels`,
+`src/ast/ast_simulate.cpp`), so `SimNode_BlockWithLabels::eval` (`src/simulate/simulate.cpp`)
+raises `jump to label 0 failed` when `rest`'s `goto label 0` targets the loop head left above
+the `if`.  A jump in the other direction (from above the `if` to a label in `rest`, nothing
+above labelled) leaves the function silently, a non-void one returning garbage.  `-jit` runs
+the folded tree correctly; `options optimize = false` makes the interpreter correct too.
+
+The earlier reproducer in this ledger (`f(1)` with a loop over a local) did **not** reproduce:
+`f` has no side effects and a constant argument, so daslang evaluated `f(1)` at compile time
+(`options log_nodes = true` shows `main` printing the constant `"3\n"`) and never ran the
+folded body.  The same body called with a run-time value fails.
+
+**Avoided in the translator** (`cfg/labels.rs`, `move_crossed_early_exits`;
+`translator/ARCHITECTURE.md`, "Early exits and the interpreter's label tables"): the shape is
+the flat back end's `if (c) { return }` that `dead_tail_labels` leaves where a `break` ends both
+a loop and a void function (62 such `if`s in Doom, `Z_CheckHeap` the first one reached).  Where
+a jump crosses such an `if` and a label follows it, the arm moves out of line
+(`if (c) { goto label X }` … `label X: return` in a slot after a `goto`/`return`); otherwise it
+stays a `return`.  Fixture `p140-early-exit-jump-targets` (`jump to label 0 failed` in the
+interpreter before the change).
+
+Filed as [lookibed/daScript#8](https://github.com/lookibed/daScript/issues/8) with the forward
+reproducer (reproducer 2 below, checked in the interpreter, `-jit` and `-exe`); reproducer 1 is
+the backward form of the same defect.  Text kept for reference:
+
+````markdown
+**Title:** Interpreter: `goto` across an `if (...) { return }` fails ("jump to label N failed") or leaves the function, after if-return folding
+
+**daslang version:** 0.6.4, commit 69a589623 (Linux x86-64, Ubuntu 22.04 on WSL2)
+
+**Reproducer 1** (`backward.das`):
 
 ```das
 options gen2
 
-def f(n : int) : int {
-    var i : int
+var limit = 3
+
+def f() : int {
+    var i = 0
     label 0:
-    if (i >= 3) {
+    if (i >= limit) {
         return i
     }
-    if (i == 7) {
-        goto label 1
-    }
+    goto label 1
     label 1:
-    i = i + 1
+    i++
     goto label 0
 }
 
 [export]
 def main() {
-    print("{f(1)}\n")
+    print("{f()}\n")
 }
 ```
 
-Still to file on `lookibed/daScript`.  Not every such shape fails (a loop whose `goto`-target
-label is not right after the `if` passes), which is why the other corpora are unaffected.
+```
+$ daslang backward.das
+EXCEPTION: jump to label 0 failed
+ at backward.das:11:4
+$ daslang -jit backward.das
+3
+```
+
+**Reproducer 2** (`forward.das`):
+
+```das
+options gen2
+
+var skip = true
+var done = false
+
+def f() : int {
+    var r = 0
+    if (skip) {
+        goto label 0
+    }
+    if (done) {
+        return -1
+    }
+    r = 100
+    label 0:
+    r += 1
+    return r
+}
+
+[export]
+def main() {
+    print("{f()}\n")
+}
+```
+
+```
+$ daslang forward.das
+1852795252
+$ daslang -jit forward.das
+1
+```
+
+**Expected:** `3` and `1` in the interpreter, as with `-jit`.
+
+**Observed:** reproducer 1 raises `jump to label 0 failed`; reproducer 2 returns from `f` without
+running `r += 1; return r` and prints a value `f` never computed.  Both print the
+expected value in the interpreter with `options optimize = false` added.
+
+**Notes:** `CondFolding::visit(ExprBlock*)` in `src/ast/ast_block_folding.cpp` rewrites
+`if (c) { ... return } rest` into `if (c) { ... return } else { rest }`, moving any `label` in
+`rest` into the new `else` block.  The simulator builds a separate label table for each block
+that contains labels (`sv_simulateLabels`, `src/ast/ast_simulate.cpp`), covering only that
+block's statements, so `SimNode_BlockWithLabels::eval` (`src/simulate/simulate.cpp`) can no
+longer reach `label 0` from inside the `else` block (reproducer 1), and the outer block, which
+no longer has labels, passes a jump to `label 0` straight out of the function (reproducer 2).
+In reproducer 1 the `goto label 1` is only there so that `label 1` survives into the `else`
+block; a call with a compile-time-constant argument (`f(3)` with `limit` a parameter) does not
+show the problem, because the call is then evaluated at compile time.
+````
+
 `p_maputl.c:849`'s intercepts-overrun emulation does not affect the 70 pinned frames (the
 compiled modes match C).
 

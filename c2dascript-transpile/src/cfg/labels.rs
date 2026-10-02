@@ -7,7 +7,7 @@
 //! makes this the one lowering that is *total*: every C control-flow graph,
 //! reducible or not, has an exact rendering.
 //!
-//! Rendering has three steps:
+//! Rendering has these steps:
 //!
 //! 1. **Layout** — a depth-first walk from the entry block that prefers the
 //!    successor which can fall through (the `false` arm of a branch, a `switch`'s
@@ -21,6 +21,11 @@
 //!    turned back into a plain `return`; see [`dead_tail_labels`].  A `return`
 //!    left directly after another one by that repair is dropped
 //!    ([`drop_returns_after_return`]).
+//! 5. **Early-exit placement** — an `if (c) { … return }` that a jump
+//!    crosses, with labels after it, would be folded by daslang into an
+//!    `else` block whose label table the interpreter cannot jump across; its
+//!    arm moves out of line behind a label of its own
+//!    ([`move_crossed_early_exits`]).
 //!
 //! A hoisted declaration carries no initializer when daslang's own zero-fill
 //! of a bare `var x : T` is the value it would be given — numbers, pointers,
@@ -460,8 +465,9 @@ fn render_once(
 
     // Step 4: a body with jumps in it must also be valid C++ once daslang's AOT
     // has emitted it; see `hoist_site_temporaries`.
+    let mut body_start = hoisted_len;
     if has_labels {
-        hoist_site_temporaries(&mut out, hoisted_len, zero_fills);
+        body_start = hoist_site_temporaries(&mut out, hoisted_len, zero_fills);
     }
 
     // Step 5: repair labels daScript would leave dangling at the end of the
@@ -488,6 +494,11 @@ fn render_once(
             retarget_to_return(&mut out, &label);
         }
     }
+
+    // Step 5b: no early exit may leave a jump target where daslang's
+    // if-return folding would carry it into a nested block; see
+    // `move_crossed_early_exits`.
+    move_crossed_early_exits(&mut out, body_start);
 
     // Step 6: the body's first statement may be the store that initialises
     // the last hoisted declaration; see `initialise_last_declaration`.
@@ -594,7 +605,13 @@ fn drop_returns_after_return(out: &mut Vec<DaStmt>) {
 /// it could not be redeclared without its initializer — and so is a container
 /// initializer, whose declaration-only spelling differs from its assignment
 /// spelling (`typed_initializer_text` in `das_ast`).
-fn hoist_site_temporaries(out: &mut Vec<DaStmt>, at: usize, zero_fills: &dyn Fn(&DaType) -> bool) {
+///
+/// Returns the index of the first body statement after the declarations.
+fn hoist_site_temporaries(
+    out: &mut Vec<DaStmt>,
+    at: usize,
+    zero_fills: &dyn Fn(&DaType) -> bool,
+) -> usize {
     let mut declarations: Vec<DaStmt> = Vec::new();
     let body: Vec<DaStmt> = out.drain(at..).collect();
     let body = hoist_in_stmts(body, &mut declarations);
@@ -605,8 +622,10 @@ fn hoist_site_temporaries(out: &mut Vec<DaStmt>, at: usize, zero_fills: &dyn Fn(
             }
         }
     }
+    let body_start = at + declarations.len();
     out.extend(declarations);
     out.extend(body);
+    body_start
 }
 
 fn hoist_in_stmts(stmts: Vec<DaStmt>, declarations: &mut Vec<DaStmt>) -> Vec<DaStmt> {
@@ -751,6 +770,183 @@ fn goto_to_return(expr: &mut DaExpr, label: &str) {
         }
         _ => {}
     }
+}
+
+/// Move the arm of every early-exit `if` that daslang's if-return folding
+/// would turn into a broken jump out of line, behind a label of its own.
+///
+/// daslang's `CondFolding` (`ast_block_folding.cpp`, `visit(ExprBlock*)`)
+/// rewrites `if (c) { … return } rest` — an `if` without `else` whose arm is a
+/// block ending in `return`, `break` or `continue` — into
+/// `if (c) { … return } else { rest }`, labels included.  A label then
+/// belongs to the new nested block: the interpreter simulates each block with
+/// labels as one `SimNode_BlockWithLabels` whose label table covers only its
+/// own statements (`sv_simulateLabels`, `ast_simulate.cpp`), and
+/// `SimNode_BlockWithLabels::eval` (`simulate.cpp`) raises
+/// `jump to label N failed` for a jump to a label outside it — a `goto` from
+/// `rest` back to a label above the `if` (a loop head), or from above the
+/// `if` forward into `rest` (when nothing above the `if` has a label, that
+/// one leaves the function silently instead).  A block without labels
+/// passes the jump on to its parent, so only a jump that crosses the `if`
+/// with labels on the `rest` side fails.  The JIT, AOT and `-exe` compile the same folded tree
+/// correctly, and `options optimize = false` (no folding) runs it correctly
+/// in the interpreter too.  daslang issue: <placeholder>.
+///
+/// Such an arm (in practice the `if (c) { return }` that
+/// [`retarget_to_return`] leaves, or a structured `if` arm the relooper kept)
+/// becomes `if (c) { goto label X }`, which the folding leaves alone, and its
+/// statements move, verbatim and after `label X:`, into a slot that nothing
+/// falls into: right after a top-level `goto` or `return` and before the
+/// label that follows it.  The arm still ends in its own `return`, so nothing
+/// after it runs, and the slot is never the end of the body, so the closing
+/// `return` a void function's folding deletes is never the arm's.  A body
+/// with no such slot gets one at its top: `goto label R`, the arm, `label R:`.
+/// Arms whose `if` no jump crosses are left as they are: `return` is one node
+/// cheaper than `goto` plus `return` on the exit path.
+///
+/// An arm can only end in `break`/`continue` inside a loop body, where the
+/// flat back end puts no labels; only `return` arms are moved.
+fn move_crossed_early_exits(out: &mut Vec<DaStmt>, body_start: usize) {
+    while let Some(index) = (body_start..out.len()).find(|&k| crossed_early_exit(out, k)) {
+        let fresh = out
+            .iter()
+            .filter_map(|stmt| match stmt {
+                DaStmt::Expr(DaExpr::Label(name)) => label_number(name),
+                _ => None,
+            })
+            .max()
+            .map_or(0, |max| max + 1);
+        let arm_label = alias_text(fresh);
+        let DaStmt::Expr(DaExpr::IfThenElse { then, .. }) = &mut out[index] else {
+            unreachable!("crossed_early_exit only accepts an `if`");
+        };
+        let DaExpr::Block(arm) = std::mem::replace(
+            then.as_mut(),
+            DaExpr::Block(DaBlock {
+                stmts: vec![DaStmt::Expr(DaExpr::Goto(arm_label.clone()))],
+            }),
+        ) else {
+            unreachable!("crossed_early_exit only accepts a block arm");
+        };
+        let mut moved = vec![DaStmt::Expr(DaExpr::Label(arm_label))];
+        moved.extend(arm.stmts);
+        let slot = (index + 1..out.len())
+            .chain(body_start + 1..index)
+            .find(|&p| p > body_start && transfers(&out[p - 1]) && is_label(&out[p]));
+        match slot {
+            Some(p) => {
+                out.splice(p..p, moved);
+            }
+            None => {
+                let resume = alias_text(fresh + 1);
+                let mut prologue = vec![DaStmt::Expr(DaExpr::Goto(resume.clone()))];
+                prologue.extend(moved);
+                prologue.push(DaStmt::Expr(DaExpr::Label(resume)));
+                out.splice(body_start..body_start, prologue);
+            }
+        }
+    }
+}
+
+/// Whether `out[k]` is an early-exit `if` (see [`move_crossed_early_exits`])
+/// with a label after it and a jump across it.
+fn crossed_early_exit(out: &[DaStmt], k: usize) -> bool {
+    let DaStmt::Expr(DaExpr::IfThenElse {
+        then,
+        elifs,
+        else_: None,
+        ..
+    }) = &out[k]
+    else {
+        return false;
+    };
+    let DaExpr::Block(arm) = then.as_ref() else {
+        return false;
+    };
+    if !elifs.is_empty()
+        || k + 1 == out.len()
+        || !matches!(arm.stmts.last(), Some(DaStmt::Expr(DaExpr::Return(_))))
+    {
+        return false;
+    }
+    let labels = |stmts: &[DaStmt]| -> IndexSet<String> {
+        stmts
+            .iter()
+            .filter_map(|stmt| match stmt {
+                DaStmt::Expr(DaExpr::Label(name)) => Some(name.clone()),
+                _ => None,
+            })
+            .collect()
+    };
+    let (above, below) = out.split_at(k + 1);
+    let below_labels = labels(below);
+    if below_labels.is_empty() {
+        return false;
+    }
+    let above_labels = labels(above);
+    let crosses = |from: &[DaStmt], to: &IndexSet<String>| -> bool {
+        let mut jumps = JumpTargets::default();
+        for stmt in from {
+            jumps.stmt(stmt);
+        }
+        !to.is_empty() && (jumps.computed || jumps.named.iter().any(|name| to.contains(name)))
+    };
+    crosses(below, &above_labels) || crosses(above, &below_labels)
+}
+
+/// The labels the jumps of some statements name, and whether any of them
+/// is a computed jump (which can reach any label).
+#[derive(Default)]
+struct JumpTargets {
+    named: IndexSet<String>,
+    computed: bool,
+}
+
+impl JumpTargets {
+    fn stmt(&mut self, stmt: &DaStmt) {
+        if let DaStmt::Expr(expr) = stmt {
+            self.expr(expr);
+        }
+    }
+
+    fn expr(&mut self, expr: &DaExpr) {
+        match expr {
+            DaExpr::Goto(name) => {
+                self.named.insert(name.clone());
+            }
+            DaExpr::GotoComputed(_) => self.computed = true,
+            DaExpr::Block(block) => block.stmts.iter().for_each(|stmt| self.stmt(stmt)),
+            DaExpr::IfThenElse {
+                then, elifs, else_, ..
+            } => {
+                self.expr(then);
+                elifs.iter().for_each(|(_, arm)| self.expr(arm));
+                if let Some(arm) = else_ {
+                    self.expr(arm);
+                }
+            }
+            DaExpr::While(_, body) => self.expr(body),
+            DaExpr::For { body, .. } => self.expr(body),
+            _ => {}
+        }
+    }
+}
+
+/// A top-level statement after which control never continues in sequence.
+fn transfers(stmt: &DaStmt) -> bool {
+    matches!(
+        stmt,
+        DaStmt::Expr(DaExpr::Goto(_) | DaExpr::GotoComputed(_) | DaExpr::Return(_))
+    )
+}
+
+fn is_label(stmt: &DaStmt) -> bool {
+    matches!(stmt, DaStmt::Expr(DaExpr::Label(_)))
+}
+
+/// The number of a `label N` name.
+fn label_number(name: &str) -> Option<u64> {
+    name.strip_prefix("label ")?.parse().ok()
 }
 
 /// Depth-first layout that keeps as many edges as possible implicit.
@@ -1106,4 +1302,121 @@ fn label_text(label_ids: &IndexMap<Label, u64>, label: &Label) -> String {
 /// trampoline's resume point.
 fn alias_text(id: u64) -> String {
     format!("label {id}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stmt(expr: DaExpr) -> DaStmt {
+        DaStmt::Expr(expr)
+    }
+    fn label(n: u64) -> DaStmt {
+        stmt(DaExpr::Label(alias_text(n)))
+    }
+    fn goto(n: u64) -> DaStmt {
+        stmt(DaExpr::Goto(alias_text(n)))
+    }
+    fn call(name: &str) -> DaStmt {
+        stmt(DaExpr::Call(
+            Box::new(DaExpr::Var(name.to_string())),
+            vec![],
+        ))
+    }
+    fn if_then(cond: &str, arm: Vec<DaStmt>) -> DaStmt {
+        stmt(DaExpr::IfThenElse {
+            cond: Box::new(DaExpr::Var(cond.to_string())),
+            then: Box::new(DaExpr::Block(DaBlock { stmts: arm })),
+            elifs: vec![],
+            else_: None,
+        })
+    }
+    fn ret() -> DaStmt {
+        stmt(DaExpr::Return(None))
+    }
+    fn text(out: &[DaStmt]) -> String {
+        out.iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn an_exit_no_jump_crosses_stays_a_return() {
+        // `R_DrawColumn`: nothing above the `if` is jumped to or jumps.
+        let mut out = vec![
+            call("setup"),
+            if_then("empty", vec![ret()]),
+            label(0),
+            call("step"),
+            if_then("more", vec![goto(0)]),
+            ret(),
+        ];
+        let before = text(&out);
+        move_crossed_early_exits(&mut out, 0);
+        assert_eq!(text(&out), before);
+    }
+
+    #[test]
+    fn a_backward_jump_across_an_exit_moves_the_exit_into_a_dead_slot() {
+        // `Z_CheckHeap`: the loop head is above the exit, the back edge below.
+        let mut out = vec![
+            label(0),
+            if_then("done", vec![call("finish"), ret()]),
+            if_then("bad", vec![goto(2)]),
+            label(1),
+            call("step"),
+            goto(0),
+            label(2),
+            call("report"),
+            goto(1),
+            ret(),
+        ];
+        move_crossed_early_exits(&mut out, 0);
+        let expected = vec![
+            label(0),
+            if_then("done", vec![goto(3)]),
+            if_then("bad", vec![goto(2)]),
+            label(1),
+            call("step"),
+            goto(0),
+            label(3),
+            call("finish"),
+            ret(),
+            label(2),
+            call("report"),
+            goto(1),
+            ret(),
+        ];
+        assert_eq!(text(&out), text(&expected));
+    }
+
+    #[test]
+    fn a_forward_jump_across_an_exit_without_a_dead_slot_gets_one_on_top() {
+        let mut out = vec![
+            if_then("skip", vec![goto(0)]),
+            if_then("done", vec![ret()]),
+            call("prepare"),
+            label(0),
+            call("work"),
+            ret(),
+        ];
+        move_crossed_early_exits(&mut out, 0);
+        let expected = vec![
+            goto(2),
+            label(1),
+            ret(),
+            label(2),
+            if_then("skip", vec![goto(0)]),
+            if_then("done", vec![goto(1)]),
+            call("prepare"),
+            label(0),
+            call("work"),
+            ret(),
+        ];
+        assert_eq!(text(&out), text(&expected));
+    }
 }
