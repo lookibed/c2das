@@ -32,6 +32,23 @@ export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
 
 flags=(-std=c11 "-I$corpus/include" "-I$corpus/upstream/doomgeneric/doomgeneric" "-I$corpus/src")
 
+# The corpus case's daslang module options (`das_options` of doomgeneric-demo1-std in
+# tests/canonical/cases.json, e.g. the larger stack the `states` initializer needs), so this
+# translation is configured exactly as the converged one.
+das_options=()
+host_options=""
+while IFS= read -r option; do
+    [ -n "$option" ] && das_options+=(--das-option "$option") && host_options+="options $option"$'\n'
+done < <(python3 - "$repo/tests/canonical/cases.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+cases = data if isinstance(data, list) else data["cases"]
+case = next(c for c in cases if c.get("id") == "doomgeneric-demo1-std")
+for option in case.get("das_options", []):
+    print(option)
+PY
+)
+
 transpile() {
     if [ -n "${C2DAS_TRANSPILE:-}" ]; then
         # shellcheck disable=SC2086
@@ -42,13 +59,17 @@ transpile() {
 }
 
 mkdir -p "$out/default" "$out/aot"
-transpile --strict --libc std --output-dir "$out/default" \
+transpile --strict --libc std "${das_options[@]}" --output-dir "$out/default" \
     --file "$here/doom_host_all.c" "${flags[@]}"
-cp "$here/doom_sdl.das" "$out/default/doom_sdl.das"
+# A context option such as the stack size belongs to the program, whose root is the host
+# script here (in the corpus case the translated module is the root), so the host copies carry
+# the case's options too.
+{ printf '%s' "$host_options"; cat "$here/doom_sdl.das"; } > "$out/default/doom_sdl.das"
 
-transpile --strict --libc std --public-module --no-solid-context \
+transpile --strict --libc std "${das_options[@]}" --public-module --no-solid-context \
     --das-option disable_auto_inline --output-dir "$out/aot" \
     --file "$here/doom_host_all.c" "${flags[@]}"
-{ echo "options disable_auto_inline"; cat "$here/doom_sdl.das"; } > "$out/aot/doom_sdl.das"
+{ printf '%s' "$host_options"; echo "options disable_auto_inline"; cat "$here/doom_sdl.das"; } \
+    > "$out/aot/doom_sdl.das"
 
 echo "translated: $out/default/doom_host_all.das, $out/aot/doom_host_all.das"

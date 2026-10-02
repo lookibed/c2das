@@ -138,8 +138,28 @@ FAIL with no number.
 - The C reference is green on Windows. All four builds, in all three modes, print the
   oracle's first 70 hashes, and all 1000 (and 4000) frames agree with each other and with
   Linux `clang-18 -O2` of `../src/doom_bench_all.c`.
-- The daslang modes wait on the translation: daslang refuses `doom_host_all.das` with the
-  corpus's known errors (`structure is already defined actionf_t`, ...; see `../README.md`).
-  The host itself compiles and runs in the interpreter, `-jit` and AOT against a stand-in
-  module that has the translation's API signatures (`dg_host_start(int8?)`,
-  `dg_host_frame_argb() : uint?`, ...).
+- The daslang modes are green: interpreter, `-jit` and AOT print the oracle's first 70 hashes
+  and all 1000 frames equal the C builds' in every presentation mode. With `options log_aot`
+  every one of the 959 host and engine functions reports an AOT body.
+
+Measured 2026-10-02 at `f1ba72dcb` on the benchmark machine (AMD Ryzen 7 7435HS, Windows 10,
+daslang 69a589623 with LLVM 22.1.5, SDL 3.4.16 static, MSVC 14.44, clang-cl 22.1.2):
+`bench.sh` with `REPS=3 FRAMES=1000`, median FPS of the 959-frame loop; × is the slowdown
+against `clang_native`, the fair ceiling for `-jit`.
+
+| variant | window | × | dummy | × | nopresent | × |
+|---|---:|---:|---:|---:|---:|---:|
+| C `msvc_O2` | 3188 | 1.04 | 396 | 0.99 | 7175 | 1.08 |
+| C `msvc_avx2` | 3194 | 1.04 | 393 | 0.99 | 7150 | 1.09 |
+| C `clang_O2` | 3208 | 1.03 | 391 | 1.00 | 7464 | 1.04 |
+| C `clang_native` | 3319 | 1.00 | 391 | 1.00 | 7766 | 1.00 |
+| daslang interpreter | 36.5 | 91 | 33.5 | 11.7 | 35.7 | 218 |
+| daslang `-jit` | 1530 | 2.17 | 351 | 1.11 | 2041 | 3.81 |
+| daslang AOT | 823 | 4.03 | 291 | 1.34 | 946 | 8.21 |
+
+**nopresent** is the engine itself (one tic, one frame, palette conversion). **window**
+adds about 0.12 ms of upload and present per frame, which narrows the ratios; **dummy** is
+dominated by SDL's software scaling to 960×600. The interpreter runs the game at about its own
+tic rate (Doom simulates 35 tics per second). The AOT row is built without `solid_context`
+and without daslang's inliner (`translate.sh`, as in `docs/corpus-benchmark.md`), which is why
+it trails `-jit`.
