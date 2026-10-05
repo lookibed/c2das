@@ -355,7 +355,7 @@ fn p113_block_scope_function_declarations_emit_the_function_at_module_scope() {
     // The function it declares first is emitted once, at module scope.
     assert_eq!(d.matches("def later(").count(), 1, "later emitted once");
     assert_eq!(d.matches("def counter_value(").count(), 1);
-    assert!(d.contains("\n[export]\ndef later(var k_0 : int) : int {\n"));
+    assert!(d.contains("\n[export, sideeffects]\ndef later(var k_0 : int) : int {\n"));
 }
 
 #[test]
@@ -387,16 +387,16 @@ fn p116_self_referencing_globals_are_initialised_by_init() {
     let d = transpile("p116_self_referencing_initializer");
     // The objects keep module storage and get their value in `[init]`.
     assert!(d.contains("var sounds : sfx_s[4]\n"));
-    assert!(d.contains("[init]\ndef c2da_gset_sounds() {\n"));
+    assert!(d.contains("[init, sideeffects]\ndef c2da_gset_sounds() {\n"));
     assert!(d.contains("link = unsafe(addr(unsafe(unsafe(addr(sounds[0]))[1])))"));
     assert!(d.contains("var ring : node\n"));
     assert!(d.contains("        ring = node(next = unsafe(addr(ring)), value = 7)\n"));
     // A global that depends on the self-referencing one moves with it.
     assert!(d.contains("var loudest : sfx_s?\n"));
-    assert!(d.contains("[init]\ndef c2da_gset_loudest() {\n"));
+    assert!(d.contains("[init, sideeffects]\ndef c2da_gset_loudest() {\n"));
     assert!(!d.contains("var sounds : sfx_s[4] ="));
     // A table reached again through the body of a function it holds.
-    assert!(d.contains("[init]\ndef c2da_gset_ops() {\n"));
+    assert!(d.contains("[init, sideeffects]\ndef c2da_gset_ops() {\n"));
     assert!(d.contains("        ops = fixed_array<function<(var _arg0:int):int>>(@@op_self)\n"));
 }
 
@@ -1012,6 +1012,30 @@ fn p154_disjoint_site_temporaries_share_their_variables() {
         body.contains("    s.c = c2da_fresh7\n    c2da_fresh2 = c2da_fresh7\n"),
         "{body}"
     );
+}
+
+#[test]
+fn p171_calls_keep_their_side_effects_and_null_casts_are_null() {
+    let d = transpile_with_libc(
+        "p171_unused_call_side_effects",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // daslang infers `decrease_ammo` free of side effects and would remove an
+    // unused call to it; every defined function states the C fact instead.
+    for name in ["decrease_ammo", "bump", "clear_state"] {
+        let at = d
+            .find(&format!("def {name}("))
+            .unwrap_or_else(|| panic!("{name} is translated:\n{d}"));
+        let head = &d[..at];
+        let annotation = head.rfind('[').map(|i| &head[i..]).unwrap_or("");
+        assert!(
+            annotation.contains("sideeffects"),
+            "{name}: {annotation}\n{d}"
+        );
+    }
+    // `(state_t *) S_NULL` with an enumeration constant 0 is the null pointer.
+    assert!(d.contains("= null\n"), "{d}");
+    assert!(!d.contains("reinterpret<state_t?>(0)"), "{d}");
 }
 
 #[test]

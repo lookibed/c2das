@@ -1473,6 +1473,14 @@ impl<'c> Translation<'c> {
             }
 
             ExplicitCast(ty, expr, cast_kind, _, _) => {
+                // `(T *) 0`, `(T *) ENUM_ZERO`: a null pointer constant
+                // converted is the null pointer (C11 6.3.2.3p3), as in the
+                // implicit-cast path.  Its operand is an integer constant
+                // expression with no side effects; reinterpreting it would read
+                // eight bytes out of a four-byte `int`.
+                if matches!(cast_kind, CastKind::NullToPointer) {
+                    return Ok(WithStmts::new_val(self.null_for_type(*ty)?));
+                }
                 if matches!(
                     cast_kind,
                     CastKind::IntegralToBoolean
@@ -4123,6 +4131,17 @@ fn translate_impl(
         apply_unsafe_deref(&mut module_decls);
     }
 
+    // C never drops a call because its result is unused; daScript does when it
+    // infers the callee has no side effects, and its inference misses a store
+    // through a pointer that was computed from a raw address and kept in a
+    // local (`var q = reinterpret<int?>(reinterpret<uint64>(p) + 4ul);
+    // q[k] -= 1`): such a call vanished in every run mode (Doom's
+    // `DecreaseAmmo`, from frame 124 of demo1; lookibed/daScript#10).  Every
+    // function of the module works on raw C addresses that way, so every one is
+    // declared to have side effects, once here like the null-dereference policy
+    // above.
+    apply_side_effects(&mut module_decls);
+
     // Every owner builds its numeric conversions as the conversion C asks
     // for, so a C literal reaches its use-site as `uint64(int(8))`.  Folding
     // them is a daScript fact about the finished AST — a conversion of a
@@ -4170,6 +4189,37 @@ fn translate_impl(
 /// The annotation daScript reads to skip the generated null check on every
 /// `ExprAt`, `ExprPtr2Ref` and field dereference inside a function body.
 const UNSAFE_DEREF_ANNOTATION: &str = "unsafe_deref";
+
+/// The annotation that keeps daScript from treating a function as free of side
+/// effects and removing a call whose result is unused.
+const SIDE_EFFECTS_ANNOTATION: &str = "sideeffects";
+
+/// Marks every *defined* function of the module `sideeffects`.
+///
+/// daScript removes a call to a function it infers to have no side effects
+/// when the result is unused, and the inference does not see a store through a
+/// pointer computed from a raw address and held in a local — the shape every C
+/// pointer write is lowered to.  A C call is never removable on that ground, so
+/// the annotation states the C fact for all of them.  It is appended like
+/// [`apply_unsafe_deref`]'s, never replacing `export` or `init`.
+fn apply_side_effects(decls: &mut [DaDecl]) {
+    for decl in decls {
+        let DaDecl::Function(function) = decl else {
+            continue;
+        };
+        if function.body.is_none()
+            || function
+                .annotations
+                .iter()
+                .any(|annotation| annotation == SIDE_EFFECTS_ANNOTATION)
+        {
+            continue;
+        }
+        function
+            .annotations
+            .push(SIDE_EFFECTS_ANNOTATION.to_owned());
+    }
+}
 
 /// Marks every *defined* function of the module `unsafe_deref`.
 ///

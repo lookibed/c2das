@@ -19,12 +19,14 @@ var c2da_rt_alloc_live : array<bool>
 
 var c2da_rt_alloc_free : array<int>
 
+[sideeffects]
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
         reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
+[sideeffects]
 def c2da_rt_reset() {
     c2da_rt_next = 0x0
     resize(c2da_rt_alloc_addrs, 0)
@@ -32,6 +34,7 @@ def c2da_rt_reset() {
     resize(c2da_rt_alloc_live, 0)
     resize(c2da_rt_alloc_free, 0)
 }
+[sideeffects]
 def c2da_rt_find_record(address : uint64) : int {
     var lo : int = 0
     var hi : int = length(c2da_rt_alloc_addrs)
@@ -48,6 +51,7 @@ def c2da_rt_find_record(address : uint64) : int {
     }
     return -1
 }
+[sideeffects]
 def c2da_rt_take_free(need : uint64) : int {
     var best : int = -1
     var best_slot : int = -1
@@ -72,6 +76,7 @@ def c2da_rt_take_free(need : uint64) : int {
     }
     return best
 }
+[sideeffects]
 def c2da_rt_malloc(size : uint64) : uint64 {
     c2da_rt_init_heap()
     if (size == 0x0 || size > 0x40000000) {
@@ -103,6 +108,7 @@ def c2da_rt_malloc(size : uint64) : uint64 {
     c2da_rt_alloc_live[record] = true
     return address
 }
+[sideeffects]
 def c2da_rt_free(address : uint64) {
     let record : int = c2da_rt_find_record(address)
     if (record >= 0 && c2da_rt_alloc_live[record]) {
@@ -110,6 +116,7 @@ def c2da_rt_free(address : uint64) {
         push(c2da_rt_alloc_free, record)
     }
 }
+[sideeffects]
 def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
     if (address == 0x0) {
         return c2da_rt_malloc(size)
@@ -148,6 +155,7 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
     c2da_rt_free(address)
     return replacement
 }
+[sideeffects]
 def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     var done : uint64 = 0x0
     while (done < count) {
@@ -157,6 +165,7 @@ def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     let total : uint64 = count * size
     if (size != 0x0 && total / size != count) {
@@ -168,6 +177,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     return address
 }
+[sideeffects]
 def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
@@ -176,6 +186,7 @@ def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
     var i : uint64 = 0x0
     while (i < count) {
@@ -189,6 +200,7 @@ def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
     }
     return 0
 }
+[sideeffects]
 def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     if (dst < src) {
         var i : uint64 = 0x0
@@ -205,6 +217,7 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
@@ -215,15 +228,18 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+[sideeffects]
 def c2da_rt_frame_enter() : int {
     return length(c2da_rt_locals)
 }
+[sideeffects]
 def c2da_rt_frame_leave(mark : int) {
     while (length(c2da_rt_locals) > mark) {
         c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
         pop(c2da_rt_locals)
     }
 }
+[sideeffects]
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
@@ -232,6 +248,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     push(c2da_rt_locals, address)
     return address
 }
+[sideeffects]
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
     let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
@@ -248,6 +265,7 @@ struct C2daVaArg {
 struct C2daVaCursor {
     index : int
 }
+[sideeffects]
 def c2da_clip_uint(v : int) : uint {
     if (v < 0) {
         return 0x0
@@ -257,6 +275,7 @@ def c2da_clip_uint(v : int) : uint {
     }
     return uint(v)
 }
+[sideeffects]
 def c2da_bool_to_uint(v : bool) : uint {
     if (v) {
         return 0x1
@@ -264,9 +283,10 @@ def c2da_bool_to_uint(v : bool) : uint {
         return 0x0
     }
 }
+[sideeffects]
 def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
-[export]
+[export, sideeffects]
 def sum(var count : int) : int {
     var x : int = 0
     label 0:
@@ -279,7 +299,7 @@ def sum(var count : int) : int {
     label 1:
     return x
 }
-[export]
+[export, sideeffects]
 def goto_error_simple(var x_0 : int) : int {
     if (x_0 != 0) {
         goto label 3
@@ -305,7 +325,7 @@ def goto_error_simple(var x_0 : int) : int {
     goto label 2
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def goto_error_minimal(var x_1 : int) : int {
     if (x_1 != 0) {
         goto label 3
@@ -327,7 +347,7 @@ def goto_error_minimal(var x_1 : int) : int {
     goto label 2
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def multi_goto_error(var x_2 : int) : int {
     if (x_2 != 0) {
         goto label 9
@@ -382,7 +402,7 @@ def multi_goto_error(var x_2 : int) : int {
     goto label 8
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def multi_goto_error_common(var x_3 : int) : int {
     if (x_3 != 0) {
         goto label 10

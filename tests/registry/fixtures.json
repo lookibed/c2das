@@ -5348,6 +5348,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p171-unused-call-side-effects",
+      "canonical_cases": [
+        "p171-unused-call-side-effects"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "ammo 49 47 49 49 max 200 199\ncells 10 40 10 10\ncleared 0 null 1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p171_unused_call_side_effects",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p171_unused_call_side_effects.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p17-runtime-malloc",
       "canonical_cases": [
         "p17-runtime-malloc"

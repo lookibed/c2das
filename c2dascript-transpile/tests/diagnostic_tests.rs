@@ -281,7 +281,7 @@ fn unsafe_deref_annotates_every_definition_and_is_opt_in() {
     // exported function must gain the annotation inside the block it already
     // has rather than on a second line.
     assert!(
-        unchecked.contains("[export, unsafe_deref]"),
+        unchecked.contains("[export, unsafe_deref, sideeffects]"),
         "an exported definition must keep `export` in the same block:\n{unchecked}"
     );
     assert!(
@@ -293,7 +293,13 @@ fn unsafe_deref_annotates_every_definition_and_is_opt_in() {
     let stripped: String = unchecked
         .lines()
         .filter(|line| *line != "[unsafe_deref]")
-        .map(|line| format!("{}\n", line.replace("[export, unsafe_deref]", "[export]")))
+        .map(|line| {
+            format!(
+                "{}\n",
+                line.replace("unsafe_deref, ", "")
+                    .replace(", unsafe_deref", "")
+            )
+        })
         .collect();
     assert_eq!(
         stripped, default,

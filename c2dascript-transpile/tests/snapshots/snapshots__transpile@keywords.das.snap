@@ -19,12 +19,14 @@ var c2da_rt_alloc_live : array<bool>
 
 var c2da_rt_alloc_free : array<int>
 
+[sideeffects]
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
         reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
+[sideeffects]
 def c2da_rt_reset() {
     c2da_rt_next = 0x0
     resize(c2da_rt_alloc_addrs, 0)
@@ -32,6 +34,7 @@ def c2da_rt_reset() {
     resize(c2da_rt_alloc_live, 0)
     resize(c2da_rt_alloc_free, 0)
 }
+[sideeffects]
 def c2da_rt_find_record(address : uint64) : int {
     var lo : int = 0
     var hi : int = length(c2da_rt_alloc_addrs)
@@ -48,6 +51,7 @@ def c2da_rt_find_record(address : uint64) : int {
     }
     return -1
 }
+[sideeffects]
 def c2da_rt_take_free(need : uint64) : int {
     var best : int = -1
     var best_slot : int = -1
@@ -72,6 +76,7 @@ def c2da_rt_take_free(need : uint64) : int {
     }
     return best
 }
+[sideeffects]
 def c2da_rt_malloc(size : uint64) : uint64 {
     c2da_rt_init_heap()
     if (size == 0x0 || size > 0x40000000) {
@@ -103,6 +108,7 @@ def c2da_rt_malloc(size : uint64) : uint64 {
     c2da_rt_alloc_live[record] = true
     return address
 }
+[sideeffects]
 def c2da_rt_free(address : uint64) {
     let record : int = c2da_rt_find_record(address)
     if (record >= 0 && c2da_rt_alloc_live[record]) {
@@ -110,6 +116,7 @@ def c2da_rt_free(address : uint64) {
         push(c2da_rt_alloc_free, record)
     }
 }
+[sideeffects]
 def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
     if (address == 0x0) {
         return c2da_rt_malloc(size)
@@ -148,6 +155,7 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
     c2da_rt_free(address)
     return replacement
 }
+[sideeffects]
 def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     var done : uint64 = 0x0
     while (done < count) {
@@ -157,6 +165,7 @@ def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     let total : uint64 = count * size
     if (size != 0x0 && total / size != count) {
@@ -168,6 +177,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     return address
 }
+[sideeffects]
 def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
@@ -176,6 +186,7 @@ def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
     var i : uint64 = 0x0
     while (i < count) {
@@ -189,6 +200,7 @@ def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
     }
     return 0
 }
+[sideeffects]
 def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     if (dst < src) {
         var i : uint64 = 0x0
@@ -205,6 +217,7 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
@@ -215,15 +228,18 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+[sideeffects]
 def c2da_rt_frame_enter() : int {
     return length(c2da_rt_locals)
 }
+[sideeffects]
 def c2da_rt_frame_leave(mark : int) {
     while (length(c2da_rt_locals) > mark) {
         c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
         pop(c2da_rt_locals)
     }
 }
+[sideeffects]
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
@@ -232,6 +248,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     push(c2da_rt_locals, address)
     return address
 }
+[sideeffects]
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
     let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
@@ -248,6 +265,7 @@ struct C2daVaArg {
 struct C2daVaCursor {
     index : int
 }
+[sideeffects]
 def c2da_clip_uint(v : int) : uint {
     if (v < 0) {
         return 0x0
@@ -257,6 +275,7 @@ def c2da_clip_uint(v : int) : uint {
     }
     return uint(v)
 }
+[sideeffects]
 def c2da_bool_to_uint(v : bool) : uint {
     if (v) {
         return 0x1
@@ -264,485 +283,486 @@ def c2da_bool_to_uint(v : bool) : uint {
         return 0x0
     }
 }
+[sideeffects]
 def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
-[export]
+[export, sideeffects]
 def abstract_0() {
     return
 }
-[export]
+[export, sideeffects]
 def as_0() {
     return
 }
-[export]
+[export, sideeffects]
 def byte16_0() {
     return
 }
-[export]
+[export, sideeffects]
 def byte2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def byte3_0() {
     return
 }
-[export]
+[export, sideeffects]
 def byte4_0() {
     return
 }
-[export]
+[export, sideeffects]
 def byte8_0() {
     return
 }
-[export]
+[export, sideeffects]
 def false_0() {
     return
 }
-[export]
+[export, sideeffects]
 def float16_0() {
     return
 }
-[export]
+[export, sideeffects]
 def float2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def float3_0() {
     return
 }
-[export]
+[export, sideeffects]
 def float4_0() {
     return
 }
-[export]
+[export, sideeffects]
 def half2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def half3_0() {
     return
 }
-[export]
+[export, sideeffects]
 def half4_0() {
     return
 }
-[export]
+[export, sideeffects]
 def half8_0() {
     return
 }
-[export]
+[export, sideeffects]
 def include_0() {
     return
 }
-[export]
+[export, sideeffects]
 def inscope_0() {
     return
 }
-[export]
+[export, sideeffects]
 def int2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def int3_0() {
     return
 }
-[export]
+[export, sideeffects]
 def int4_0() {
     return
 }
-[export]
+[export, sideeffects]
 def range_0() {
     return
 }
-[export]
+[export, sideeffects]
 def range64_0() {
     return
 }
-[export]
+[export, sideeffects]
 def short2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def short3_0() {
     return
 }
-[export]
+[export, sideeffects]
 def short4_0() {
     return
 }
-[export]
+[export, sideeffects]
 def short8_0() {
     return
 }
-[export]
+[export, sideeffects]
 def string_0() {
     return
 }
-[export]
+[export, sideeffects]
 def true_0() {
     return
 }
-[export]
+[export, sideeffects]
 def typeinfo_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ubyte16_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ubyte2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ubyte3_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ubyte4_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ubyte8_0() {
     return
 }
-[export]
+[export, sideeffects]
 def uint2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def uint3_0() {
     return
 }
-[export]
+[export, sideeffects]
 def uint4_0() {
     return
 }
-[export]
+[export, sideeffects]
 def uninitialized_0() {
     return
 }
-[export]
+[export, sideeffects]
 def urange_0() {
     return
 }
-[export]
+[export, sideeffects]
 def urange64_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ushort2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ushort3_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ushort4_0() {
     return
 }
-[export]
+[export, sideeffects]
 def ushort8_0() {
     return
 }
-[export]
+[export, sideeffects]
 def addr_0() {
     return
 }
-[export]
+[export, sideeffects]
 def aka_0() {
     return
 }
-[export]
+[export, sideeffects]
 def alias_0() {
     return
 }
-[export]
+[export, sideeffects]
 def array_0() {
     return
 }
-[export]
+[export, sideeffects]
 def assume_0() {
     return
 }
-[export]
+[export, sideeffects]
 def block_0() {
     return
 }
-[export]
+[export, sideeffects]
 def bitfield_0() {
     return
 }
-[export]
+[export, sideeffects]
 def bool_0() {
     return
 }
-[export]
+[export, sideeffects]
 def capture_0() {
     return
 }
-[export]
+[export, sideeffects]
 def cast_0() {
     return
 }
-[export]
+[export, sideeffects]
 def class_0() {
     return
 }
-[export]
+[export, sideeffects]
 def def_0() {
     return
 }
-[export]
+[export, sideeffects]
 def delete_0() {
     return
 }
-[export]
+[export, sideeffects]
 def deref_0() {
     return
 }
-[export]
+[export, sideeffects]
 def elif_0() {
     return
 }
-[export]
+[export, sideeffects]
 def expect_0() {
     return
 }
-[export]
+[export, sideeffects]
 def explicit_0() {
     return
 }
-[export]
+[export, sideeffects]
 def export_0() {
     return
 }
-[export]
+[export, sideeffects]
 def finally_0() {
     return
 }
-[export]
+[export, sideeffects]
 def fixed_array_0() {
     return
 }
-[export]
+[export, sideeffects]
 def function_0() {
     return
 }
-[export]
+[export, sideeffects]
 def gen2_0() {
     return
 }
-[export]
+[export, sideeffects]
 def generator_0() {
     return
 }
-[export]
+[export, sideeffects]
 def global_0() {
     return
 }
-[export]
+[export, sideeffects]
 def implicit_0() {
     return
 }
-[export]
+[export, sideeffects]
 def in_0() {
     return
 }
-[export]
+[export, sideeffects]
 def init_0() {
     return
 }
-[export]
+[export, sideeffects]
 def int16_0() {
     return
 }
-[export]
+[export, sideeffects]
 def int64_0() {
     return
 }
-[export]
+[export, sideeffects]
 def int8_0() {
     return
 }
-[export]
+[export, sideeffects]
 def is_0() {
     return
 }
-[export]
+[export, sideeffects]
 def iterator_0() {
     return
 }
-[export]
+[export, sideeffects]
 def label_0() {
     return
 }
-[export]
+[export, sideeffects]
 def lambda_0() {
     return
 }
-[export]
+[export, sideeffects]
 def let_0() {
     return
 }
-[export]
+[export, sideeffects]
 def module_0() {
     return
 }
-[export]
+[export, sideeffects]
 def new_0() {
     return
 }
-[export]
+[export, sideeffects]
 def none_0() {
     return
 }
-[export]
+[export, sideeffects]
 def not_0() {
     return
 }
-[export]
+[export, sideeffects]
 def null_0() {
     return
 }
-[export]
+[export, sideeffects]
 def operator_0() {
     return
 }
-[export]
+[export, sideeffects]
 def options_0() {
     return
 }
-[export]
+[export, sideeffects]
 def override_0() {
     return
 }
-[export]
+[export, sideeffects]
 def param_0() {
     return
 }
-[export]
+[export, sideeffects]
 def pass_0() {
     return
 }
-[export]
+[export, sideeffects]
 def private_0() {
     return
 }
-[export]
+[export, sideeffects]
 def public_0() {
     return
 }
-[export]
+[export, sideeffects]
 def recover_0() {
     return
 }
-[export]
+[export, sideeffects]
 def reinterpret_0() {
     return
 }
-[export]
+[export, sideeffects]
 def require_0() {
     return
 }
-[export]
+[export, sideeffects]
 def result_0() {
     return
 }
-[export]
+[export, sideeffects]
 def sealed_0() {
     return
 }
-[export]
+[export, sideeffects]
 def shared_0() {
     return
 }
-[export]
+[export, sideeffects]
 def smart_ptr_0() {
     return
 }
-[export]
+[export, sideeffects]
 def static_elif_0() {
     return
 }
-[export]
+[export, sideeffects]
 def static_if_0() {
     return
 }
-[export]
+[export, sideeffects]
 def table_0() {
     return
 }
-[export]
+[export, sideeffects]
 def template_0() {
     return
 }
-[export]
+[export, sideeffects]
 def then_0() {
     return
 }
-[export]
+[export, sideeffects]
 def to_0() {
     return
 }
-[export]
+[export, sideeffects]
 def try_0() {
     return
 }
-[export]
+[export, sideeffects]
 def tuple_0() {
     return
 }
-[export]
+[export, sideeffects]
 def type_0() {
     return
 }
-[export]
+[export, sideeffects]
 def typedecl_0() {
     return
 }
-[export]
+[export, sideeffects]
 def uint_0() {
     return
 }
-[export]
+[export, sideeffects]
 def uint16_0() {
     return
 }
-[export]
+[export, sideeffects]
 def uint64_0() {
     return
 }
-[export]
+[export, sideeffects]
 def uint8_0() {
     return
 }
-[export]
+[export, sideeffects]
 def unsafe_0() {
     return
 }
-[export]
+[export, sideeffects]
 def upcast_0() {
     return
 }
-[export]
+[export, sideeffects]
 def var_0() {
     return
 }
-[export]
+[export, sideeffects]
 def variant_0() {
     return
 }
-[export]
+[export, sideeffects]
 def where_0() {
     return
 }
-[export]
+[export, sideeffects]
 def with_0() {
     return
 }
-[export]
+[export, sideeffects]
 def yield_0() {
     return
 }

@@ -1529,6 +1529,23 @@
       "runtime": "required"
     },
     {
+      "id": "p171-unused-call-side-effects",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p171_unused_call_side_effects.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "ammo 49 47 49 49 max 200 199\ncells 10 40 10 10\ncleared 0 null 1\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p171_calls_keep_their_side_effects_and_null_casts_are_null",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

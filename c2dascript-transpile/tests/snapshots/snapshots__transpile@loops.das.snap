@@ -19,12 +19,14 @@ var c2da_rt_alloc_live : array<bool>
 
 var c2da_rt_alloc_free : array<int>
 
+[sideeffects]
 def c2da_rt_init_heap() {
     if (empty(c2da_rt_heap)) {
         reserve(c2da_rt_heap, 1073741824l)
         resize(c2da_rt_heap, 1)
     }
 }
+[sideeffects]
 def c2da_rt_reset() {
     c2da_rt_next = 0x0
     resize(c2da_rt_alloc_addrs, 0)
@@ -32,6 +34,7 @@ def c2da_rt_reset() {
     resize(c2da_rt_alloc_live, 0)
     resize(c2da_rt_alloc_free, 0)
 }
+[sideeffects]
 def c2da_rt_find_record(address : uint64) : int {
     var lo : int = 0
     var hi : int = length(c2da_rt_alloc_addrs)
@@ -48,6 +51,7 @@ def c2da_rt_find_record(address : uint64) : int {
     }
     return -1
 }
+[sideeffects]
 def c2da_rt_take_free(need : uint64) : int {
     var best : int = -1
     var best_slot : int = -1
@@ -72,6 +76,7 @@ def c2da_rt_take_free(need : uint64) : int {
     }
     return best
 }
+[sideeffects]
 def c2da_rt_malloc(size : uint64) : uint64 {
     c2da_rt_init_heap()
     if (size == 0x0 || size > 0x40000000) {
@@ -103,6 +108,7 @@ def c2da_rt_malloc(size : uint64) : uint64 {
     c2da_rt_alloc_live[record] = true
     return address
 }
+[sideeffects]
 def c2da_rt_free(address : uint64) {
     let record : int = c2da_rt_find_record(address)
     if (record >= 0 && c2da_rt_alloc_live[record]) {
@@ -110,6 +116,7 @@ def c2da_rt_free(address : uint64) {
         push(c2da_rt_alloc_free, record)
     }
 }
+[sideeffects]
 def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
     if (address == 0x0) {
         return c2da_rt_malloc(size)
@@ -148,6 +155,7 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
     c2da_rt_free(address)
     return replacement
 }
+[sideeffects]
 def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     var done : uint64 = 0x0
     while (done < count) {
@@ -157,6 +165,7 @@ def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     let total : uint64 = count * size
     if (size != 0x0 && total / size != count) {
@@ -168,6 +177,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
     }
     return address
 }
+[sideeffects]
 def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
@@ -176,6 +186,7 @@ def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
     var i : uint64 = 0x0
     while (i < count) {
@@ -189,6 +200,7 @@ def c2da_rt_memcmp(left : uint64; right : uint64; count : uint64) : int {
     }
     return 0
 }
+[sideeffects]
 def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     if (dst < src) {
         var i : uint64 = 0x0
@@ -205,6 +217,7 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     }
     return dst
 }
+[sideeffects]
 def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
@@ -215,15 +228,18 @@ def c2da_rt_memchr(src : uint64; value : uint8; count : uint64) : uint64 {
     }
     return 0x0
 }
+[sideeffects]
 def c2da_rt_frame_enter() : int {
     return length(c2da_rt_locals)
 }
+[sideeffects]
 def c2da_rt_frame_leave(mark : int) {
     while (length(c2da_rt_locals) > mark) {
         c2da_rt_free(c2da_rt_locals[length(c2da_rt_locals) - 1])
         pop(c2da_rt_locals)
     }
 }
+[sideeffects]
 def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
@@ -232,6 +248,7 @@ def c2da_rt_local(size : uint64; align : uint64) : uint64 {
     push(c2da_rt_locals, address)
     return address
 }
+[sideeffects]
 def c2da_rt_static(size : uint64; align : uint64) : uint64 {
     let address = c2da_rt_calloc(0x1ul, size + 0x1)
     if (address == 0x0) {
@@ -248,6 +265,7 @@ struct C2daVaArg {
 struct C2daVaCursor {
     index : int
 }
+[sideeffects]
 def c2da_clip_uint(v : int) : uint {
     if (v < 0) {
         return 0x0
@@ -257,6 +275,7 @@ def c2da_clip_uint(v : int) : uint {
     }
     return uint(v)
 }
+[sideeffects]
 def c2da_bool_to_uint(v : bool) : uint {
     if (v) {
         return 0x1
@@ -264,16 +283,17 @@ def c2da_bool_to_uint(v : bool) : uint {
         return 0x0
     }
 }
+[sideeffects]
 def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
-[export]
+[export, sideeffects]
 def while_loop(var x : int) : int {
     while (x != 0) {
         x += 1
     }
     return x
 }
-[export]
+[export, sideeffects]
 def for_loop(var x_0 : int) : int {
     var i : int = 0
     while (i < 10) {
@@ -282,13 +302,13 @@ def for_loop(var x_0 : int) : int {
     }
     return x_0
 }
-[export]
+[export, sideeffects]
 def infinite_loop(var x_1 : int) {
     while (true) {
         x_1 += 1
     }
 }
-[export]
+[export, sideeffects]
 def goto_loop(var x_2 : int) : int {
     label 0:
     x_2 += 1
@@ -300,7 +320,7 @@ def goto_loop(var x_2 : int) : int {
     goto label 0
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def do_while_loop(var x_3 : int) : int {
     while (true) {
         x_3 += 1
@@ -310,7 +330,7 @@ def do_while_loop(var x_3 : int) : int {
     }
     return x_3
 }
-[export]
+[export, sideeffects]
 def break_while(var x_4 : int) : int {
     while (x_4 != 0) {
         if (x_4 != 0) {
@@ -323,7 +343,7 @@ def break_while(var x_4 : int) : int {
     }
     return x_4
 }
-[export]
+[export, sideeffects]
 def continue_while(var x_5 : int) : int {
     while (x_5 != 0) {
         if (x_5 != 0) {
@@ -336,7 +356,7 @@ def continue_while(var x_5 : int) : int {
     }
     return x_5
 }
-[export]
+[export, sideeffects]
 def trivial_nested_while(var x_6 : int) {
     while (x_6 != 0) {
         while (x_6 != 0) {
@@ -347,7 +367,7 @@ def trivial_nested_while(var x_6 : int) {
     }
     return
 }
-[export]
+[export, sideeffects]
 def nested_while(var x_7 : int) {
     while (x_7 != 0) {
         while (x_7 != 0) {
@@ -360,7 +380,7 @@ def nested_while(var x_7 : int) {
     }
     return
 }
-[export]
+[export, sideeffects]
 def nested_for(var x_8 : int) {
     var i_0 : int
     var j : int
@@ -375,7 +395,7 @@ def nested_for(var x_8 : int) {
     }
     return
 }
-[export]
+[export, sideeffects]
 def exit_nested_loops(var x_9 : int) : int {
     label 0:
     if (x_9 != 0) {
@@ -399,7 +419,7 @@ def exit_nested_loops(var x_9 : int) : int {
     goto label 1
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def continue_nested_loops(var x_10 : int) : int {
     label 0:
     label 1:
@@ -424,7 +444,7 @@ def continue_nested_loops(var x_10 : int) : int {
     goto label 0
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def break_and_continue_nested_loops(var x_11 : int) : int {
     label 0:
     label 1:
@@ -455,7 +475,7 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
     goto label 2
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def for_loop_single_continue(var x_12 : int) : int {
     var i_1 : int = 0
     while (i_1 < 10) {
@@ -470,7 +490,7 @@ def for_loop_single_continue(var x_12 : int) : int {
     }
     return x_12
 }
-[export]
+[export, sideeffects]
 def for_loop_multi_continue(var x_13 : int) : int {
     var i_2 : int = 0
     while (i_2 < 10) {
@@ -492,7 +512,7 @@ def for_loop_multi_continue(var x_13 : int) : int {
     }
     return x_13
 }
-[export]
+[export, sideeffects]
 def do_loop_single_continue(var x_14 : int) : int {
     while (true) {
         if (x_14 != 0) {
@@ -510,7 +530,7 @@ def do_loop_single_continue(var x_14 : int) : int {
     }
     return x_14
 }
-[export]
+[export, sideeffects]
 def do_loop_multi_continue(var x_15 : int) : int {
     while (true) {
         if (x_15 != 0) {
@@ -537,7 +557,7 @@ def do_loop_multi_continue(var x_15 : int) : int {
     }
     return x_15
 }
-[export]
+[export, sideeffects]
 def explicit_loop_multi_exit(var x_16 : int) : int {
     label 0:
     if (x_16 == 1) {
@@ -566,7 +586,7 @@ def explicit_loop_multi_exit(var x_16 : int) : int {
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def implicit_loop_multi_exit(var x_17 : int) : int {
     label 0:
     if (x_17 == 1) {
@@ -595,7 +615,7 @@ def implicit_loop_multi_exit(var x_17 : int) : int {
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def loop_returns(var x_18 : int) : int {
     while (x_18 != 0) {
         x_18 += 1
@@ -611,7 +631,7 @@ def loop_returns(var x_18 : int) : int {
     }
     return x_18
 }
-[export]
+[export, sideeffects]
 def loop_gotos(var x_19 : int) : int {
     label 0:
     if (x_19 != 0) {
@@ -638,7 +658,7 @@ def loop_gotos(var x_19 : int) : int {
     goto label 3
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def loop_early_return(var x_20 : int) : int {
     while (x_20 != 0) {
         x_20 += 1
@@ -649,7 +669,7 @@ def loop_early_return(var x_20 : int) : int {
     }
     return -x_20
 }
-[export]
+[export, sideeffects]
 def if_else_loops(var x_21 : int) {
     if (x_21 != 0) {
         while (x_21 != 0) {
@@ -662,7 +682,7 @@ def if_else_loops(var x_21 : int) {
     }
     return
 }
-[export]
+[export, sideeffects]
 def goto_loops(var x_22 : int) : int {
     if (x_22 != 0) {
         goto label 3
@@ -687,7 +707,7 @@ def goto_loops(var x_22 : int) : int {
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def goto_into_loops(var x_23 : int) {
     if (x_23 != 0) {
         goto label 3
@@ -712,7 +732,7 @@ def goto_into_loops(var x_23 : int) {
     goto label 4
     panic("unreachable: fell out of a translated control-flow graph")
 }
-[export]
+[export, sideeffects]
 def goto_separate_loops(var x_24 : int) {
     if (x_24 != 0) {
         goto label 2
