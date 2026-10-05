@@ -371,13 +371,20 @@ convergence side uses `translation_entry` = `src/plmpeg_file_all.c` (graph +
   `subprocess.run`), and **startup** = wall − decode − setup.  The aot rows print none (6d).
 - A run counts only if its exit code is 0 and its `frame[i]=` lines equal the C `-O2`
   build's; a variant that ever differs is reported as failed instead of timed.
-- The document opens with one headline table — one row per case whose corpus block has a
-  `headline` label (the three `-std` programs: the entire C, entry included, is
-  translated), columns interp / jit / exe / aot, each cell the ratio to `clang-18 -O3
-  -march=native`, plus the native C median in ms — and exactly three lines under it
-  (baseline, process start of exe and jit, the aot footnote with each headline case's
-  `note`), then one option table (last item of this list).  Everything else is in the
-  appendix below a rule, one table per case.
+- The document opens with a "Benchmark Snapshot" in the layout of
+  [dasProfile](https://github.com/borisbat/dasProfile)'s README (`render_snapshot`): a
+  platform block (capture date and commit, OS, toolchain), one legend sentence, then one
+  table per question over the cases whose corpus block has a `headline` label (the `-std`
+  programs: the entire C, entry included, is translated) — the times, columns C -O3 native /
+  C -O2 / DAS interpreter / JIT / exe / AOT, each cell `median ms ±spread%` where `±` is
+  half the sample range as a share of the median; the same as ratios to `clang-18 -O3
+  -march=native`; one table per benchmark option (last item of this list); and Startup
+  (wall − work − setup).  The fastest cell of every row is in bold, `-` is no value, a
+  program whose C -O2 loop runs under 5 ms is marked `(micro)`, and the AOT footnote
+  carries each headline case's `note`.  The same snapshot is written into `README.md`
+  between `<!-- benchmark:begin -->` and `<!-- benchmark:end -->` when the document goes to
+  its default place.  Everything else is in the appendix below a rule, one table per case.
+  `docs/benchmark-methodology.md` states the rules in prose.
 - Appendix ratio columns: **× C native** first, against `clang-18 -O3 -march=native`, the
   headline figure; **× C -O2** second, against the portable build.  `-O2` is generic
   x86-64 while the JIT compiles for the host CPU, so a single `-O2` column would flatter
@@ -399,10 +406,10 @@ convergence side uses `translation_entry` = `src/plmpeg_file_all.c` (graph +
   adds only `[unsafe_deref]`): daslang's AOT refuses the h264bsd graph with the option on
   and the inliner's output does not compile as C++ (step 6a), so the aot rows are not
   comparable to the others on those levers.
-- Under the headline table, one more table per benchmark option (today only
-  `unsafe_deref`): the headline programs' `jit`, `exe` and `aot` rows of the option, each
-  as a ratio to `clang-18 -O3 -march=native` with the change against the same mode without
-  the option in parentheses.
+- In the snapshot, one more table per benchmark option (today only `unsafe_deref`): the
+  headline programs' `jit`, `exe` and `aot` rows of the option, each as a ratio to
+  `clang-18 -O3 -march=native` with its `±spread%` and the change against the same mode
+  without the option in parentheses.
 
 ## 8. The other cases
 

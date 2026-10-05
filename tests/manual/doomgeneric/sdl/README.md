@@ -21,7 +21,8 @@ SDL lives only in the hosts. The engine contains no SDL code.
 | `build_c.bat` | Windows: the four C reference builds. |
 | `build_aot.bat`, `aot/` | Windows: the AOT build. dasSDL3 is built AOT-capable with the generated C++ linked in (`aot/CMakeLists.txt`, `aot/dasSDL3.das_module`). |
 | `run.bat` | Windows: one run of one variant. |
-| `bench.sh` | WSL: all variants × modes, `REPS` runs each, hash check, median FPS. |
+| `bench.sh` | WSL: all variants × modes, `REPS` runs each, hash check, median FPS; `--markdown <path>` also writes the run as a Markdown snapshot. |
+| `bench_markdown.py` | Renders `bench.sh`'s samples as the snapshot: platform information, FPS `median ±spread%` per variant × mode with the fastest in bold, the slowdown against `clang_native`, start-up — the layout of `docs/corpus-benchmark.md`'s Linux snapshot. It only formats. |
 
 ## What one run does and prints
 
@@ -132,6 +133,17 @@ On every run, `bench.sh` requires the first 70 hashes to equal the oracle of
 `doomgeneric-demo1-std` (`tests/canonical/cases.json`), and all frames to equal the first
 variant's run in the same mode (the C build). A run that fails either check is reported as
 FAIL with no number.
+
+`bench.sh --markdown <path> /mnt/d/<scratch>` (or `MD_OUT=<path>`) additionally writes the run
+as a Markdown snapshot in the layout of the Linux one in `docs/corpus-benchmark.md`
+(`bench_markdown.py`): platform information — Windows version, CPU, MSVC and clang-cl
+versions, `daslang --version` with the daScript checkout's commit (`DASLANG_COMMIT`, or
+`git rev-parse` in `DASROOT`), SDL version from `SDL3_DIR` — then frames per second as
+`median ±spread%` per presentation mode × variant with the fastest in bold (higher is better),
+the slowdown against `clang_native` (lower is better) and the engine start-up. A fact the
+harness cannot find is printed as `unavailable`; the numbers never depend on it. The table in
+"Status" below is the place to paste that snapshot after a run. The measurement rules are in
+`docs/benchmark-methodology.md`.
 
 ## Status
 
