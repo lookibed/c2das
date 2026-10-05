@@ -1457,6 +1457,7 @@ mod tests {
             var_type: DaType::int64(),
             init: None,
             annotations: vec![],
+            is_let: false,
         });
         let structure = DaDecl::Structure(crate::DaStructure {
             name: "S".into(),

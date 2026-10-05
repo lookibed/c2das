@@ -1143,6 +1143,17 @@ impl<'c> Translation<'c> {
                     return Ok(WithStmts::new_val(stream));
                 }
                 let decl = &self.ast_context[*decl_id];
+                // An enumeration constant is an integer constant (C11
+                // 6.4.4.3), so its read is its value: the typed literal the
+                // module-level `let` of the same name is initialised with.  A
+                // read of a module global — even a `let` — stays a load from
+                // the context's global data wherever daslang does not fold it
+                // (the right-hand side of an assignment, a store through a
+                // pointer), and under `-jit` LLVM cannot prove that a store
+                // through a translated C pointer leaves that load unchanged.
+                if let CDeclKind::EnumConstant { value, .. } = &decl.kind {
+                    return Ok(WithStmts::new_val(enums::enum_constant_literal(value).0));
+                }
                 let name = decl
                     .kind
                     .get_name()
@@ -2921,6 +2932,7 @@ impl<'c> Translation<'c> {
                         var_type,
                         init: Some(init),
                         annotations: vec![],
+                        is_let: false,
                     }));
                 // Nothing is emitted in the function body: the declaration site
                 // carries no runtime effect any more.
@@ -4010,8 +4022,8 @@ fn translate_impl(
         }
     }
 
-    // Pass 3: export enum constants as global variables (daScript uses `Enum.Constant` syntax,
-    // but C code uses bare constant names. Generate `var CONST : EnumType = EnumType.CONST` aliases.)
+    // Pass 3: export enum constants as module-level constants (daScript uses `Enum.Constant`
+    // syntax, but C code uses bare constant names: generate `let CONST : int = <value>`).
     let mut enum_const_decls: Vec<DaDecl> = vec![];
     for (&ec_id, decl) in t.ast_context.iter_decls() {
         if let CDeclKind::EnumConstant { ref name, value } = &decl.kind {
@@ -4019,46 +4031,20 @@ fn translate_impl(
             if !exported_names.insert(var_name.clone()) {
                 continue;
             }
-            // C gives an enumeration constant the enumeration's own integer
-            // type: a value above INT_MAX is `unsigned int`, never a negative
-            // `int`.
-            let (das_val, das_type) = match value {
-                crate::c_ast::ConstIntExpr::U(v) => {
-                    let ty = if *v > u64::from(u32::MAX) {
-                        DaType::uint64()
-                    } else {
-                        DaType::uint()
-                    };
-                    (
-                        DaExpr::Cast {
-                            kind: das_ast::CastKind::Cast,
-                            expr: Box::new(DaExpr::ConstUInt(*v)),
-                            to: ty.clone(),
-                        },
-                        ty,
-                    )
-                }
-                crate::c_ast::ConstIntExpr::I(v) => {
-                    let ty = if *v > i64::from(i32::MAX) || *v < i64::from(i32::MIN) {
-                        DaType::int64()
-                    } else {
-                        DaType::int()
-                    };
-                    (
-                        DaExpr::Cast {
-                            kind: das_ast::CastKind::Cast,
-                            expr: Box::new(DaExpr::ConstInt(*v)),
-                            to: ty.clone(),
-                        },
-                        ty,
-                    )
-                }
-            };
+            let (das_val, das_type) = enums::enum_constant_literal(value);
             enum_const_decls.push(DaDecl::Variable(DaVariable {
                 name: var_name,
                 var_type: das_type,
                 init: Some(das_val),
                 annotations: vec![],
+                // C11 6.4.4.3: an enumeration constant is an integer constant,
+                // not an object — never assigned, never addressed.  The
+                // translated body reads none of these names (a read is the
+                // literal, see `convert_expr`'s `DeclRef`); they are the
+                // module's named constants for a hand-written daScript caller,
+                // and a `let` with a constant initializer is what daslang folds
+                // where such a caller reads it.
+                is_let: true,
             }));
         }
     }

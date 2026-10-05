@@ -103,6 +103,7 @@ pub fn take_string_literal_declarations() -> Vec<DaDecl> {
                     var_type: DaType::array(unit_type),
                     init: Some(DaExpr::MakeArray(items)),
                     annotations: vec![],
+                    is_let: false,
                 })
             })
             .collect()

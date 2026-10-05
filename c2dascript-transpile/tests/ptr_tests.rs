@@ -1000,6 +1000,51 @@ fn p154_disjoint_site_temporaries_share_their_variables() {
 }
 
 #[test]
+fn p170_enum_constant_reads_are_literals() {
+    let d = transpile_with_libc(
+        "p170_enum_constant_literals",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // The module names every constant, as a `let` of the constant's type.
+    assert!(d.contains("let TRUE : int = 1\n"), "{d}");
+    assert!(d.contains("let SCALE : int = -3\n"), "{d}");
+    assert!(d.contains("let BIG : uint = 0xf0000000u\n"), "{d}");
+    assert!(d.contains("let STATE_RUN : int = 5\n"), "{d}");
+    // File-scope initializers read the values.
+    assert!(d.contains("var bound : int = 4 * 2\n"), "{d}");
+    // A body reads none of the names: an assignment's right-hand side, a
+    // store through a pointer, a loop bound, a named-enum store and
+    // arithmetic are all the literal.
+    let wrapped = function_body(&d, "wrapped");
+    assert!(wrapped.contains("    flag = 0\n"), "{wrapped}");
+    assert!(wrapped.contains("    flag = 1\n"), "{wrapped}");
+    let step = function_body(&d, "step");
+    assert!(step.contains("    if (j < 4) {\n"), "{step}");
+    assert!(step.contains("    *out = 6\n"), "{step}");
+    assert!(
+        step.contains("    m.state = unsafe(reinterpret<state_t>(6u))\n"),
+        "{step}"
+    );
+    assert!(step.contains(" * -3 + j\n"), "{step}");
+    for name in [
+        "TRUE",
+        "FALSE",
+        "SCALE",
+        "CHANNEL_COUNT",
+        "STATE_RUN",
+        "STATE_DONE",
+        "BIG",
+    ] {
+        for body in [&wrapped, &step, &function_body(&d, "main_0")] {
+            assert!(
+                !body.contains(name),
+                "{name} read by name in a translated body:\n{body}"
+            );
+        }
+    }
+}
+
+#[test]
 fn n12_typedef_record_field_is_diagnosed_not_dropped() {
     assert_precise_translation_error(
         "n12_typedef_record_field_unsupported",

@@ -67,6 +67,11 @@ pub struct DaVariable {
     pub var_type: DaType,
     pub init: Option<DaExpr>,
     pub annotations: Vec<String>,
+    /// Printed `let` instead of `var`: a module-level constant that is never
+    /// assigned and whose address is never taken.  daslang folds a read of a
+    /// `let` global with a constant initializer to its value; a `var` global
+    /// is a load from the context's global data on every read.
+    pub is_let: bool,
 }
 
 /// Struct definition — `struct Name { fields }`
@@ -230,14 +235,23 @@ impl fmt::Display for DaFunction {
 impl fmt::Display for DaVariable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write_annotations(f, &self.annotations)?;
+        let kw = if self.is_let { "let" } else { "var" };
         if let Some(init_expr) = &self.init {
             if let Some(init_text) = typed_initializer_text(&self.var_type, init_expr) {
-                writeln!(f, "var {} : {} = {}", self.name, self.var_type, init_text)
+                writeln!(
+                    f,
+                    "{} {} : {} = {}",
+                    kw, self.name, self.var_type, init_text
+                )
             } else {
-                writeln!(f, "var {} : {} = {}", self.name, self.var_type, init_expr)
+                writeln!(
+                    f,
+                    "{} {} : {} = {}",
+                    kw, self.name, self.var_type, init_expr
+                )
             }
         } else {
-            writeln!(f, "var {} : {}", self.name, self.var_type)
+            writeln!(f, "{} {} : {}", kw, self.name, self.var_type)
         }
     }
 }

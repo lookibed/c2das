@@ -111,6 +111,15 @@ address valid and C's layout around it:
   or bit cast translates its operand with no expected type, in the explicit-cast path as in the
   implicit one; told to expect the cast's type, a call converted its own pointer result
   (`(uintptr_t)f()` became `uint64(f())`).  `p141-integer-to-pointer-width`.
+- A read of an enumeration constant is its value, the typed literal of `enums.rs
+  enum_constant_literal` (C11 6.4.4.3: an integer constant, not an object).  The module still
+  names every constant, as a `let` of the same type and value (`DaVariable::is_let`), for a
+  hand-written daScript caller; no translated body reads those names.  A module global — a
+  `var`, and a `let` too wherever daslang does not fold it (the right-hand side of `=`, a store
+  through a pointer) — is a load from the context's global data that, under `-jit`, LLVM cannot
+  keep across a store through a translated C pointer: binjgb's `TRUE`/`FALSE` flags, loop bounds
+  and `switch` states were reloaded on every iteration (binjgb `-jit` 1.37× → 1.03× C
+  `-O3 -march=native`).  `p170-enum-constant-literals`.
 - An integer converted to a daslang `enum` is converted to the enumeration's integer type first
   and then re-read as the `enum` (`enums.rs value_to_enum`): a `reinterpret<E>` of a `uint8`
   reads bytes C never defined.  `p134-pointer-integer-enum-conversions`.

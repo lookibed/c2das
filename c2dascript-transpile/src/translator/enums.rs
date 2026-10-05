@@ -1,6 +1,43 @@
 use super::*;
 use das_ast::{DaExpr, DaType};
 
+/// An enumeration constant's value as a typed daScript integer literal, and
+/// that type.
+///
+/// C gives an enumeration constant the enumeration's own integer type: a
+/// value above `INT_MAX` is `unsigned int`, never a negative `int`, and a
+/// value outside 32 bits (a Clang extension) is the 64-bit type of its sign.
+/// The module-level `let` that names the constant and every read of it use
+/// this one value and type.
+pub(crate) fn enum_constant_literal(value: &ConstIntExpr) -> (DaExpr, DaType) {
+    let (literal, ty) = match *value {
+        ConstIntExpr::U(v) => {
+            let ty = if v > u64::from(u32::MAX) {
+                DaType::uint64()
+            } else {
+                DaType::uint()
+            };
+            (DaExpr::ConstUInt(v), ty)
+        }
+        ConstIntExpr::I(v) => {
+            let ty = if v > i64::from(i32::MAX) || v < i64::from(i32::MIN) {
+                DaType::int64()
+            } else {
+                DaType::int()
+            };
+            (DaExpr::ConstInt(v), ty)
+        }
+    };
+    (
+        DaExpr::Cast {
+            kind: das_ast::CastKind::Cast,
+            expr: Box::new(literal),
+            to: ty.clone(),
+        },
+        ty,
+    )
+}
+
 impl<'c> Translation<'c> {
     /// The daScript integer type a C enumeration is laid out in.
     ///

@@ -256,3 +256,35 @@ builtin `memcpy` is still a libc call under `-jit` here (lever 5's small-block c
 included).
 
 This is the next lever; nothing in this section has been measured yet.
+
+## Profiled: binjgb and doomgeneric under `-jit`, 2026-10-05
+
+Attribution by a sampling profile of the jitted DLL (an `LD_PRELOAD` `SIGPROF` sampler on the
+main thread's monotonic timer, symbolized against the cached `.jitted_scripts/*.dll`), the same
+sampler on the C `-O3 -march=native` binary, and the DLL's disassembly beside clang's.
+
+- **binjgb: enumeration constants were mutable globals.**  Every C enumeration constant was a
+  module-level `var` and every read a load from the context's global data; under `-jit` LLVM
+  cannot keep that load across a store through a translated C pointer.  binjgb's
+  `get_gb_frames_until_next_resampled_frame` loop (inlined into `apu_update_channels`, the
+  largest gap: 3322 samples vs 1099 for C's whole `apu_synchronize`) reloaded `TRUE`/`FALSE`
+  by a computed address every iteration, and loop bounds (`APU_CHANNEL_COUNT`) and PPU `switch`
+  states likewise.  A `let` alone is not enough: daslang folds a `let` global only where it is
+  read as a value, not on the right-hand side of `=` or in a store through a pointer (repro
+  below).  Fix: a read of an enumeration constant is its typed literal; the names stay as
+  `let`s (`p170-enum-constant-literals`).  binjgb, ratio to C `-O3 -march=native`: interp
+  97.6× → 91.1×, jit 1.38× → 1.02×, exe 1.36× → 1.05×, aot 2.58× → 1.08×; h264bsd aot
+  1.33× → 1.14×; pl_mpeg, h264bsd jit/exe/interp, wasm3 and doomgeneric within noise.
+- **doomgeneric: the gap is daslang's null checks.**  With `[unsafe_deref]` the hot functions
+  sample at C's counts (`R_DrawColumn` 1061 vs 1060, `R_DrawSpan` 793 vs 797, the frame-hash
+  loop in `D_Display` 3088 vs C's `I_FinishUpdate` 3047), and the run is 1.05× vs 1.14×
+  without it.  The checks sit inside the loops because C's own semantics force the reloads: a
+  byte store may alias `dc_colormap`/`dc_source`/`DG_ScreenBuffer`, so clang reloads them too,
+  but daslang checks each reload.  That is the default-policy cost of lever 2, not a
+  translator lowering.  The storage-backed `struct color` copy in the frame hash was measured
+  separately (copy replaced by a direct load): no difference.
+- **daslang-side, [lookibed/daScript#9](https://github.com/lookibed/daScript/issues/9):**
+  `let K : int = 7` then `*p = K` or `x = K` keeps the global
+  read after optimization (`options log` prints `deref(p) = K`), while `*p = K + 0` folds to
+  `7`: `ast_const_folding.cpp` folds an `ExprVar` only when it is an r2v read or a `let`
+  initializer, and the right-hand side of `ExprCopy` is neither.

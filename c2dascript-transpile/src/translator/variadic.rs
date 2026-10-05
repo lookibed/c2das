@@ -203,6 +203,7 @@ impl<'c> Translation<'c> {
             name,
             var_type: self.va_cursor_type(),
             annotations: vec![],
+            is_let: false,
             init: Some(DaExpr::MakeStruct {
                 type_name: "C2daVaCursor".into(),
                 fields: vec![("index".into(), DaExpr::ConstInt(VA_CURSOR_FIRST))],

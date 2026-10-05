@@ -109,6 +109,7 @@ impl<'c> Translation<'c> {
             var_type: das_type,
             init,
             annotations: vec![],
+            is_let: false,
         }))
     }
 

@@ -2260,6 +2260,7 @@ fn build_lost_cell() -> DaDecl {
         var_type: DaType::int(),
         init: Some(DaExpr::ConstInt(0)),
         annotations: vec![],
+        is_let: false,
     })
 }
 
@@ -3400,6 +3401,7 @@ fn build_stream_table(name: &str, element: DaType) -> DaDecl {
         var_type: DaType::array(element),
         init: None,
         annotations: vec![],
+        is_let: false,
     })
 }
 
@@ -3411,6 +3413,7 @@ fn build_stream_next_fd() -> DaDecl {
         var_type: DaType::int(),
         init: Some(DaExpr::ConstInt(3)),
         annotations: vec![],
+        is_let: false,
     })
 }
 
@@ -5554,6 +5557,7 @@ fn build_cell(name: &str) -> DaDecl {
         var_type: DaType::uint64(),
         init: Some(call(CELL_ALLOC, vec![])),
         annotations: vec![],
+        is_let: false,
     })
 }
 

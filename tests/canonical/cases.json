@@ -1512,6 +1512,23 @@
       "runtime": "required"
     },
     {
+      "id": "p170-enum-constant-literals",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p170_enum_constant_literals.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "0:5/0/1 1:6/1/6 2:0/1/0 3:5/1/1 4:6/1/6 5:0/1/0 6:5/1/1 7:6/1/6 \nacc -24 8 16 -144\nwrapped 0 1 big 4026531840 1 size 4\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p170_enum_constant_reads_are_literals",
+      "runtime": "required"
+    },
+    {
       "id": "n12-typedef-record-field-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n12_typedef_record_field_unsupported.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"
