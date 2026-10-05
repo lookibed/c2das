@@ -272,14 +272,9 @@ def factorial(var n : uint16) : uint16 {
     var i : uint16
     result_0 = uint16(1)
     i = uint16(1)
-    label 0:
-    if (int(i) < int(n)) {
-        goto label 1
+    while (int(i) < int(n)) {
+        result_0 = uint16(int(result_0) * int(i))
+        i = uint16(int(i) + 1)
     }
     return result_0
-    label 1:
-    result_0 = uint16(int(result_0) * int(i))
-    i = uint16(int(i) + 1)
-    goto label 0
-    panic("unreachable: fell out of a translated control-flow graph")
 }

@@ -1,4 +1,6 @@
 /* An early exit that a loop jumps across (Doom's `Z_CheckHeap`).
+ * `check_list_flat` keeps this on the flat back end with a `goto`; the
+ * structured back end lowers `check_list` to a `while` with a `break`.
  *
  * The flat label back end renders the loop: each error report needs a jump
  * out of the body and back, and the `break` that ends both the loop and the
@@ -26,6 +28,24 @@ static void report(const char *what) {
     printf("error: %s\n", what);
 }
 
+/* The flat back end takes a body with a `goto`; `goto done` is the `break`
+ * of `check_list` below, whose body the structured back end takes. */
+static void check_list_flat(struct node *head) {
+    struct node *n;
+    for (n = head->next;; n = n->next) {
+        if (n->next == head)
+            goto done;
+        visited++;
+        if (n->size <= 0)
+            report("size");
+        if (n->next->prev != n)
+            report("back link");
+        if (n->tag == 1 && n->next->tag == 1)
+            report("two free");
+    }
+done:;
+}
+
 static void check_list(struct node *head) {
     struct node *n;
     for (n = head->next;; n = n->next) {
@@ -49,9 +69,11 @@ int main(void) {
         ring[i].tag = i >= 2;
     }
     check_list(&ring[0]);
+    check_list_flat(&ring[0]);
     ring[1].size = 0;
     ring[3].prev = &ring[1];
     check_list(&ring[0]);
+    check_list_flat(&ring[0]);
     printf("%d %d\n", errors, visited);
     return 0;
 }

@@ -18,6 +18,7 @@ pub mod labels;
 pub mod loops;
 pub mod multiples;
 pub mod relooper;
+pub mod structured;
 pub mod structures;
 
 use crate::cfg::inc_cleanup::IncCleanup;
@@ -399,6 +400,277 @@ fn direct_tail_callee(ast_context: &TypedAstContext, substatement: CStmtId) -> O
     }
 }
 
+/// Lower a C expression that appears in *statement* position.
+///
+/// C's comma operator is a sequence point, not a value, when it is used as a
+/// statement (`i = 0, j = 10;`) or as a `for` clause (`i++, j--`).  Value
+/// lowering keeps only the right operand, so a statement-position comma is
+/// flattened here into one daScript statement per operand.  Shared by the
+/// flat (`CfgBuilder`) and the structured ([`structured`]) back ends.
+pub(super) fn convert_expr_in_stmt_position(
+    tr: &Translation,
+    ctx: ExprContext,
+    eid: CExprId,
+    out: &mut Vec<DaStmt>,
+) -> TranslationResult<()> {
+    if let CExprKind::Binary(_, CBinOp::Comma, lhs, rhs, _, _) = tr.ast_context[eid].kind {
+        convert_expr_in_stmt_position(tr, ctx, lhs, out)?;
+        return convert_expr_in_stmt_position(tr, ctx, rhs, out);
+    }
+    // `x++` / `x--` whose value is discarded — an expression statement, a
+    // `for` step — is `++x` / `--x`: the old value is never read, and
+    // saving it would cost the interpreter one dead store per execution.
+    let mut inner = eid;
+    while let CExprKind::Paren(_, paren_inner) = tr.ast_context[inner].kind {
+        inner = paren_inner;
+    }
+    let ws = match tr.ast_context[inner].kind {
+        CExprKind::Unary(ty, CUnOp::PostIncrement, arg, _) => {
+            tr.convert_pre_increment(ctx.unused(), ty, CBinOp::AssignAdd, arg)?
+        }
+        CExprKind::Unary(ty, CUnOp::PostDecrement, arg, _) => {
+            tr.convert_pre_increment(ctx.unused(), ty, CBinOp::AssignSubtract, arg)?
+        }
+        _ => tr.convert_expr(ctx.unused(), eid, None)?,
+    };
+    out.extend(ws.stmts);
+    // The value of an expression statement is discarded.  A value with no
+    // side effect of its own — what `(void)x;` and a hoisted `x++` leave
+    // behind — has nothing left to emit, so it is dropped rather than
+    // printed as a statement that only names a variable.
+    out.extend(tr.discard_value_stmt(ws.val));
+    Ok(())
+}
+
+/// The statements of a C `return` (the value's own statements, then the
+/// `return`).  Shared by both back ends.
+pub(super) fn convert_return(
+    tr: &Translation,
+    expr_opt: Option<CExprId>,
+    ret_ty: Option<CQualTypeId>,
+) -> TranslationResult<Vec<DaStmt>> {
+    let mut out = Vec::new();
+    let val: Option<Box<DaExpr>> = match expr_opt {
+        Some(e) => {
+            let ws = tr.convert_expr(ExprContext::default().used(), e, None)?;
+            let val = if let Some(ret_ty) = ret_ty {
+                let ret_da = tr.convert_type(ret_ty)?;
+                let ws = tr.lower_to_c_value(
+                    ws,
+                    tr.ast_context[e].kind.get_qual_type(),
+                    ret_da.clone(),
+                    ValueSite::Return,
+                )?;
+                out.extend(ws.stmts);
+                let expr_is_ptr = tr.ast_context[e]
+                    .kind
+                    .get_qual_type()
+                    .map_or(false, |qty| tr.is_pointer_type(qty.ctype));
+                if matches!(ret_da.kind, DaTypeKind::UInt64) && expr_is_ptr {
+                    DaExpr::reinterpret(ws.val, DaType::uint64())
+                } else if matches!(ret_da.kind, DaTypeKind::Pointer(_)) {
+                    DaExpr::reinterpret(ws.val, ret_da)
+                } else {
+                    ws.val
+                }
+            } else {
+                out.extend(ws.stmts);
+                ws.val
+            };
+            Some(Box::new(val))
+        }
+        None => None,
+    };
+    out.push(DaStmt::Expr(DaExpr::Return(val)));
+    Ok(out)
+}
+
+/// A `switch`'s controlling expression, ready for a dispatch.
+pub(super) struct SwitchScrutinee {
+    /// The scrutinee's own side effects, which run before the dispatch.
+    pub stmts: Vec<DaStmt>,
+    /// The value every case is compared with: a plain read, or a temporary.
+    pub value: DaExpr,
+    /// The temporary's declaration, for the top of the function.
+    pub temporary: Option<DaStmt>,
+    /// The promoted type every case constant is converted to.
+    pub case_ty: DaType,
+}
+
+/// Lower a `switch`'s controlling expression.  Shared by both back ends.
+pub(super) fn convert_switch_scrutinee(
+    tr: &Translation,
+    ctx: ExprContext,
+    scrutinee: CExprId,
+) -> TranslationResult<SwitchScrutinee> {
+    let scrut_ws = tr.convert_expr(ctx.used(), scrutinee, None)?;
+
+    // C integer promotion: the controlling expression of a `switch`
+    // is promoted, and every `case` constant is converted to the
+    // promoted type.  daScript has no implicit numeric conversions,
+    // so the promotion has to be explicit on both sides.
+    let scrut_ty = tr.ast_context[scrutinee]
+        .kind
+        .get_qual_type()
+        .map(|q| tr.convert_type(q))
+        .transpose()?
+        .unwrap_or_else(DaType::int);
+    let promote = matches!(
+        scrut_ty.kind,
+        DaTypeKind::Bool
+            | DaTypeKind::Int8
+            | DaTypeKind::Int16
+            | DaTypeKind::UInt8
+            | DaTypeKind::UInt16
+            | DaTypeKind::Named(_)
+            | DaTypeKind::Auto
+    );
+    let case_ty = if promote { DaType::int() } else { scrut_ty };
+    let scrut_val = if promote {
+        DaExpr::Cast {
+            kind: das_ast::CastKind::Cast,
+            expr: Box::new(scrut_ws.val),
+            to: DaType::int(),
+        }
+    } else {
+        scrut_ws.val
+    };
+    let mut stmts = scrut_ws.stmts;
+
+    // C evaluates the controlling expression exactly once, but the
+    // dispatch compares it against every case value in turn, so
+    // anything that is not already a plain read has to be bound to a
+    // temporary first.  The binding is declared at the top of the
+    // function, not here: in the flat back end a `goto` may enter a case
+    // ahead of the dispatch, and the temporary must be in scope there too.
+    let (value, temporary) = match scrut_val {
+        plain @ (DaExpr::Var(_)
+        | DaExpr::ConstInt(_)
+        | DaExpr::ConstUInt(_)
+        | DaExpr::ConstBool(_)) => (plain, None),
+        computed => {
+            let name = tr.renamer.borrow_mut().fresh();
+            let declaration = DaStmt::Var {
+                name: name.clone(),
+                var_type: case_ty.clone(),
+                // daScript default-initializes a `var` with no
+                // initializer; the assignment below always runs
+                // before any comparison reads it.
+                init: None,
+            };
+            stmts.push(DaStmt::Expr(DaExpr::Assign(
+                Box::new(DaExpr::Var(name.clone())),
+                Box::new(computed),
+            )));
+            (DaExpr::Var(name), Some(declaration))
+        }
+    };
+    Ok(SwitchScrutinee {
+        stmts,
+        value,
+        temporary,
+        case_ty,
+    })
+}
+
+/// A `case` constant converted to the promoted scrutinee type.
+pub(super) fn case_value(cst: &ConstIntExpr, case_ty: &DaType) -> DaExpr {
+    let val = match cst {
+        ConstIntExpr::I(v) => DaExpr::ConstInt(*v),
+        ConstIntExpr::U(v) => DaExpr::ConstUInt(*v),
+    };
+    DaExpr::Cast {
+        kind: das_ast::CastKind::Cast,
+        expr: Box::new(val),
+        to: case_ty.clone(),
+    }
+}
+
+/// The substatement of an attributed statement, after checking its
+/// attributes.
+///
+/// A statement attribute is a promise about how the statement is
+/// *compiled*, never about what it means: `fallthrough` documents a
+/// `switch` edge C takes anyway, and `musttail` demands a machine
+/// tail call for a `return` of a call that already returns that
+/// call.  Both are therefore dropped and the substatement is
+/// converted on its own — with `musttail` the generated module
+/// recurses where the C program iterated (see `Attribute::MustTail`).
+/// Dropping a guarantee is not free, so this is the one drop that
+/// reports itself: `-Wmust-tail`, once per attributed statement,
+/// with that statement's own source location.
+/// An attribute this translator does not model reaches the user as a
+/// source-located diagnostic instead.  Shared by both back ends.
+pub(super) fn attributed_substatement(
+    tr: &Translation,
+    sid: CStmtId,
+    attributes: &[Attribute],
+    substatement: CStmtId,
+) -> TranslationResult<CStmtId> {
+    if let Some(Attribute::UnknownStatement(name)) = attributes
+        .iter()
+        .find(|attr| matches!(attr, Attribute::UnknownStatement(_)))
+    {
+        return Err(crate::format_translation_err!(
+            tr.ast_context.display_loc(&tr.ast_context[sid].loc),
+            "unsupported statement attribute: {}",
+            name,
+        ));
+    }
+    if attributes.contains(&Attribute::MustTail) {
+        let location = tr
+            .ast_context
+            .display_loc(&tr.ast_context[sid].loc)
+            .map(|loc| loc.to_string())
+            .unwrap_or_else(|| "<no source location>".to_owned());
+        // Self-recursion is the shape whose depth the C program
+        // itself does not bound, and it costs one decl lookup to
+        // see.  Mutual recursion needs an SCC over the call graph
+        // and is deliberately not reported.
+        let enclosing = tr.function_context.borrow().get_name().to_owned();
+        let self_recursive = direct_tail_callee(&tr.ast_context, substatement) == Some(&enclosing);
+        if self_recursive {
+            diag!(
+                Diagnostic::MustTail,
+                "{}: musttail dropped: daslang gives no tail-call guarantee; \
+                 this return will recurse where C iterated (stack depth is bounded \
+                 by the run mode) — self-recursive tail call into `{}`: the \
+                 recursion depth is unbounded",
+                location,
+                enclosing,
+            );
+        } else {
+            diag!(
+                Diagnostic::MustTail,
+                "{}: musttail dropped: daslang gives no tail-call guarantee; \
+                 this return will recurse where C iterated (stack depth is bounded \
+                 by the run mode)",
+                location,
+            );
+        }
+    }
+    Ok(substatement)
+}
+
+/// The statement that ends a function whose body falls off its end.
+pub(super) fn implicit_return(ret: &ImplicitReturnType) -> DaStmt {
+    match ret {
+        ImplicitReturnType::Main => {
+            DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::ConstInt(0)))))
+        }
+        ImplicitReturnType::Void | ImplicitReturnType::StmtExprVoid => {
+            DaStmt::Expr(DaExpr::Return(None))
+        }
+        // Falling off the end of a value-returning C function is undefined
+        // behaviour.  `return` with no value would not even type-check in
+        // daScript, so make the undefined path a diagnosable trap instead of a
+        // silently wrong value.
+        _ => DaStmt::Expr(unreachable_trap(
+            "control reached the end of a non-void function",
+        )),
+    }
+}
+
 /// A WIP block under construction.
 struct WipBlock {
     label: Label,
@@ -503,32 +775,9 @@ impl CfgBuilder {
         eid: CExprId,
         out: &mut Vec<StmtOrDecl>,
     ) -> TranslationResult<()> {
-        if let CExprKind::Binary(_, CBinOp::Comma, lhs, rhs, _, _) = tr.ast_context[eid].kind {
-            self.convert_expr_in_stmt_position(tr, ctx, lhs, out)?;
-            return self.convert_expr_in_stmt_position(tr, ctx, rhs, out);
-        }
-        // `x++` / `x--` whose value is discarded — an expression statement, a
-        // `for` step — is `++x` / `--x`: the old value is never read, and
-        // saving it would cost the interpreter one dead store per execution.
-        let mut inner = eid;
-        while let CExprKind::Paren(_, paren_inner) = tr.ast_context[inner].kind {
-            inner = paren_inner;
-        }
-        let ws = match tr.ast_context[inner].kind {
-            CExprKind::Unary(ty, CUnOp::PostIncrement, arg, _) => {
-                tr.convert_pre_increment(ctx.unused(), ty, CBinOp::AssignAdd, arg)?
-            }
-            CExprKind::Unary(ty, CUnOp::PostDecrement, arg, _) => {
-                tr.convert_pre_increment(ctx.unused(), ty, CBinOp::AssignSubtract, arg)?
-            }
-            _ => tr.convert_expr(ctx.unused(), eid, None)?,
-        };
-        out.extend(ws.stmts.into_iter().map(StmtOrDecl::Stmt));
-        // The value of an expression statement is discarded.  A value with no
-        // side effect of its own — what `(void)x;` and a hoisted `x++` leave
-        // behind — has nothing left to emit, so it is dropped rather than
-        // printed as a statement that only names a variable.
-        out.extend(tr.discard_value_stmt(ws.val).map(StmtOrDecl::Stmt));
+        let mut stmts = Vec::new();
+        convert_expr_in_stmt_position(tr, ctx, eid, &mut stmts)?;
+        out.extend(stmts.into_iter().map(StmtOrDecl::Stmt));
         Ok(())
     }
 
@@ -587,39 +836,11 @@ impl CfgBuilder {
 
             CStmtKind::Return(ref expr_opt) => {
                 let mut wip = self.new_wip(entry);
-                let val: Option<Box<DaExpr>> = match expr_opt {
-                    Some(e) => {
-                        let ws = tr.convert_expr(ExprContext::default().used(), *e, None)?;
-                        let val = if let Some(ret_ty) = ret_ty {
-                            let ret_da = tr.convert_type(ret_ty)?;
-                            let ws = tr.lower_to_c_value(
-                                ws,
-                                tr.ast_context[*e].kind.get_qual_type(),
-                                ret_da.clone(),
-                                ValueSite::Return,
-                            )?;
-                            wip.body.extend(ws.stmts.into_iter().map(StmtOrDecl::Stmt));
-                            let expr_is_ptr = tr.ast_context[*e]
-                                .kind
-                                .get_qual_type()
-                                .map_or(false, |qty| tr.is_pointer_type(qty.ctype));
-                            if matches!(ret_da.kind, DaTypeKind::UInt64) && expr_is_ptr {
-                                DaExpr::reinterpret(ws.val, DaType::uint64())
-                            } else if matches!(ret_da.kind, DaTypeKind::Pointer(_)) {
-                                DaExpr::reinterpret(ws.val, ret_da)
-                            } else {
-                                ws.val
-                            }
-                        } else {
-                            wip.body.extend(ws.stmts.into_iter().map(StmtOrDecl::Stmt));
-                            ws.val
-                        };
-                        Some(Box::new(val))
-                    }
-                    None => None,
-                };
-                wip.body
-                    .push(StmtOrDecl::Stmt(DaStmt::Expr(DaExpr::Return(val))));
+                wip.body.extend(
+                    convert_return(tr, *expr_opt, ret_ty)?
+                        .into_iter()
+                        .map(StmtOrDecl::Stmt),
+                );
                 self.add_block(wip, End);
                 Ok(None)
             }
@@ -810,73 +1031,19 @@ impl CfgBuilder {
             }
 
             CStmtKind::Switch { scrutinee, body } => {
-                let scrut_ws = tr.convert_expr(ctx.used(), *scrutinee, None)?;
+                let SwitchScrutinee {
+                    stmts: scrut_stmts,
+                    value: scrut_val,
+                    temporary,
+                    case_ty,
+                } = convert_switch_scrutinee(tr, ctx, *scrutinee)?;
                 let switch_end = self.fresh_label();
-
-                // C integer promotion: the controlling expression of a `switch`
-                // is promoted, and every `case` constant is converted to the
-                // promoted type.  daScript has no implicit numeric conversions,
-                // so the promotion has to be explicit on both sides.
-                let scrut_ty = tr.ast_context[*scrutinee]
-                    .kind
-                    .get_qual_type()
-                    .map(|q| tr.convert_type(q))
-                    .transpose()?
-                    .unwrap_or_else(DaType::int);
-                let promote = matches!(
-                    scrut_ty.kind,
-                    DaTypeKind::Bool
-                        | DaTypeKind::Int8
-                        | DaTypeKind::Int16
-                        | DaTypeKind::UInt8
-                        | DaTypeKind::UInt16
-                        | DaTypeKind::Named(_)
-                        | DaTypeKind::Auto
-                );
-                let case_ty = if promote { DaType::int() } else { scrut_ty };
-                let scrut_val = if promote {
-                    DaExpr::Cast {
-                        kind: das_ast::CastKind::Cast,
-                        expr: Box::new(scrut_ws.val),
-                        to: DaType::int(),
-                    }
-                } else {
-                    scrut_ws.val
-                };
 
                 // The scrutinee's own side effects run before the dispatch.
                 let mut wip = self.new_wip(entry);
                 wip.body
-                    .extend(scrut_ws.stmts.into_iter().map(StmtOrDecl::Stmt));
-
-                // C evaluates the controlling expression exactly once, but the
-                // dispatch compares it against every case value in turn, so
-                // anything that is not already a plain read has to be bound to a
-                // temporary first.  The binding goes in the prelude, not in this
-                // block: a `goto` may enter a case ahead of the dispatch, and the
-                // temporary must be in scope there too.
-                let scrut_val = match scrut_val {
-                    plain @ (DaExpr::Var(_)
-                    | DaExpr::ConstInt(_)
-                    | DaExpr::ConstUInt(_)
-                    | DaExpr::ConstBool(_)) => plain,
-                    computed => {
-                        let name = tr.renamer.borrow_mut().fresh();
-                        self.prelude.push(DaStmt::Var {
-                            name: name.clone(),
-                            var_type: case_ty.clone(),
-                            // daScript default-initializes a `var` with no
-                            // initializer; the assignment below always runs
-                            // before any comparison reads it.
-                            init: None,
-                        });
-                        wip.body.push(StmtOrDecl::Stmt(DaStmt::Expr(DaExpr::Assign(
-                            Box::new(DaExpr::Var(name.clone())),
-                            Box::new(computed),
-                        ))));
-                        DaExpr::Var(name)
-                    }
-                };
+                    .extend(scrut_stmts.into_iter().map(StmtOrDecl::Stmt));
+                self.prelude.extend(temporary);
 
                 // The body is walked first: `case`/`default` labels register the
                 // blocks they dispatch to, and C permits them arbitrarily deep in
@@ -1010,66 +1177,12 @@ impl CfgBuilder {
                 Ok(None)
             }
 
-            // A statement attribute is a promise about how the statement is
-            // *compiled*, never about what it means: `fallthrough` documents a
-            // `switch` edge C takes anyway, and `musttail` demands a machine
-            // tail call for a `return` of a call that already returns that
-            // call.  Both are therefore dropped and the substatement is
-            // converted on its own — with `musttail` the generated module
-            // recurses where the C program iterated (see `Attribute::MustTail`).
-            // Dropping a guarantee is not free, so this is the one drop that
-            // reports itself: `-Wmust-tail`, once per attributed statement,
-            // with that statement's own source location.
-            // An attribute this translator does not model reaches the user as a
-            // source-located diagnostic instead.
+            // See `attributed_substatement`.
             CStmtKind::Attributed {
                 attributes,
                 substatement,
             } => {
-                if let Some(Attribute::UnknownStatement(name)) = attributes
-                    .iter()
-                    .find(|attr| matches!(attr, Attribute::UnknownStatement(_)))
-                {
-                    return Err(crate::format_translation_err!(
-                        tr.ast_context.display_loc(&tr.ast_context[sid].loc),
-                        "unsupported statement attribute: {}",
-                        name,
-                    ));
-                }
-                let substatement = *substatement;
-                if attributes.contains(&Attribute::MustTail) {
-                    let location = tr
-                        .ast_context
-                        .display_loc(&tr.ast_context[sid].loc)
-                        .map(|loc| loc.to_string())
-                        .unwrap_or_else(|| "<no source location>".to_owned());
-                    // Self-recursion is the shape whose depth the C program
-                    // itself does not bound, and it costs one decl lookup to
-                    // see.  Mutual recursion needs an SCC over the call graph
-                    // and is deliberately not reported.
-                    let enclosing = tr.function_context.borrow().get_name().to_owned();
-                    let self_recursive =
-                        direct_tail_callee(&tr.ast_context, substatement) == Some(&enclosing);
-                    if self_recursive {
-                        diag!(
-                            Diagnostic::MustTail,
-                            "{}: musttail dropped: daslang gives no tail-call guarantee; \
-                             this return will recurse where C iterated (stack depth is bounded \
-                             by the run mode) — self-recursive tail call into `{}`: the \
-                             recursion depth is unbounded",
-                            location,
-                            enclosing,
-                        );
-                    } else {
-                        diag!(
-                            Diagnostic::MustTail,
-                            "{}: musttail dropped: daslang gives no tail-call guarantee; \
-                             this return will recurse where C iterated (stack depth is bounded \
-                             by the run mode)",
-                            location,
-                        );
-                    }
-                }
+                let substatement = attributed_substatement(tr, sid, attributes, *substatement)?;
                 self.convert_stmt(tr, ctx, substatement, in_tail, entry, ret_ty)
             }
 
@@ -1116,21 +1229,7 @@ impl Cfg<Label, StmtOrDecl> {
 
         // Add implicit return at the end
         let exit_lbl = last_lbl.unwrap_or_else(|| builder.fresh_label());
-        let tail_stmt = match &ret {
-            ImplicitReturnType::Main => {
-                DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::ConstInt(0)))))
-            }
-            ImplicitReturnType::Void | ImplicitReturnType::StmtExprVoid => {
-                DaStmt::Expr(DaExpr::Return(None))
-            }
-            // Falling off the end of a value-returning C function is undefined
-            // behaviour.  `return` with no value would not even type-check in
-            // daScript, so make the undefined path a diagnosable trap instead of a
-            // silently wrong value.
-            _ => DaStmt::Expr(unreachable_trap(
-                "control reached the end of a non-void function",
-            )),
-        };
+        let tail_stmt = implicit_return(&ret);
         let mut wip = builder.new_wip(exit_lbl);
         wip.body.push(StmtOrDecl::Stmt(tail_stmt));
         builder.add_block(wip, End);
@@ -1231,9 +1330,16 @@ pub(crate) fn unreachable_trap(msg: &str) -> DaExpr {
 
 // ===== Public entry point =====
 
-/// Convert a function body: C statements → CFG → daScript statements.
+/// Convert a function body to daScript statements.
 ///
 /// # Back-end strategy
+///
+/// A body without `goto` (and without a `case` label nested below its
+/// `switch`) takes the structured back end, [`structured`]: daslang `while`,
+/// `if`, `break`, `continue` and `return`, straight from the C statements,
+/// which daslang's interpreter runs without the block restart a taken `goto`
+/// costs.  Every other body takes the flat back end described below
+/// (`LAWS.md`, "Structured control flow first").
 ///
 /// The CFG is rendered *directly* as daScript numeric labels and `goto`
 /// (daslang reference, `language/statements.rst`, "label and goto"):
@@ -1251,9 +1357,8 @@ pub(crate) fn unreachable_trap(msg: &str) -> DaExpr {
 /// graphs identically — and it is checkable: [`Cfg::validate_edges`] rejects any
 /// graph whose edges do not all land on real blocks.
 ///
-/// [`relooper`] and [`structures`] are retained (with their unit tests) for a
-/// future readability pass that re-structures the reducible parts; they are not
-/// on this path.
+/// [`relooper`] and [`structures`] are retained (with their unit tests); they
+/// are on neither path.
 pub fn convert_function_body(
     translator: &Translation,
     _body_id: CStmtId,
@@ -1261,6 +1366,26 @@ pub fn convert_function_body(
     ret: ImplicitReturnType,
     ret_ty: Option<CQualTypeId>,
 ) -> TranslationResult<Vec<DaStmt>> {
+    // A body whose C statements nest the way daslang's do is lowered to
+    // `while`/`if`/`break`/`continue` directly; see [`structured`].  The
+    // decision is made on the C AST before anything is converted, because
+    // conversion has effects (a function-scope `static` is hoisted to module
+    // scope, a `musttail` reports itself) that must happen exactly once.
+    let fallback = structured::fallback_reason(translator, stmts);
+    let function = translator.function_context.borrow().get_name().to_owned();
+    match fallback {
+        None => {
+            diag!(
+                Diagnostic::ControlFlow,
+                "`{function}`: structured control flow"
+            );
+            return structured::convert(translator, stmts, ret, ret_ty);
+        }
+        Some(reason) => diag!(
+            Diagnostic::ControlFlow,
+            "`{function}`: flat label/goto control flow ({reason})"
+        ),
+    }
     let (mut graph, store) =
         Cfg::from_stmts(translator, ExprContext::default(), stmts, ret, ret_ty)?;
     let report = graph.prune_unreachable();

@@ -95,6 +95,28 @@ impl<'c> Translation<'c> {
                 "empty statement expression",
             ));
         };
+        // The statements are lowered by `convert_stmt`, which spells a jump
+        // as a bare daslang `break`/`continue`/`goto` with no knowledge of
+        // the loop, `switch` or label it belongs to (a `for` step, a
+        // `switch` region, a flat body's labels); such a jump is refused.
+        let jump = crate::c_ast::iterators::DFExpr::new(&self.ast_context, stmt_id.into())
+            .find_map(|node| match node {
+                crate::c_ast::iterators::SomeId::Stmt(s)
+                    if matches!(
+                        self.ast_context[s].kind,
+                        CStmtKind::Break | CStmtKind::Continue | CStmtKind::Goto(_)
+                    ) =>
+                {
+                    Some(s)
+                }
+                _ => None,
+            });
+        if let Some(jump) = jump {
+            return Err(format_translation_err!(
+                self.ast_context.display_loc(&self.ast_context[jump].loc),
+                "unsupported break, continue or goto inside a GNU statement expression",
+            ));
+        }
         let CStmtKind::Expr(value_id) = self.ast_context[last].kind else {
             return Err(format_translation_err!(
                 self.ast_context.display_loc(&self.ast_context[last].loc),

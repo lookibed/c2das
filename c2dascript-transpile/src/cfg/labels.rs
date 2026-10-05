@@ -1,5 +1,9 @@
 //! Flat `label`/`goto` back end: a CFG rendered as daScript statements.
 //!
+//! It renders the bodies the structured back end ([`super::structured`])
+//! does not take — a `goto`, Duff's device — and lends that back end its
+//! `switch` dispatch ([`DispatchTree`]) and its declaration helpers.
+//!
 //! daslang has first-class numeric labels and jumps — `label 3:` marks a point in
 //! a function body and `goto label 3` transfers control to it (daslang reference,
 //! `language/statements.rst`, section "label and goto").  Jumps out of, into and
@@ -61,7 +65,7 @@ use das_ast::{DaBlock, DaExpr, DaStmt, DaType, DaTypeKind};
 use std::collections::{HashMap, HashSet};
 
 /// What has to be emitted after a block's own statements.
-enum Tail {
+pub(super) enum Tail {
     /// The terminator's successor is the next block in layout order.
     FallThrough,
     /// The block ends the function (its body already returned or trapped).
@@ -85,7 +89,7 @@ impl Tail {
     /// Every label this tail jumps to by name, and therefore needs a
     /// `label N:` on.  A jump table reaches its targets by number instead,
     /// through the aliases numbered after these (see [`render_once`]).
-    fn targets(&self) -> Vec<&Label> {
+    pub(super) fn targets(&self) -> Vec<&Label> {
         match self {
             Tail::FallThrough | Tail::End => vec![],
             Tail::Goto(l) | Tail::IfGoto(_, l) => vec![l],
@@ -123,7 +127,7 @@ impl Tail {
 /// daslang's AOT — which prints each `elif` as a nested `else { if … }` —
 /// stays within a C++ compiler's bracket-nesting limit (256 for clang) for any
 /// `switch` (a 256-case `switch` used to exceed it).
-enum DispatchTree {
+pub(super) enum DispatchTree {
     /// `if x == k0 { goto L0 } elif x == k1 { goto L1 } …`
     Tests(Vec<(DaExpr, Label)>),
     /// `if low <= x && x <= high { goto <number of the label for x> }`.
@@ -148,7 +152,7 @@ enum DispatchTree {
 }
 
 /// The longest run of cases dispatched by comparing against each value.
-const TESTS_MAX: usize = 4;
+pub(super) const TESTS_MAX: usize = 4;
 
 /// A run of cases longer than [`TESTS_MAX`] is a jump table when its range of
 /// values is at most this many times its case count (at least half of the
@@ -209,7 +213,7 @@ impl DispatchTree {
         }
     }
 
-    fn tables_mut<'a>(&'a mut self, out: &mut Vec<(&'a [Label], &'a mut Option<u64>)>) {
+    pub(super) fn tables_mut<'a>(&'a mut self, out: &mut Vec<(&'a [Label], &'a mut Option<u64>)>) {
         match self {
             DispatchTree::Tests(_) => {}
             DispatchTree::Table { entries, base, .. } => out.push((entries.as_slice(), base)),
@@ -524,7 +528,7 @@ fn render_once(
 /// no initializer of its own qualifies (anything else would lose a store), and
 /// only when `init` does not name `x` itself, which a declaration's own
 /// initializer cannot read.
-fn initialise_last_declaration(out: &mut Vec<DaStmt>) {
+pub(super) fn initialise_last_declaration(out: &mut Vec<DaStmt>) {
     let Some(first) = out
         .iter()
         .position(|stmt| !matches!(stmt, DaStmt::Var { .. }))
@@ -730,7 +734,7 @@ fn hoist_in_expr(
 /// rename cannot capture anything.  The program reads each temporary only
 /// after its own store, so it reads the same values; the AOT's C++ sees fewer
 /// declarations above the same jumps.
-fn coalesce_site_temporaries(
+pub(super) fn coalesce_site_temporaries(
     out: &mut Vec<DaStmt>,
     declarations_at: usize,
     body_start: usize,
@@ -953,7 +957,7 @@ fn for_each_child(expr: &mut DaExpr, f: &mut dyn FnMut(&mut DaExpr)) {
     }
 }
 
-fn hoistable(var_type: &das_ast::DaType, init: Option<&DaExpr>) -> bool {
+pub(super) fn hoistable(var_type: &das_ast::DaType, init: Option<&DaExpr>) -> bool {
     if var_type.is_ref {
         return false;
     }
@@ -1265,7 +1269,10 @@ fn preferred_successors(terminator: &GenTerminator<Label>) -> Vec<Label> {
 }
 
 /// Turn one terminator into the statements it still has to emit.
-fn plan(terminator: &GenTerminator<Label>, next: Option<&Label>) -> TranslationResult<Tail> {
+pub(super) fn plan(
+    terminator: &GenTerminator<Label>,
+    next: Option<&Label>,
+) -> TranslationResult<Tail> {
     match terminator {
         End => Ok(Tail::End),
         Jump(target) => Ok(if Some(target) == next {
@@ -1346,7 +1353,7 @@ fn plan(terminator: &GenTerminator<Label>, next: Option<&Label>) -> TranslationR
 /// The statements of one dispatch subtree: each jumps to the arm of a
 /// matching value; when none matches they jump to `default`, or fall out of
 /// the tree when `default` is `None`.
-fn dispatch_stmts(
+pub(super) fn dispatch_stmts(
     scrutinee: &DaExpr,
     tree: &DispatchTree,
     goto: &dyn Fn(&Label) -> DaStmt,
@@ -1505,7 +1512,7 @@ fn case_test(scrutinee: &DaExpr, value: &DaExpr) -> DaExpr {
     }
 }
 
-fn negate(cond: &DaExpr) -> DaExpr {
+pub(super) fn negate(cond: &DaExpr) -> DaExpr {
     // `!(a == b)` is `a != b`; keeping the comparison flat reads better and
     // avoids a redundant parenthesised negation in the printed source.
     if let DaExpr::Op2 { op, left, right } = cond {
@@ -1541,7 +1548,7 @@ fn inverse_comparison(op: &str) -> Option<&'static str> {
 /// A hoisted declaration is assigned later, at the point where the C
 /// declaration stood, so it cannot keep a `const` qualifier: `const int x = 42;`
 /// becomes `var x : int` at the top of the function and `x = 42` in place.
-fn writable_decl(stmt: DaStmt) -> DaStmt {
+pub(super) fn writable_decl(stmt: DaStmt) -> DaStmt {
     match stmt {
         DaStmt::Var {
             name,
@@ -1568,7 +1575,7 @@ fn label_text(label_ids: &IndexMap<Label, u64>, label: &Label) -> String {
 
 /// The label of a number that no named jump uses: a jump-table alias or the
 /// trampoline's resume point.
-fn alias_text(id: u64) -> String {
+pub(super) fn alias_text(id: u64) -> String {
     format!("label {id}")
 }
 

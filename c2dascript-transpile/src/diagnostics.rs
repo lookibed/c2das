@@ -26,6 +26,10 @@ pub enum Diagnostic {
     /// attributed `return` *means* and loses the machine tail call it demands.
     /// See `cfg::CfgBuilder::convert_stmt`, `CStmtKind::Attributed`.
     MustTail,
+    /// Which control-flow back end each function body took, and why a body
+    /// stayed on the flat `label`/`goto` one.  Off by default; see
+    /// `cfg::convert_function_body`.
+    ControlFlow,
 }
 
 macro_rules! diag {

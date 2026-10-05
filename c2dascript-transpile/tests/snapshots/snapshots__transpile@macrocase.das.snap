@@ -280,15 +280,11 @@ def ZSTD_dParam_getBounds(var dParam : ZSTD_dParameter) : int {
     var bounds : int = 0
     c2da_fresh0 = uint(dParam)
     if (c2da_fresh0 == 0x64u) {
-        goto label 0
+        bounds = 1
+        return bounds
     } elif (c2da_fresh0 == 0x3e8u) {
-        goto label 1
+        bounds = 5
+        return bounds
     }
-    return bounds
-    label 0:
-    bounds = 1
-    return bounds
-    label 1:
-    bounds = 5
     return bounds
 }

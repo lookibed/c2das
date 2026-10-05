@@ -296,6 +296,55 @@ is narrowed to the enumeration's compatible integer type and re-read as the `enu
 and increment path in `operators.rs`, plain and address-backed).  `p120-enum-compound-assignment`
 is the fixture.
 
+## Control-flow back ends: structured first, flat label/goto as the fallback
+
+A function body has one of two back ends (`cfg::convert_function_body`), chosen per function
+on the C AST before anything is converted (`cfg/structured.rs fallback_reason`; conversion has
+effects that must happen once — a function-scope `static` is hoisted to module scope, `musttail`
+reports itself — so a body is never converted twice):
+
+- **structured** (`cfg/structured.rs`): the C statements are walked directly and become daslang
+  `while`/`if`/`elif`/`else`/`break`/`continue`/`return`.  A `for` continues through its step,
+  written again before each `continue` (a fresh conversion of the same C expression, which C
+  evaluates exactly there); a `do`/`while` tests its condition at the bottom of `while true`
+  and again before each `continue`; `do … while (0)` is its body, or `while true { …; break }`
+  when it has a `break`/`continue`, whose `continue` is that `break`; a condition with
+  statements of its own (`while ((c = next()) != 0)`) is tested at the top of `while true`.
+  A `switch` whose arms never fall into each other and that has at most four case values is an
+  `if`/`elif` chain with the arms inline.  Any other `switch` keeps the flat dispatch (below:
+  tests, median split or computed-`goto` table) and is a *label region* in the statement list
+  that holds it — dispatch, `label` per arm in source order, end label; a `break` of the
+  `switch` is `goto` the end, fall-through is fall-through.  Every jump of a region stays in
+  that list, because the interpreter's label table belongs to one block
+  (`SimNode_BlockWithLabels::eval`); a `break`/`continue` of the enclosing loop and a `return`
+  are daslang's own.  Three repairs keep a region exact, all on the intermediate tree, and a
+  checker re-verifies the result (a violation is an internal `TranslationError`, never output):
+  a label with nothing after it is resolved by what falling off its list means (`continue` in
+  a loop body, `return` at the end of a void function — jump-table entries to it land on a
+  trampoline behind the dispatch), or, at the end of an `if` arm with statements after the
+  `if`, that one `if` is spliced into labels in its parent; an early exit a jump crosses moves
+  out of line (as `move_crossed_early_exits`, below, for `break`/`continue` too); a site
+  temporary at the top level of a list with labels is hoisted for AOT (below).  C locals are
+  hoisted exactly as in the flat back end; other site temporaries stay where the lowering put
+  them.  A function with a value whose only exit is a `return` inside an endless loop gets the
+  trap and a `return` of the type's default after it, for daslang's `exprReturns`.
+- **flat** (`cfg/labels.rs`): the CFG rendered as `label`/`goto`, total over every graph.  It
+  takes a body with a `goto` (its labels can form any graph, irreducible ones included), a
+  `case` label below the top level of its `switch` (Duff's device), statements before the
+  first `case`, or statements nested deeper than 64 levels (AOT's C++ nests each `elif`).
+
+`-Wcontrol-flow` (off by default) reports each function's back end and, for a flat one, why.
+On the corpora (2026-10): pl_mpeg 169 structured / 0 flat, h264bsd 378 / 2, wasm3 688 / 131
+(the module loader and compiler's `_Catch`/`_Throw` gotos; the opcode handlers are
+structured), binjgb 207 / 18, doomgeneric 975 / 8.  Reason: daslang's interpreter pays a
+block restart per taken `goto` (`SimNode_BlockWithLabels`, `stopFlags` `jumpToLabel`).
+Interpreter medians, flat → structured (`corpus_matrix.py bench`, 2026-10-05): pl_mpeg
+−14 %, binjgb −10 %, doomgeneric −9 %, wasm3 −5.5 %, h264bsd −5 %; `-jit`, `-exe` and AOT
+within ±5 % (run-to-run spread).  A `break`/`continue`/`goto` inside a GNU statement expression is refused
+(`convert_gnu_statement_expression`, `n13-statement-expression-jump`): its statements are
+lowered without the loop or `switch` they belong to.  `p160-structured-loops`,
+`p161-structured-switch` and `p162-structured-fallback` are the fixtures.
+
 ## Switch dispatch
 
 A `switch` terminator of the flat label back end (`cfg/labels.rs DispatchTree`) is shaped for

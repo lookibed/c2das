@@ -1267,7 +1267,7 @@
       "c_reference": { "entrypoint": "main", "return_type": "int" },
       "das_entrypoint": "main",
       "expected": {
-        "stdout": "dense256=4009895146\nholes 108 108 3 2 108 4 8 108 48 32 -18 108 108\nsparse 1 0 2 3 0 4 5 0 6 7 8 0\nunsigned 10 12 -1 15 -1 99 -1\nwide 11 55 0 30\nrecord=14\nearly_out=6100\nduff 1 4 5 7 8\n",
+        "stdout": "dense256=4009895146\nholes 108 108 3 2 108 4 8 108 48 32 -18 108 108\nsparse 1 0 2 3 0 4 5 0 6 7 8 0\nunsigned 10 12 -1 15 -1 99 -1\nwide 11 55 0 30\nrecord=14\nearly_out=12200\nduff 1 4 5 7 8\n",
         "exit_code": 0
       },
       "rust_assertion": "ptr_tests::p121_switch_dispatch_is_a_jump_table_or_a_split",
@@ -1403,7 +1403,7 @@
       "c_reference": { "entrypoint": "main", "return_type": "int" },
       "das_entrypoint": "main",
       "expected": {
-        "stdout": "error: two free\nerror: size\nerror: back link\nerror: two free\n4 4\n",
+        "stdout": "error: two free\nerror: two free\nerror: size\nerror: back link\nerror: two free\nerror: size\nerror: back link\nerror: two free\n8 8\n",
         "exit_code": 0
       },
       "rust_assertion": "ptr_tests::p140_early_exits_never_strand_a_jump_target",
@@ -1529,9 +1529,65 @@
       "runtime": "required"
     },
     {
+      "id": "p160-structured-loops",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p160_structured_loops.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "for 412\nwhile 13471 calls 7\ndo 2109 calls 14\nnested 302 -1\nearly 1 2 -1\nfresh 54 address 24 forever 1822\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p160_loops_are_daslang_loops",
+      "runtime": "required"
+    },
+    {
+      "id": "p161-structured-switch",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p161_structured_switch.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "run -30 6 -2047\ntally 15165\n-1 10 20 33 34 35 36 -1 38 -1 \narm 11 12 10 60\nnested 101 112 110 7\ntemporaries 1602 1503 counter 4\nno cases 5\npast 3 2 0 9 5\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p161_switch_is_a_label_region_or_a_chain",
+      "runtime": "required"
+    },
+    {
+      "id": "p162-structured-fallback",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p162_structured_fallback.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "8 -1 10 60 50 10\nabcdefghijk 6 7\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p162_bodies_with_goto_or_nested_cases_stay_flat",
+      "runtime": "required"
+    },
+    {
       "id": "n12-typedef-record-field-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n12_typedef_record_field_unsupported.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"
+    },
+    {
+      "id": "n13-statement-expression-jump", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n13_statement_expression_jump.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "n13_statement_expression_jump.c:9:17", "cause": "unsupported break, continue or goto inside a GNU statement expression" }, "runtime": "not-applicable"
     },
     {
       "id": "p110-std-string-extras",

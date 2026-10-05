@@ -44,35 +44,23 @@ Source of truth in c2rust:
   - `process_cfg`
   - `StructuredAST`
 
-c2dascript status:
+c2dascript status (2026-10; `LAWS.md` "Structured control flow first"):
 
-- Present:
-  - `c2dascript-transpile/src/cfg/mod.rs`
-  - `c2dascript-transpile/src/cfg/relooper.rs`
-  - `c2dascript-transpile/src/cfg/structures.rs`
-  - `loops.rs`, `multiples.rs`, `inc_cleanup.rs`
-- Simplified:
-  - `ExitStyle` has only `Break` and `Continue`.
-  - Exit target/context is not preserved enough to distinguish loop break, switch break,
-    fallthrough-to-followup, and goto-table transitions.
-  - `Block` lowering currently emits `while(true)` wrappers, which is a backend workaround
-    rather than a faithful CFG contract.
-  - Stable label ids were added locally; this fixes collisions but is not a full c2rust port.
-- Missing/weak:
-  - Full c2rust exit classification discipline.
-  - Intermediate tests for structured CFG before printing.
-  - Switch/fallthrough invariant tests.
+- The relooper (`cfg/relooper.rs`, `cfg/structures.rs`, `loops.rs`, `multiples.rs`) is in the
+  tree but off the path since `81e67f8d9`: it dropped edges and emitted a silent `break`.
+- `cfg/structured.rs` lowers a body without `goto` straight from the C statements to daslang
+  `while`/`if`/`break`/`continue`/`return` (no graph reconstruction); a `switch` that cannot be an
+  `if`/`elif` chain is a label region of its statement list.  Its intermediate tree is checked
+  against daslang's label rules before printing.
+- `cfg/mod.rs` `CfgBuilder` + `cfg/labels.rs` render every other body (a `goto`, Duff's device)
+  as a flat `label`/`goto` CFG, which is total.
 
 Current invariant:
 
-- `DaExpr::Break` may only be emitted inside a daScript loop-compatible context.
-- A switch fallthrough edge to the after-switch continuation must not lower to top-level `break`.
-- CFG label emission must be deterministic and injective for reachable labels.
-
-Current corpus failure:
-
-- `minimp4_read` has `switch(nb)` fallthrough and no C `break`.
-- c2dascript emits a top-level daScript `break`, so the bug belongs to CFG exit classification.
+- `DaExpr::Break`/`Continue` are emitted only by the structured back end, inside the daslang
+  `while` of the C loop they belong to; a `switch`'s `break` is a jump to its region's end.
+- Every jump lands in the innermost labelled statement list around it; every label has a
+  statement after it; label emission is deterministic and injective.
 
 ### Decl lifting
 

@@ -268,36 +268,25 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export]
 def while_loop(var x : int) : int {
-    label 0:
-    if (x != 0) {
-        goto label 1
+    while (x != 0) {
+        x += 1
     }
     return x
-    label 1:
-    x += 1
-    goto label 0
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def for_loop(var x_0 : int) : int {
     var i : int = 0
-    label 0:
-    if (i < 10) {
-        goto label 1
+    while (i < 10) {
+        x_0 += 1
+        i += 1
     }
     return x_0
-    label 1:
-    x_0 += 1
-    i += 1
-    goto label 0
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def infinite_loop(var x_1 : int) {
-    label 0:
-    x_1 += 1
-    goto label 0
-    panic("unreachable: fell out of a translated control-flow graph")
+    while (true) {
+        x_1 += 1
+    }
 }
 [export]
 def goto_loop(var x_2 : int) : int {
@@ -313,135 +302,78 @@ def goto_loop(var x_2 : int) : int {
 }
 [export]
 def do_while_loop(var x_3 : int) : int {
-    label 0:
-    x_3 += 1
-    if (x_3 != 0) {
-        goto label 0
+    while (true) {
+        x_3 += 1
+        if (x_3 == 0) {
+            break
+        }
     }
     return x_3
 }
 [export]
 def break_while(var x_4 : int) : int {
-    label 0:
-    if (x_4 != 0) {
-        goto label 2
+    while (x_4 != 0) {
+        if (x_4 != 0) {
+            x_4 += 1
+            if (x_4 != 0) {
+                break
+            }
+        }
+        x_4 += 2
     }
-    label 1:
     return x_4
-    label 2:
-    if (x_4 != 0) {
-        goto label 4
-    }
-    label 3:
-    x_4 += 2
-    goto label 0
-    label 4:
-    x_4 += 1
-    if (x_4 != 0) {
-        goto label 5
-    }
-    goto label 3
-    label 5:
-    goto label 1
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def continue_while(var x_5 : int) : int {
-    label 0:
-    if (x_5 != 0) {
-        goto label 1
+    while (x_5 != 0) {
+        if (x_5 != 0) {
+            x_5 += 1
+            if (x_5 != 0) {
+                continue
+            }
+        }
+        x_5 += 2
     }
     return x_5
-    label 1:
-    if (x_5 != 0) {
-        goto label 3
-    }
-    label 2:
-    x_5 += 2
-    goto label 0
-    label 3:
-    x_5 += 1
-    if (x_5 != 0) {
-        goto label 4
-    }
-    goto label 2
-    label 4:
-    goto label 0
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def trivial_nested_while(var x_6 : int) {
-    label 0:
-    if (x_6 != 0) {
-        goto label 1
+    while (x_6 != 0) {
+        while (x_6 != 0) {
+            while (x_6 != 0) {
+                x_6 += 1
+            }
+        }
     }
     return
-    label 1:
-    label 2:
-    if (x_6 != 0) {
-        goto label 3
-    }
-    goto label 0
-    label 3:
-    label 4:
-    if (x_6 != 0) {
-        goto label 5
-    }
-    goto label 2
-    label 5:
-    x_6 += 1
-    goto label 4
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def nested_while(var x_7 : int) {
-    label 0:
-    if (x_7 != 0) {
-        goto label 1
+    while (x_7 != 0) {
+        while (x_7 != 0) {
+            while (x_7 != 0) {
+                x_7 += 1
+            }
+            x_7 += 2
+        }
+        x_7 += 3
     }
     return
-    label 1:
-    label 2:
-    if (x_7 != 0) {
-        goto label 3
-    }
-    x_7 += 3
-    goto label 0
-    label 3:
-    label 4:
-    if (x_7 != 0) {
-        goto label 5
-    }
-    x_7 += 2
-    goto label 2
-    label 5:
-    x_7 += 1
-    goto label 4
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def nested_for(var x_8 : int) {
     var i_0 : int
     var j : int
     i_0 = 0
-    label 0:
-    if (i_0 < 5) {
-        goto label 1
+    while (i_0 < 5) {
+        j = 0
+        while (j < 5) {
+            x_8 += 1
+            j += 1
+        }
+        i_0 += 1
     }
     return
-    label 1:
-    j = 0
-    label 2:
-    if (j < 5) {
-        goto label 3
-    }
-    i_0 += 1
-    goto label 0
-    label 3:
-    x_8 += 1
-    j += 1
-    goto label 2
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def exit_nested_loops(var x_9 : int) : int {
@@ -526,122 +458,84 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
 [export]
 def for_loop_single_continue(var x_12 : int) : int {
     var i_1 : int = 0
-    label 0:
-    if (i_1 < 10) {
-        goto label 1
+    while (i_1 < 10) {
+        if (x_12 != 0) {
+            if (x_12 != 0) {
+                i_1 += 1
+                continue
+            }
+        }
+        x_12 += 1
+        i_1 += 1
     }
     return x_12
-    label 1:
-    if (x_12 != 0) {
-        goto label 4
-    }
-    label 2:
-    x_12 += 1
-    label 3:
-    i_1 += 1
-    goto label 0
-    label 4:
-    if (x_12 != 0) {
-        goto label 5
-    }
-    goto label 2
-    label 5:
-    goto label 3
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def for_loop_multi_continue(var x_13 : int) : int {
     var i_2 : int = 0
-    label 0:
-    if (i_2 < 10) {
-        goto label 1
+    while (i_2 < 10) {
+        if (x_13 != 0) {
+            if (x_13 != 0) {
+                i_2 += 1
+                continue
+            }
+        }
+        x_13 += 1
+        if (x_13 != 0) {
+            if (x_13 != 0) {
+                i_2 += 1
+                continue
+            }
+        }
+        x_13 += 2
+        i_2 += 1
     }
     return x_13
-    label 1:
-    if (x_13 != 0) {
-        goto label 7
-    }
-    label 2:
-    x_13 += 1
-    if (x_13 != 0) {
-        goto label 5
-    }
-    label 3:
-    x_13 += 2
-    label 4:
-    i_2 += 1
-    goto label 0
-    label 5:
-    if (x_13 != 0) {
-        goto label 6
-    }
-    goto label 3
-    label 6:
-    goto label 4
-    label 7:
-    if (x_13 != 0) {
-        goto label 8
-    }
-    goto label 2
-    label 8:
-    goto label 4
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def do_loop_single_continue(var x_14 : int) : int {
-    label 0:
-    if (x_14 != 0) {
-        goto label 3
-    }
-    label 1:
-    x_14 += 1
-    label 2:
-    if (x_14 != 0) {
-        goto label 0
+    while (true) {
+        if (x_14 != 0) {
+            if (x_14 != 0) {
+                if (x_14 == 0) {
+                    break
+                }
+                continue
+            }
+        }
+        x_14 += 1
+        if (x_14 == 0) {
+            break
+        }
     }
     return x_14
-    label 3:
-    if (x_14 != 0) {
-        goto label 4
-    }
-    goto label 1
-    label 4:
-    goto label 2
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def do_loop_multi_continue(var x_15 : int) : int {
-    label 0:
-    if (x_15 != 0) {
-        goto label 6
-    }
-    label 1:
-    x_15 += 1
-    if (x_15 != 0) {
-        goto label 4
-    }
-    label 2:
-    x_15 += 2
-    label 3:
-    if (x_15 != 0) {
-        goto label 0
+    while (true) {
+        if (x_15 != 0) {
+            if (x_15 != 0) {
+                if (x_15 == 0) {
+                    break
+                }
+                continue
+            }
+        }
+        x_15 += 1
+        if (x_15 != 0) {
+            if (x_15 != 0) {
+                if (x_15 == 0) {
+                    break
+                }
+                continue
+            }
+        }
+        x_15 += 2
+        if (x_15 == 0) {
+            break
+        }
     }
     return x_15
-    label 4:
-    if (x_15 != 0) {
-        goto label 5
-    }
-    goto label 2
-    label 5:
-    goto label 3
-    label 6:
-    if (x_15 != 0) {
-        goto label 7
-    }
-    goto label 1
-    label 7:
-    goto label 3
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def explicit_loop_multi_exit(var x_16 : int) : int {
@@ -703,26 +597,18 @@ def implicit_loop_multi_exit(var x_17 : int) : int {
 }
 [export]
 def loop_returns(var x_18 : int) : int {
-    label 0:
-    if (x_18 != 0) {
-        goto label 1
+    while (x_18 != 0) {
+        x_18 += 1
+        if (x_18 != 0) {
+            x_18 += 2
+            return x_18
+        }
+        x_18 += 3
+        if (x_18 != 0) {
+            x_18 += 4
+            return x_18
+        }
     }
-    return x_18
-    label 1:
-    x_18 += 1
-    if (x_18 != 0) {
-        goto label 3
-    }
-    x_18 += 3
-    if (x_18 != 0) {
-        goto label 2
-    }
-    goto label 0
-    label 2:
-    x_18 += 4
-    return x_18
-    label 3:
-    x_18 += 2
     return x_18
 }
 [export]
@@ -754,45 +640,27 @@ def loop_gotos(var x_19 : int) : int {
 }
 [export]
 def loop_early_return(var x_20 : int) : int {
-    label 0:
-    if (x_20 != 0) {
-        goto label 1
+    while (x_20 != 0) {
+        x_20 += 1
+        if (x_20 != 0) {
+            x_20 += 2
+            return x_20
+        }
     }
     return -x_20
-    label 1:
-    x_20 += 1
-    if (x_20 != 0) {
-        goto label 2
-    }
-    goto label 0
-    label 2:
-    x_20 += 2
-    return x_20
 }
 [export]
 def if_else_loops(var x_21 : int) {
     if (x_21 != 0) {
-        goto label 3
+        while (x_21 != 0) {
+            x_21 += 1
+        }
+    } else {
+        while (x_21 != 0) {
+            x_21 += 2
+        }
     }
-    label 0:
-    if (x_21 != 0) {
-        goto label 2
-    }
-    label 1:
     return
-    label 2:
-    x_21 += 2
-    goto label 0
-    label 3:
-    label 4:
-    if (x_21 != 0) {
-        goto label 5
-    }
-    goto label 1
-    label 5:
-    x_21 += 1
-    goto label 4
-    panic("unreachable: fell out of a translated control-flow graph")
 }
 [export]
 def goto_loops(var x_22 : int) : int {

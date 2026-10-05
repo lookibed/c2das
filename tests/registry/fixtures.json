@@ -3969,6 +3969,36 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "n13-statement-expression-jump",
+      "canonical_cases": [
+        "n13-statement-expression-jump"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "unsupported break, continue or goto inside a GNU statement expression",
+          "location": "n13_statement_expression_jump.c:9:17",
+          "operation": "top-level declaration lowering",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-negative",
+      "id": "tests--syntax--n13_statement_expression_jump",
+      "owner": "diagnostic boundary",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/n13_statement_expression_jump.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "legacy-p01-ptr-deref",
       "canonical_cases": [
         "legacy-p01-ptr-deref"
@@ -4697,7 +4727,7 @@
         "kind": "stdout-and-exit-code",
         "value": {
           "exit_code": 0,
-          "stdout": "dense256=4009895146\nholes 108 108 3 2 108 4 8 108 48 32 -18 108 108\nsparse 1 0 2 3 0 4 5 0 6 7 8 0\nunsigned 10 12 -1 15 -1 99 -1\nwide 11 55 0 30\nrecord=14\nearly_out=6100\nduff 1 4 5 7 8\n"
+          "stdout": "dense256=4009895146\nholes 108 108 3 2 108 4 8 108 48 32 -18 108 108\nsparse 1 0 2 3 0 4 5 0 6 7 8 0\nunsigned 10 12 -1 15 -1 99 -1\nwide 11 55 0 30\nrecord=14\nearly_out=12200\nduff 1 4 5 7 8\n"
         }
       },
       "family": "syntax-pointer-legacy",
@@ -4963,7 +4993,7 @@
         "kind": "stdout-and-exit-code",
         "value": {
           "exit_code": 0,
-          "stdout": "error: two free\nerror: size\nerror: back link\nerror: two free\n4 4\n"
+          "stdout": "error: two free\nerror: two free\nerror: size\nerror: back link\nerror: two free\nerror: size\nerror: back link\nerror: two free\n8 8\n"
         }
       },
       "family": "syntax-pointer-legacy",
@@ -5182,6 +5212,90 @@
       "runtime": "unverified",
       "source": "tests/syntax/p15_function_pointer_arg_coerce.c",
       "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p160-structured-loops",
+      "canonical_cases": [
+        "p160-structured-loops"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "for 412\nwhile 13471 calls 7\ndo 2109 calls 14\nnested 302 -1\nearly 1 2 -1\nfresh 54 address 24 forever 1822\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p160_structured_loops",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p160_structured_loops.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p161-structured-switch",
+      "canonical_cases": [
+        "p161-structured-switch"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "run -30 6 -2047\ntally 15165\n-1 10 20 33 34 35 36 -1 38 -1 \narm 11 12 10 60\nnested 101 112 110 7\ntemporaries 1602 1503 counter 4\nno cases 5\npast 3 2 0 9 5\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p161_structured_switch",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p161_structured_switch.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p162-structured-fallback",
+      "canonical_cases": [
+        "p162-structured-fallback"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "8 -1 10 60 50 10\nabcdefghijk 6 7\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p162_structured_fallback",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p162_structured_fallback.c",
+      "status": "supported"
     },
     {
       "c_graph": "single-tu",

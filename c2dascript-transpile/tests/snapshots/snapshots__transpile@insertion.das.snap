@@ -272,24 +272,15 @@ def insertion_sort(var n : int; var p : int?) {
     var tmp : int
     var j : int
     i = 1
-    label 0:
-    if (i < n) {
-        goto label 1
+    while (i < n) {
+        tmp = unsafe(unsafe(reinterpret<int?>(p))[i])
+        j = i
+        while (j > 0 && unsafe(unsafe(reinterpret<int?>(p))[j - 1]) > tmp) {
+            unsafe(unsafe(reinterpret<int?>(p))[j]) = unsafe(unsafe(reinterpret<int?>(p))[j - 1])
+            j -= 1
+        }
+        unsafe(unsafe(reinterpret<int?>(p))[j]) = tmp
+        i += 1
     }
     return
-    label 1:
-    tmp = unsafe(unsafe(reinterpret<int?>(p))[i])
-    j = i
-    label 2:
-    if (j > 0 && unsafe(unsafe(reinterpret<int?>(p))[j - 1]) > tmp) {
-        goto label 3
-    }
-    unsafe(unsafe(reinterpret<int?>(p))[j]) = tmp
-    i += 1
-    goto label 0
-    label 3:
-    unsafe(unsafe(reinterpret<int?>(p))[j]) = unsafe(unsafe(reinterpret<int?>(p))[j - 1])
-    j -= 1
-    goto label 2
-    panic("unreachable: fell out of a translated control-flow graph")
 }

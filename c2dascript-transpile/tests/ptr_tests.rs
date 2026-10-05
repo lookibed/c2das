@@ -266,7 +266,7 @@ fn p99_conditionals_without_statements_are_daslang_expressions() {
     assert!(d.contains("value_0 = *(null_p != null ? null_p : p_0)"));
     assert!(d.contains("value_0 = p_0 != null && *p_0 == 9 ? 1 : 0"));
     // A condition takes the `bool` itself, never `(b ? 1 : 0) != 0`.
-    assert!(d.contains("if (x < y && note(14, 1) != 0) {"));
+    assert!(d.contains("while (x < y && note(14, 1) != 0) {"));
     assert!(
         !d.contains("? 1 : 0) != 0"),
         "int round trip in a condition"
@@ -274,7 +274,7 @@ fn p99_conditionals_without_statements_are_daslang_expressions() {
     // A right operand or an arm with statements keeps the guarded flag, so
     // `i++` runs only when C evaluates it.
     assert!(d.contains(
-        "if (x > y) {\n        c2da_postinc_1 = i_0\n        i_0 += 1\n        if (c2da_postinc_1 != 0) {"
+        "if (x > y) {\n        var c2da_postinc_1 : int = i_0\n        i_0 += 1\n        if (c2da_postinc_1 != 0) {"
     ));
     assert!(d.contains(" = note(10, i_0)\n    }\n    value_0 = c2da_fresh"));
     // A pointer arm whose conversion to the result type the lowering spells
@@ -322,11 +322,13 @@ fn p102_locals_are_declared_bare_and_initialised_in_place() {
         "def loop_reinit(var n : int) : int {\n    var total : int\n    var i : int\n    var acc : int\n    var pt : point\n"
     ));
     // The C initializer stays where C wrote it, inside the loop.
-    assert!(d.contains("label 1:\n    acc = 10\n    pt = point(x = i, y = i * 2, tag = null)\n"));
+    assert!(d.contains(
+        "while (i < n) {\n        acc = 10\n        pt = point(x = i, y = i * 2, tag = null)\n"
+    ));
     assert!(d.contains("    var p_0 : int?\n    var pt_0 : point\n    var cur : cursor_t\n"));
     assert!(d.contains("    var wr : wrapped\n"));
-    // A hoisted site temporary of a pointer alias is bare too.
-    assert!(d.contains("    var c2da_postinc : cursor_t\n"));
+    // A site temporary in a structured loop body stays a local of the body.
+    assert!(d.contains("        var c2da_postinc : cursor_t = cur_0\n"));
     // A storage-backed union and a daslang `enum` keep their explicit value.
     assert!(d.contains("var b_0 : bits = bits(c2da_storage = c2da_rt_calloc(1ul, 4ul))"));
     assert!(d.contains("var c : colour = colour()"));
@@ -363,7 +365,7 @@ fn p114_assignment_arguments_are_hoisted_values() {
     assert!(d.contains("    x -= 8\n    sink(x, unsafe(addr<int?>(out_0)))\n"));
     assert!(d.contains("    *p = 7\n    sink(*p, unsafe(addr<int?>(out_0)))\n"));
     assert!(d.contains("    bits <<= 4u\n    note(bits)\n"));
-    assert!(d.contains("    total += i\n    sink(total, unsafe(addr<int?>(out_0)))\n"));
+    assert!(d.contains("        total += i\n        sink(total, unsafe(addr<int?>(out_0)))\n"));
     assert!(!d.contains("sink(x = "), "assignment printed inside a call");
 }
 
@@ -587,16 +589,23 @@ fn p121_switch_dispatch_is_a_jump_table_or_a_split() {
     ));
     assert!(!d.contains("elif (c2da_fresh0 == 255)"));
     // Holes in the range go to the default arm through the table.
-    assert!(d.contains("        goto x - 9\n"));
+    assert!(d.contains("        goto x - 8\n"));
     // 64-bit scrutinees subtract the low case in their own type.
     assert!(d.contains("goto int(w - 0xffffffff00000000ul) + 2"));
     // A sparse set is split at its median value.
     assert!(d.contains("def sparse(var v : int64) : int {\n    if (v < 9l) {\n"));
-    // An arm that falls off a void function is sent to a `return` trampoline
-    // at the top of the body, where no folding can remove the `return`.
+    // Flat back end: an arm that falls off a void function is sent to a
+    // `return` trampoline at the top of the body, where no folding can
+    // remove the `return`.
     assert!(d.contains(
-        "def early_out(var k_0 : int) {\n    goto label 6\n    label 5:\n    return\n    label 6:\n    if (k_0 >= 1 && k_0 <= 5) {\n        goto k_0\n    }\n"
+        "def early_out_flat(var k_0 : int) {\n    goto label 7\n    label 6:\n    return\n    label 7:\n    if (k_0 >= 1 && k_0 <= 5) {\n        goto k_0 + 1\n    }\n"
     ));
+    // Structured back end: the switch is a region of the body, and the arm
+    // that returns returns where it stands.
+    assert!(d.contains(
+        "def early_out(var k_1 : int) {\n    if (k_1 >= 1 && k_1 <= 5) {\n        goto k_1\n    }\n    goto label 0\n"
+    ));
+    assert!(d.contains("    label 5:\n    return\n    label 0:\n    g_seen += 1000\n"));
     // No elif chain is longer than four arms.
     let mut elifs = 0;
     for line in d.lines().map(str::trim_start) {
@@ -710,7 +719,7 @@ fn p132_storage_objects_keep_their_storage() {
     // A loop-body declaration copies into the object the function holds:
     // no allocation per pass.
     assert!(d.contains(
-        "    label 1:\n    unsafe(memmove(unsafe(reinterpret<void?>(local.c2da_storage)), unsafe(reinterpret<void?>(unsafe(unsafe(addr(table_0[0]))[i]).c2da_storage)), 5ul))\n"
+        "    while (i < 3) {\n        unsafe(memmove(unsafe(reinterpret<void?>(local.c2da_storage)), unsafe(reinterpret<void?>(unsafe(unsafe(addr(table_0[0]))[i]).c2da_storage)), 5ul))\n"
     ));
 }
 
@@ -769,12 +778,17 @@ fn p140_early_exits_never_strand_a_jump_target() {
         "p140_early_exit_jump_targets",
         c2dascript_transpile::LibcMode::Std,
     );
-    let body = d
-        .split("def check_list(")
-        .nth(1)
-        .and_then(|rest| rest.split("\n}\n").next())
-        .expect("check_list is translated");
-    // The loop exit is a jump to an out-of-line `return`, not an
+    // Structured back end: the `break` is daslang's own.
+    let structured = function_body(&d, "check_list");
+    assert!(
+        structured.contains(
+            "    while (true) {\n        if (n_0.next == head_0) {\n            break\n        }\n"
+        ),
+        "{structured}"
+    );
+    assert!(!structured.contains("label"), "{structured}");
+    let body = function_body(&d, "check_list_flat");
+    // Flat back end: the loop exit is a jump to an out-of-line `return`, not an
     // `if (c) { return }` that daslang's if-return folding would turn into
     // an `else` block holding the loop's labels.
     assert!(
@@ -886,11 +900,11 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
     let body = function_body(&d, "main_0");
     // `for` steps, statements and a statement-level comma: no copy.
     assert!(
-        body.contains("    total += i\n    i += 1\n    goto label 0\n"),
+        body.contains("    while (i < 3) {\n        total += i\n        i += 1\n    }\n"),
         "{body}"
     );
     assert!(
-        body.contains("    total += 1\n    i += 1\n    j -= 1\n"),
+        body.contains("        total += 1\n        i += 1\n        j -= 1\n"),
         "{body}"
     );
     assert!(
@@ -898,21 +912,22 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
         "{body}"
     );
     // Used values keep the old value: `a[i++]`, `y = i--`, `*q++ = 5`,
-    // `while (n--)` (the disjoint `int` copies share one variable,
-    // `p154-coalesced-temporaries`).
+    // `while (n--)`.
     assert!(
         body.contains(
-            "c2da_postinc = i\n    i += 1\n    unsafe(unsafe(addr(a[0]))[c2da_postinc]) = 7"
+            "var c2da_postinc_3 : int = i\n    i += 1\n    unsafe(unsafe(addr(a[0]))[c2da_postinc_3]) = 7"
         ),
         "{body}"
     );
     assert!(
-        body.contains("c2da_postinc = i\n    i -= 1\n    y = c2da_postinc"),
+        body.contains("var c2da_postinc_5 : int = i\n    i -= 1\n    y = c2da_postinc_5"),
         "{body}"
     );
     assert!(body.contains("*c2da_postinc_6 = 5"), "{body}");
     assert!(
-        body.contains("c2da_postinc = n\n    n -= 1\n    if (c2da_postinc != 0)"),
+        body.contains(
+            "var c2da_postinc_8 : int = n\n        n -= 1\n        if (c2da_postinc_8 == 0) {\n            break\n"
+        ),
         "{body}"
     );
 }
@@ -1019,7 +1034,7 @@ fn p170_enum_constant_reads_are_literals() {
     assert!(wrapped.contains("    flag = 0\n"), "{wrapped}");
     assert!(wrapped.contains("    flag = 1\n"), "{wrapped}");
     let step = function_body(&d, "step");
-    assert!(step.contains("    if (j < 4) {\n"), "{step}");
+    assert!(step.contains("    while (j < 4) {\n"), "{step}");
     assert!(step.contains("    *out = 6\n"), "{step}");
     assert!(
         step.contains("    m.state = unsafe(reinterpret<state_t>(6u))\n"),
@@ -1042,6 +1057,174 @@ fn p170_enum_constant_reads_are_literals() {
             );
         }
     }
+}
+
+#[test]
+fn p160_loops_are_daslang_loops() {
+    let d = transpile_with_libc("p160_structured_loops", c2dascript_transpile::LibcMode::Std);
+    for name in [
+        "for_loops",
+        "while_loops",
+        "do_loops",
+        "nested",
+        "early_return",
+        "fresh_per_pass",
+        "address_taken",
+        "forever",
+    ] {
+        let body = function_body(&d, name);
+        assert!(
+            !body.contains("label") && !body.contains("goto"),
+            "{name}: {body}"
+        );
+    }
+    let body = function_body(&d, "for_loops");
+    // A `for` continues through its step, written before the `continue`.
+    assert!(
+        body.contains("    while (i < n) {\n        if (i % 3 == 0) {\n            i += 1\n            continue\n        }\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("            a += 1\n            b -= 7\n            continue\n"),
+        "{body}"
+    );
+    // A condition with statements of its own is tested at the top of the body.
+    let body = function_body(&d, "while_loops");
+    assert!(
+        body.contains(
+            "    while (true) {\n        value = next_value(unsafe(addr<int?>(cursor_0)))\n        if (value == 0) {\n            break\n        }\n"
+        ),
+        "{body}"
+    );
+    // `do`/`while`: the condition at the bottom, and again before `continue`;
+    // `do … while (0)` is its body, or a loop its `break` leaves.
+    let body = function_body(&d, "do_loops");
+    assert!(
+        body.contains("        if (k == 6) {\n            if (k >= limit) {\n                break\n            }\n            continue\n        }\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    total_1 += 1000\n    while (true) {\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("        if (total_1 > 3000) {\n            break\n        }\n        total_1 += 1\n        break\n    }\n"),
+        "{body}"
+    );
+    // A loop body's C declaration is re-initialised on every pass.
+    let body = function_body(&d, "fresh_per_pass");
+    assert!(
+        body.contains("    while (i_2 < 4) {\n        counter = 10\n        scratch = fixed_array<int>(i_2, i_2 + 1, i_2 + 2)\n"),
+        "{body}"
+    );
+    // A function that leaves only through a `return` in an endless loop ends
+    // on a `return` daslang can see.
+    let body = function_body(&d, "forever");
+    assert!(
+        body.ends_with(
+            "    panic(\"control reached the end of a non-void function\")\n    return 0"
+        ),
+        "{body}"
+    );
+}
+
+#[test]
+fn p161_switch_is_a_label_region_or_a_chain() {
+    let d = transpile_with_libc(
+        "p161_structured_switch",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    let body = function_body(&d, "run");
+    // The region sits inside the loop body: dispatch, arms, end.
+    assert!(
+        body.contains("        if (c2da_fresh0 >= 0 && c2da_fresh0 <= 7) {\n            goto c2da_fresh0 + 4\n        }\n        goto label 0\n"),
+        "{body}"
+    );
+    // The loop's `continue` inside an `if` of an arm moves out of line; the
+    // early `return` too.
+    assert!(
+        body.contains("[i])) == 4) {\n            goto label 1\n        }\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("        label 1:\n        continue\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("        if (acc > 1000) {\n            goto label 2\n        }\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("        label 2:\n        return -acc\n"),
+        "{body}"
+    );
+    // The site temporary of the region's list is hoisted for AOT.
+    assert!(body.contains("    var c2da_postinc : int\n"), "{body}");
+    // A switch that ends a loop body sends its `break` and its holes to the end,
+    // which is followed by the loop's step.
+    let body = function_body(&d, "tally");
+    assert!(
+        body.contains("        label 0:\n        label 6:\n        label 7:\n        i_0 += 1\n"),
+        "{body}"
+    );
+    // A switch that ends a void function: `break` is `return`, and the empty
+    // last arm and the holes share a trampoline.
+    let body = function_body(&d, "store");
+    assert!(
+        body.contains("    if (x >= 1 && x <= 9) {\n        goto x - 1\n    }\n    return\n    label 6:\n    label 8:\n    return\n"),
+        "{body}"
+    );
+    // Small switches whose arms never fall through are `if`/`elif` chains.
+    let body = function_body(&d, "in_arm");
+    assert!(
+        body.contains("    if (a != 0) {\n        if (b == 1) {\n            r = 1\n        } elif (b == 2) {\n            r = 2\n        }\n    } else {\n"),
+        "{body}"
+    );
+    let body = function_body(&d, "temporaries");
+    assert!(!body.contains("label"), "{body}");
+    assert!(
+        body.contains("        } else {\n            var c2da_postinc_1 : int = y\n"),
+        "{body}"
+    );
+    let body = function_body(&d, "no_cases");
+    assert!(body.contains("    x_1 += 1\n    return x_1"), "{body}");
+    // An `if` arm holding an inner region and the outer `break` is spliced
+    // into the outer region's labels, where that jump can land.
+    let body = function_body(&d, "break_past_region");
+    assert!(
+        body.contains(
+            "    label 0:\n    if (b_1 == 0) {\n        goto label 4\n    }\n    if (c == 1) {\n"
+        ),
+        "{body}"
+    );
+    assert!(
+        body.contains("    label 3:\n    goto label 6\n    label 4:\n    r_1 = 9\n"),
+        "{body}"
+    );
+}
+
+#[test]
+fn p162_bodies_with_goto_or_nested_cases_stay_flat() {
+    let d = transpile_with_libc(
+        "p162_structured_fallback",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    for name in [
+        "forward_goto",
+        "backward_goto",
+        "irreducible",
+        "duff",
+        "before_first_case",
+    ] {
+        let body = function_body(&d, name);
+        assert!(
+            body.contains("label 0:") && !body.contains("while"),
+            "{name} is flat: {body}"
+        );
+    }
+    let body = function_body(&d, "structured");
+    assert!(body.contains("    while (i_0 < n_1) {\n"), "{body}");
+    assert!(!body.contains("label"), "{body}");
 }
 
 #[test]

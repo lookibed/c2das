@@ -105,7 +105,20 @@ static void record(int k) {
 /* A `void` function whose last laid-out arm is a bare `return`: that arm is
  * reached through the jump table, and a label above nothing but the closing
  * `return` cannot be jumped to, so the table sends it to a `return` at the
- * top of the body. */
+ * top of the body.  The `goto` keeps this body on the flat back end (the
+ * structured one gives a `switch` its own region, `early_out`). */
+static void early_out_flat(int k) {
+    switch (k) {
+    case 1: g_seen += 10; goto after;
+    case 2: g_seen += 20; break;
+    case 3: g_seen += 30; break;
+    case 4: g_seen += 40; break;
+    case 5: return;
+    }
+after:
+    g_seen += 1000;
+}
+
 static void early_out(int k) {
     switch (k) {
     case 1: g_seen += 10; break;
@@ -165,6 +178,7 @@ int main(void) {
     g_seen = 0;
     for (int k = 0; k <= 6; k++) {
         early_out(k);
+        early_out_flat(k);
     }
     printf("early_out=%d\n", g_seen);
 
