@@ -142,6 +142,21 @@ field arrays; a separate decision), whole-record and whole-array copies, bitfiel
 every storage-backed record.  `p104-field-by-name`, `p105-field-by-offset-kept` and the source
 invariant `named_field_access_requires_a_layout_proof` are the fixtures.
 
+## Bitfield storage units
+
+A bitfield is loaded and stored through one object of its declared type (`layout.rs
+bitfield_unit`): the object aligned to that type's size that holds the field, when the field
+lies wholly inside it and it lies wholly inside the record — the storage unit the System V ABI
+allocates a bitfield of a non-packed record in.  `object_memory.rs` reads it with one aligned
+typed load, extracts the field from its bit offset in the unit, and a store is a
+read-modify-write of the unit that keeps every other bit.  Only a field of a packed record that
+straddles that object keeps the former place, the object of the declared type starting at the
+byte with the field's first bit, read and written byte-wise; that object can reach past the
+record's last byte (as before).  The former place for every bitfield read `struct color`'s `r`
+(bits 16..23) as four bytes from byte 2, through a misaligned copy and past the record's end.
+`p151-bitfield-storage-units` is the fixture.  (`unsigned short` and `_Bool` bitfields produce
+storage-type arithmetic daslang rejects, before and after this rule — an open gap.)
+
 ## Module-wide policy
 
 Facts that hold for the whole output rather than for one lowering — the `options` header and
@@ -183,7 +198,21 @@ the daScript AST, never off C: a C comparison is `int`, its daScript value `bool
 `T(U(x))` with `U` holding every value of `x`'s integer type is `T(x)`, and
 `c ? T(a) : T(b)` with `a`, `b` of one type is `T(c ? a : b)`.  Anything the rule cannot type
 — an unknown name, a builtin or overloaded call, a `null` argument, a `for` variable — keeps
-its conversion.  `p100-redundant-conversions` is the runtime fixture.  The one
+its conversion.  `p100-redundant-conversions` is the runtime fixture.
+
+The same pass writes an assignment statement `a = a op b` as daslang's `a op= b`
+(`fold.rs compound_assignment`) when the operation is daslang's own `+ - * / % & | ^ << >>` on
+one builtin `int`/`uint`/`int64`/`uint64` (or `float`/`double` for the arithmetic operators) —
+the operator typing rule above — the two `a` are the same expression, and `a` and `b` contain
+no call and no assignment, so evaluating `a` once instead of twice reads and writes the same
+memory.  C's `x += y`, `x++` and the runtime's loop counters reach it as `x = x + y`; the
+interpreter runs `x += y` as one node (a loop updating eight variables measured 29.8 → 18.9 ns
+per iteration; `-jit` is identical).  A narrow storage type (`uint8(int(b) + 1)`), a call in the
+value and the place on the right keep the assignment.  A typed pointer stepped by an `int` or
+`int64`, `p = unsafe(p + n)` (C's `p++`, `p += n`), is `unsafe { p += n }` under the same
+conditions — daslang's pointer `+=` moves by the same `n` elements, and the call-shaped
+`unsafe(…)` takes no assignment (Doom's column and span loops: 32.0 → 28.6 ns per pixel in a
+probe).  `p153-compound-assignment-spelling` is the fixture.  The one
 non-constant elision made in a lowering is where the type is known by construction: a compound assignment or
 `++`/`--` computes in the promoted C type `CArith` (`promote_operand`), so storing it back to an
 object whose storage is that same daScript type writes no conversion
@@ -328,6 +357,27 @@ daslang `enum` (daslang does not zero-fill an enumeration with no zero member), 
 When the body's first statement stores the last hoisted declaration, and the value does not
 name it, the value moves into the declaration.  `p102-local-declarations` is the fixture.
 
+daslang's interpreter initialises every hoisted `var` on each call (one node per variable,
+3–4 ns), so hoisted *site temporaries* whose lives cannot overlap share one variable
+(`cfg/labels.rs coalesce_site_temporaries`): a temporary whose run of top-level statements opens
+with the store its site declaration left, has no label after that store up to its last use (so
+control enters it only at its start), and is never under an `addr`, takes over the variable of
+an earlier temporary of the same type whose run has ended.  Each temporary is read only after its
+own store, so the values read are the same.  binjgb's `execute_instruction` (a 3500-line opcode
+`switch` called per emulated instruction) went from 155 hoisted variables to 25, and the
+interpreted emulator 25 % faster; C declarations are not coalesced (their C scopes are not tracked
+here).  `p154-coalesced-temporaries` is the fixture.  (A hoisted temporary of an enumeration with
+no zero member is declared `E()`, which daslang rejects — `error[30305]` — before and after this
+rule: an open gap.)
+
+A postfix `x++` / `x--` whose value is discarded — an expression statement, a `for` step, an
+operand of a statement-level comma — is lowered as the prefix operator
+(`cfg/mod.rs convert_expr_in_stmt_position`): C reads the old value nowhere, and copying it into
+a `c2da_postinc` temporary cost the interpreter one dead store per execution (11 % of
+pl_mpeg's executed statements).  Only the statement-level expression itself qualifies; a
+postfix operator inside a larger expression keeps the copy.  `p152-discarded-postfix-increments`
+is the fixture.
+
 A block-scope *function* declaration (`void later(void);` inside a body) produces no statement:
 it declares the file-scope function (C11 6.2.2p4–5).  When it is the function's first
 declaration it is Clang's canonical declaration, which the exporter gives the body and the
@@ -377,12 +427,26 @@ is named first and guarded by `!= 0`, because the builtin checks neither the siz
 pointers while C's `n == 0` is a no-op whatever the pointers hold.  All three operands are
 evaluated before the guard so C's argument evaluation order is kept when the copy is skipped;
 when the C result is used it is the named destination address.  `memset`, `memcmp` and
-`memchr` stay on the runtime helpers.  Because the builtins are named unqualified, a C
+`memchr` stay on the runtime helpers; `c2da_rt_memset` itself (C `memset`, `calloc`'s clearing)
+fills through daslang's builtin `memset8` in chunks of at most 2^30 bytes, since that builtin
+counts in `int` (a 256-byte fill: 11 ns against 4.2 µs for the former byte loop).  Because the builtins are named unqualified, a C
 translation unit that defines its own `memcpy`/`memmove` (a decoder's shim does) would
 shadow them; `renamer.rs DASCRIPT_BUILTIN_COPY_NAMESPACE` reserves the two names, so such a
 definition is emitted as `memcpy_0`.  With a daslang that lowers the builtins to LLVM
 intrinsics (upstream #4089) the constant-size copies inline under `-jit`; on a toolchain
 without it they are libc calls, and the measured gain is the interpreter's (6–27 %).
+
+The copies the translation makes itself go to the same builtins
+(`object_memory.rs object_byte_copy`): a storage-backed record read out of memory, assigned or
+initialized, a natural record moved in or out of raw storage, and a misaligned scalar moved
+through its typed temporary.  The size is the object's Clang size, a nonzero constant, and both
+addresses are objects of that size, so no guard is needed (a zero-sized object copies nothing).
+A copy into a temporary the lowering created is `memcpy`; an assignment between two C objects is
+`memmove`, because C lets them overlap exactly (`*p = *q` with `p == q`, C11 6.5.16.1p3).  Before,
+each was a call of the `c2da_rt_memcpy` byte loop, which the interpreter runs at about 65 ns for
+four bytes against 10 ns for the builtin; Doom's per-frame hash copies a four-byte `struct color`
+per pixel, and that loop alone was 81 % of the interpreted demo.  `c2da_rt_memcpy` remains for
+the runtime's own `realloc`.  `p150-object-byte-copies` is the fixture.
 
 ## The raw heap
 

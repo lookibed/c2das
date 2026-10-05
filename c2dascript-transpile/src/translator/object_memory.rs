@@ -3,6 +3,7 @@
 //! C layout is owned by `layout.rs`; this module only turns a known raw C
 //! address plus that layout into daScript lvalues.
 
+use super::runtime::CanonicalRuntimeFunction;
 use super::*;
 
 #[derive(Clone)]
@@ -42,7 +43,59 @@ pub(crate) struct NamedPlace {
     pub path: Vec<String>,
 }
 
+/// Whether the two objects of an object byte copy can share bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ObjectCopy {
+    /// One side is a temporary the copy's own lowering created.
+    Disjoint,
+    /// Both sides are C objects the program names; C lets an assignment's
+    /// two objects overlap exactly (C11 6.5.16.1p3), as in `*p = *q` with
+    /// `p == q`.
+    MayOverlap,
+}
+
 impl<'c> Translation<'c> {
+    /// Copy the `size` bytes of one C object to another, both named by raw
+    /// addresses: a by-value record copy, or a scalar moved through a typed
+    /// temporary because its place is misaligned.
+    ///
+    /// The copy is daslang's builtin `memcpy` (`memmove` when the objects
+    /// may overlap), the builtin a source-level C copy lowers to
+    /// (`runtime.rs CanonicalRuntimeFunction::builtin_copy`): one call of the
+    /// host's copy instead of a `c2da_rt_memcpy` byte loop, which the
+    /// interpreter runs a node per byte.  Both addresses are valid objects of
+    /// `size` bytes, so no guard is needed; a zero-sized object has nothing
+    /// to copy and yields no statement.
+    pub(crate) fn object_byte_copy(
+        &self,
+        dst: DaExpr,
+        src: DaExpr,
+        size: u64,
+        copy: ObjectCopy,
+    ) -> TranslationResult<Option<DaStmt>> {
+        if size == 0 {
+            return Ok(None);
+        }
+        let function = match copy {
+            ObjectCopy::Disjoint => CanonicalRuntimeFunction::Memcpy,
+            ObjectCopy::MayOverlap => CanonicalRuntimeFunction::Memmove,
+        };
+        let builtin = function
+            .builtin_copy()
+            .ok_or_else(|| TranslationError::generic("object copy has no daslang builtin"))?;
+        let size = i64::try_from(size)
+            .map_err(|_| TranslationError::generic("C object size exceeds daScript range"))?;
+        let void_ptr = DaType::pointer(DaType::void());
+        Ok(Some(DaStmt::Expr(DaExpr::Unsafe(Box::new(DaExpr::Call(
+            Box::new(DaExpr::Var(builtin.to_owned())),
+            vec![
+                self.raw_address_to_pointer(dst, void_ptr.clone()),
+                self.raw_address_to_pointer(src, void_ptr),
+                self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
+            ],
+        ))))))
+    }
+
     /// Recover an address-backed aggregate place from a member expression.
     ///
     /// A nested C access such as `outer->inner.count` must never materialize
@@ -341,12 +394,14 @@ impl<'c> Translation<'c> {
         base: CObjectAddress,
         field: CFieldId,
     ) -> TranslationResult<CObjectAddress> {
+        // A bitfield's place is the object its loads and stores go through
+        // (`layout.rs bitfield_unit`); `bitfield_load`/`bitfield_store` find
+        // the field's bits inside it.
         let offset = match self.ast_context[field].kind {
             CDeclKind::Field {
                 bitfield_width: Some(_),
-                platform_bit_offset,
                 ..
-            } => i64::try_from(platform_bit_offset / 8).map_err(|_| {
+            } => i64::try_from(self.bitfield_unit(field)?.byte_offset).map_err(|_| {
                 TranslationError::generic("bitfield byte offset exceeds daScript range")
             })?,
             _ => self.field_offset(field)?,
@@ -573,17 +628,12 @@ impl<'c> Translation<'c> {
                 var_type: target,
                 init: None,
             });
-            stmts.push(DaStmt::Expr(DaExpr::Call(
-                Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
-                vec![
-                    tmp_address,
-                    byte_address.val,
-                    self.integer_literal_for_type(
-                        DaExpr::ConstInt(storage_size as i64),
-                        DaType::uint64(),
-                    ),
-                ],
-            )));
+            stmts.extend(self.object_byte_copy(
+                tmp_address,
+                byte_address.val,
+                storage_size,
+                ObjectCopy::Disjoint,
+            )?);
             return Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(address.raw.is_unsafe));
         }
         let element_index = i64::try_from(address.byte_offset / storage_size).map_err(|_| {
@@ -656,17 +706,12 @@ impl<'c> Translation<'c> {
             init: Some(value.val),
         });
         stmts.extend(byte_address.stmts);
-        stmts.push(DaStmt::Expr(DaExpr::Call(
-            Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
-            vec![
-                byte_address.val,
-                tmp_address,
-                self.integer_literal_for_type(
-                    DaExpr::ConstInt(storage_size as i64),
-                    DaType::uint64(),
-                ),
-            ],
-        )));
+        stmts.extend(self.object_byte_copy(
+            byte_address.val,
+            tmp_address,
+            storage_size,
+            ObjectCopy::Disjoint,
+        )?);
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp))
             .merge_unsafe(address.raw.is_unsafe || value.is_unsafe))
     }
@@ -696,14 +741,12 @@ impl<'c> Translation<'c> {
             var_type: target,
             init: Some(self.default_initializer_for_ctype(address.ctype.ctype)?),
         });
-        stmts.push(DaStmt::Expr(DaExpr::Call(
-            Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
-            vec![
-                tmp_address,
-                byte_address.val,
-                self.integer_literal_for_type(DaExpr::ConstInt(size as i64), DaType::uint64()),
-            ],
-        )));
+        stmts.extend(self.object_byte_copy(
+            tmp_address,
+            byte_address.val,
+            size,
+            ObjectCopy::Disjoint,
+        )?);
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
     }
 
@@ -729,14 +772,12 @@ impl<'c> Translation<'c> {
             init: Some(value.val),
         });
         stmts.extend(byte_address.stmts);
-        stmts.push(DaStmt::Expr(DaExpr::Call(
-            Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
-            vec![
-                byte_address.val,
-                tmp_address,
-                self.integer_literal_for_type(DaExpr::ConstInt(size as i64), DaType::uint64()),
-            ],
-        )));
+        stmts.extend(self.object_byte_copy(
+            byte_address.val,
+            tmp_address,
+            size,
+            ObjectCopy::Disjoint,
+        )?);
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
     }
 
@@ -748,9 +789,8 @@ impl<'c> Translation<'c> {
         let (width, bit_offset) = match self.ast_context[field].kind {
             CDeclKind::Field {
                 bitfield_width: Some(width),
-                platform_bit_offset,
                 ..
-            } => (width, platform_bit_offset % 8),
+            } => (width, self.bitfield_unit(field)?.bit_offset),
             _ => {
                 return Err(TranslationError::generic(
                     "bitfield load requested for non-bitfield",
@@ -846,9 +886,8 @@ impl<'c> Translation<'c> {
         let (width, bit_offset) = match self.ast_context[field].kind {
             CDeclKind::Field {
                 bitfield_width: Some(width),
-                platform_bit_offset,
                 ..
-            } => (width, platform_bit_offset % 8),
+            } => (width, self.bitfield_unit(field)?.bit_offset),
             _ => {
                 return Err(TranslationError::generic(
                     "bitfield store requested for non-bitfield",

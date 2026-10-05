@@ -507,7 +507,22 @@ impl CfgBuilder {
             self.convert_expr_in_stmt_position(tr, ctx, lhs, out)?;
             return self.convert_expr_in_stmt_position(tr, ctx, rhs, out);
         }
-        let ws = tr.convert_expr(ctx.unused(), eid, None)?;
+        // `x++` / `x--` whose value is discarded — an expression statement, a
+        // `for` step — is `++x` / `--x`: the old value is never read, and
+        // saving it would cost the interpreter one dead store per execution.
+        let mut inner = eid;
+        while let CExprKind::Paren(_, paren_inner) = tr.ast_context[inner].kind {
+            inner = paren_inner;
+        }
+        let ws = match tr.ast_context[inner].kind {
+            CExprKind::Unary(ty, CUnOp::PostIncrement, arg, _) => {
+                tr.convert_pre_increment(ctx.unused(), ty, CBinOp::AssignAdd, arg)?
+            }
+            CExprKind::Unary(ty, CUnOp::PostDecrement, arg, _) => {
+                tr.convert_pre_increment(ctx.unused(), ty, CBinOp::AssignSubtract, arg)?
+            }
+            _ => tr.convert_expr(ctx.unused(), eid, None)?,
+        };
         out.extend(ws.stmts.into_iter().map(StmtOrDecl::Stmt));
         // The value of an expression statement is discarded.  A value with no
         // side effect of its own — what `(void)x;` and a hoisted `x++` leave

@@ -58,6 +58,7 @@
 
 use super::*;
 use das_ast::{DaBlock, DaExpr, DaStmt, DaType, DaTypeKind};
+use std::collections::{HashMap, HashSet};
 
 /// What has to be emitted after a block's own statements.
 enum Tail {
@@ -466,8 +467,9 @@ fn render_once(
     // Step 4: a body with jumps in it must also be valid C++ once daslang's AOT
     // has emitted it; see `hoist_site_temporaries`.
     let mut body_start = hoisted_len;
+    let mut stored_at_site: HashSet<String> = HashSet::new();
     if has_labels {
-        body_start = hoist_site_temporaries(&mut out, hoisted_len, zero_fills);
+        body_start = hoist_site_temporaries(&mut out, hoisted_len, zero_fills, &mut stored_at_site);
     }
 
     // Step 5: repair labels daScript would leave dangling at the end of the
@@ -499,6 +501,10 @@ fn render_once(
     // if-return folding would carry it into a nested block; see
     // `move_crossed_early_exits`.
     move_crossed_early_exits(&mut out, body_start);
+
+    // Step 5c: site temporaries whose lives cannot overlap share one
+    // variable; see `coalesce_site_temporaries`.
+    coalesce_site_temporaries(&mut out, hoisted_len, body_start, &stored_at_site);
 
     // Step 6: the body's first statement may be the store that initialises
     // the last hoisted declaration; see `initialise_last_declaration`.
@@ -606,15 +612,18 @@ fn drop_returns_after_return(out: &mut Vec<DaStmt>) {
 /// initializer, whose declaration-only spelling differs from its assignment
 /// spelling (`typed_initializer_text` in `das_ast`).
 ///
-/// Returns the index of the first body statement after the declarations.
+/// Returns the index of the first body statement after the declarations;
+/// `stored_at_site` receives the temporaries whose site declaration had a
+/// value and so became a store at the site.
 fn hoist_site_temporaries(
     out: &mut Vec<DaStmt>,
     at: usize,
     zero_fills: &dyn Fn(&DaType) -> bool,
+    stored_at_site: &mut HashSet<String>,
 ) -> usize {
     let mut declarations: Vec<DaStmt> = Vec::new();
     let body: Vec<DaStmt> = out.drain(at..).collect();
-    let body = hoist_in_stmts(body, &mut declarations);
+    let body = hoist_in_stmts(body, &mut declarations, stored_at_site);
     for declaration in &mut declarations {
         if let DaStmt::Var { var_type, init, .. } = declaration {
             if zero_fills(var_type) {
@@ -628,7 +637,11 @@ fn hoist_site_temporaries(
     body_start
 }
 
-fn hoist_in_stmts(stmts: Vec<DaStmt>, declarations: &mut Vec<DaStmt>) -> Vec<DaStmt> {
+fn hoist_in_stmts(
+    stmts: Vec<DaStmt>,
+    declarations: &mut Vec<DaStmt>,
+    stored_at_site: &mut HashSet<String>,
+) -> Vec<DaStmt> {
     let mut result: Vec<DaStmt> = Vec::with_capacity(stmts.len());
     for stmt in stmts {
         match stmt {
@@ -646,23 +659,32 @@ fn hoist_in_stmts(stmts: Vec<DaStmt>, declarations: &mut Vec<DaStmt>) -> Vec<DaS
                     init: Some(default),
                 });
                 if let Some(value) = init {
+                    stored_at_site.insert(name.clone());
                     result.push(DaStmt::Expr(DaExpr::Assign(
                         Box::new(DaExpr::Var(name)),
                         Box::new(value),
                     )));
                 }
             }
-            DaStmt::Expr(expr) => result.push(DaStmt::Expr(hoist_in_expr(expr, declarations))),
+            DaStmt::Expr(expr) => result.push(DaStmt::Expr(hoist_in_expr(
+                expr,
+                declarations,
+                stored_at_site,
+            ))),
             other => result.push(other),
         }
     }
     result
 }
 
-fn hoist_in_expr(expr: DaExpr, declarations: &mut Vec<DaStmt>) -> DaExpr {
+fn hoist_in_expr(
+    expr: DaExpr,
+    declarations: &mut Vec<DaStmt>,
+    stored_at_site: &mut HashSet<String>,
+) -> DaExpr {
     match expr {
         DaExpr::Block(block) => DaExpr::Block(DaBlock {
-            stmts: hoist_in_stmts(block.stmts, declarations),
+            stmts: hoist_in_stmts(block.stmts, declarations, stored_at_site),
         }),
         DaExpr::IfThenElse {
             cond,
@@ -671,17 +693,263 @@ fn hoist_in_expr(expr: DaExpr, declarations: &mut Vec<DaStmt>) -> DaExpr {
             else_,
         } => DaExpr::IfThenElse {
             cond,
-            then: Box::new(hoist_in_expr(*then, declarations)),
+            then: Box::new(hoist_in_expr(*then, declarations, stored_at_site)),
             elifs: elifs
                 .into_iter()
-                .map(|(test, arm)| (test, hoist_in_expr(arm, declarations)))
+                .map(|(test, arm)| (test, hoist_in_expr(arm, declarations, stored_at_site)))
                 .collect(),
-            else_: else_.map(|arm| Box::new(hoist_in_expr(*arm, declarations))),
+            else_: else_.map(|arm| Box::new(hoist_in_expr(*arm, declarations, stored_at_site))),
         },
-        DaExpr::While(cond, body) => {
-            DaExpr::While(cond, Box::new(hoist_in_expr(*body, declarations)))
-        }
+        DaExpr::While(cond, body) => DaExpr::While(
+            cond,
+            Box::new(hoist_in_expr(*body, declarations, stored_at_site)),
+        ),
         other => other,
+    }
+}
+
+/// Let hoisted site temporaries whose lives cannot overlap share one `var`.
+///
+/// Hoisting turns every temporary of the body into a declaration at the top,
+/// and daslang's interpreter initialises each declared `var` on every call
+/// (one node per variable, about 3–4 ns): a function that lowers many C
+/// statements — binjgb's `execute_instruction`, a 3500-line opcode switch —
+/// paid for 147 temporaries, 130 of them `Bool`, on each of its millions of
+/// calls, whichever opcode ran.  A temporary lives from its site store to its
+/// last use, inside the statements of the C expression that made it, so two
+/// temporaries of one type whose lives are disjoint can be the same variable.
+///
+/// A temporary qualifies when its life is a run of top-level statements that
+/// control can enter only at its start — it begins with the store
+/// `t = value` the site declaration left (`stored_at_site`, the value not
+/// reading `t`), and no label lies after that store up to its last use — and
+/// nothing takes its address (an `addr` of it could outlive the run).  Within
+/// one type, qualifying temporaries are packed greedily in order of their
+/// first statement onto variables whose previous occupant's run has ended;
+/// the others keep their own.  Every name is unique in the function, so a
+/// rename cannot capture anything.  The program reads each temporary only
+/// after its own store, so it reads the same values; the AOT's C++ sees fewer
+/// declarations above the same jumps.
+fn coalesce_site_temporaries(
+    out: &mut Vec<DaStmt>,
+    declarations_at: usize,
+    body_start: usize,
+    stored_at_site: &HashSet<String>,
+) {
+    if stored_at_site.is_empty() {
+        return;
+    }
+    let mut runs: HashMap<String, (usize, usize)> = HashMap::new();
+    let mut addressed: Vec<String> = Vec::new();
+    let mut labels: Vec<usize> = Vec::new();
+    for (index, stmt) in out.iter().enumerate().skip(body_start) {
+        if is_label(stmt) {
+            labels.push(index);
+            continue;
+        }
+        let mut names = Vec::new();
+        match stmt {
+            DaStmt::Expr(expr) => {
+                crate::translator::collect_names(expr, &mut names);
+                collect_addressed(expr, &mut addressed);
+            }
+            DaStmt::Var {
+                init: Some(expr), ..
+            }
+            | DaStmt::Let {
+                init: Some(expr), ..
+            } => {
+                crate::translator::collect_names(expr, &mut names);
+                collect_addressed(expr, &mut addressed);
+            }
+            _ => {}
+        }
+        for name in names {
+            runs.entry(name)
+                .and_modify(|run| run.1 = index)
+                .or_insert((index, index));
+        }
+    }
+    let opens_with_store = |name: &str, first: usize| match &out[first] {
+        DaStmt::Expr(DaExpr::Assign(target, value)) => {
+            let mut read = Vec::new();
+            crate::translator::collect_names(value, &mut read);
+            matches!(target.as_ref(), DaExpr::Var(assigned) if assigned == name)
+                && !read.iter().any(|read| read == name)
+        }
+        _ => false,
+    };
+    // Qualifying temporaries, grouped by type in declaration order.
+    let mut groups: Vec<(DaType, Vec<(usize, usize, String)>)> = Vec::new();
+    for stmt in &out[declarations_at..body_start] {
+        let DaStmt::Var { name, var_type, .. } = stmt else {
+            continue;
+        };
+        if !stored_at_site.contains(name) || addressed.iter().any(|a| a == name) {
+            continue;
+        }
+        let Some(&(first, last)) = runs.get(name) else {
+            continue;
+        };
+        if !opens_with_store(name, first) || labels.iter().any(|&l| l > first && l <= last) {
+            continue;
+        }
+        match groups.iter_mut().find(|(ty, _)| ty == var_type) {
+            Some((_, members)) => members.push((first, last, name.clone())),
+            None => groups.push((var_type.clone(), vec![(first, last, name.clone())])),
+        }
+    }
+    let mut renamed: HashMap<String, String> = HashMap::new();
+    for (_, mut members) in groups {
+        members.sort_by_key(|(first, _, _)| *first);
+        // Each shared variable: the last statement of its current occupant.
+        let mut shared: Vec<(usize, String)> = Vec::new();
+        for (first, last, name) in members {
+            match shared.iter_mut().find(|(ends, _)| *ends < first) {
+                Some(slot) => {
+                    slot.0 = last;
+                    renamed.insert(name, slot.1.clone());
+                }
+                None => shared.push((last, name)),
+            }
+        }
+    }
+    if renamed.is_empty() {
+        return;
+    }
+    let mut index = 0;
+    out.retain(|stmt| {
+        let keep = index < declarations_at
+            || index >= body_start
+            || !matches!(stmt, DaStmt::Var { name, .. } if renamed.contains_key(name));
+        index += 1;
+        keep
+    });
+    for stmt in out.iter_mut() {
+        match stmt {
+            DaStmt::Expr(expr) => rename_vars(expr, &renamed),
+            DaStmt::Var {
+                init: Some(expr), ..
+            }
+            | DaStmt::Let {
+                init: Some(expr), ..
+            } => rename_vars(expr, &renamed),
+            _ => {}
+        }
+    }
+}
+
+/// Every name read under an `addr` in `expr`.
+fn collect_addressed(expr: &DaExpr, out: &mut Vec<String>) {
+    fn walk(expr: &mut DaExpr, out: &mut Vec<String>) {
+        if let DaExpr::Addr(inner) = expr {
+            crate::translator::collect_names(inner, out);
+        }
+        for_each_child(expr, &mut |child| walk(child, out));
+    }
+    walk(&mut expr.clone(), out);
+}
+
+/// Rename the variables `renamed` names, everywhere in `expr`.
+fn rename_vars(expr: &mut DaExpr, renamed: &HashMap<String, String>) {
+    if let DaExpr::Var(name) = expr {
+        if let Some(new_name) = renamed.get(name) {
+            *name = new_name.clone();
+        }
+        return;
+    }
+    for_each_child(expr, &mut |child| rename_vars(child, renamed));
+}
+
+/// Call `f` on every direct sub-expression of `expr`, statements of nested
+/// blocks included.
+fn for_each_child(expr: &mut DaExpr, f: &mut dyn FnMut(&mut DaExpr)) {
+    use DaExpr::*;
+    let mut block = |block: &mut DaBlock, f: &mut dyn FnMut(&mut DaExpr)| {
+        for stmt in &mut block.stmts {
+            match stmt {
+                DaStmt::Expr(e) => f(e),
+                DaStmt::Var { init: Some(e), .. }
+                | DaStmt::Let { init: Some(e), .. }
+                | DaStmt::Param {
+                    default: Some(e), ..
+                } => f(e),
+                _ => {}
+            }
+        }
+    };
+    match expr {
+        ConstInt(_)
+        | ConstUInt(_)
+        | ConstFloat(_)
+        | ConstDouble(_)
+        | ConstBool(_)
+        | ConstString(_)
+        | ConstNull
+        | Var(_)
+        | Break
+        | Continue
+        | Goto(_)
+        | Label(_)
+        | FuncRef(_)
+        | DefaultValue(_)
+        | TypeInfo { .. } => {}
+        Field(e, _)
+        | SafeField(e, _)
+        | Op1 { expr: e, .. }
+        | GotoComputed(e)
+        | Delete(e)
+        | Addr(e)
+        | Deref(e)
+        | DerefExplicit(e)
+        | Unsafe(e)
+        | Cast { expr: e, .. } => f(e),
+        Index(a, b) | SafeIndex(a, b) | Assign(a, b) | Pipe(a, b) | While(a, b) => {
+            f(a);
+            f(b);
+        }
+        Op2 { left, right, .. } | AssignOp { left, right, .. } => {
+            f(left);
+            f(right);
+        }
+        Op3 { cond, then, else_ } => {
+            f(cond);
+            f(then);
+            f(else_);
+        }
+        Call(callee, args) | New(callee, args) => {
+            f(callee);
+            args.iter_mut().for_each(|a| f(a));
+        }
+        Block(b) => block(b, f),
+        MakeBlock { body, .. } => block(body, f),
+        IfThenElse {
+            cond,
+            then,
+            elifs,
+            else_,
+        } => {
+            f(cond);
+            f(then);
+            for (c, e) in elifs {
+                f(c);
+                f(e);
+            }
+            if let Some(e) = else_ {
+                f(e);
+            }
+        }
+        For { sources, body, .. } => {
+            sources.iter_mut().for_each(|s| f(s));
+            f(body);
+        }
+        Return(v) => {
+            if let Some(v) = v {
+                f(v);
+            }
+        }
+        MakeStruct { fields, .. } => fields.iter_mut().for_each(|(_, e)| f(e)),
+        MakeArray(items) | MakeFixedArray { items, .. } => items.iter_mut().for_each(|e| f(e)),
     }
 }
 
@@ -1390,6 +1658,83 @@ mod tests {
             call("report"),
             goto(1),
             ret(),
+        ];
+        assert_eq!(text(&out), text(&expected));
+    }
+
+    #[test]
+    fn site_temporaries_with_disjoint_lives_share_a_variable() {
+        let var = |name: &str| DaExpr::Var(name.to_string());
+        let decl = |name: &str, ty: DaType| DaStmt::Var {
+            name: name.to_string(),
+            var_type: ty,
+            init: None,
+        };
+        let store =
+            |name: &str, value: DaExpr| stmt(DaExpr::Assign(Box::new(var(name)), Box::new(value)));
+        let use_ = |name: &str| stmt(DaExpr::Call(Box::new(var("sink")), vec![var(name)]));
+        let mut out = vec![
+            decl("a", DaType::int()),
+            decl("b", DaType::int()),
+            decl("c", DaType::uint()),
+            decl("d", DaType::int()),
+            decl("e", DaType::int()),
+            decl("f", DaType::int()),
+            decl("g", DaType::int()),
+            // `a`, then `b` after it: one variable.  `c` is another type.
+            store("a", DaExpr::ConstInt(1)),
+            use_("a"),
+            store("b", DaExpr::ConstInt(2)),
+            store("c", DaExpr::ConstUInt(3)),
+            use_("b"),
+            use_("c"),
+            // `d` spans a label: control can enter its middle.
+            store("d", DaExpr::ConstInt(4)),
+            label(0),
+            use_("d"),
+            // `e` has its address taken; `f` opens with a read, not a store.
+            store("e", DaExpr::ConstInt(5)),
+            stmt(DaExpr::Call(
+                Box::new(var("keep")),
+                vec![DaExpr::Addr(Box::new(var("e")))],
+            )),
+            use_("f"),
+            store("f", DaExpr::ConstInt(6)),
+            // `g` after everything: shares `a`'s variable again.
+            store("g", DaExpr::ConstInt(7)),
+            use_("g"),
+            goto(0),
+        ];
+        let stored: HashSet<String> = ["a", "b", "c", "d", "e", "f", "g"]
+            .iter()
+            .map(|name| name.to_string())
+            .collect();
+        coalesce_site_temporaries(&mut out, 0, 7, &stored);
+        let expected = vec![
+            decl("a", DaType::int()),
+            decl("c", DaType::uint()),
+            decl("d", DaType::int()),
+            decl("e", DaType::int()),
+            decl("f", DaType::int()),
+            store("a", DaExpr::ConstInt(1)),
+            use_("a"),
+            store("a", DaExpr::ConstInt(2)),
+            store("c", DaExpr::ConstUInt(3)),
+            use_("a"),
+            use_("c"),
+            store("d", DaExpr::ConstInt(4)),
+            label(0),
+            use_("d"),
+            store("e", DaExpr::ConstInt(5)),
+            stmt(DaExpr::Call(
+                Box::new(var("keep")),
+                vec![DaExpr::Addr(Box::new(var("e")))],
+            )),
+            use_("f"),
+            store("f", DaExpr::ConstInt(6)),
+            store("a", DaExpr::ConstInt(7)),
+            use_("a"),
+            goto(0),
         ];
         assert_eq!(text(&out), text(&expected));
     }

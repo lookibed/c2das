@@ -64,7 +64,7 @@ def c2da_rt_take_free(need : uint64) : int {
                 break
             }
         }
-        slot = slot - 1
+        slot -= 1
     }
     if (best >= 0) {
         c2da_rt_alloc_free[best_slot] = c2da_rt_alloc_free[length(c2da_rt_alloc_free) - 1]
@@ -149,10 +149,11 @@ def c2da_rt_realloc(address : uint64; size : uint64) : uint64 {
     return replacement
 }
 def c2da_rt_memset(dst : uint64; value : uint8; count : uint64) : uint64 {
-    var i : uint64 = 0x0
-    while (i < count) {
-        unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = value
-        i = i + 0x1
+    var done : uint64 = 0x0
+    while (done < count) {
+        let chunk : uint64 = count - done < 0x40000000ul ? count - done : 0x40000000ul
+        unsafe(memset8(unsafe(reinterpret<void?>(dst + done)), value, int(chunk)))
+        done += chunk
     }
     return dst
 }

@@ -274,7 +274,7 @@ fn p99_conditionals_without_statements_are_daslang_expressions() {
     // A right operand or an arm with statements keeps the guarded flag, so
     // `i++` runs only when C evaluates it.
     assert!(d.contains(
-        "if (x > y) {\n        c2da_postinc_2 = i_0\n        i_0 = i_0 + 1\n        if (c2da_postinc_2 != 0) {"
+        "if (x > y) {\n        c2da_postinc_1 = i_0\n        i_0 += 1\n        if (c2da_postinc_1 != 0) {"
     ));
     assert!(d.contains(" = note(10, i_0)\n    }\n    value_0 = c2da_fresh"));
     // A pointer arm whose conversion to the result type the lowering spells
@@ -292,7 +292,7 @@ fn p100_conversions_of_values_already_of_the_target_type_are_dropped() {
     // An `int` index, a `u32` call with `u32` arguments, arithmetic of two
     // `int64`s and a load through a `const` pointer are already the type
     // the conversion names.
-    assert!(d.contains("total = total + unsafe(unsafe(addr(table_0[0]))[i_0])"));
+    assert!(d.contains("total += unsafe(unsafe(addr(table_0[0]))[i_0])"));
     assert!(d.contains("bits = get_bits(word_0, 8u)\n"));
     assert!(d.contains("more = 16u * get_bits(word_0, 4u)\n"));
     assert!(d.contains("return ns / 1000000000l\n"));
@@ -326,7 +326,7 @@ fn p102_locals_are_declared_bare_and_initialised_in_place() {
     assert!(d.contains("    var p_0 : int?\n    var pt_0 : point\n    var cur : cursor_t\n"));
     assert!(d.contains("    var wr : wrapped\n"));
     // A hoisted site temporary of a pointer alias is bare too.
-    assert!(d.contains("    var c2da_postinc_2 : cursor_t\n"));
+    assert!(d.contains("    var c2da_postinc : cursor_t\n"));
     // A storage-backed union and a daslang `enum` keep their explicit value.
     assert!(d.contains("var b_0 : bits = bits(c2da_storage = c2da_rt_calloc(1ul, 4ul))"));
     assert!(d.contains("var c : colour = colour()"));
@@ -338,7 +338,7 @@ fn p102_locals_are_declared_bare_and_initialised_in_place() {
     assert!(d.contains("    var self : uint8?\n    self = unsafe(addr<uint8?>(self))\n"));
     // One `return` closes a void function whose early `return` was laid out
     // after the closing one.
-    assert!(d.contains("    g_state = g_state + b_1\n    return\n}\n"));
+    assert!(d.contains("    g_state += b_1\n    return\n}\n"));
     assert!(
         !d.contains("    return\n    return\n"),
         "unreachable second return"
@@ -360,10 +360,10 @@ fn p113_block_scope_function_declarations_emit_the_function_at_module_scope() {
 fn p114_assignment_arguments_are_hoisted_values() {
     let d = transpile("p114_assignment_arguments");
     // A call statement's assignment argument: the store, then its value.
-    assert!(d.contains("    x = x - 8\n    sink(x, unsafe(addr<int?>(out_0)))\n"));
+    assert!(d.contains("    x -= 8\n    sink(x, unsafe(addr<int?>(out_0)))\n"));
     assert!(d.contains("    *p = 7\n    sink(*p, unsafe(addr<int?>(out_0)))\n"));
-    assert!(d.contains("    bits = bits << 4u\n    note(bits)\n"));
-    assert!(d.contains("    total = total + i\n    sink(total, unsafe(addr<int?>(out_0)))\n"));
+    assert!(d.contains("    bits <<= 4u\n    note(bits)\n"));
+    assert!(d.contains("    total += i\n    sink(total, unsafe(addr<int?>(out_0)))\n"));
     assert!(!d.contains("sink(x = "), "assignment printed inside a call");
 }
 
@@ -459,7 +459,7 @@ fn p104_proven_record_fields_are_accessed_by_name() {
     // A read-modify-write through a call evaluates the call once and binds
     // the typed record pointer, not a raw address.
     assert!(d.contains(
-        "    var c2da_fresh0 : Node? = unsafe(reinterpret<Node?>(pick(n_4)))\n    c2da_fresh0.count = c2da_fresh0.count + 2\n"
+        "    var c2da_fresh0 : Node? = unsafe(reinterpret<Node?>(pick(n_4)))\n    c2da_fresh0.count += 2\n"
     ));
     assert_eq!(d.matches("pick(n_4)").count(), 3);
     // No byte-offset field access is left in the functions that use only
@@ -520,7 +520,7 @@ fn p105_unproven_and_address_places_keep_byte_offsets() {
             "bits_of",
             "unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(b))))[0]) >> 3",
         ),
-        ("packed_of", "unsafe(reinterpret<uint64>(p)) + 1ul, 4ul)"),
+        ("packed_of", "unsafe(reinterpret<uint64>(p)) + 1ul)), 4ul))"),
         (
             "aligned_of",
             "unsafe(unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(a))))[4])",
@@ -695,7 +695,7 @@ fn p132_storage_objects_keep_their_storage() {
     // initializer's bytes into it instead of replacing the wrappers.
     assert!(d.contains("var ring : node[3] = c2da_records_node_3(c2da_rt_calloc(1ul, 63ul))"));
     assert!(d.contains(
-        "        var c2da_fresh18 : node[3] = c2da_ginit_ring()\n        for (c2da_fresh19, c2da_fresh20 in ring, c2da_fresh18) {\n            c2da_rt_memcpy(c2da_fresh19.c2da_storage, c2da_fresh20.c2da_storage, 21ul)\n"
+        "        var c2da_fresh18 : node[3] = c2da_ginit_ring()\n        for (c2da_fresh19, c2da_fresh20 in ring, c2da_fresh18) {\n            unsafe(memmove(unsafe(reinterpret<void?>(c2da_fresh19.c2da_storage)), unsafe(reinterpret<void?>(c2da_fresh20.c2da_storage)), 21ul))\n"
     ));
     assert!(!d.contains("ring = c2da_ginit_ring()") && !d.contains("states = c2da_ginit_states()"));
     // An initialised (acyclic) array is built the same way.
@@ -703,12 +703,14 @@ fn p132_storage_objects_keep_their_storage() {
         d.contains("var table_0 : pair_t[3] = c2da_records_pair_t_3(c2da_rt_calloc(1ul, 15ul))")
     );
     // Assignment writes bytes; the wrapper is never replaced.
-    assert!(d.contains("c2da_rt_memcpy(cell.c2da_storage, other.c2da_storage, 4ul)"));
+    assert!(d.contains(
+        "unsafe(memmove(unsafe(reinterpret<void?>(cell.c2da_storage)), unsafe(reinterpret<void?>(other.c2da_storage)), 4ul))"
+    ));
     assert!(!d.contains("    cell = "));
     // A loop-body declaration copies into the object the function holds:
     // no allocation per pass.
     assert!(d.contains(
-        "    label 1:\n    c2da_rt_memcpy(local.c2da_storage, unsafe(unsafe(addr(table_0[0]))[i]).c2da_storage, 5ul)\n"
+        "    label 1:\n    unsafe(memmove(unsafe(reinterpret<void?>(local.c2da_storage)), unsafe(reinterpret<void?>(unsafe(unsafe(addr(table_0[0]))[i]).c2da_storage)), 5ul))\n"
     ));
 }
 
@@ -799,6 +801,202 @@ fn p141_integers_widen_to_the_address_before_becoming_pointers() {
     assert!(d.contains("return unsafe(reinterpret<action_t>(0xfffffffffffffffful))"));
     assert!(d.contains("return unsafe(reinterpret<action_t>(uint64(n_1)))"));
     assert!(!d.contains("reinterpret<action_t>(-1)"));
+}
+
+/// The text of the translated function `name`, from its `def` to its end.
+fn function_body<'a>(d: &'a str, name: &str) -> &'a str {
+    d.split(&format!("def {name}("))
+        .nth(1)
+        .and_then(|rest| rest.split("\n}\n").next())
+        .unwrap_or_else(|| panic!("{name} is translated"))
+}
+
+#[test]
+fn p150_object_copies_are_daslang_builtin_copies() {
+    let d = transpile_with_libc(
+        "p150_object_byte_copies",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    let body = function_body(&d, "main_0");
+    // No object copy runs the runtime's byte loop.
+    assert!(!body.contains("c2da_rt_memcpy"), "{body}");
+    // An assignment between two C objects may overlap exactly: `memmove`,
+    // here `words[1] = words[1]`.
+    assert!(
+        body.contains(
+            "unsafe(memmove(unsafe(reinterpret<void?>(unsafe(unsafe(addr(words[0]))[1]).c2da_storage)), \
+             unsafe(reinterpret<void?>(unsafe(unsafe(addr(words[0]))[1]).c2da_storage)), 4ul))"
+        ),
+        "{body}"
+    );
+    // A copy into a temporary of its own: `memcpy` (the union read out of
+    // `*q`, the packed record read out of `*pk`).
+    assert!(body.contains("4ul))\n    unsafe(memmove(unsafe(reinterpret<void?>(unsafe(reinterpret<uint64>(p_0))))"), "{body}");
+    assert!(
+        body.contains("unsafe(reinterpret<void?>(unsafe(reinterpret<uint64>(pk)))), 7ul))"),
+        "{body}"
+    );
+    // A misaligned scalar moves through a typed temporary, four bytes from
+    // offset 1 of the packed record.
+    assert!(
+        body.contains(
+            "unsafe(memcpy(unsafe(reinterpret<void?>(unsafe(reinterpret<uint64>(pk)) + 1ul)), \
+             unsafe(reinterpret<void?>(unsafe(reinterpret<uint64>(unsafe(addr(c2da_fresh"
+        ),
+        "{body}"
+    );
+}
+
+#[test]
+fn p151_bitfields_go_through_their_aligned_storage_unit() {
+    let d = transpile_with_libc(
+        "p151_bitfield_storage_units",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    let body = function_body(&d, "main_0");
+    // `color.r` is bits 16..23 of the four-byte unit at offset 0: one aligned
+    // load, never a four-byte copy from byte 2 (two bytes past the record).
+    assert!(
+        body.contains(
+            "unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(last))))[0]) >> 16 & 0xff"
+        ),
+        "{body}"
+    );
+    assert!(
+        !body.contains("unsafe(reinterpret<uint64>(last)) + 2ul"),
+        "{body}"
+    );
+    // The read-modify-write keeps the other fields of the unit.
+    assert!(body.contains("[0]) & 0xff00ffffu | "), "{body}");
+    // A 40-bit field of a `long long` is the eight-byte unit.
+    assert!(
+        body.contains("unsafe(unsafe(reinterpret<uint64?>(w.c2da_storage))[0]) >> 40 & 0xffffff"),
+        "{body}"
+    );
+    // A packed record's field that straddles its unit keeps the byte path.
+    assert!(body.contains(".c2da_storage + 3ul)), 4ul))"), "{body}");
+}
+
+#[test]
+fn p152_discarded_postfix_increments_save_no_old_value() {
+    let d = transpile_with_libc(
+        "p152_discarded_postfix_increments",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    let body = function_body(&d, "main_0");
+    // `for` steps, statements and a statement-level comma: no copy.
+    assert!(
+        body.contains("    total += i\n    i += 1\n    goto label 0\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    total += 1\n    i += 1\n    j -= 1\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    unsafe {\n        p += 1\n    }\n"),
+        "{body}"
+    );
+    // Used values keep the old value: `a[i++]`, `y = i--`, `*q++ = 5`,
+    // `while (n--)` (the disjoint `int` copies share one variable,
+    // `p154-coalesced-temporaries`).
+    assert!(
+        body.contains(
+            "c2da_postinc = i\n    i += 1\n    unsafe(unsafe(addr(a[0]))[c2da_postinc]) = 7"
+        ),
+        "{body}"
+    );
+    assert!(
+        body.contains("c2da_postinc = i\n    i -= 1\n    y = c2da_postinc"),
+        "{body}"
+    );
+    assert!(body.contains("*c2da_postinc_6 = 5"), "{body}");
+    assert!(
+        body.contains("c2da_postinc = n\n    n -= 1\n    if (c2da_postinc != 0)"),
+        "{body}"
+    );
+}
+
+#[test]
+fn p153_self_updates_are_compound_assignments() {
+    let d = transpile_with_libc(
+        "p153_compound_assignment_spelling",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    let body = function_body(&d, "main_0");
+    for update in [
+        "x += 3",
+        "x *= 4",
+        "x /= 3",
+        "x %= 7",
+        "x <<= 2",
+        "x >>= 1",
+        "x |= 64",
+        "x &= 127",
+        "x ^= 5",
+        "u >>= 4u",
+        "ll -= 100l",
+        "ull <<= 40ul",
+        "f += 0.25",
+        "d -= 0.5lf",
+        "unsafe(unsafe(addr(arr[0]))[i]) *= 3",
+        "unsafe(unsafe(addr(arr[0]))[i - 1]) += unsafe(unsafe(addr(arr[0]))[i])",
+        "*p -= 1",
+        "a.count += 1",
+        "pa.mean += 0.5lf",
+        "global_total *= 2",
+        "i += k",
+    ] {
+        assert!(
+            body.contains(&format!("    {update}\n")),
+            "{update}: {body}"
+        );
+    }
+    // Kept: a narrow storage type computed in `int`, a call in the value, and
+    // the place as the right operand.
+    assert!(body.contains("    b = uint8(int(b) + 1)\n"), "{body}");
+    assert!(body.contains("    s = int16(int(s) * 3)\n"), "{body}");
+    assert!(body.contains("    x = x + twice(x)\n"), "{body}");
+    assert!(body.contains("    x = 1 - x\n"), "{body}");
+    // A typed pointer stepped by an `int` or `int64` is a pointer `+=` in an
+    // `unsafe` block.
+    assert!(
+        body.contains(
+            "    unsafe {\n        walk += 1\n    }\n    unsafe {\n        walk += stride\n    }\n"
+        ),
+        "{body}"
+    );
+}
+
+#[test]
+fn p154_disjoint_site_temporaries_share_their_variables() {
+    let d = transpile_with_libc(
+        "p154_coalesced_temporaries",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    let body = function_body(&d, "step");
+    // Seven enumeration temporaries of the `switch` arms are two variables,
+    // four post-increment values two, two field addresses one.
+    assert!(
+        body.contains(
+            "    var r : int\n    var keep : int?\n    var c2da_fresh7 : answer_t = answer_t()\n    \
+             var c2da_fresh2 : answer_t = answer_t()\n    var c2da_postinc : int\n    \
+             var c2da_fresh4 : int?\n    var c2da_postinc_2 : int\n    r = 0\n"
+        ),
+        "{body}"
+    );
+    // Overlapping lives keep their own variables: `s->n-- + s->n++`.
+    assert!(
+        body.contains(
+            "    c2da_postinc = s.n\n    s.n = c2da_postinc - 1\n    c2da_postinc_2 = s.n\n"
+        ),
+        "{body}"
+    );
+    // A chain assignment's two values are both live at once.
+    assert!(
+        body.contains("    s.c = c2da_fresh7\n    c2da_fresh2 = c2da_fresh7\n"),
+        "{body}"
+    );
 }
 
 #[test]
@@ -1069,8 +1267,8 @@ fn p39_packed_scalar_uses_memcpy_not_typed_deref() {
     let d = transpile("p39_packed_scalar");
     assert!(d.contains("def packed_scalar_runtime() : int"));
     assert!(
-        d.contains("c2da_rt_memcpy("),
-        "packed access must cross the runtime copy boundary"
+        d.contains("unsafe(memcpy("),
+        "packed access must go through a byte copy"
     );
     assert!(
         !d.contains("reinterpret<uint?>(pair)))["),

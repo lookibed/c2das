@@ -22,6 +22,10 @@ use das_ast::{CastKind, DaBlock, DaDecl, DaExpr, DaFunction, DaStmt, DaType, DaV
 /// never truncated.
 pub const HEAP_RESERVE_BYTES: u64 = 1024 * 1024 * 1024;
 
+/// The most bytes `c2da_rt_memset` hands daslang's `memset8` at once: its
+/// count is an `int`.
+const MEMSET_CHUNK_BYTES: u64 = 1 << 30;
+
 /// C's `malloc` returns storage aligned for any object type, 16 bytes on the
 /// supported targets (`alignof(max_align_t)`).  Every block starts at an
 /// address that is a multiple of this, and every block capacity is one.
@@ -94,8 +98,9 @@ impl CanonicalRuntimeFunction {
     /// between two real pointers, and a raw address *is* a real pointer, so a
     /// C copy crosses to them directly rather than through a daslang byte
     /// loop.  They return nothing; the call site keeps C's `dst` result
-    /// itself.  The helpers stay: the runtime's own `realloc` and the
-    /// storage-backed object copies still call `c2da_rt_memcpy`.
+    /// itself.  The translation's own object copies use them too
+    /// (`object_memory.rs object_byte_copy`); the helpers stay for the
+    /// runtime's own `realloc`, which still calls `c2da_rt_memcpy`.
     pub(crate) fn builtin_copy(self) -> Option<&'static str> {
         match self {
             Self::Memcpy => Some("memcpy"),
@@ -781,24 +786,59 @@ pub fn declarations() -> Vec<DaDecl> {
             },
         ],
         uint64.clone(),
-        vec![
-            DaStmt::Var {
-                name: "i".to_owned(),
-                var_type: uint64.clone(),
-                init: Some(DaExpr::ConstUInt(0)),
-            },
-            DaStmt::Expr(DaExpr::While(
-                Box::new(op("<", var("i"), var("count"))),
-                block(vec![
-                    DaStmt::Expr(DaExpr::Assign(
-                        Box::new(raw_byte_at(var("dst"), var("i"))),
-                        Box::new(var("value")),
-                    )),
-                    assign("i", op("+", var("i"), DaExpr::ConstUInt(1))),
-                ]),
-            )),
-            ret(var("dst")),
-        ],
+        // daslang's builtin `memset8` fills in one host call what a byte loop
+        // fills in one interpreted iteration per byte (256 bytes: 11 ns
+        // against 4.2 µs).  Its count is an `int`, so a 64-bit count is
+        // filled in chunks of at most 2^30 bytes; a count of 0 fills nothing.
+        {
+            let chunk_bytes = || DaExpr::Cast {
+                kind: das_ast::CastKind::Cast,
+                expr: Box::new(DaExpr::ConstUInt(MEMSET_CHUNK_BYTES)),
+                to: DaType::uint64(),
+            };
+            vec![
+                DaStmt::Var {
+                    name: "done".to_owned(),
+                    var_type: uint64.clone(),
+                    init: Some(DaExpr::ConstUInt(0)),
+                },
+                DaStmt::Expr(DaExpr::While(
+                    Box::new(op("<", var("done"), var("count"))),
+                    block(vec![
+                        let_var(
+                            "chunk",
+                            uint64.clone(),
+                            DaExpr::Op3 {
+                                cond: Box::new(op(
+                                    "<",
+                                    op("-", var("count"), var("done")),
+                                    chunk_bytes(),
+                                )),
+                                then: Box::new(op("-", var("count"), var("done"))),
+                                else_: Box::new(chunk_bytes()),
+                            },
+                        ),
+                        DaStmt::Expr(DaExpr::Unsafe(Box::new(call(
+                            "memset8",
+                            vec![
+                                DaExpr::reinterpret(
+                                    op("+", var("dst"), var("done")),
+                                    DaType::pointer(DaType::void()),
+                                ),
+                                var("value"),
+                                DaExpr::Cast {
+                                    kind: das_ast::CastKind::Cast,
+                                    expr: Box::new(var("chunk")),
+                                    to: DaType::int(),
+                                },
+                            ],
+                        )))),
+                        assign("done", op("+", var("done"), var("chunk"))),
+                    ]),
+                )),
+                ret(var("dst")),
+            ]
+        },
     );
 
     let calloc = function(
@@ -1276,6 +1316,14 @@ mod tests {
             );
         }
         let malloc = rendered_function("c2da_rt_malloc");
+        // `memset8` takes an `int` count: the 64-bit count is filled in
+        // chunks no wider than 2^30, never narrowed whole.
+        let memset = rendered_function("c2da_rt_memset");
+        assert!(memset.contains("? count - done : 0x40000000ul"), "{memset}");
+        assert!(
+            memset.contains("memset8(unsafe(reinterpret<void?>(dst + done)), value, int(chunk))")
+        );
+        assert!(!memset.contains("int(count"), "{memset}");
         assert!(malloc.contains("if (int64(end) > long_length(c2da_rt_heap)) {"));
         assert!(malloc.contains("resize(c2da_rt_heap, int64(end))"));
         assert!(malloc.contains("let record : uint64 = uint64(long_length(c2da_rt_alloc_addrs))"));

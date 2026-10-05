@@ -1427,6 +1427,91 @@
       "runtime": "required"
     },
     {
+      "id": "p150-object-byte-copies",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p150_object_byte_copies.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "words 0306090c 02040608 0306090c 04080c10 local 04080c10\nafter a0b0c0d0 a0b0c0d0 bytes 550994356\npoint 111 -7 raw 1\npacked k 1234567d -2 copy k 1234567d -6 size 7\npacked bytes 1787268644\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p150_object_copies_are_daslang_builtin_copies",
+      "runtime": "required"
+    },
+    {
+      "id": "p151-bitfield-storage-units",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p151_bitfield_storage_units.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "palette 2216106672 last 233 33 32 255\nsigned -3 -999 30000\nwide 1 123456\ntagged T -120 2047\ntight p abcde fec next q size 5\nunion 12345abc\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p151_bitfields_go_through_their_aligned_storage_unit",
+      "runtime": "required"
+    },
+    {
+      "id": "p152-discarded-postfix-increments",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p152_discarded_postfix_increments.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "total 8 i 6 j 4 small 0 d 1.5 p 1 cp 2 n 2 bits 0 phase 1\na 5 8 0 i 1 y 2 q 2 n -1 total 308\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p152_discarded_postfix_increments_save_no_old_value",
+      "runtime": "required"
+    },
+    {
+      "id": "p153-compound-assignment-spelling",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p153_compound_assignment_spelling.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "x -200 u ff0 ll -79 ull 10000000003 f 3.25 d 2.000\narr 1 204 1039 4 p 204 i 5 k 3 walk 2\nacc 4 6000 2.0 global 22 b 5 s 21 calls 1\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p153_self_updates_are_compound_assignments",
+      "runtime": "required"
+    },
+    {
+      "id": "p154-coalesced-temporaries",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p154_coalesced_temporaries.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "0:0 1:111 2:12 3:3 4:4 5:-1 6:0 7:113 8:12 9:7 10:4 11:-1 12:0 13:115 14:113 15:122 16:115 17:9 18:0 19:117 20:113 21:126 22:115 23:9 \nn 8 log0 15 total -1730356814\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p154_disjoint_site_temporaries_share_their_variables",
+      "runtime": "required"
+    },
+    {
       "id": "n12-typedef-record-field-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "n12_typedef_record_field_unsupported.c", "c_graph": "single-tu",
       "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "type declaration lowering", "type": "Struct", "location": "n12_typedef_record_field_unsupported.c", "cause": "unsupported record field type LongDouble in field x" }, "runtime": "not-applicable"

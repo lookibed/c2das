@@ -62,6 +62,26 @@
 //! The call-shaped `unsafe(x)` marks only the root node of `x`, so an
 //! `unsafe(unsafe(x))` that a removed conversion leaves behind is one
 //! `unsafe(x)`.
+//!
+//! # Compound assignments
+//!
+//! An assignment statement `a = a op b` is written `a op= b` when the two
+//! spell one place and evaluating it once or twice cannot differ: `a` and `b`
+//! are built only of names, constants, fields, dereferences, indices,
+//! addresses, conversions and operators (no call, no assignment, so nothing
+//! writes memory while either is evaluated), and the two `a` are the same
+//! expression.  `op` is one of `+ - * / % & | ^ << >>` and the
+//! operation has a type under the rule above — both operands of one builtin
+//! `int`/`uint`/`int64`/`uint64` (or `float`/`double` for the arithmetic
+//! operators), with no operator of the module's own — so daScript's `op=` on
+//! that type is the same operation stored in the same place.  daslang's
+//! interpreter runs `a op= b` as one node where `a = a op b` costs a read, the
+//! operation and a copy; translated C spells `x++`, `x += y` and the runtime's
+//! loop counters this way.  A pointer step `p = unsafe(p + n)` (or `-`) of a
+//! typed pointer `T?` by an `int` or `int64` is `unsafe { p += n }`, under the
+//! same conditions: daScript's pointer `+=` moves by the same `n` elements, and
+//! needs the `unsafe` block because the call-shaped `unsafe(…)` does not take
+//! an assignment.
 
 use std::collections::HashMap;
 
@@ -560,9 +580,91 @@ impl<'m> Folder<'m> {
                 ty.is_const |= !*is_mutable;
                 self.bind(name, Some(ty));
             }
-            DaStmt::Expr(expr) => self.walk_expr(expr),
+            DaStmt::Expr(expr) => {
+                self.walk_expr(expr);
+                self.compound_assignment(expr);
+            }
             DaStmt::Decl(decl) => self.walk_decl(decl),
         }
+    }
+
+    /// `a = a op b` as `a op= b` (module documentation, "Compound
+    /// assignments").
+    fn compound_assignment(&self, expr: &mut DaExpr) {
+        let DaExpr::Assign(place, value) = expr else {
+            return;
+        };
+        // `p = unsafe(p ± n)` steps a typed pointer; the `unsafe` marks the
+        // arithmetic node alone.
+        let pointer_step =
+            matches!(&**value, DaExpr::Unsafe(inner) if matches!(**inner, DaExpr::Op2 { .. }));
+        let operation = match &**value {
+            DaExpr::Unsafe(inner) if pointer_step => &**inner,
+            other => other,
+        };
+        let DaExpr::Op2 { op, left, right } = operation else {
+            return;
+        };
+        let compound = match *op {
+            "+" => "+=",
+            "-" => "-=",
+            "*" => "*=",
+            "/" => "/=",
+            "%" => "%=",
+            "&" => "&=",
+            "|" => "|=",
+            "^" => "^=",
+            "<<" => "<<=",
+            ">>" => ">>=",
+            _ => return,
+        };
+        // The assignment already targets `place`, so it is a place; it only
+        // has to be one that evaluating once instead of twice cannot change.
+        if !is_effect_free(place) || !same_effect_free(place, left) || !is_effect_free(right) {
+            return;
+        }
+        let typed = if pointer_step {
+            matches!(*op, "+" | "-") && self.is_pointer_step(place, right)
+        } else {
+            self.type_of(operation).is_some()
+        };
+        if !typed {
+            return;
+        }
+        let operation = match std::mem::replace(&mut **value, DaExpr::ConstNull) {
+            DaExpr::Unsafe(inner) => *inner,
+            other => other,
+        };
+        let DaExpr::Op2 { right, .. } = operation else {
+            unreachable!("matched above");
+        };
+        let place = std::mem::replace(&mut **place, DaExpr::ConstNull);
+        let assign = DaExpr::AssignOp {
+            op: compound,
+            left: Box::new(place),
+            right,
+        };
+        // A pointer `+=` needs `unsafe` like the `+` it replaces; the
+        // call-shaped `unsafe(…)` wraps no assignment, the block form does.
+        *expr = if pointer_step {
+            DaExpr::Unsafe(Box::new(DaExpr::Block(DaBlock {
+                stmts: vec![DaStmt::Expr(assign)],
+            })))
+        } else {
+            assign
+        };
+    }
+
+    /// Whether `place ± step` is daScript's arithmetic on a typed pointer:
+    /// `place` a `T?` with a pointee type, `step` an `int` or `int64`.
+    fn is_pointer_step(&self, place: &DaExpr, step: &DaExpr) -> bool {
+        let pointer = self.type_of(place).map(value_of);
+        let step = self.type_of(step).map(value_of);
+        matches!(
+            (pointer.map(|ty| ty.kind), step.map(|ty| ty.kind)),
+            (Some(DaTypeKind::Pointer(pointee)), Some(DaTypeKind::Int | DaTypeKind::Int64))
+                if !matches!(pointee.kind, DaTypeKind::Void)
+        )
     }
 
     fn lookup(&self, name: &str) -> Option<DaType> {
@@ -919,6 +1021,72 @@ impl<'m> Folder<'m> {
     }
 }
 
+/// Whether an expression reads memory and computes without writing anything:
+/// names, constants, fields, dereferences, indices, addresses, conversions
+/// and operators over such expressions.
+fn is_effect_free(expr: &DaExpr) -> bool {
+    use DaExpr::*;
+    match expr {
+        ConstInt(_) | ConstUInt(_) | ConstFloat(_) | ConstDouble(_) | ConstBool(_) | ConstNull
+        | Var(_) => true,
+        Field(inner, _) | Deref(inner) | Addr(inner) | Op1 { expr: inner, .. } => {
+            is_effect_free(inner)
+        }
+        Cast { expr: inner, .. } => is_effect_free(inner),
+        Unsafe(inner) => !matches!(**inner, Block(_)) && is_effect_free(inner),
+        Index(left, right) | Op2 { left, right, .. } => {
+            is_effect_free(left) && is_effect_free(right)
+        }
+        Op3 { cond, then, else_ } => {
+            is_effect_free(cond) && is_effect_free(then) && is_effect_free(else_)
+        }
+        _ => false,
+    }
+}
+
+/// Whether two effect-free expressions are the same expression.
+fn same_effect_free(a: &DaExpr, b: &DaExpr) -> bool {
+    use DaExpr::*;
+    match (a, b) {
+        (ConstInt(x), ConstInt(y)) => x == y,
+        (ConstUInt(x), ConstUInt(y)) => x == y,
+        (ConstBool(x), ConstBool(y)) => x == y,
+        (ConstNull, ConstNull) => true,
+        (Var(x), Var(y)) => x == y,
+        (Field(x, f), Field(y, g)) => f == g && same_effect_free(x, y),
+        (Deref(x), Deref(y)) | (Addr(x), Addr(y)) | (Unsafe(x), Unsafe(y)) => {
+            same_effect_free(x, y)
+        }
+        (Index(xl, xr), Index(yl, yr)) => same_effect_free(xl, yl) && same_effect_free(xr, yr),
+        (
+            Cast {
+                kind: xk,
+                expr: x,
+                to: xt,
+            },
+            Cast {
+                kind: yk,
+                expr: y,
+                to: yt,
+            },
+        ) => xk == yk && xt == yt && same_effect_free(x, y),
+        (Op1 { op: xo, expr: x }, Op1 { op: yo, expr: y }) => xo == yo && same_effect_free(x, y),
+        (
+            Op2 {
+                op: xo,
+                left: xl,
+                right: xr,
+            },
+            Op2 {
+                op: yo,
+                left: yl,
+                right: yr,
+            },
+        ) => xo == yo && same_effect_free(xl, yl) && same_effect_free(xr, yr),
+        _ => false,
+    }
+}
+
 /// `-c` for an `int` or `int64` constant `c` whose negation is still a value
 /// of its type, as a typed literal of that type.  The one overflowing case
 /// (`-INT_MIN`), unsigned negation and the narrow types are left to daScript.
@@ -1082,6 +1250,129 @@ mod tests {
             unreachable!()
         };
         value.to_string()
+    }
+
+    /// Folds `stmts` as the body of `def probe` in a module that also
+    /// declares `decls`, and prints each folded statement.
+    fn folded_stmts(decls: Vec<DaDecl>, locals: Vec<DaStmt>, stmts: Vec<DaStmt>) -> Vec<String> {
+        let count = stmts.len();
+        let mut body = locals;
+        body.extend(stmts);
+        let mut module = decls;
+        module.push(DaDecl::Function(DaFunction {
+            name: "probe".into(),
+            params: vec![],
+            ret_type: DaType::void(),
+            body: Some(DaExpr::Block(DaBlock { stmts: body })),
+            annotations: vec![],
+            is_public: false,
+            is_unsafe: false,
+        }));
+        fold_module_conversions(&mut module);
+        let DaDecl::Function(probe) = module.pop().unwrap() else {
+            unreachable!()
+        };
+        let DaExpr::Block(block) = probe.body.unwrap() else {
+            unreachable!()
+        };
+        let skip = block.stmts.len() - count;
+        block.stmts[skip..]
+            .iter()
+            .map(|stmt| match stmt {
+                DaStmt::Expr(expr) => expr.to_string(),
+                _ => unreachable!(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn self_updates_of_one_place_become_compound_assignments() {
+        use DaTypeKind::*;
+        let assign = |place: DaExpr, value: DaExpr| {
+            DaStmt::Expr(DaExpr::Assign(Box::new(place), Box::new(value)))
+        };
+        let x = || var("x");
+        let one = || cast(DaExpr::ConstInt(1), Int);
+        let element = || DaExpr::Index(Box::new(var("a")), Box::new(var("i")));
+        let get = function("get", vec![], DaType::int());
+        let locals = || {
+            vec![
+                local("x", DaType::int()),
+                local("i", DaType::int()),
+                local("d", DaType::double()),
+                local("b", DaType::uint8()),
+                local("a", DaType::new(FixedArray(Box::new(DaType::int()), 4))),
+            ]
+        };
+        assert_eq!(
+            folded_stmts(
+                vec![get.clone()],
+                locals(),
+                vec![
+                    assign(x(), op2("+", x(), one())),
+                    assign(x(), op2("<<", x(), var("i"))),
+                    assign(element(), op2("-", element(), one())),
+                    assign(var("d"), op2("/", var("d"), DaExpr::ConstDouble(2.0))),
+                ]
+            ),
+            vec!["x += 1", "x <<= i", "a[i] -= 1", "d /= 2.0lf"]
+        );
+        // Kept: a call in the value (it could write the place between the
+        // two reads), the place as the right operand, a storage type with no
+        // operator, a value that assigns, and two different places.
+        let call = DaExpr::Call(Box::new(var("get")), vec![]);
+        let nested = DaExpr::Assign(Box::new(var("i")), Box::new(one()));
+        assert_eq!(
+            folded_stmts(
+                vec![get],
+                locals(),
+                vec![
+                    assign(x(), op2("+", x(), call)),
+                    assign(x(), op2("-", one(), x())),
+                    assign(var("b"), op2("+", var("b"), var("b"))),
+                    assign(x(), op2("+", x(), nested)),
+                    assign(x(), op2("+", var("i"), one())),
+                ]
+            ),
+            vec![
+                "x = x + get()",
+                "x = 1 - x",
+                "b = b + b",
+                "x = x + (i = 1)",
+                "x = i + 1",
+            ]
+        );
+        // A typed pointer stepped by an `int`: `unsafe { p += n }`.  A step
+        // of another type keeps the assignment.
+        let step = |pointer: &str, op, n: DaExpr| {
+            assign(
+                var(pointer),
+                DaExpr::Unsafe(Box::new(op2(op, var(pointer), n))),
+            )
+        };
+        let pointers = vec![
+            local("p", DaType::pointer(DaType::uint8())),
+            local("i", DaType::int()),
+            local("u", DaType::uint64()),
+        ];
+        let folded = folded_stmts(
+            vec![],
+            pointers,
+            vec![
+                step("p", "+", one()),
+                step("p", "-", var("i")),
+                step("p", "+", var("u")),
+            ],
+        );
+        assert!(
+            folded[0].starts_with("unsafe {") && folded[0].contains("p += 1"),
+            "{folded:?}"
+        );
+        assert!(
+            folded[1].starts_with("unsafe {") && folded[1].contains("p -= i"),
+            "{folded:?}"
+        );
+        assert_eq!(folded[2], "p = unsafe(p + u)");
     }
 
     fn local(name: &str, ty: DaType) -> DaStmt {

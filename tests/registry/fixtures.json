@@ -5024,6 +5024,146 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p150-object-byte-copies",
+      "canonical_cases": [
+        "p150-object-byte-copies"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "words 0306090c 02040608 0306090c 04080c10 local 04080c10\nafter a0b0c0d0 a0b0c0d0 bytes 550994356\npoint 111 -7 raw 1\npacked k 1234567d -2 copy k 1234567d -6 size 7\npacked bytes 1787268644\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p150_object_byte_copies",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p150_object_byte_copies.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p151-bitfield-storage-units",
+      "canonical_cases": [
+        "p151-bitfield-storage-units"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "palette 2216106672 last 233 33 32 255\nsigned -3 -999 30000\nwide 1 123456\ntagged T -120 2047\ntight p abcde fec next q size 5\nunion 12345abc\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p151_bitfield_storage_units",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p151_bitfield_storage_units.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p152-discarded-postfix-increments",
+      "canonical_cases": [
+        "p152-discarded-postfix-increments"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "total 8 i 6 j 4 small 0 d 1.5 p 1 cp 2 n 2 bits 0 phase 1\na 5 8 0 i 1 y 2 q 2 n -1 total 308\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p152_discarded_postfix_increments",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p152_discarded_postfix_increments.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p153-compound-assignment-spelling",
+      "canonical_cases": [
+        "p153-compound-assignment-spelling"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "x -200 u ff0 ll -79 ull 10000000003 f 3.25 d 2.000\narr 1 204 1039 4 p 204 i 5 k 3 walk 2\nacc 4 6000 2.0 global 22 b 5 s 21 calls 1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p153_compound_assignment_spelling",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p153_compound_assignment_spelling.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p154-coalesced-temporaries",
+      "canonical_cases": [
+        "p154-coalesced-temporaries"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "0:0 1:111 2:12 3:3 4:4 5:-1 6:0 7:113 8:12 9:7 10:4 11:-1 12:0 13:115 14:113 15:122 16:115 17:9 18:0 19:117 20:113 21:126 22:115 23:9 \nn 8 log0 15 total -1730356814\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p154_coalesced_temporaries",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p154_coalesced_temporaries.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "checked_in_das": "tests/syntax/p15_function_pointer_arg_coerce.das",
       "clang": {
         "compile_commands": null,

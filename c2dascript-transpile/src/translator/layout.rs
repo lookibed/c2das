@@ -20,6 +20,16 @@ pub(crate) struct CLayout {
     pub align_bytes: u64,
 }
 
+/// Where a C bitfield is loaded from and stored to: the object of the field's
+/// declared type (`size_bytes` wide) at `byte_offset` in the record, and the
+/// field's first bit inside that object.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) struct CBitfieldUnit {
+    pub byte_offset: u64,
+    pub bit_offset: u64,
+    pub size_bytes: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CRecordLayout {
     pub object: CLayout,
@@ -409,5 +419,57 @@ impl<'c> Translation<'c> {
         }
         i64::try_from(bits / 8)
             .map_err(|_| TranslationError::generic("C field offset does not fit daScript integer"))
+    }
+
+    /// The object a C bitfield's loads and stores go through.
+    ///
+    /// The field's declared type, aligned to its own size, when the field
+    /// lies wholly inside that object and the object wholly inside the
+    /// record: the storage unit the System V ABI allocates a bitfield of a
+    /// non-packed record in, which an aligned typed load reads at once.
+    /// Otherwise (a packed record whose field straddles that object, or a
+    /// unit that would reach past the record's end) the object of the same
+    /// type starting at the byte that holds the field's first bit, which the
+    /// misaligned path reads byte-wise; that object may reach past the
+    /// record's last byte.
+    pub(crate) fn bitfield_unit(&self, field: CFieldId) -> TranslationResult<CBitfieldUnit> {
+        let CDeclKind::Field {
+            bitfield_width: Some(width),
+            platform_bit_offset,
+            platform_type_bitwidth,
+            ..
+        } = self.ast_context[field].kind
+        else {
+            return Err(TranslationError::generic(
+                "bitfield unit requested for a non-bitfield",
+            ));
+        };
+        if platform_type_bitwidth == 0 || platform_type_bitwidth % 8 != 0 {
+            return Err(TranslationError::generic(
+                "bitfield declared type has no whole-byte width",
+            ));
+        }
+        let size_bytes = platform_type_bitwidth / 8;
+        let parent = *self
+            .ast_context
+            .parents
+            .get(&field)
+            .ok_or_else(|| TranslationError::generic("C field has no record parent"))?;
+        let record_size = self.record_layout(parent)?.object.size_bytes;
+        let unit_index = platform_bit_offset / platform_type_bitwidth;
+        let bit_offset = platform_bit_offset % platform_type_bitwidth;
+        let byte_offset = unit_index * size_bytes;
+        if bit_offset + width <= platform_type_bitwidth && byte_offset + size_bytes <= record_size {
+            return Ok(CBitfieldUnit {
+                byte_offset,
+                bit_offset,
+                size_bytes,
+            });
+        }
+        Ok(CBitfieldUnit {
+            byte_offset: platform_bit_offset / 8,
+            bit_offset: platform_bit_offset % 8,
+            size_bytes,
+        })
     }
 }

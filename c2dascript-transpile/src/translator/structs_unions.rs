@@ -1,5 +1,5 @@
 //! Struct/union translation — полный порт c2rust structs_unions.rs
-use super::object_memory::CObjectAddress;
+use super::object_memory::{CObjectAddress, ObjectCopy};
 use super::*;
 use std::ops::Index;
 
@@ -514,7 +514,7 @@ impl<'c> Translation<'c> {
         raw_address: WithStmts<DaExpr>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
         let name = self.storage_record_name(record_id)?;
-        let size = self.record_object_size(record_id)?;
+        let size = self.record_layout(record_id)?.object.size_bytes;
         let storage = self.record_zero_storage(record_id)?;
         let tmp = self.renamer.borrow_mut().fresh();
         let is_unsafe = raw_address.is_unsafe;
@@ -527,14 +527,12 @@ impl<'c> Translation<'c> {
                 fields: vec![("c2da_storage".into(), storage)],
             }),
         });
-        stmts.push(DaStmt::Expr(DaExpr::Call(
-            Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
-            vec![
-                DaExpr::Field(Box::new(DaExpr::Var(tmp.clone())), "c2da_storage".into()),
-                raw_address.val,
-                self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
-            ],
-        )));
+        stmts.extend(self.object_byte_copy(
+            DaExpr::Field(Box::new(DaExpr::Var(tmp.clone())), "c2da_storage".into()),
+            raw_address.val,
+            size,
+            ObjectCopy::Disjoint,
+        )?);
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
     }
 
@@ -551,7 +549,7 @@ impl<'c> Translation<'c> {
         value: WithStmts<DaExpr>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
         let name = self.storage_record_name(record_id)?;
-        let size = self.record_object_size(record_id)?;
+        let size = self.record_layout(record_id)?.object.size_bytes;
         let is_unsafe = raw_address.is_unsafe || value.is_unsafe;
         let mut stmts = value.stmts;
         // The source's storage address is read out of the wrapper, so the
@@ -570,14 +568,12 @@ impl<'c> Translation<'c> {
             }
         };
         stmts.extend(raw_address.stmts);
-        stmts.push(DaStmt::Expr(DaExpr::Call(
-            Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
-            vec![
-                raw_address.val,
-                DaExpr::Field(Box::new(source.clone()), "c2da_storage".into()),
-                self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
-            ],
-        )));
+        stmts.extend(self.object_byte_copy(
+            raw_address.val,
+            DaExpr::Field(Box::new(source.clone()), "c2da_storage".into()),
+            size,
+            ObjectCopy::MayOverlap,
+        )?);
         Ok(WithStmts::new(stmts, source).merge_unsafe(is_unsafe))
     }
 
@@ -625,7 +621,7 @@ impl<'c> Translation<'c> {
             return Ok(value);
         }
         let name = self.storage_record_name(record_id)?;
-        let size = self.record_object_size(record_id)?;
+        let size = self.record_layout(record_id)?.object.size_bytes;
         let storage = self.record_zero_storage(record_id)?;
         let (source_tmp, copy_tmp) = {
             let mut renamer = self.renamer.borrow_mut();
@@ -648,17 +644,15 @@ impl<'c> Translation<'c> {
                 fields: vec![("c2da_storage".into(), storage)],
             }),
         });
-        stmts.push(DaStmt::Expr(DaExpr::Call(
-            Box::new(DaExpr::Var("c2da_rt_memcpy".into())),
-            vec![
-                DaExpr::Field(
-                    Box::new(DaExpr::Var(copy_tmp.clone())),
-                    "c2da_storage".into(),
-                ),
-                DaExpr::Field(Box::new(DaExpr::Var(source_tmp)), "c2da_storage".into()),
-                self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
-            ],
-        )));
+        stmts.extend(self.object_byte_copy(
+            DaExpr::Field(
+                Box::new(DaExpr::Var(copy_tmp.clone())),
+                "c2da_storage".into(),
+            ),
+            DaExpr::Field(Box::new(DaExpr::Var(source_tmp)), "c2da_storage".into()),
+            size,
+            ObjectCopy::Disjoint,
+        )?);
         Ok(WithStmts::new(stmts, DaExpr::Var(copy_tmp)).merge_unsafe(is_unsafe))
     }
 
