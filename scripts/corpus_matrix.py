@@ -115,6 +115,8 @@ import run_c2das_cases as runner  # noqa: E402
 ROOT = runner.ROOT
 CONVERGENCE_DOC = ROOT / "docs/corpus-convergence.md"
 BENCHMARK_DOC = ROOT / "docs/corpus-benchmark.md"
+# Written by tests/manual/doomgeneric/sdl/bench.sh --markdown on the Windows machine.
+WINDOWS_DOC = ROOT / "docs/windows-doom-benchmark.md"
 README = ROOT / "README.md"
 README_BEGIN = "<!-- benchmark:begin -->"
 README_END = "<!-- benchmark:end -->"
@@ -1245,6 +1247,55 @@ def stable_body(document: str) -> str:
     return "\n".join(line for line in document.splitlines() if not line.startswith(volatile))
 
 
+def compact_snapshot(doc: Path, tables: list[str]) -> list[str]:
+    """The README's short form of a generated benchmark document: its platform
+    heading, the captured/OS/toolchain bullets and the named tables, copied as
+    the generator wrote them — every number in the README comes from a document
+    a benchmark run wrote, none is typed by hand."""
+    lines = doc.read_text(encoding="utf-8").splitlines()
+    heading = next((line for line in lines if line.startswith("### ")), None)
+    if heading is None:
+        return []
+    out = [heading, ""]
+    out.extend(line for line in lines if line.startswith(("- Captured", "- OS", "- Toolchain")))
+    out.append("")
+    for name in tables:
+        start = next((i for i, line in enumerate(lines) if line == f"#### {name}"), None)
+        if start is None:
+            continue
+        rows: list[str] = []
+        for line in lines[start + 1:]:
+            if line.startswith("|"):
+                rows.append(line)
+            elif rows or line.startswith("#"):
+                break
+        out.extend([f"#### {name}", "", *rows, ""])
+    return out
+
+
+def render_readme_block() -> list[str]:
+    """The README's Benchmark Snapshot: one legend line, the Linux corpus tables
+    from BENCHMARK_DOC and, when a Windows run was recorded, the Doom SDL3
+    tables from WINDOWS_DOC; all explanation lives in the linked documents."""
+    out = [
+        "Medians of 5 runs, `±` is half the sample range; the best value in each row is bold. "
+        "Every run is checked frame by frame against the C build. "
+        "Methodology: [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md); "
+        "every variant and the build commands: [`docs/corpus-benchmark.md`](docs/corpus-benchmark.md).",
+        "",
+    ]
+    out.extend(compact_snapshot(BENCHMARK_DOC, ["Translated C vs native C", "Ratio to C -O3 native"]))
+    if WINDOWS_DOC.exists():
+        out.extend(compact_snapshot(WINDOWS_DOC, ["Frames per second (higher is better)",
+                                                  "Slowdown against `C clang_native` (lower is better)"]))
+        out.append(f"Doom on Windows in full: [`{WINDOWS_DOC.relative_to(ROOT)}`]"
+                   f"({WINDOWS_DOC.relative_to(ROOT)}).")
+        out.append("")
+    out.append(f"{AOT_MARK} AOT is built without `solid_context` and without daslang's auto-inliner "
+               "(see the methodology).")
+    return out
+
+
 def update_readme(snapshot: list[str], readme: Path = README) -> bool:
     """Replace the README's benchmark block (between README_BEGIN and README_END,
     each on its own line) with the fresh snapshot; False when the README has no
@@ -1274,7 +1325,15 @@ def main() -> int:
     bench.add_argument("--output", type=Path, default=None,
                        help=f"write the document here instead of {BENCHMARK_DOC.relative_to(ROOT)} "
                             "(with --case, instead of printing it)")
+    sub.add_parser("readme", help=f"rewrite README.md's benchmark block from {BENCHMARK_DOC.relative_to(ROOT)} "
+                                  f"and {WINDOWS_DOC.relative_to(ROOT)} without measuring")
     args = parser.parse_args()
+    if args.command == "readme":
+        if not update_readme(render_readme_block()):
+            print(f"FAIL {README.relative_to(ROOT)} has no {README_BEGIN}/{README_END} block", file=sys.stderr)
+            return 1
+        print(f"wrote the snapshot into {README.relative_to(ROOT)}")
+        return 0
     try:
         daslang = runner.find_daslang()
         facts = environment_facts(daslang)
@@ -1311,7 +1370,7 @@ def main() -> int:
         else:
             BENCHMARK_DOC.write_text(document, encoding="utf-8")
             print(f"wrote {BENCHMARK_DOC.relative_to(ROOT)}")
-            if update_readme(render_snapshot(results, facts, args.runs)):
+            if update_readme(render_readme_block()):
                 print(f"wrote the snapshot into {README.relative_to(ROOT)} ({README_BEGIN} … {README_END})")
             else:
                 print(f"WARN {README.relative_to(ROOT)} has no {README_BEGIN}/{README_END} block; not updated",

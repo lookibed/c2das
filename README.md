@@ -1,132 +1,95 @@
 # c2das
 
-**c2das** translates C programs into [daslang](https://dascript.org/) (formerly daScript)
-source, whole code bases at a time, and runs them unchanged in every daslang mode —
-interpreter, LLVM JIT, standalone executable and AOT C++. It is an architectural fork of
-[C2Rust](https://github.com/immunant/c2rust): the Clang-based front end stays, the back end
-builds and prints daslang AST instead of Rust. The goal is behavioural translation checked
-against the C program itself: a construct c2das does not support fails with a located
-diagnostic, never with a plausible-looking approximation.
+C to [daslang](https://dascript.org/) translator: whole C code bases become daslang source that
+runs in the interpreter, the LLVM JIT, as a standalone executable and as AOT C++. A fork of
+[C2Rust](https://github.com/immunant/c2rust) with a daslang back end.
 
 ## Benchmark Snapshot
 
-Every number below is generated: `python3 scripts/corpus_matrix.py bench` measures each
-corpus program as native C and as its c2das translation in every daslang mode, writes
-[`docs/corpus-benchmark.md`](docs/corpus-benchmark.md) and rewrites the block between the
-markers here. The rules — what is timed, medians and `±` spread, the C baselines, the JIT and
-AOT flags, the safe default versus the `--unsafe-deref` option — are in
-[`docs/benchmark-methodology.md`](docs/benchmark-methodology.md).
-
 <!-- benchmark:begin -->
-_The Linux snapshot is written here by `python3 scripts/corpus_matrix.py bench`; it has not
-been run in this checkout yet. Until then see
-[`docs/corpus-benchmark.md`](docs/corpus-benchmark.md)._
+Medians of 5 runs, `±` is half the sample range; the best value in each row is bold. Every run is checked frame by frame against the C build. Methodology: [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md); every variant and the build commands: [`docs/corpus-benchmark.md`](docs/corpus-benchmark.md).
+
+### Linux — AMD Ryzen 7 7435HS
+
+- Captured by `python3 scripts/corpus_matrix.py bench --runs 5` on 2026-10-05 at commit `f761d899e`
+- OS: Ubuntu 22.04.5 LTS, kernel 6.6.87.2-microsoft-standard-WSL2
+- Toolchain: Ubuntu clang version 18.1.8 (++20240731024944+3b5b5c1ec4a3-1~exp1~20240731145000.144); daslang 0.6.4
+
+#### Translated C vs native C
+
+| Program | C -O3 native | C -O2 | DAS interpreter | DAS JIT | DAS exe | DAS AOT\* |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| pl_mpeg (MPEG-1 video), 320×240, 59 frames | **34.48ms** ±1% | 37.95ms ±1% | 1270.72ms ±1% | 37.58ms ±11% | 38.26ms ±1% | 40.28ms ±1% |
+| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | **74.24ms** ±0% | 77.97ms ±13% | 4098.23ms ±3% | 77.82ms ±1% | 77.58ms ±1% | 85.55ms ±1% |
+| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | 1.80ms ±2% | **1.78ms** ±4% | 110.48ms ±18% | 4.56ms ±0% | 4.47ms ±3% | 2.69ms ±3% |
+| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | **58.05ms** ±17% | 58.69ms ±2% | 4746.39ms ±5% | 60.36ms ±1% | 67.16ms ±0% | 68.11ms ±1% |
+| doomgeneric (Doom engine), 320×200, 1000 frames | **118.48ms** ±0% | 121.24ms ±1% | 6497.58ms ±3% | 135.43ms ±10% | 124.37ms ±0% | 559.14ms ±0% |
+
+#### Ratio to C -O3 native
+
+| Program | C -O2 | DAS interpreter | DAS JIT | DAS exe | DAS AOT\* |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| pl_mpeg (MPEG-1 video), 320×240, 59 frames | 1.10× ±1% | 36.85× ±1% | **1.09×** ±11% | 1.11× ±1% | 1.17× ±1% |
+| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | 1.05× ±13% | 55.20× ±3% | 1.05× ±1% | **1.05×** ±1% | 1.15× ±1% |
+| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | **0.99×** ±4% | 61.48× ±18% | 2.54× ±0% | 2.49× ±3% | 1.50× ±3% |
+| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | **1.01×** ±2% | 81.76× ±5% | 1.04× ±1% | 1.16× ±0% | 1.17× ±1% |
+| doomgeneric (Doom engine), 320×200, 1000 frames | **1.02×** ±1% | 54.84× ±3% | 1.14× ±10% | 1.05× ±0% | 4.72× ±0% |
+
+### Windows — AMD Ryzen 7 7435HS
+
+- Captured by `tests/manual/doomgeneric/sdl/bench.sh` on 2026-10-05 at commit `f761d899e` (`REPS=5` `FRAMES=1000`)
+- OS: Microsoft Windows [Version 10.0.19045.2673]
+- Toolchain: MSVC 19.44.35214; clang-cl 22.1.2; daslang 0.6.4 (69a589623); SDL 3.4.16
+
+#### Frames per second (higher is better)
+
+| Mode | C msvc_O2 | C msvc_avx2 | C clang_O2 | C clang_native | DAS interpreter | DAS JIT | DAS AOT\* |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| window | 2690.7 ±3% | 2681.8 ±2% | 2700.8 ±3% | 2717.3 ±1% | 98.2 ±1% | **3007.8** ±13% | 910.5 ±1% |
+| dummy | 389.8 ±1% | 388.5 ±1% | 383.9 ±0% | 383.0 ±1% | 82.2 ±1% | **390.5** ±3% | 299.6 ±0% |
+| nopresent | 7018.6 ±0% | 6963.0 ±0% | 7237.2 ±2% | **7614.3** ±1% | 102.0 ±0% | 6494.4 ±0% | 1083.5 ±0% |
+
+#### Slowdown against `C clang_native` (lower is better)
+
+| Mode | C msvc_O2 | C msvc_avx2 | C clang_O2 | C clang_native | DAS interpreter | DAS JIT | DAS AOT\* |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| window | 1.01× ±3% | 1.01× ±2% | 1.01× ±3% | 1.00× ±1% | 27.67× ±1% | **0.90×** ±13% | 2.98× ±1% |
+| dummy | 0.98× ±1% | 0.99× ±1% | 1.00× ±0% | 1.00× ±1% | 4.66× ±1% | **0.98×** ±3% | 1.28× ±0% |
+| nopresent | 1.08× ±0% | 1.09× ±0% | 1.05× ±2% | **1.00×** ±1% | 74.65× ±0% | 1.17× ±0% | 7.03× ±0% |
+
+Doom on Windows in full: [`docs/windows-doom-benchmark.md`](docs/windows-doom-benchmark.md).
+
+\* AOT is built without `solid_context` and without daslang's auto-inliner (see the methodology).
 <!-- benchmark:end -->
-
-### Windows — doomgeneric as an SDL3 window application
-
-The same translated Doom engine runs as a real SDL3 window program on Windows, in the
-interpreter, under `-jit` and as AOT, against the same program built natively with MSVC and
-clang-cl, in three presentation modes (window, headless dummy driver, no present). The figure
-there is frames per second (higher is better), hash-checked against the corpus oracle on
-every run. The harness, its environment and the latest measured table are in
-[`tests/manual/doomgeneric/sdl/README.md`](tests/manual/doomgeneric/sdl/README.md);
-`bench.sh --markdown <path>` writes the table in the same layout as the Linux snapshot above.
-
-## Architecture
-
-```text
-Clang AST -> CBOR -> C AST -> translator -> daScript AST -> printer -> .das
-```
-
-![c2das translation roadmap](docs/c2das-roadmap.png)
-
-The translator keeps C facts separate from daslang representation: exported Clang facts are
-the truth for size, alignment, offsets, padding, `packed`, unions and bitfields; raw
-addresses, typed pointers, nulls and storage bytes cross one explicit ABI contract
-(`translator/abi.rs`); pointer-backed C objects go through address-aware raw-memory lowering
-(`translator/object_memory.rs`); allocation and memory primitives lower to a `c2da_rt_*`
-runtime prelude, and under `--libc std` the C program's libc calls and `main` are lowered
-too, so the translated module is the program. The printer renders the AST only — no
-text-level repair. The long version, with the build and translate instructions, is
-[`docs/translator-overview.md`](docs/translator-overview.md); the contracts are
-[`ARCHITECTURE_COMMON.md`](ARCHITECTURE_COMMON.md), [`REVIEW_COMMON.md`](REVIEW_COMMON.md)
-and [`LAWS.md`](LAWS.md).
 
 ## Corpora
 
-The programs the snapshot measures. Each is vendored with its licence and revision
-(`tests/manual/<corpus>/UPSTREAM.md`), translated whole under `--strict --libc std`, and
-pinned to an oracle produced by the C build in `tests/canonical/cases.json`.
+| Program | Upstream | Licence | Workload |
+|---|---|---|---|
+| pl_mpeg | [phoboslab/pl_mpeg](https://github.com/phoboslab/pl_mpeg) | MIT | 320×240 MPEG-1, 59 frames |
+| h264bsd + minimp4 | [oneam/h264bsd](https://github.com/oneam/h264bsd), [lieff/minimp4](https://github.com/lieff/minimp4) | Apache-2.0, CC0 | 640×360 H.264, 73 frames |
+| wasm3 | [wasm3/wasm3](https://github.com/wasm3/wasm3) | MIT | `fib32.wasm`, 7 values |
+| binjgb | [binji/binjgb](https://github.com/binji/binjgb) | MIT | cgb-acid2 ROM, 300 frames |
+| doomgeneric | [ozkl/doomgeneric](https://github.com/ozkl/doomgeneric) | GPL-2.0 | `-timedemo demo1`, 1000 frames |
 
-| Program | Upstream | Licence | Workload | Oracle |
-|---|---|---|---|---|
-| pl_mpeg (MPEG-1 video decoder) | [phoboslab/pl_mpeg](https://github.com/phoboslab/pl_mpeg) | MIT | a synthesized 320×240 MPEG-1 stream, 59 decoded frames | RGB hash of every frame |
-| h264bsd + minimp4 (H.264 baseline decoder, MP4 demuxer) | [oneam/h264bsd](https://github.com/oneam/h264bsd), [lieff/minimp4](https://github.com/lieff/minimp4) | Apache-2.0, CC0 | h264bsd's own 640×360 test vector, 73 pictures | YUV hash of every picture |
-| wasm3 (WebAssembly interpreter core, no WASI) | [wasm3/wasm3](https://github.com/wasm3/wasm3) | MIT | its `fib32.wasm` test module, `fib(n)` for seven `n` | the seven values (micro: under 5 ms in C) |
-| binjgb (Game Boy Color emulator core) | [binji/binjgb](https://github.com/binji/binjgb) | MIT | the cgb-acid2 test ROM (MIT), 60 emulated frames | RGB555 hash of every frame |
-| doomgeneric (Doom engine) | [ozkl/doomgeneric](https://github.com/ozkl/doomgeneric) | GPL-2.0 | `-timedemo demo1` of the shareware IWAD, 1000 frames timed, the first 70 pinned | RGB hash of every frame |
-
-`docs/followups/corpus_status.md` is the ledger of each corpus's status and gates.
-
-## How results are verified
-
-There is no readiness percentage. A claim is made only when the canonical runner reproduces
-it from fresh translator output on the real `daslang`:
+## Verify
 
 ```sh
-python3 scripts/run_c2das_cases.py --all-ready        # every ready case: C reference == fresh daslang output
-python3 scripts/run_c2das_cases.py --all-known-red    # survey of the cases expected to fail
-python3 scripts/check_test_registry.py --check        # fixture registry is derived from cases.json
-python3 scripts/corpus_matrix.py converge --check     # every corpus program, every mode, per frame, equals C
-cargo test -p c2dascript-transpile                    # Rust contract and snapshot tests
-bash scripts/c2das_preflight.sh [--fast|--full|--extended]   # the local gate; GitHub Actions mirrors part of it
+python3 scripts/run_c2das_cases.py --all-ready      # every case: C output == translated daslang output
+python3 scripts/corpus_matrix.py converge --check   # every corpus, every mode, frame by frame == C
+python3 scripts/corpus_matrix.py bench              # docs/corpus-benchmark.md and the snapshot above
+python3 scripts/corpus_matrix.py readme             # the snapshot above from the generated docs
 ```
-
-- **Cases** (`tests/canonical/cases.json`): each one copies a C graph to a temporary
-  workspace, compiles the C reference with `clang-18`, requires fresh `--strict` output, runs
-  it with `daslang` and compares stdout and exit code with the oracle (or with what the C
-  program printed). Negative cases must fail with the declared diagnostic and write nothing.
-- **Fixtures** (`tests/registry/fixtures.json`): every remaining fixture's exact status, derived
-  from the cases, never "covered" by assumption.
-- **Convergence** (`docs/corpus-convergence.md`): every corpus program in the interpreter,
-  `-jit`, `-exe` and AOT prints the same per-frame hashes as the C build; `--check` fails the
-  preflight when the committed document no longer matches a fresh run.
-- **Benchmark** (`docs/corpus-benchmark.md`): the same hash check on every timed run; a mode
-  that ever differs is a failure, never a number.
-
-`daslang` is found through `DASLANG`, `DASROOT`, `PATH` or `~/daScript`; prerequisites and
-the translate commands are in `docs/translator-overview.md`.
 
 ## Documentation
 
-- [`docs/translator-overview.md`](docs/translator-overview.md) — what the translator does,
-  known gaps, build and translate, the validation pipeline, CI, principles, C2Rust lineage.
-- [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) — the measurement rules.
-- [`docs/corpus-benchmark.md`](docs/corpus-benchmark.md) — the generated Linux benchmark,
-  snapshot and full appendix; [`docs/corpus-build-recipe.md`](docs/corpus-build-recipe.md)
-  — every build and run command behind it.
-- [`docs/corpus-convergence.md`](docs/corpus-convergence.md) — per-frame equality of every
-  run mode with C; [`docs/followups/corpus_status.md`](docs/followups/corpus_status.md) —
-  the corpus ledger.
-- [`tests/manual/doomgeneric/sdl/README.md`](tests/manual/doomgeneric/sdl/README.md) — the
-  Windows SDL3 Doom harness and its table.
-- [`docs/known-limitations.md`](docs/known-limitations.md), [`docs/followups/`](docs/followups)
-  — what is not supported yet and what each lever was measured to buy
-  (`hot_path_levers.md`, `translator_gaps_wasm3.md`).
-- [`docs/testing-registry.md`](docs/testing-registry.md) — the test system and its registry;
-  [`docs/c2rust_parity_map.md`](docs/c2rust_parity_map.md) — the c2rust → c2das
-  architecture map.
-- [`CODEX.md`](CODEX.md), [`AGENTS.md`](AGENTS.md) — the contributor and agent contract.
+- [Translator overview, build and usage](docs/translator-overview.md)
+- [Benchmark methodology](docs/benchmark-methodology.md), [full benchmark](docs/corpus-benchmark.md), [build recipe](docs/corpus-build-recipe.md)
+- [Convergence](docs/corpus-convergence.md), [corpus status](docs/followups/corpus_status.md), [known limitations](docs/known-limitations.md)
+- [Doom on Windows (SDL3 harness)](tests/manual/doomgeneric/sdl/README.md)
+- [Architecture contracts](ARCHITECTURE_COMMON.md), [laws](LAWS.md), [contributing](CODEX.md)
 
-## License and acknowledgements
+## License
 
-c2das is distributed under the [BSD-3-Clause license](LICENSE). It contains and adapts
-components originating in C2Rust; their notices and third-party licenses remain in the
-repository. C2Rust was inspired by Jamey Sharp's
-[Corrode](https://github.com/jameysharp/corrode) translator and uses Emscripten's Relooper
-approach for arbitrary C control flow. The corpora keep their own licences beside their
-sources (`tests/manual/<corpus>/upstream/`).
-
-daslang is an independent language and runtime. See [dascript.org](https://dascript.org/) for
-its documentation and licensing.
+BSD-3-Clause, see [LICENSE](LICENSE); C2Rust-derived components keep their notices. Each corpus
+keeps its own licence in `tests/manual/<corpus>/`.

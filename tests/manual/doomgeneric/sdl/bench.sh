@@ -139,6 +139,14 @@ done
 win() { # <cmd.exe command line> -> its first non-empty stdout line, or nothing
     (cd "$work" && "$cmd_exe" /c "$1" 2>/dev/null | tr -d '\r' | sed -n '/[^[:space:]]/{p;q}') || true
 }
+# Quoted paths with spaces (`Microsoft Visual Studio`, `Program Files`) do not survive
+# cmd.exe /c from WSL, so tool probes run from a batch file in the work dir instead.
+win_bat() { # <batch lines, LF-separated> -> the batch's stdout
+    local bat="$work/c2das_bench_probe.bat"
+    { printf '@echo off\r\n'; printf '%s\n' "$1" | sed 's/$/\r/'; } > "$bat"
+    (cd "$work" && "$cmd_exe" /c c2das_bench_probe.bat 2>/dev/null | tr -d '\r') || true
+    rm -f "$bat"
+}
 facts="$oracle.facts"
 {
     echo "date=$(date +%F)"
@@ -146,7 +154,7 @@ facts="$oracle.facts"
     echo "cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo 2>/dev/null | head -n 1)"
     echo "os=$(win ver)"
     daslang_exe="${DASLANG:-daslang.exe}"
-    daslang_version="$(win "\"$daslang_exe\" --version")"
+    daslang_version="$(win_bat "\"$daslang_exe\" --version 2>&1" | sed -n '/[^[:space:]]/{p;q}')"
     daslang_commit="${DASLANG_COMMIT:-}"
     if [ -z "$daslang_commit" ]; then
         das_root="${DASROOT:-}"
@@ -162,16 +170,20 @@ facts="$oracle.facts"
     if [ -n "${SDL3_DIR:-}" ]; then
         sdl_h="$(wslpath -u "$SDL3_DIR" 2>/dev/null || echo "$SDL3_DIR")/include/SDL3/SDL_version.h"
         if [ -f "$sdl_h" ]; then
-            echo "sdl=$(awk '/#define SDL_(MAJOR|MINOR|MICRO)_VERSION[[:space:]]/ {v[++n]=$3} END {if (n==3) printf "%s.%s.%s", v[1], v[2], v[3]}' "$sdl_h")"
+            # SDL's headers have CRLF line ends.
+            echo "sdl=$(tr -d '\r' < "$sdl_h" | awk '/#define SDL_(MAJOR|MINOR|MICRO)_VERSION[[:space:]]/ {v[++n]=$3} END {if (n==3) printf "%s.%s.%s", v[1], v[2], v[3]}')"
         fi
     fi
-    vcvars_call=""
+    probe_lines=""
     if [ -n "${VCVARS:-}" ]; then
-        vcvars_call="call \"$VCVARS\" >nul 2>nul && "
+        probe_lines="call \"$VCVARS\" >nul 2>nul"$'\n'
     fi
-    # `cl` prints its banner ("Microsoft (R) C/C++ Optimizing Compiler Version 19.44...") on stderr
-    echo "msvc=$(win "${vcvars_call}cl 2>&1" | sed -n 's/.*Version \([0-9.]*\).*/\1/p')"
-    echo "clang_cl=$(win "${vcvars_call}\"${CLANG_CL:-clang-cl}\" --version" | sed -n 's/.*clang version \([0-9.]*\).*/\1/p')"
+    # `cl` prints its banner ("... Compiler Version 19.44...", localized) on stderr
+    probe_lines+="cl 2>&1 | findstr /R /C:\"C/C++.*[0-9][0-9]*\\.[0-9][0-9]*\\.[0-9]\""$'\n'
+    probe_lines+="\"${CLANG_CL:-clang-cl}\" --version 2>&1 | findstr /C:\"clang version\""
+    probe_out="$(win_bat "$probe_lines")"
+    echo "msvc=$(printf '%s\n' "$probe_out" | grep 'C/C++' | grep -o '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9.]*' | head -n 1)"
+    echo "clang_cl=$(printf '%s\n' "$probe_out" | sed -n 's/.*clang version \([0-9.]*\).*/\1/p' | head -n 1)"
 } > "$facts"
 python3 "$here/bench_markdown.py" --samples "$samples" --facts "$facts" --reps "$reps" --frames "$frames" \
     --output "$md_out"
