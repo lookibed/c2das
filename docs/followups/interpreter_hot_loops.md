@@ -81,9 +81,66 @@ Every item below is a translator mapping: a C shape and the daslang form c2das w
   But 44% of the translated `decode_us` is the harness hash, so engine gains show at about
   half their size. Time the hash separately before Doom is a headline.
 
-## Order
+## Status after the first round (commit `712474e26`)
 
-1. Mappings 2 and 3 (loops).
-2. Mapping 1 (bitfield structs by value).
-3. Mapping 4.
-4. Re-profile after each step.
+Mappings 1–4 and pointer inductions landed. Same-batch measurement of the first and the
+current translation: Doom's interpreter `decode_us` went from 6.16 s to 4.16 s (−32%).
+
+| step | interpreter, Doom |
+|---|---|
+| range loops (`8b14fdbfc`) | −12% |
+| bitfield structs as unit words (`4b9f032b9`) | −16% |
+| direct fixed-array subscripts (`7601b22f0`) | −4% |
+| typed scalar stores, `x++` (`491557d52`) | −3% |
+| pointer inductions as `uint64` address mirrors (`712474e26`) | −6% |
+| inline union fields, `switch` chains | 0 (readability) |
+
+The snapshot at `712474e26` puts Doom at 35.1× C `-O3 -march=native` (was 54.8×).
+
+## Profile 2 (2026-10-09, translator at `0fb93dde8`)
+
+### Hash and engine measured separately
+
+Stubbing the per-frame hash down to one pixel (`DG_NO_HASH`) on both sides separates the
+harness from the engine. Medians of 3 runs:
+
+| build | with hash | engine only | hash alone |
+|---|---|---|---|
+| C `-O3 -march=native` | 105.0 ms | 54.8 ms | 50.2 ms |
+| daslang interpreter | 3 903 ms | 2 397 ms | 1 506 ms |
+| ratio | 37× | **44×** | 30× |
+
+- The hash is 48% of C's time and 39% of the interpreter's. The 35–37× headline blends a 44×
+  engine with a 30× hash.
+- The benchmark should report the engine and the hash separately before the ratio is quoted
+  as Doom's.
+
+### Where the engine's time goes
+
+- **Cost per node:** about 1.1 ns per node evaluation, measured by removing 9 nodes per pixel
+  over 64 M pixels.
+- **Draw loops:**
+  - `R_DrawColumn` runs about 12 nodes per pixel.
+  - `R_DrawSpan` runs about 20 nodes per pixel; three single-use temporaries account for
+    about 5 of them.
+  - Apart from the null check (`Ptr2Ref`) and two global pointer reads, nothing in these
+    loops is left unfused.
+- **Rest of the engine:** a long tail, each function at 6% or less.
+
+### Next mappings, measured on copies
+
+| # | C shape → daslang | measured |
+|---|---|---|
+| 1 | single-use scalar temporaries substituted into their use (`spot = xtemp \| ytemp`) | −5.7% from `R_DrawSpan` alone |
+| 2 | re-pack of a unit word (`(w>>16&0xff)<<16 \| (w>>8&0xff)<<8 \| w&0xff` → `w & 0xffffff`) | −16.9% overall, but it speeds up the harness hash only |
+| 3 | libc string shims reading bytes by index | −1.2% (noise) |
+| — | `--unsafe-deref` (no `Ptr2Ref`), `math::abs`, reading the word of a bitfield struct | no gain |
+
+### What this says about the 20× target
+
+- Engine-only Doom is at 44×.
+- Even with zero nodes per pixel in the draw loops, the rest of the engine sits at about
+  20×. So translator mappings alone cannot bring the interpreter to 20× engine-only on Doom
+  (estimate).
+- The remaining levers are on daslang's side, for example a fused node family for
+  `*p = a[b[i]]` with a local address and global base pointers.
