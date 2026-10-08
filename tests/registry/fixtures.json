@@ -6010,7 +6010,7 @@
       "expected": {
         "kind": "translation-error",
         "value": {
-          "cause": "--memory-model linear is not implemented yet"
+          "cause": "--fnptr-model table is not implemented yet"
         }
       },
       "family": "syntax-pointer-legacy",
@@ -6046,6 +6046,90 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "not-applicable",
       "source": "tests/syntax/p192_dialect_eden_refuses_option.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p193-linear-scalars",
+      "canonical_cases": [
+        "p193-linear-scalars"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_scalars",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p193_linear_scalars",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p193_linear_scalars.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p194-linear-records",
+      "canonical_cases": [
+        "p194-linear-records"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_records",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p194_linear_records",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p194_linear_records.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p195-linear-refuses-local-address",
+      "canonical_cases": [
+        "p195-linear-refuses-local-address"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "not supported under --memory-model linear yet: the address of a local or global object",
+          "location": "p195_linear_refuses_local_address.c:9"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p195_linear_refuses_local_address",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/p195_linear_refuses_local_address.c",
       "status": "supported"
     },
     {
