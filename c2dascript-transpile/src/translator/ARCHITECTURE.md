@@ -398,8 +398,21 @@ reports itself — so a body is never converted twice):
   and again before each `continue`; `do … while (0)` is its body, or `while true { …; break }`
   when it has a `break`/`continue`, whose `continue` is that `break`; a condition with
   statements of its own (`while ((c = next()) != 0)`) is tested at the top of `while true`.
-  A `switch` whose arms never fall into each other and that has at most four case values is an
-  `if`/`elif` chain with the arms inline.  Any other `switch` keeps the flat dispatch (below:
+  A `switch` whose arms never fall into each other and that has at most eight case values is
+  an `if`/`elif`/`else` chain with the arms inline (`switch_chain`): the scrutinee (a hoisted
+  temporary unless it is a plain read) compared in the promoted type against each arm's values
+  (`x == 1 || x == 2`), `default` the final `else` wherever it stands, a `break` at the end
+  of an arm dropped and one that ends a branch of an `if` folded (`if (c) { a; break; } b` is
+  `if c { a } else { b }`, `lift_breaks`); a `continue` of the enclosing loop stays what it is.
+  A `break` deeper in an `if` that statements follow (it would need those statements twice)
+  keeps the region.  The limit of eight is measured in the interpreter (2026-10-08, 20 M
+  passes of a dense switch hit uniformly, `acc += k` per arm): with a statement after the
+  switch, chain 314 ms against table 397 ms at 8 values, 410 against 396 at 12, 520 against
+  377 at 16, 910 against 370 at 32; with the switch ending the loop body (the table's `break`
+  is `continue`), 280 against 271 at 8, 380 against 283 at 12.  A median split with the arms
+  inline (304/350/370/440 ms at 8/12/16/32 with the statement) would copy the `default` arm
+  into every half and is not emitted.  `p179-structured-switch-chain` is the fixture.
+  Any other `switch` keeps the flat dispatch (below:
   tests, median split or computed-`goto` table) and is a *label region* in the statement list
   that holds it — dispatch, `label` per arm in source order, end label; a `break` of the
   `switch` is `goto` the end, fall-through is fall-through.  Every jump of a region stays in
@@ -449,7 +462,10 @@ the flat back end keeps its CFG rendering) are daslang's `for` over a range, one
 in the body is still `t += i`.  `p175-counted-loops` is the fixture (every fallback has a
 function).
 
-`-Wcontrol-flow` (off by default) reports each function's back end and, for a flat one, why.
+`-Wcontrol-flow` (off by default) reports each function's back end and, for a flat one, why,
+and each `switch` of a structured body as an inline chain or a label region (with why).  On
+2026-10-08: doomgeneric (`doom_bench_all.c`) 70 chains / 22 regions (11 with more than eight
+values, 10 fall-through, 1 nested region), wasm3 8 / 7 (all more than eight values).
 On the corpora (2026-10): pl_mpeg 169 structured / 0 flat, h264bsd 378 / 2, wasm3 688 / 131
 (the module loader and compiler's `_Catch`/`_Throw` gotos; the opcode handlers are
 structured), binjgb 207 / 18, doomgeneric 975 / 8.  Reason: daslang's interpreter pays a

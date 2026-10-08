@@ -639,18 +639,19 @@ fn p121_switch_dispatch_is_a_jump_table_or_a_split() {
     assert!(d.contains(
         "def early_out_flat(var k_0 : int) {\n    goto label 7\n    label 6:\n    return\n    label 7:\n    if (k_0 >= 1 && k_0 <= 5) {\n        goto k_0 + 1\n    }\n"
     ));
-    // Structured back end: the switch is a region of the body, and the arm
-    // that returns returns where it stands.
+    // Structured back end: five values without fall-through are an inline
+    // chain (p179), and the arm that returns returns where it stands.
     assert!(d.contains(
-        "def early_out(var k_1 : int) {\n    if (k_1 >= 1 && k_1 <= 5) {\n        goto k_1\n    }\n    goto label 0\n"
+        "def early_out(var k_1 : int) {\n    if (k_1 == 1) {\n        g_seen += 10\n    } elif (k_1 == 2) {\n"
     ));
-    assert!(d.contains("    label 5:\n    return\n    label 0:\n    g_seen += 1000\n"));
-    // No elif chain is longer than four arms.
+    assert!(d.contains("    } elif (k_1 == 5) {\n        return\n    }\n    g_seen += 1000\n"));
+    // No dispatch chain of jumps is longer than four arms (an inline chain
+    // has at most eight).
     let mut elifs = 0;
     for line in d.lines().map(str::trim_start) {
         if line.starts_with("} elif") {
             elifs += 1;
-            assert!(elifs <= 3, "an elif chain of more than four arms");
+            assert!(elifs <= 7, "an elif chain of more than eight arms");
         } else if !line.starts_with("goto label") {
             elifs = 0;
         }
@@ -1441,17 +1442,18 @@ fn p161_switch_is_a_label_region_or_a_chain() {
     let body = function_body(&d, "tally");
     assert!(body.contains("    for (i_0 in range(0, n_0)) {\n"), "{body}");
     assert!(
-        body.contains("        continue\n        label 5:\n        label 6:\n        continue\n        label 0:\n"),
+        body.contains("        continue\n        label 5:\n        label 6:\n        label 8:\n        continue\n        label 0:\n"),
         "{body}"
     );
     // A switch that ends a void function: `break` is `return`, and the empty
     // last arm and the holes share a trampoline.
     let body = function_body(&d, "store");
     assert!(
-        body.contains("    if (x >= 1 && x <= 9) {\n        goto x - 1\n    }\n    return\n    label 6:\n    label 8:\n    return\n"),
+        body.contains("    if (x >= 1 && x <= 11) {\n        goto x - 1\n    }\n    return\n    label 6:\n    label 8:\n    label 9:\n    return\n"),
         "{body}"
     );
-    // Small switches whose arms never fall through are `if`/`elif` chains.
+    // Small switches whose arms never fall through are `if`/`elif` chains
+    // (p179 covers the forms).
     let body = function_body(&d, "in_arm");
     assert!(
         body.contains("    if (a != 0) {\n        if (b == 1) {\n            r = 1\n        } elif (b == 2) {\n            r = 2\n        }\n    } else {\n"),
@@ -1502,6 +1504,74 @@ fn p162_bodies_with_goto_or_nested_cases_stay_flat() {
     let body = function_body(&d, "structured");
     assert!(body.contains("    for (i_0 in range(0, n_1)) {\n"), "{body}");
     assert!(!body.contains("label"), "{body}");
+}
+
+#[test]
+fn p179_small_switches_are_inline_chains() {
+    let d = transpile_with_libc(
+        "p179_structured_switch_chain",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // Several labels on one arm, compared in the promoted type; `default`
+    // is the final `else`.
+    let body = function_body(&d, "name");
+    assert!(
+        body.contains("    if (c2da_fresh0 == 0x0u || c2da_fresh0 == 0x1u) {\n        return "),
+        "{body}"
+    );
+    assert!(body.contains("    } elif (c2da_fresh0 == 0x2u) {\n"), "{body}");
+    assert!(body.contains("    } else {\n        return "), "{body}");
+    for name in ["default_first", "default_middle", "default_last"] {
+        let body = function_body(&d, name);
+        assert!(body.contains("    } else {\n        r") && !body.contains("label"), "{name}: {body}");
+    }
+    let body = function_body(&d, "default_middle");
+    assert!(body.contains("    } elif (x_0 == 2 || x_0 == 3) {\n        r_0 = 23\n    } else {\n        r_0 = 100\n    }\n"), "{body}");
+    // A `break` in the middle of an arm folds the rest of the arm into the
+    // other branch of its `if`, two deep; the `return` stays where it is.
+    let body = function_body(&d, "mid_break");
+    assert!(!body.contains("label"), "{body}");
+    assert!(
+        body.contains("    if (x_2 == 1) {\n        r_2 = 10\n        if (y <= 0) {\n            r_2 += 1\n            if (y < -5) {\n                r_2 += 2\n            } else {\n                r_2 += 4\n                r_2 += 8\n            }\n        }\n    } elif (x_2 == 2) {\n        if (y > 0) {\n            r_2 = 20\n            if (y <= 10) {\n                r_2 += 1\n            }\n        } else {\n            r_2 += 2\n        }\n    } elif (x_2 == 3) {\n        if (y != 0) {\n            return -3\n        }\n        r_2 = 30\n    }\n    return r_2"),
+        "{body}"
+    );
+    // `continue` inside the chain is the loop's.
+    let body = function_body(&d, "loop_continue");
+    assert!(!body.contains("label"), "{body}");
+    assert!(
+        body.contains("        if (c2da_fresh1 == 0) {\n            continue\n        } elif (c2da_fresh1 == 1) {\n            acc += 1\n            if (acc > 5) {\n                continue\n            }\n            acc += 10\n        } elif (c2da_fresh1 == 2) {\n"),
+        "{body}"
+    );
+    // Nested chains; the inner `break` under an `if` is a negated `if`.
+    let body = function_body(&d, "nested");
+    assert!(!body.contains("label"), "{body}");
+    assert!(
+        body.contains("        } elif (b == 1) {\n            r_3 = 2\n            if (a != 0) {\n                r_3 = 3\n            }\n        } else {\n            r_3 = 10\n        }\n        r_3 += 100\n    } elif (a == 1) {\n"),
+        "{body}"
+    );
+    // char, unsigned and negative case values in the promoted type.
+    let body = function_body(&d, "on_char");
+    assert!(body.contains("    if (c2da_fresh2 == 97 || c2da_fresh2 == 101) {\n"), "{body}");
+    let body = function_body(&d, "on_unsigned");
+    assert!(body.contains("    } elif (u == 0xffffffffu) {\n"), "{body}");
+    let body = function_body(&d, "on_negative");
+    assert!(body.contains("    if (x_") && body.contains(" == -1) {\n") && body.contains(" == -100) {\n"), "{body}");
+    // Loops inside an arm keep their own `break`.
+    let body = function_body(&d, "break_in_loop");
+    assert!(!body.contains("label") && body.contains("            if (r_5 == 4) {\n                break\n"), "{body}");
+    // Eight values are a chain; nine keep the region (a jump table here).
+    let body = function_body(&d, "eight");
+    assert!(!body.contains("label") && body.contains("    } elif (x_6 == 7) {\n        return 17\n    }\n    return -1"), "{body}");
+    let body = function_body(&d, "nine");
+    assert!(body.contains("    if (x_5 >= 0 && x_5 <= 8) {\n        goto x_5 + 1\n    }\n"), "{body}");
+    // Fall-through and a `break` deeper in an `if` that statements follow
+    // keep the region; Duff's device is flat.
+    let body = function_body(&d, "fallthrough");
+    assert!(body.contains("    label 0:\n    r_4 += 1\n    label 1:\n    r_4 += 2\n    goto label 3\n"), "{body}");
+    let body = function_body(&d, "deep_break");
+    assert!(body.contains("    label 0:\n    if (y_0 != 0) {\n        if (y_0 > 2) {\n            goto label 2\n        }\n"), "{body}");
+    let body = function_body(&d, "duff");
+    assert!(body.contains("    label 1:\n    label 2:\n    r_7 += 1\n    label 3:\n"), "{body}");
 }
 
 #[test]

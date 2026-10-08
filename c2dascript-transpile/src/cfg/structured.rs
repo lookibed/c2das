@@ -29,8 +29,17 @@
 //!
 //! # `switch`
 //!
-//! daslang has no `switch`.  A C `switch` keeps the dispatch the flat back end
-//! uses ([`super::labels::DispatchTree`]: equality tests, a median split or a
+//! daslang has no `switch`.  A C `switch` of at most [`CHAIN_MAX`] case
+//! values whose arms never fall into each other is an `if`/`elif`/`else`
+//! chain with the arms inline ([`switch_chain`]): the scrutinee, evaluated
+//! once into a hoisted temporary unless it is a plain read, is compared in
+//! the promoted type against each arm's values (`x == 1 || x == 2`), and
+//! `default`, wherever it stands, is the final `else`.  A `break` of the
+//! switch at the end of an arm is dropped, one that ends a branch of an `if`
+//! makes the statements after the `if` the other branch ([`lift_breaks`]); a
+//! `continue` of the enclosing loop stays what it is, since the chain is no
+//! loop.  Any other `switch` keeps the dispatch the flat back end uses
+//! ([`super::labels::DispatchTree`]: equality tests, a median split or a
 //! computed-`goto` jump table) and places its arms, in source order, as a
 //! *label region* in the statement list that contains the `switch`: the
 //! dispatch, then `label A:` before each arm, then `label END:`.  Fall-through
@@ -1121,9 +1130,20 @@ impl Builder<'_> {
         }
         self.breaks.pop();
         result?;
-        if let Some(chain) = switch_chain(&value, &cases, default, &arms, end) {
-            out.extend(chain);
-            return Ok(());
+        let function = tr.function_context.borrow().get_name().to_owned();
+        match switch_chain(&value, &cases, default, &arms, end) {
+            Ok(chain) => {
+                diag!(
+                    Diagnostic::ControlFlow,
+                    "`{function}`: switch as an inline chain"
+                );
+                out.extend(chain);
+                return Ok(());
+            }
+            Err(reason) => diag!(
+                Diagnostic::ControlFlow,
+                "`{function}`: switch as a label region ({reason})"
+            ),
         }
         out.push(Node::Dispatch {
             scrutinee: value,
@@ -1264,15 +1284,25 @@ fn single_assignment(stmts: Option<&[DaStmt]>) -> Option<DaExpr> {
     }
 }
 
+/// The most case values a `switch` is written as an `if`/`elif` chain with
+/// its arms inline ([`switch_chain`]); more keep the flat dispatch (a jump
+/// table or a median split over labels).  Measured in the interpreter
+/// (20 M passes, a dense switch hit uniformly, one `acc += k` per arm; see
+/// the translator `ARCHITECTURE.md`, "Control-flow back ends"): with a
+/// statement after the switch the chain is 314 ms against the table's
+/// 397 ms at 8 cases, 410 against 396 at 12, 520 against 377 at 16; with
+/// the switch ending the loop body (the table's `break` is `continue`) 280
+/// against 271 at 8, 380 against 283 at 12.
+const CHAIN_MAX: usize = 8;
+
 /// A `switch` whose arms never fall into each other, as an `if`/`elif`
 /// chain with each arm inline: no label and no jump at all.
 ///
-/// Taken when the dispatch would be a chain of equality tests anyway
-/// ([`flat::TESTS_MAX`] case values or fewer), every arm but the last ends
-/// in a statement that leaves it (its `break`, a `return`, the loop's
-/// `break`/`continue`), and a `break` of the switch appears only as an arm's
-/// last statement.  The values are distinct (C11 6.8.4.2p3), so the order of
-/// the tests does not matter, and `default`, wherever it stands, is the
+/// Taken for [`CHAIN_MAX`] case values or fewer when every arm but the last
+/// ends in a statement that leaves it (its `break`, a `return`, the loop's
+/// `break`/`continue`) and every `break` of the switch can be folded away
+/// ([`lift_breaks`]).  The values are distinct (C11 6.8.4.2p3), so the order
+/// of the tests does not matter, and `default`, wherever it stands, is the
 /// final `else`.
 fn switch_chain(
     scrutinee: &DaExpr,
@@ -1280,9 +1310,9 @@ fn switch_chain(
     default: Option<Sym>,
     arms: &[(Sym, Vec<Node>)],
     end: Sym,
-) -> Option<Vec<Node>> {
-    if cases.len() > flat::TESTS_MAX {
-        return None;
+) -> Result<Vec<Node>, &'static str> {
+    if cases.len() > CHAIN_MAX {
+        return Err("more than eight case values");
     }
     let mut bodies: Vec<(Sym, Vec<Node>)> = Vec::with_capacity(arms.len());
     for (index, (label, nodes)) in arms.iter().enumerate() {
@@ -1290,15 +1320,16 @@ fn switch_chain(
         drop_dead(&mut body);
         let last = index + 1 == arms.len();
         if !last && !ends(&body) {
-            return None;
+            return Err("fall-through");
         }
-        if matches!(body.last(), Some(Node::Goto(target)) if *target == end) {
-            body.pop();
-        }
+        let body = lift_breaks(body, end).ok_or("a break the chain cannot fold")?;
         let mut jumped = HashSet::new();
         targets(&body, &mut jumped);
-        if jumped.contains(&end) || body.iter().any(|node| matches!(node, Node::Label(_))) {
-            return None;
+        if jumped.contains(&end) {
+            return Err("a break the chain cannot fold");
+        }
+        if has_label(&body) {
+            return Err("a label region inside an arm");
         }
         bodies.push((*label, body));
     }
@@ -1326,7 +1357,7 @@ fn switch_chain(
         if Some(label) == default {
             continue;
         }
-        let cond = test(label)?;
+        let cond = test(label).ok_or("an arm without a case value")?;
         chain = vec![Node::If {
             cond,
             then: body,
@@ -1334,7 +1365,86 @@ fn switch_chain(
         }];
     }
     // Without case arms the chain is the default arm alone (or nothing).
-    Some(chain)
+    Ok(chain)
+}
+
+/// Remove every `break` of the switch (`goto end`) from an arm whose end is
+/// the end of the switch, so the arm can stand inline in an `if`/`elif`
+/// chain, or `None` when one cannot be removed without copying statements.
+///
+/// Falling off `nodes` reaches `end`, so a trailing `goto end` is dropped.
+/// A `goto end` that ends one branch of an `if` makes the statements after
+/// the `if` the other branch's continuation (`if (c) { a; break } b` is
+/// `if c { a } else { b }`), and the question repeats inside both branches.
+/// A `goto end` deeper in a branch that falls through to statements after
+/// its `if` would need those statements twice; one inside a loop would need
+/// a labelled `break` daslang does not have.  Both keep the label region.
+fn lift_breaks(nodes: Vec<Node>, end: Sym) -> Option<Vec<Node>> {
+    let mut out = Vec::new();
+    let mut nodes = nodes.into_iter();
+    while let Some(node) = nodes.next() {
+        match node {
+            // `drop_dead` left nothing after it.
+            Node::Goto(target) if target == end => return Some(out),
+            Node::If { cond, then, else_ } if mentions(&then, end) || mentions(&else_, end) => {
+                let rest: Vec<Node> = nodes.collect();
+                let then_exits = matches!(then.last(), Some(Node::Goto(t)) if *t == end);
+                let else_exits = matches!(else_.last(), Some(Node::Goto(t)) if *t == end);
+                let (then, else_) = match (then_exits, else_exits) {
+                    (true, false) => (
+                        lift_breaks(then, end)?,
+                        lift_breaks(join(else_, rest), end)?,
+                    ),
+                    (false, true) => (
+                        lift_breaks(join(then, rest), end)?,
+                        lift_breaks(else_, end)?,
+                    ),
+                    (false, false) if !rest.is_empty() => return None,
+                    // Both branches leave, so `rest` is dead and gone.
+                    _ => (lift_breaks(then, end)?, lift_breaks(else_, end)?),
+                };
+                out.push(if then.is_empty() && !else_.is_empty() {
+                    Node::If {
+                        cond: flat::negate(&cond),
+                        then: else_,
+                        else_: vec![],
+                    }
+                } else {
+                    Node::If { cond, then, else_ }
+                });
+                return Some(out);
+            }
+            Node::Loop { ref body, .. } | Node::For { ref body, .. } if mentions(body, end) => {
+                return None
+            }
+            node => out.push(node),
+        }
+    }
+    Some(out)
+}
+
+/// `head` then `rest`, minus what the end of `head` makes unreachable.
+fn join(mut head: Vec<Node>, rest: Vec<Node>) -> Vec<Node> {
+    head.extend(rest);
+    drop_dead(&mut head);
+    head
+}
+
+/// Whether a `goto target` stands anywhere under `nodes`.
+fn mentions(nodes: &[Node], target: Sym) -> bool {
+    let mut jumped = HashSet::new();
+    targets(nodes, &mut jumped);
+    jumped.contains(&target)
+}
+
+/// Whether a label stands anywhere under `nodes`.
+fn has_label(nodes: &[Node]) -> bool {
+    nodes.iter().any(|node| match node {
+        Node::Label(_) => true,
+        Node::If { then, else_, .. } => has_label(then) || has_label(else_),
+        Node::Loop { body, .. } | Node::For { body, .. } => has_label(body),
+        _ => false,
+    })
 }
 
 /// Whether `nodes` leave the loop whose body they are: a `break` or

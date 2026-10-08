@@ -1654,6 +1654,23 @@
       "runtime": "required"
     },
     {
+      "id": "p179-structured-switch-chain",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p179_structured_switch_chain.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "name warm warm cold none\ndefault 1001 1002 1100 1001 1023 1023 1100 1002 1100\nmid 10 13 23 20 21 2 -3 30\ncontinue 1119\nnested 101 102 110 7\nchar 1 1 26 -1 0\nunsigned 0 1 7 99\nnegative 1 100 5 0\nfallthrough 3 2 3 0\nnine 10 18 -1 eight 10 17 -1\nloop 10 2 deep 10 11 0 2 duff 8 27\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p179_small_switches_are_inline_chains",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

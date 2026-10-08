@@ -288,27 +288,19 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export, sideeffects]
 def basic_switch(var x : int) : int {
-    if (x >= 0 && x <= 4) {
-        goto x + 1
+    if (x == 0) {
+        x += 1
+    } elif (x == 1) {
+        x += 2
+        if (x != 0) {
+            x += 3
+        } else {
+            x += 4
+        }
+        x += 5
+    } elif (x == 2 || x == 3 || x == 4) {
+        x += 6
     }
-    goto label 0
-    label 1:
-    x += 1
-    goto label 0
-    label 2:
-    x += 2
-    if (x != 0) {
-        x += 3
-    } else {
-        x += 4
-    }
-    x += 5
-    goto label 0
-    label 3:
-    label 4:
-    label 5:
-    x += 6
-    label 0:
     if (x == 0) {
         x += 7
     } else {

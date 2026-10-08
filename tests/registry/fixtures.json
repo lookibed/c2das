@@ -5716,6 +5716,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p179-structured-switch-chain",
+      "canonical_cases": [
+        "p179-structured-switch-chain"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "name warm warm cold none\ndefault 1001 1002 1100 1001 1023 1023 1100 1002 1100\nmid 10 13 23 20 21 2 -3 30\ncontinue 1119\nnested 101 102 110 7\nchar 1 1 26 -1 0\nunsigned 0 1 7 99\nnegative 1 100 5 0\nfallthrough 3 2 3 0\nnine 10 18 -1 eight 10 17 -1\nloop 10 2 deep 10 11 0 2 duff 8 27\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p179_structured_switch_chain",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p179_structured_switch_chain.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p17-runtime-malloc",
       "canonical_cases": [
         "p17-runtime-malloc"

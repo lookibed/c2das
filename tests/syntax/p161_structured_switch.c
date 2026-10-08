@@ -9,7 +9,10 @@
  * a loop body (its end is `continue`), a void function (`return`) and an
  * `if` arm with statements after the `if` (the `if` is spliced into
  * labels), a jump table whose holes end the loop, nested switches, site
- * temporaries in an arm (hoisted for AOT), and a switch without cases. */
+ * temporaries in an arm (hoisted for AOT), and a switch without cases.
+ * A switch of at most eight values whose arms never fall through is an
+ * inline `if`/`elif` chain instead (`p179-structured-switch-chain`), so
+ * `tally` and `store` carry nine values to stay regions. */
 #include <stdio.h>
 
 enum op { OP_ADD, OP_SUB, OP_MUL, OP_SKIP, OP_STOP, OP_NEG, OP_DUP, OP_HALVE };
@@ -67,6 +70,9 @@ static int tally(const int *v, int n) {
         case 3: counts[3]++; break;
         case 4: counts[3] += 4; break;
         case 7: counts[0] += 7; break;
+        case 9: counts[1] += 9; break;
+        case 10: counts[2] += 10; break;
+        case 11: counts[3] += 11; break;
         }
     }
     return counts[0] * 1000 + counts[1] * 100 + counts[2] * 10 + counts[3];
@@ -85,6 +91,9 @@ static void store(int x) {
         break;
     case 3: case 4: case 5: case 6: case 8:
         out_value = 30 + x;
+        break;
+    case 11:
+        out_value = 11;
         break;
     case 9: /* an empty last arm: its label would end the body */
         break;

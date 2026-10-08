@@ -2,7 +2,10 @@
  *
  * A dense range of cases is one bounds test and a computed `goto` into a run
  * of label numbers (holes go to the default arm), a sparse set is split at its
- * median value, and a run of at most four cases is an `if`/`elif` chain.  None
+ * median value, and a run of at most four cases is an `if`/`elif` chain of
+ * jumps.  (A `switch` of at most eight values whose arms never fall through
+ * is an inline `if`/`elif` chain of the structured back end instead,
+ * `p179-structured-switch-chain`; `sparse` and `wide` have nine.)  None
  * of them nests one level per case, which a 256-case `switch` needs for
  * daslang's AOT C++ to stay inside clang's bracket-nesting limit (binjgb's
  * CB-prefixed opcode `switch`).  Every function checks the arm each value
@@ -50,6 +53,7 @@ static int sparse(long v) {
     case 300: return 6;
     case 70000: return 7;
     case 2000000000: return 8;
+    case 123456789: return 9; /* a ninth value: more than an inline chain takes */
     default: return 0;
     }
 }
@@ -77,6 +81,10 @@ static int wide(unsigned long long w, long long s) {
     case 0xFFFFFFFF00000002ull: r = 3; break;
     case 0xFFFFFFFF00000004ull: r = 4; break;
     case 0xFFFFFFFF00000005ull: r = 5; break;
+    case 0xFFFFFFFF00000006ull: r = 6; break;
+    case 0xFFFFFFFF00000007ull: r = 7; break;
+    case 0xFFFFFFFF00000008ull: r = 8; break;
+    case 0xFFFFFFFF00000009ull: r = 9; break;
     }
     switch (s) {
     case -9000000000ll: r += 10; break;
@@ -84,6 +92,10 @@ static int wide(unsigned long long w, long long s) {
     case -8999999998ll: r += 30; break;
     case -8999999997ll: r += 40; break;
     case -8999999996ll: r += 50; break;
+    case -8999999994ll: r += 60; break;
+    case -8999999993ll: r += 70; break;
+    case -8999999992ll: r += 80; break;
+    case -8999999991ll: r += 90; break;
     }
     return r;
 }

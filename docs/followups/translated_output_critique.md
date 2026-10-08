@@ -47,7 +47,13 @@
    (`src/simulate/simulate.cpp:611`) tests `stopFlags` after every statement. A label directly
    before a void function's final `return` fails at run time (`jump to label 0 failed`). This
    is why the translator emits the double `return`; it is a candidate issue for the
-   `lookibed/daScript` fork.
+   `lookibed/daScript` fork.  Landed (`translator/ARCHITECTURE.md`, "Control-flow back
+   ends"; `p179-structured-switch-chain`): a `switch` of at most eight values without
+   fall-through is an inline `if`/`elif`/`else` chain, a `break` under an `if` folded into
+   the chain; the limit is measured (chain 314 ms against table 397 ms at 8 values, 520
+   against 377 at 16).  Fall-through, more than eight values and a `break` the chain would
+   have to copy statements for keep the label region.  Doom (`doom_bench_all.c`): 70 chains,
+   22 regions; wasm3: 8 and 7.
 4. **Array fields through a pointer.** C may index past a field array. The bounds check fails
    closed; `--unsafe-deref` keeps C semantics.  **Open; refuted by the corpus.**  "Fails
    closed" fails Doom itself: `pl->top[pl->maxx + 1]` and `pl->top[pl->minx - 1]` write the
