@@ -98,6 +98,48 @@ Things the target cannot fix and has to document:
      - ms/frame in the editor against the wasm3das Tier I number.
 5. **Doom** once the cyclic `--module-layout source` lands.
 
+## Measured on master daslang (2026-10-09)
+
+Interpreter micro-benchmarks and the local sandbox model, master daslang `c4e4906eb`.
+
+**Cost per memory access**, in ns, including about 7 ns of loop overhead:
+
+| access | raw pointer (today) | byte heap `array<uint8>`, global | word heap `array<uint>` |
+|---|---|---|---|
+| u8 load / store | 12.1 / 13.6 | **9.1 / 8.3** | 12.4 / 24.8 (read-modify-write) |
+| u32 load / store | 10.4 / 14.7 | 31.8 / 32.9 | **6.7 / 9.4** |
+| f64 load | 10.4 | 78.3 | 25.4 |
+
+**What the numbers show:**
+- `[inline]` helpers do inline, but each argument becomes a local. Writing the access in place
+  is 25% faster on Doom's column kernel.
+- A fixed global array is no faster than a global `array`.
+- A heap kept as a struct field (`rt.mem`, the wasm3das way) costs 10–35% more than a module
+  global.
+
+**Kernels, linear heap against today's raw pointers:**
+
+| kernel | byte heap, accesses in place | word heap, accesses in place | typed `new T` object |
+|---|---|---|---|
+| Doom `R_DrawColumn` | **1.46×** | 3.9× | — |
+| binjgb-like step: `e.state.*` fields, u64 ticks | 5.4–6.2× | 2.3× | **0.96×** |
+
+**Sandbox model check:** the byte, word and in-place forms, `new T`, `[inline]` and
+`options solid_context` are all accepted. `log_nodes` and `heap_size_limit` are refused.
+
+### Decisions this changes
+
+- **Flag 1 uses one module-global `array<uint8>` heap,** with accesses written in place: no
+  helper calls, no struct-field heap. Static data (string literals, initialised globals whose
+  address is taken) is placed into that heap at start.
+- **New flag 12, `--records typed`.** An allocation of a known struct type whose interior
+  addresses never escape as byte pointers becomes a `new T` daslang object. Its fields stay
+  typed (`p.f`), at raw speed and legal in the sandbox. Records that escape into byte memory
+  keep the heap form. Without this flag binjgb is estimated at 27–54 ms/frame in the
+  interpreter, over the 16.7 ms budget.
+- **The local sandbox model only checks the modules its name prefixes match,** so generated
+  sub-modules need their own check.
+
 ## Open questions to measure before building
 
 - **`options solid_context` in the editor.** It is in the local sandbox model's allowed list,
