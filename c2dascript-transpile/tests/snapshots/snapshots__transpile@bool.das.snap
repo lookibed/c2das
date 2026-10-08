@@ -292,7 +292,6 @@ def test_bool() {
     var ident0 : bool
     var macro_int0 : bool
     var macro_ident0 : bool
-    var int1 : bool
     var ident1 : bool
     var macro_int1 : bool
     var macro_ident1 : bool
@@ -300,10 +299,9 @@ def test_bool() {
     ident0 = false
     macro_int0 = false
     macro_ident0 = false
-    int1 = true
     ident1 = true
     macro_int1 = true
     macro_ident1 = true
-    int0 = (int(int0) | (int1 == true ? 1 : 0)) != 0
+    int0 = (int(int0) | (true ? 1 : 0)) != 0
     return
 }

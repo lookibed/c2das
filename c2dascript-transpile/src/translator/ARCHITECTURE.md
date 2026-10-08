@@ -520,8 +520,48 @@ fallback has a function; `*d++ = (uint8_t)(*s++)` is there because the C AST wal
 the `s++` under the cast twice and the step is taken once); `p174`'s in-loop stores are
 inductions now.
 
+**Single-use temporaries** (`cfg/structured.rs plan_substitutions`, decided on the C AST per
+statement list, in source order; the flat back end keeps its form): a scalar local assigned an
+expression and read exactly once, straight after, in the same statement list is written as that
+expression at the read and the assignment is dropped — the interpreter's `SetLocAny` and
+`GetLocal` of the local (about a node each, ~1.1 ns) go away.  Doom's `R_DrawSpan` computes
+`ytemp`, `xtemp` and `spot` that way per pixel; in order the three fold into
+`*dest = uint8(ds_colormap[int(ds_source[int(position >> 26u | position >> 4u & 0xfc0u)])])`
+(−5.7 % of Doom's interpreter time, measured by hand before the mapping; `docs/followups/
+interpreter_hot_loops.md`, "Profile 2").  The pass lives in the structured back end because
+every fact it needs is a C fact already decided there: `dead_after` (the counted loops' liveness
+walk), address-taken and `volatile` locals, `writes`; the value is placed through the same
+decl-level hook as a pointer induction's `*p++` (`Translation::expr_overrides`), in `t`'s own type,
+so the C conversions around the read are untouched.  A substitution needs all of: `t` a
+block-scope local (not a parameter, not static, not thread, not `volatile`, address never taken)
+of integer, `float`/`double` or pointer type, assigned by an expression statement `t = E` or
+declared `T t = E` on its own; `E` without effect, call or `volatile` read (literals, `sizeof`,
+enumeration constants, locals, memory reads — globals, elements, fields, `*p` — conversions,
+arithmetic, comparisons, `&&`/`||`, `?:`); the first statement after that names `t` reads it
+once, in a position evaluated exactly once at the statement's start (an expression statement,
+a `return` value, an `if`/`switch` scrutinee, a lone declaration's initializer, a `for` init —
+not an arm of `?:`, the right of `&&`/`||`, a callee, a loop test or body: a read under a branch
+or inside a nested loop keeps the local, so a `/` or `%` in `E` runs exactly where C's did);
+nothing between the assignment and the read — the statements between, and the reading
+statement up to its own top-level assignment, whose store is sequenced after its operands
+(C11 6.5.16p3) — writes a local `E` reads or, when `E` reads memory, stores to memory, calls or
+is inline assembly; no `case`, `default` or label between; and `t` dead after the reading
+statement (`dead_after`, whose answer for a loop body that re-assigns the local before reading
+it is now the loop's exit path, not "dead": the pointer-induction store-back shares the fix).
+A chain (`spot = xtemp | ytemp`, each read once) folds because a temporary planned into the
+assignment contributes what its own expression reads.  The substitution is applied only when
+the assignment lowers to the one statement `t = E'`; a local every reference of which was
+substituted loses its declaration when the declaration has no initializer, a literal one or the
+consumed one.  Doom (`doom_bench_all.c`): see `-Wcontrol-flow` below.
+`p182-single-use-temporaries` is the fixture (the `R_DrawSpan` chain; pointer, `float` and
+index temporaries; scrutinee, initializer and `x = x + 1` reads; and every kept case: read
+twice, live through a loop's exit or back edge, an operand written between, a store or a call
+between a memory read and its use, a read inside a nested loop, a division read under an `if`,
+a read on one arm of `?:`).
+
 `-Wcontrol-flow` (off by default) reports each function's back end and, for a flat one, why,
-and each `switch` of a structured body as an inline chain or a label region (with why).  On
+each `switch` of a structured body as an inline chain or a label region (with why), and the
+number of single-use temporaries a structured body substituted.  On
 2026-10-08: doomgeneric (`doom_bench_all.c`) 70 chains / 22 regions (11 with more than eight
 values, 10 fall-through, 1 nested region), wasm3 8 / 7 (all more than eight values).
 On the corpora (2026-10): pl_mpeg 169 structured / 0 flat, h264bsd 378 / 2, wasm3 688 / 131

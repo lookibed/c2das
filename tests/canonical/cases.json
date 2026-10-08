@@ -1705,6 +1705,23 @@
       "runtime": "required"
     },
     {
+      "id": "p182-single-use-temporaries",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p182_single_use_temporaries.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "span 35 14 242\ntemps 9 2.50 9\nreads 1 7 33\nkept 25 12 11 7\nmemory 20 10\ncontrol 9 4 3\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p182_single_use_temporaries_are_substituted",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

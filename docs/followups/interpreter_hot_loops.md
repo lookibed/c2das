@@ -136,6 +136,18 @@ harness from the engine. Medians of 3 runs:
 | 3 | libc string shims reading bytes by index | −1.2% (noise) |
 | — | `--unsafe-deref` (no `Ptr2Ref`), `math::abs`, reading the word of a bitfield struct | no gain |
 
+### Status
+
+- **Mapping 1** landed on the translator side (`cfg/structured.rs`, "Single-use
+  temporaries"; `translator/ARCHITECTURE.md`, same heading; `p182-single-use-temporaries`):
+  a scalar local assigned a pure expression and read once, straight after, in the same
+  statement list is that expression at the read, the assignment dropped; a chain folds.
+  `R_DrawSpan`'s pixel is now
+  `*dest = uint8(ds_colormap[int(ds_source[int(position >> 26u | position >> 4u & 0xfc0u)])])`.
+  Kept: a read on one arm of a branch or inside a nested loop (so a `/` runs where C's did),
+  a temporary live after its read, an operand written between, a store or a call between a
+  memory read and its use.
+
 ### What this says about the 20× target
 
 - Engine-only Doom is at 44×.

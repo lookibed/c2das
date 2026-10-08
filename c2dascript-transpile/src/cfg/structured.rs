@@ -25,7 +25,11 @@
 //!   body and dead after, `for (…; i < b; i++)` with `i` unwritten and `b`
 //!   invariant — → `for (v in range(…))`, one fused interpreter node
 //!   ([`Builder::counted_do_while`], [`Builder::counted_for`]; the rules
-//!   are in the translator `ARCHITECTURE.md`, "Counted loops").
+//!   are in the translator `ARCHITECTURE.md`, "Counted loops");
+//! * a scalar local assigned an expression and read once, straight after,
+//!   in the same statement list is that expression at the read, the
+//!   assignment dropped ([`Builder::plan_substitutions`]; "Single-use
+//!   temporaries" below).
 //!
 //! # `switch`
 //!
@@ -343,6 +347,18 @@ struct Builder<'a> {
     /// by the expression statement (or `for` step operand) that holds each
     /// (see "Pointer inductions" below).
     steps: HashMap<CExprId, Vec<InductionStep>>,
+    /// The locals the function body declares (not its parameters).
+    locals: HashSet<CDeclId>,
+    /// The single-use temporaries planned into their use, by the statement
+    /// that assigns each (see "Single-use temporaries" below).
+    substitutions: HashMap<CStmtId, Substitution>,
+    /// How many references of each local the applied substitutions removed
+    /// (the read, and the place of an assignment).
+    applied: HashMap<CDeclId, usize>,
+    /// Locals whose declaration's initializer a substitution consumed.
+    consumed: HashSet<CDeclId>,
+    /// Substitutions applied, for `-Wcontrol-flow`.
+    substituted: usize,
 }
 
 fn ctx() -> ExprContext {
@@ -374,23 +390,26 @@ impl Builder<'_> {
         match &tr.ast_context[sid].kind {
             CStmtKind::Empty => Ok(()),
 
-            CStmtKind::Expr(eid) => self.expr_stmt(*eid, out),
+            CStmtKind::Expr(eid) => {
+                if self.substitutions.contains_key(&sid) && self.substitute(sid, *eid, out)? {
+                    return Ok(());
+                }
+                self.expr_stmt(*eid, out)
+            }
 
             CStmtKind::Return(expr) => {
                 out.extend(stmt_nodes(convert_return(tr, *expr, self.ret_ty)?));
                 Ok(())
             }
 
-            CStmtKind::Compound(kids) => {
-                for &kid in kids {
-                    self.stmt(kid, out)?;
-                }
-                Ok(())
-            }
+            CStmtKind::Compound(kids) => self.list(kids, out),
 
             CStmtKind::Decls(decls) => {
                 for &decl in decls {
-                    let info = tr.convert_decl_stmt_info(ctx(), decl)?;
+                    let mut info = tr.convert_decl_stmt_info(ctx(), decl)?;
+                    if self.substitutions.contains_key(&sid) {
+                        self.substitute_decl(sid, decl, &mut info);
+                    }
                     self.store.store.insert(decl, info);
                     out.push(Node::Decl(decl));
                 }
@@ -510,6 +529,27 @@ impl Builder<'_> {
                 "unsupported statement in the structured back end",
             )),
         }
+    }
+
+    /// A statement list (the function body or a compound statement): its
+    /// single-use temporaries are planned first (see "Single-use
+    /// temporaries"), then the statements are converted in order.
+    fn list(&mut self, kids: &[CStmtId], out: &mut Vec<Node>) -> TranslationResult<()> {
+        self.plan_substitutions(kids);
+        for &kid in kids {
+            self.stmt(kid, out)?;
+            // The read is converted: the override has done its work.
+            let used: Vec<CExprId> = self
+                .substitutions
+                .values()
+                .filter(|s| s.use_stmt == kid)
+                .map(|s| s.use_ref)
+                .collect();
+            for use_ref in used {
+                self.tr.expr_overrides.borrow_mut().remove(&use_ref);
+            }
+        }
+        Ok(())
     }
 
     /// An expression statement, or one operand of a statement-position
@@ -932,10 +972,12 @@ impl Builder<'_> {
         }
     }
 
-    /// Coming back around an enclosing loop: its body from the top.
+    /// Coming back around an enclosing loop: its body from the top.  When
+    /// the next pass assigns `decl` before reading it, the answer is the
+    /// loop's exit path, the statements after it (`FellOff`).
     fn loop_head(&self, body: CStmtId, decl: CDeclId) -> Flow {
         match self.rest(&[body], decl) {
-            Flow::Dead => Flow::Dead,
+            Flow::Dead => Flow::FellOff,
             _ => Flow::Live,
         }
     }
@@ -1597,6 +1639,543 @@ impl Builder<'_> {
     }
 }
 
+// ===== Single-use temporaries =====
+//
+// A scalar local assigned an expression and read once, straight after, in
+// the same statement list costs the interpreter a store and a load
+// (`SetLocAny` + `GetLocal`, about a node each) for nothing: Doom's
+// `R_DrawSpan` computes `ytemp`, `xtemp` and `spot` that way per pixel.
+// The read is written as the expression and the assignment dropped
+// ([`Builder::plan_substitutions`], decided on the C AST per statement
+// list, in order, so a chain — `spot = xtemp | ytemp`, each read once —
+// folds through).  Each substitution is a fact about the C program:
+//
+// * `t` is a block-scope scalar local (integer, `float`/`double` or pointer;
+//   not static, not thread, not `volatile`, address never taken, not a
+//   parameter); the assignment `t = E` is an expression statement of the
+//   list;
+// * `E` has no effect and no call: literals, `sizeof`, enumeration
+//   constants, reads of locals and of memory (globals, elements, fields,
+//   `*p`), conversions, arithmetic, comparisons, `&&`/`||` and `?:`; no
+//   `volatile` read anywhere in it;
+// * `t` is read exactly once after the assignment in the list, in one
+//   statement, in a position that runs once at the statement's start: an
+//   expression statement, a `return` value, an `if`/`switch` scrutinee, a
+//   single declaration's initializer or a `for` init — not under `?:`
+//   arms, the right of `&&`/`||`, a call's callee or a loop's test (a read
+//   inside a nested loop, or on one arm of a branch, keeps the local);
+// * between the assignment and the read, in the statements between and in
+//   the reading statement up to the read, nothing writes a local `E` reads
+//   (`writes`); when `E` reads memory, nothing stores to memory or calls
+//   (the reading statement's own top-level assignment stores after its
+//   operands are computed, C11 6.5.16p3, so it does not count); no `case`,
+//   `default` or label stands between;
+// * `t` is dead after the reading statement (`dead_after`: assigned before
+//   it is read on every path, an enclosing loop's next pass included).
+//
+// Since the read runs only when the assignment ran, `E` is evaluated on no
+// path C did not evaluate it on (a `/` or `%` in it traps exactly when C's
+// would).  The substitution is applied when the assignment lowers to the
+// one statement `t = E'`; `E'` then replaces the read's `DeclRef`
+// (`Translation::expr_overrides`), in `t`'s type, so the C conversions
+// around the read are unchanged.  A local every reference of which was
+// substituted away loses its declaration when the declaration has no
+// initializer or a literal one.
+
+/// A planned substitution of `t = E` into the one read of `t`.
+struct Substitution {
+    decl: CDeclId,
+    /// The statement that reads `t`.
+    use_stmt: CStmtId,
+    /// The read's `DeclRef`.
+    use_ref: CExprId,
+    /// What `E` reads.
+    operands: Operands,
+}
+
+/// What an expression reads.
+#[derive(Clone, Default)]
+struct Operands {
+    /// Locals nothing but this function's statements can write.
+    locals: HashSet<CDeclId>,
+    /// A global, a static, an address-taken local, an element, a field or
+    /// a dereference: anything a store or a call may change.
+    memory: bool,
+}
+
+impl Builder<'_> {
+    /// Plan the single-use temporaries of one statement list.
+    fn plan_substitutions(&mut self, kids: &[CStmtId]) {
+        let tr = self.tr;
+        for (d, &def) in kids.iter().enumerate() {
+            let Some((decl, rhs)) = self.temp_def(def) else {
+                continue;
+            };
+            let mut operands = Operands::default();
+            if !self.operands(rhs, def, &mut operands) {
+                continue;
+            }
+            // The first statement after the assignment that names `t`
+            // reads it once; `dead_after` answers for the rest.
+            let Some((u, 1)) = kids[d + 1..]
+                .iter()
+                .enumerate()
+                .map(|(k, &s)| (d + 1 + k, count_references(tr, SomeId::Stmt(s), decl)))
+                .find(|(_, n)| *n > 0)
+            else {
+                continue;
+            };
+            if kids[d + 1..=u].iter().any(|&s| {
+                matches!(
+                    tr.ast_context[s].kind,
+                    CStmtKind::Case(..) | CStmtKind::Default(_) | CStmtKind::Label(_)
+                )
+            }) {
+                continue;
+            }
+            let Some((use_ref, root, exempt)) = self.single_read(kids[u], decl) else {
+                continue;
+            };
+            if kids[d + 1..u]
+                .iter()
+                .any(|&s| self.disturbs(SomeId::Stmt(s), &operands, None))
+                || self.disturbs(SomeId::Expr(root), &operands, exempt)
+                || !self.dead_after(kids[u], decl)
+            {
+                continue;
+            }
+            self.substitutions.insert(
+                def,
+                Substitution {
+                    decl,
+                    use_stmt: kids[u],
+                    use_ref,
+                    operands,
+                },
+            );
+        }
+    }
+
+    /// `t = E` as an expression statement, or `T t = E` as a declaration
+    /// on its own, `t` a temporary candidate.
+    fn temp_def(&self, sid: CStmtId) -> Option<(CDeclId, CExprId)> {
+        let tr = self.tr;
+        let (decl, rhs) = match &tr.ast_context[sid].kind {
+            CStmtKind::Expr(eid) => {
+                if self.steps.contains_key(eid) {
+                    return None;
+                }
+                let CExprKind::Binary(_, CBinOp::Assign, lhs, rhs, _, _) =
+                    tr.ast_context[peel(tr, *eid)].kind
+                else {
+                    return None;
+                };
+                let CExprKind::DeclRef(_, decl, _) = tr.ast_context[peel(tr, lhs)].kind else {
+                    return None;
+                };
+                (decl, rhs)
+            }
+            CStmtKind::Decls(decls) => {
+                let [decl] = decls[..] else {
+                    return None;
+                };
+                let CDeclKind::Variable {
+                    initializer: Some(init),
+                    ..
+                } = tr.ast_context[decl].kind
+                else {
+                    return None;
+                };
+                (decl, init)
+            }
+            _ => return None,
+        };
+        if !self.locals.contains(&decl) || !self.plain_local(decl) {
+            return None;
+        }
+        let CDeclKind::Variable { typ, .. } = &tr.ast_context[decl].kind else {
+            return None;
+        };
+        let scalar = match &tr.ast_context.resolve_type(typ.ctype).kind {
+            CTypeKind::Float | CTypeKind::Double | CTypeKind::Pointer(_) => true,
+            kind => kind.is_integral_type(),
+        };
+        scalar.then_some((decl, rhs))
+    }
+
+    /// A block-scope or parameter variable nothing but this function's own
+    /// statements can reach.
+    fn plain_local(&self, decl: CDeclId) -> bool {
+        let tr = self.tr;
+        let CDeclKind::Variable {
+            has_static_duration: false,
+            has_thread_duration: false,
+            typ,
+            ..
+        } = &tr.ast_context[decl].kind
+        else {
+            return false;
+        };
+        !typ.qualifiers.is_volatile && !tr.local_address_is_taken(decl)
+    }
+
+    /// Collect what `E` reads into `out`; `false` when `E` has an effect, a
+    /// call, a `volatile` read or a form this pass does not know.  A
+    /// temporary planned into the statement `def` contributes what its own
+    /// expression reads.
+    fn operands(&self, eid: CExprId, def: CStmtId, out: &mut Operands) -> bool {
+        let tr = self.tr;
+        let kind = &tr.ast_context[eid].kind;
+        if kind
+            .get_qual_type()
+            .map_or(false, |ty| ty.qualifiers.is_volatile)
+        {
+            return false;
+        }
+        match kind {
+            CExprKind::Literal(..) | CExprKind::UnaryType(..) | CExprKind::OffsetOf(..) => true,
+            CExprKind::Paren(_, inner)
+            | CExprKind::ConstantExpr(_, inner, _)
+            | CExprKind::ImplicitCast(_, inner, _, _, _)
+            | CExprKind::ExplicitCast(_, inner, _, _, _)
+            | CExprKind::Unary(
+                _,
+                CUnOp::Plus | CUnOp::Negate | CUnOp::Complement | CUnOp::Not | CUnOp::Extension,
+                inner,
+                _,
+            ) => self.operands(*inner, def, out),
+            CExprKind::Unary(_, CUnOp::Deref, inner, _) => {
+                out.memory = true;
+                self.operands(*inner, def, out)
+            }
+            CExprKind::Binary(_, op, lhs, rhs, _, _) => {
+                !op.is_assignment()
+                    && *op != CBinOp::Comma
+                    && self.operands(*lhs, def, out)
+                    && self.operands(*rhs, def, out)
+            }
+            CExprKind::ArraySubscript(_, base, index, _) => {
+                out.memory = true;
+                self.operands(*base, def, out) && self.operands(*index, def, out)
+            }
+            CExprKind::Member(_, base, _, _, _) => {
+                out.memory = true;
+                self.operands(*base, def, out)
+            }
+            CExprKind::Conditional(_, cond, then, else_) => {
+                self.operands(*cond, def, out)
+                    && self.operands(*then, def, out)
+                    && self.operands(*else_, def, out)
+            }
+            CExprKind::DeclRef(_, decl, _) => match &tr.ast_context[*decl].kind {
+                CDeclKind::EnumConstant { .. } => true,
+                CDeclKind::Variable { .. } => {
+                    if let Some(planned) = self
+                        .substitutions
+                        .values()
+                        .find(|s| s.decl == *decl && s.use_stmt == def)
+                    {
+                        out.locals.extend(planned.operands.locals.iter().copied());
+                        out.memory |= planned.operands.memory;
+                    } else if self.plain_local(*decl) {
+                        out.locals.insert(*decl);
+                    } else {
+                        out.memory = true;
+                    }
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// The one read of `decl` in the statement `sid`, when it runs once at
+    /// the statement's start: the read's `DeclRef`, the expression it
+    /// stands in, and that expression's own top-level assignment, whose
+    /// store is sequenced after the read.
+    fn single_read(
+        &self,
+        sid: CStmtId,
+        decl: CDeclId,
+    ) -> Option<(CExprId, CExprId, Option<CExprId>)> {
+        let tr = self.tr;
+        if writes(tr, SomeId::Stmt(sid), decl) {
+            return None;
+        }
+        let initializer = |d: CDeclId| match tr.ast_context[d].kind {
+            CDeclKind::Variable {
+                has_static_duration: false,
+                has_thread_duration: false,
+                initializer: Some(init),
+                ..
+            } => Some(init),
+            _ => None,
+        };
+        let (root, exempt) = match &tr.ast_context[sid].kind {
+            CStmtKind::Expr(eid) => {
+                let top = peel(tr, *eid);
+                let store = match tr.ast_context[top].kind {
+                    CExprKind::Binary(_, op, _, _, _, _) if op.is_assignment() => Some(top),
+                    _ => None,
+                };
+                (*eid, store)
+            }
+            CStmtKind::Return(Some(eid)) => (*eid, None),
+            CStmtKind::If { scrutinee, .. } | CStmtKind::Switch { scrutinee, .. } => {
+                (*scrutinee, None)
+            }
+            CStmtKind::Decls(decls) if decls.len() == 1 => (initializer(decls[0])?, None),
+            CStmtKind::ForLoop {
+                init: Some(init), ..
+            } => match &tr.ast_context[*init].kind {
+                CStmtKind::Expr(eid) => (*eid, None),
+                CStmtKind::Decls(decls) if decls.len() == 1 => (initializer(decls[0])?, None),
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let reads: Vec<CExprId> = DFExpr::new(&tr.ast_context, SomeId::Expr(root))
+            .filter_map(|node| match node {
+                SomeId::Expr(e)
+                    if matches!(tr.ast_context[e].kind, CExprKind::DeclRef(_, d, _) if d == decl) =>
+                {
+                    Some(e)
+                }
+                _ => None,
+            })
+            .collect();
+        let [use_ref] = reads[..] else {
+            return None;
+        };
+        match self.once(root, use_ref) {
+            Path::Once => Some((use_ref, root, exempt)),
+            _ => None,
+        }
+    }
+
+    /// Whether `target` under `eid` is evaluated exactly once whenever
+    /// `eid` is.
+    fn once(&self, eid: CExprId, target: CExprId) -> Path {
+        let tr = self.tr;
+        if eid == target {
+            return Path::Once;
+        }
+        let first = |ids: &[CExprId]| {
+            for &id in ids {
+                match self.once(id, target) {
+                    Path::NotHere => continue,
+                    path => return path,
+                }
+            }
+            Path::NotHere
+        };
+        let guarded = |ids: &[CExprId]| {
+            if ids
+                .iter()
+                .any(|&id| references(tr, SomeId::Expr(id), target_decl(tr, target)))
+            {
+                Path::Conditional
+            } else {
+                Path::NotHere
+            }
+        };
+        match &tr.ast_context[eid].kind {
+            CExprKind::Paren(_, inner)
+            | CExprKind::ConstantExpr(_, inner, _)
+            | CExprKind::ImplicitCast(_, inner, _, _, _)
+            | CExprKind::ExplicitCast(_, inner, _, _, _)
+            | CExprKind::Unary(
+                _,
+                CUnOp::Plus
+                | CUnOp::Negate
+                | CUnOp::Complement
+                | CUnOp::Not
+                | CUnOp::Deref
+                | CUnOp::Extension,
+                inner,
+                _,
+            )
+            | CExprKind::Member(_, inner, _, _, _) => self.once(*inner, target),
+            CExprKind::Binary(_, CBinOp::And | CBinOp::Or, lhs, rhs, _, _) => {
+                match self.once(*lhs, target) {
+                    Path::NotHere => guarded(&[*rhs]),
+                    path => path,
+                }
+            }
+            CExprKind::Binary(_, _, lhs, rhs, _, _) | CExprKind::ArraySubscript(_, lhs, rhs, _) => {
+                first(&[*lhs, *rhs])
+            }
+            CExprKind::Call(_, callee, args) => match guarded(&[*callee]) {
+                Path::NotHere => first(args),
+                path => path,
+            },
+            CExprKind::Conditional(_, cond, then, else_) => match self.once(*cond, target) {
+                Path::NotHere => guarded(&[*then, *else_]),
+                path => path,
+            },
+            _ => {
+                if references(tr, SomeId::Expr(eid), target_decl(tr, target)) {
+                    Path::Conditional
+                } else {
+                    Path::NotHere
+                }
+            }
+        }
+    }
+
+    /// Whether anything under `root`, except the node `exempt`, may change
+    /// what `operands` reads: a store to one of its locals, or, when it
+    /// reads memory, a store to memory, a call or inline assembly.
+    fn disturbs(&self, root: SomeId, operands: &Operands, exempt: Option<CExprId>) -> bool {
+        let tr = self.tr;
+        let place = |p: CExprId| match tr.ast_context[peel(tr, p)].kind {
+            CExprKind::DeclRef(_, d, _) => Some(d),
+            _ => None,
+        };
+        // A store to `p`: to one of the operand locals, or to memory.
+        let hits = |p: CExprId| match place(p) {
+            Some(d) if operands.locals.contains(&d) => true,
+            Some(d) if self.plain_local(d) => false,
+            _ => operands.memory,
+        };
+        DFExpr::new(&tr.ast_context, root).any(|node| match node {
+            SomeId::Stmt(s) => matches!(tr.ast_context[s].kind, CStmtKind::Asm { .. }),
+            SomeId::Expr(e) if Some(e) == exempt => false,
+            SomeId::Expr(e) => match &tr.ast_context[e].kind {
+                CExprKind::Binary(_, op, lhs, _, _, _) if op.is_assignment() => hits(*lhs),
+                CExprKind::Unary(
+                    _,
+                    CUnOp::PreIncrement
+                    | CUnOp::PostIncrement
+                    | CUnOp::PreDecrement
+                    | CUnOp::PostDecrement,
+                    arg,
+                    _,
+                ) => hits(*arg),
+                CExprKind::Call(..) | CExprKind::Atomic { .. } => operands.memory,
+                _ => false,
+            },
+            _ => false,
+        })
+    }
+
+    /// Apply the substitution planned for the assignment `sid` (`eid`):
+    /// `true` when the read now carries the value and nothing is emitted.
+    fn substitute(
+        &mut self,
+        sid: CStmtId,
+        eid: CExprId,
+        out: &mut Vec<Node>,
+    ) -> TranslationResult<bool> {
+        let tr = self.tr;
+        let mut stmts = Vec::new();
+        convert_expr_in_stmt_position(tr, ctx(), eid, &mut stmts)?;
+        let planned = &self.substitutions[&sid];
+        let name = tr.renamer.borrow().get(&planned.decl);
+        let value = match (&stmts[..], name) {
+            ([DaStmt::Expr(DaExpr::Assign(place, value))], Some(name))
+                if matches!(&**place, DaExpr::Var(v) if *v == name) =>
+            {
+                Some((**value).clone())
+            }
+            _ => None,
+        };
+        match value {
+            Some(value) => {
+                tr.expr_overrides
+                    .borrow_mut()
+                    .insert(planned.use_ref, value);
+                *self.applied.entry(planned.decl).or_default() += 2;
+                self.substituted += 1;
+                Ok(true)
+            }
+            None => {
+                out.extend(stmt_nodes(stmts));
+                Ok(false)
+            }
+        }
+    }
+
+    /// Apply the substitution planned for the declaration `sid` of `decl`:
+    /// when its initializer lowered to the one assignment `t = E'`, the read
+    /// carries `E'` and the declaration's site assigns nothing.
+    fn substitute_decl(&mut self, sid: CStmtId, decl: CDeclId, info: &mut DeclStmtInfo) {
+        let tr = self.tr;
+        let planned = &self.substitutions[&sid];
+        if planned.decl != decl {
+            return;
+        }
+        let Some(name) = tr.renamer.borrow().get(&decl) else {
+            return;
+        };
+        let value = match info.assign.as_deref() {
+            Some([DaStmt::Expr(DaExpr::Assign(place, value))])
+                if matches!(&**place, DaExpr::Var(v) if *v == name) =>
+            {
+                (**value).clone()
+            }
+            _ => return,
+        };
+        tr.expr_overrides
+            .borrow_mut()
+            .insert(planned.use_ref, value);
+        info.assign = Some(vec![]);
+        info.decl_and_assign = info.decl.clone();
+        *self.applied.entry(decl).or_default() += 1;
+        self.consumed.insert(decl);
+        self.substituted += 1;
+    }
+}
+
+/// Where a read stands relative to the expression that holds it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Path {
+    NotHere,
+    /// Evaluated exactly once whenever the expression is.
+    Once,
+    /// On one arm, the right of `&&`/`||`, a callee, or an unknown form.
+    Conditional,
+}
+
+/// The declaration a `DeclRef` names.
+fn target_decl(tr: &Translation, eid: CExprId) -> CDeclId {
+    match tr.ast_context[eid].kind {
+        CExprKind::DeclRef(_, d, _) => d,
+        _ => unreachable!("a read that is not a DeclRef"),
+    }
+}
+
+/// The locals the statements declare, at any depth.
+fn declared_locals(tr: &Translation, stmts: &[CStmtId]) -> HashSet<CDeclId> {
+    let mut out = HashSet::new();
+    for &sid in stmts {
+        for node in DFExpr::new(&tr.ast_context, SomeId::Stmt(sid)) {
+            if let SomeId::Stmt(s) = node {
+                if let CStmtKind::Decls(decls) = &tr.ast_context[s].kind {
+                    out.extend(decls.iter().copied());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether a declaration's initializer, if any, is a literal: dropping the
+/// declaration drops nothing C evaluates.
+fn literal_initializer(tr: &Translation, decl: CDeclId) -> bool {
+    match tr.ast_context[decl].kind {
+        CDeclKind::Variable {
+            initializer: None, ..
+        } => true,
+        CDeclKind::Variable {
+            initializer: Some(init),
+            ..
+        } => matches!(tr.ast_context[peel(tr, init)].kind, CExprKind::Literal(..)),
+        _ => false,
+    }
+}
+
 // ===== Counted loops: the C facts =====
 
 /// A C loop the structured back end writes as daslang's `for` over a range.
@@ -1924,11 +2503,14 @@ pub(crate) fn convert(
         loops: Vec::new(),
         suppressed: HashSet::new(),
         steps: HashMap::new(),
+        locals: declared_locals(tr, stmts),
+        substitutions: HashMap::new(),
+        applied: HashMap::new(),
+        consumed: HashSet::new(),
+        substituted: 0,
     };
     let mut body = Vec::new();
-    for &sid in stmts {
-        builder.stmt(sid, &mut body)?;
-    }
+    builder.list(stmts, &mut body)?;
     body.push(Node::Stmt(implicit_return(&ret)));
     let top = match ret {
         ImplicitReturnType::Void | ImplicitReturnType::StmtExprVoid => Ctx::TopVoid,
@@ -1938,9 +2520,32 @@ pub(crate) fn convert(
         mut store,
         prelude,
         mut next_sym,
-        suppressed,
+        mut suppressed,
+        applied,
+        consumed,
+        substituted,
         ..
     } = builder;
+    if substituted > 0 {
+        let function = tr.function_context.borrow().get_name().to_owned();
+        diag!(
+            Diagnostic::ControlFlow,
+            "`{function}`: {substituted} single-use temporaries substituted"
+        );
+    }
+
+    // A temporary every reference of which a substitution removed has no
+    // declaration left to serve (see "Single-use temporaries"), unless its
+    // declaration still evaluates an initializer.
+    for (decl, removed) in applied {
+        let total: usize = stmts
+            .iter()
+            .map(|&s| count_references(tr, SomeId::Stmt(s), decl))
+            .sum();
+        if total == removed && (consumed.contains(&decl) || literal_initializer(tr, decl)) {
+            suppressed.insert(decl);
+        }
+    }
 
     // Every C local is hoisted (see the module documentation), in source
     // order, after the scrutinee temporaries.  A local a range loop's

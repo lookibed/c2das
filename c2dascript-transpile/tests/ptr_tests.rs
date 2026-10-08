@@ -280,12 +280,14 @@ fn p99_conditionals_without_statements_are_daslang_expressions() {
     assert!(d.contains("value_0 = x < y ? note(1, 10) : note(2, 20)"));
     // `&&`/`||` stored as a value: short-circuit on `bool`, C's 0/1 once.
     assert!(d.contains("value_0 = note(3, 0) != 0 && note(4, 1) != 0 ? 1 : 0"));
-    assert!(d.contains("both = a != 0 && b != 0 ? 1 : 0"));
-    assert!(d.contains("neither = !(a != 0 || b != 0) ? 1 : 0"));
-    assert!(d.contains("not_less = !(a < b) ? 1 : 0"));
+    // `both`, `either`, `neither` and `not_less` are read once each,
+    // straight after: single-use temporaries, substituted into the return.
+    assert!(d.contains("return (a != 0 && b != 0 ? 1 : 0) * 1000 + (a != 0 || b != 0 ? 1 : 0) * 100 + (!(a != 0 || b != 0) ? 1 : 0) * 10 + (!(a < b) ? 1 : 0)"));
     // Mixed arms convert to the usual arithmetic type, the chosen arm only.
-    assert!(d.contains("as_unsigned = sel != 0 ? uint(negative) : big"));
-    assert!(d.contains("real = sel != 0 ? half : double(negative)"));
+    // (`as_unsigned` and `real` are read once straight after: single-use
+    // temporaries substituted into their checks, `cfg/structured.rs`.)
+    assert!(d.contains("int64(sel != 0 ? uint(negative) : big)"));
+    assert!(d.contains("(sel != 0 ? half : double(negative)) * 4.0lf"));
     // Pointer arms and pointer operands.
     assert!(d.contains("value_0 = *(null_p != null ? null_p : p_0)"));
     assert!(d.contains("value_0 = p_0 != null && *p_0 == 9 ? 1 : 0"));
@@ -325,13 +327,14 @@ fn p100_conversions_of_values_already_of_the_target_type_are_dropped() {
     assert!(d.contains("from_const = table_0[ci]\n"));
     // `uint8(c ? int(t1) : int(t2))` of two `uint8`s is the conditional.
     assert!(d.contains("return int(t2) == 255 ? t1 : t2\n"));
-    // Conversions that change the type stay.
+    // Conversions that change the type stay (the locals read once straight
+    // after are substituted into their comparison).
     for kept in [
-        "u = uint(negative)\n",
-        "widened = int(b)\n",
-        "less = i_1 < negative ? 1 : 0\n",
-        "narrowed = int(big)\n",
-        "from_const_unsigned = uint(ci)\n",
+        "int64(uint(negative)) == 4294967294l",
+        "int64(int(b) + 1)\n",
+        "int64(i_1 < negative ? 1 : 0)\n",
+        "int64(int(big)) == 705032705l",
+        "int64(uint(ci)) == 4l",
         "b = load(unsafe(addr<uint8 const?>(BYTES[0])), i_1)\n",
     ] {
         assert!(d.contains(kept), "missing `{}`", kept.trim_end());
@@ -359,9 +362,10 @@ fn p102_locals_are_declared_bare_and_initialised_in_place() {
     assert!(d.contains("var b_0 : bits = bits(c2da_storage = c2da_rt_calloc(1ul, 4ul))"));
     assert!(d.contains("var c : colour = colour()"));
     // A store that opens the body is the last declaration's value, and only
-    // that one's; a store naming its own object stays an assignment.
-    assert!(d.contains("def first_store(var k_2 : int) : int {\n    var bias : int = k_2 + 1\n"));
-    assert!(d.contains("    var bias_0 : int\n    doubled = k_3 * 2\n    bias_0 = 1\n"));
+    // that one's (`c2da_fresh0` below); `bias` and `doubled`, read once
+    // straight after, are single-use temporaries substituted into the return.
+    assert!(d.contains("def first_store(var k_2 : int) : int {\n    return (k_2 + 1) * 2\n"));
+    assert!(d.contains("def two_stores(var k_3 : int) : int {\n    return k_3 * 2 + 1\n"));
     assert!(d.contains("var c2da_fresh0 : int = int(op) + 1\n"));
     assert!(d.contains("    var self : uint8?\n    self = unsafe(addr<uint8?>(self))\n"));
     // One `return` closes a void function whose early `return` was laid out
@@ -1002,10 +1006,7 @@ fn p153_self_updates_are_compound_assignments() {
         "x &= 127",
         "x ^= 5",
         "u >>= 4u",
-        "ll -= 100l",
         "ull <<= 40ul",
-        "f += 0.25",
-        "d -= 0.5lf",
         "arr[i] *= 3",
         "arr[i - 1] += arr[i]",
         "(*p)--",
@@ -1019,17 +1020,28 @@ fn p153_self_updates_are_compound_assignments() {
             "{update}: {body}"
         );
     }
+    // `ll = ll - 100`, `f = f + 0.25` and `d = d - 0.5` are read once
+    // straight after, by the `printf`: single-use temporaries, substituted
+    // (`cfg/structured.rs`).
+    assert!(body.contains("i64 = ll - 100l,"), "{body}");
+    assert!(body.contains("f64 = double(f + 0.25),"), "{body}");
+    assert!(body.contains("f64 = d - 0.5lf,"), "{body}");
+    assert!(!body.contains("ll -= 100l"), "{body}");
     // Kept: a narrow storage type computed in `int`, a call in the value, and
-    // the place as the right operand.
-    assert!(body.contains("    b = uint8(int(b) + 1)\n"), "{body}");
+    // the place as the right operand (`b = b + 1` and `x = 1 - x`, read once
+    // straight after by the `printf`, are substituted there in the same
+    // spelling).
+    assert!(body.contains("    b = uint8(int(b) + 10)\n"), "{body}");
+    assert!(body.contains("i64 = int64(uint8(int(b) + 1)),"), "{body}");
     assert!(body.contains("    s = int16(int(s) * 3)\n"), "{body}");
     assert!(body.contains("    x = x + twice(x)\n"), "{body}");
-    assert!(body.contains("    x = 1 - x\n"), "{body}");
+    assert!(body.contains("i64 = int64(1 - x),"), "{body}");
     // A typed pointer stepped by an `int` or `int64` is a pointer `+=` in an
-    // `unsafe` block.
+    // `unsafe` block (`stride = 2`, read once straight after, is substituted
+    // into the step).
     assert!(
         body.contains(
-            "    unsafe {\n        walk += 1\n    }\n    unsafe {\n        walk += stride\n    }\n"
+            "    unsafe {\n        walk += 1\n    }\n    unsafe {\n        walk += 2l\n    }\n"
         ),
         "{body}"
     );
@@ -1633,6 +1645,57 @@ fn p181_pointer_inductions_are_mirrored_addresses() {
 }
 
 #[test]
+fn p182_single_use_temporaries_are_substituted() {
+    let d = transpile_with_libc(
+        "p182_single_use_temporaries",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // `ytemp`, `xtemp` and `spot` read once each, straight after their
+    // assignment: the chain is one subscript and the three locals have no
+    // declaration left (`cfg/structured.rs`, "Single-use temporaries").
+    let body = function_body(&d, "span");
+    assert!(body.contains("        *unsafe(reinterpret<uint8?>(c2da_dest_addr)) = uint8(colormap[int(source[int(position >> 26u | position >> 4u & 0xfc0u)])])\n        c2da_dest_addr++\n"), "{body}");
+    assert!(!body.contains("temp") && !body.contains("spot"), "{body}");
+    // A pointer, a `float`, a store's index.
+    let body = function_body(&d, "pointer_temp");
+    assert!(body.ends_with(" {\n    return *unsafe(reinterpret<int?>(unsafe(base + i)))"), "{body}");
+    let body = function_body(&d, "float_temp");
+    assert!(body.ends_with(" {\n    return x * 0.5 + 1.0"), "{body}");
+    let body = function_body(&d, "index_temp");
+    assert!(body.ends_with(" {\n    unsafe(a[i_0 + 1]) = int(v)\n    return"), "{body}");
+    // An `if` scrutinee (the division runs where C's did), a declaration's
+    // initializer as the assignment and as the read, `x = x + 1`, and a
+    // temporary reassigned later in the list.
+    let body = function_body(&d, "scrutinee");
+    assert!(body.ends_with(" {\n    if (a_0 / b > 1) {\n        return 1\n    }\n    return (a_0 + b) * 2 + 1"), "{body}");
+    // A memory read with only local writes between.
+    let body = function_body(&d, "local_writes_between");
+    assert!(body.ends_with(" {\n    return g[i_1] + (i_1 + 1)"), "{body}");
+    // Kept: read twice; live after the read through the loop's exit and
+    // through its back edge; an operand written between; a memory read
+    // with a store or a call between; read inside a nested loop; a
+    // division read under an `if`; read on one arm of `?:`.
+    let body = function_body(&d, "read_twice");
+    assert!(body.ends_with("    var t_1 : int = a_1 + b_0\n    return t_1 * t_1"), "{body}");
+    let body = function_body(&d, "live_after_exit");
+    assert!(body.ends_with("        t_2 = values[n]\n        s += t_2\n    }\n    return s + t_2"), "{body}");
+    let body = function_body(&d, "live_on_back_edge");
+    assert!(body.contains("        s_0 += t_3\n        t_3 = values[n_0] + 1\n        x_1 = t_3\n"), "{body}");
+    let body = function_body(&d, "operand_written");
+    assert!(body.ends_with("    var t_4 : int = a_2 + 1\n    a_2 = 5\n    return t_4 + a_2"), "{body}");
+    let body = function_body(&d, "store_between");
+    assert!(body.ends_with("    var t_5 : int = g[i_2]\n    g[i_2] = 7\n    return t_5"), "{body}");
+    let body = function_body(&d, "call_between");
+    assert!(body.ends_with("    var t_6 : int = g[i_3]\n    bump()\n    return t_6"), "{body}");
+    let body = function_body(&d, "nested_loop");
+    assert!(body.contains("    t_7 = a_3 + b_1\n    while (i_4 < n_1) {\n        s_1 += t_7\n"), "{body}");
+    let body = function_body(&d, "division_under_if");
+    assert!(body.contains("    var t_8 : int = a_4 / b_2\n    if (b_2 != 0) {\n        return t_8\n"), "{body}");
+    let body = function_body(&d, "conditional_arm");
+    assert!(body.ends_with("    var t_9 : int = a_5 + b_3\n    return b_3 != 0 ? t_9 : 0"), "{body}");
+}
+
+#[test]
 fn p180_scalar_stores_of_references_read_values() {
     let d = transpile_with_libc(
         "p180_value_stores",
@@ -1661,7 +1724,10 @@ fn p180_scalar_stores_of_references_read_values() {
     // initialiser keep the plain copy: the interpreter fuses those.
     let body = function_body(&d, "locals");
     assert!(body.contains("    loc = unsafe(src_2[i_2])\n"), "{body}");
-    assert!(body.contains("    other = loc\n    *src_2 = loc\n    g = lp.a\n    loc = g\n    other = unsafe(src_2[i_2])\n"), "{body}");
+    // `loc = g` and `other = src[i]`, each read once straight after, are
+    // single-use temporaries substituted into the return
+    // (`cfg/structured.rs`).
+    assert!(body.contains("    other = loc\n    *src_2 = loc\n    g = lp.a\n    return g + unsafe(src_2[i_2])"), "{body}");
     assert!(!body.contains("int("), "{body}");
     // A pointer store is not rewritten.
     let body = function_body(&d, "pointers");
@@ -1708,26 +1774,32 @@ fn p96_copies_reach_the_builtin_past_a_source_defined_memmove() {
 fn p97_constant_conversions_print_as_literals_of_their_target_type() {
     let d = transpile("p97_constant_conversions");
     // A constant conversion is its exact C result, spelled in the target type.
+    // Each local is read once straight after, by its check, so it is a
+    // single-use temporary substituted there (`cfg/structured.rs`); the
+    // check's own `int64(...)` of a narrow literal (`44u8`, `int16(4464)`,
+    // `uint16(65534)`, `0xabu8`) then folds to the `int64` literal.
     for folded in [
-        "narrowed = 44u8\n",
-        "wrapped = 4294967295u\n",
-        "wide = 0xfffffffffffffffful\n",
-        "from_unsigned = (-2147483647 - 1)\n",
-        "ll_min = (-9223372036854775807l - 1l)\n",
-        "short_wrap = int16(4464)\n",
-        "ushort_wrap = uint16(65534)\n",
-        "hex_byte = 0xabu8\n",
-        "mask = 0xff000000u >> 24u\n",
-        "shifted = 0xfful << 8ul\n",
-        "negative_wide = -5l\n",
-        "real = 3.0lf\n",
+        "failures += 44l == 44l ? 0 : 1\n",
+        "int64(4294967295u == 4294967295u ? 1 : 0)\n",
+        "int64(0xfffffffffffffffful == 0xfffffffffffffffful ? 1 : 0)\n",
+        "var c2da_fresh8 : int64 = int64(-2147483647 - 1)\n",
+        "int64((-9223372036854775807l - 1l) == -9223372036854775807l - 1l ? 1 : 0)\n",
+        "failures += 4464l == 4464l ? 0 : 1\n",
+        "var c2da_fresh14 : int64 = 65534l\n",
+        "failures += 171l == 171l ? 0 : 1\n",
+        "var c2da_fresh16 : int64 = int64(0xff000000u >> 24u)\n",
+        "int64(0xfful << 8ul == 65280ul ? 1 : 0)\n",
+        "var c2da_fresh20 : int64 = -5l\n",
+        "int64(3.0lf == 3.0lf ? 1 : 0)\n",
         "failures = 0\n",
     ] {
         assert!(d.contains(folded), "missing folded constant {folded:?}");
     }
-    // `int8` has no literal, and a float that rounds keeps its conversion.
-    assert!(d.contains("negative_byte = int8(-1)\n"));
-    assert!(d.contains("single = float(16777217)\n"));
+    // A float that rounds keeps its conversion (`int8` has no literal; the
+    // check's `int64(int8(-1))` folds to `-1l` once `negative_byte` is
+    // substituted into it).
+    assert!(d.contains("float(16777217) == 16777216.0 ? 1 : 0"));
+    assert!(d.contains("var c2da_fresh26 : int64 = -1l\n    var c2da_fresh27 : int64 = -1l\n"));
     // The narrowing of a size argument is part of the C value.
     assert!(d.contains(", 0u8, 4ul)"));
     assert!(!d.contains("int(int(") && !d.contains("uint64(int("));
@@ -1741,8 +1813,12 @@ fn p20_pointer_abi_edges_stay_typed_outside_raw_boundaries() {
         d.contains("var erased : uint8?"),
         "void* must stay pointer-shaped"
     );
-    assert!(d.contains("var restored : uint8?"));
-    assert!(d.contains("var nil : uint8?\n") && d.contains("nil = null\n"));
+    // `restored` and `nil` are read once straight after: single-use
+    // temporaries substituted into the return and the test
+    // (`cfg/structured.rs`); the `void*` round trip stays typed there.
+    assert!(d.contains("(unsafe(reinterpret<uint8?>(echo_byte(erased))) == typed ? 1 : 0)"));
+    assert!(d.contains("if (null != null) {\n"));
+    assert!(!d.contains("var nil") && !d.contains("var restored"));
     assert!(!d.contains("uint8? = uint64("));
     assert!(!d.contains("cast<uint8?>(0)"));
 }
@@ -2013,10 +2089,12 @@ fn p41_union_cast_initializes_raw_storage() {
 fn p22_literals_follow_their_c_target_types() {
     let d = transpile("p22_typed_literals");
     // Each literal is spelled directly in its C target type, hex kept hex.
-    assert!(d.contains("byte = 0xabu8"));
-    assert!(d.contains("wide = 0x100000000ul"));
-    assert!(d.contains("signed_value = 42\n"));
-    assert!(!d.contains("int(42)") && !d.contains("uint8(int("));
+    // `byte` and `wide` are read once straight after: single-use temporaries
+    // substituted into the calls (`cfg/structured.rs`).
+    assert!(d.contains("take_byte(0xabu8)"));
+    assert!(d.contains("take_u64(0x100000000ul)"));
+    assert!(d.contains("take_int(42) +"));
+    assert!(!d.contains("(int(42)") && !d.contains("= int(42)") && !d.contains("uint8(int("));
     assert!(d.contains("def return_byte_literal() : uint8"));
     assert!(d.contains("def return_u64_literal() : uint64"));
     assert!(d.contains("def return_int_literal() : int"));
@@ -2030,7 +2108,9 @@ fn p23_bool_to_numeric_is_materialized_at_every_value_site() {
     assert!(!d.contains("int(left < right)"));
     assert!(!d.contains("int(left == right)"));
     assert!(d.contains("return left < right ? 1 : 0\n"));
-    assert!(d.contains("assigned = left_0 < right_0 ? 1 : 0\n"));
+    // `assigned`, read once straight after, is a single-use temporary
+    // substituted into the sum (`cfg/structured.rs`).
+    assert!(d.contains("(left_0 < right_0 ? 1 : 0) + from_call"));
     assert!(d.contains("take_int(left_0 == right_0 ? 1 : 0)"));
     assert!(d.contains("+ (left_0 != right_0 ? 1 : 0)"));
     assert!(!d.contains("var c2da_fresh"));
@@ -2349,8 +2429,9 @@ fn p178_declared_array_subscripts_are_fixed_array_indexes() {
     );
     let main = function_body(&d, "main_0");
     // A global, a static, a local: the array indexed itself, read, written,
-    // compound-assigned and stepped in place.
-    assert!(main.contains("    ceilingclip[rw_x] = int16(mid)\n"), "{main}");
+    // compound-assigned and stepped in place (`mid = 3`, read once straight
+    // after, is a single-use temporary substituted into the store).
+    assert!(main.contains("    ceilingclip[rw_x] = int16(3)\n"), "{main}");
     assert!(
         main.contains("    floorclip[rw_x] = int16(int(ceilingclip[rw_x]) + 1)\n"),
         "{main}"
@@ -2424,7 +2505,7 @@ fn p178_declared_array_subscripts_are_fixed_array_indexes() {
     );
     assert!(!body.contains("plane.top["), "{body}");
     let umain = function_body(&u, "main_0");
-    assert!(umain.contains("    ceilingclip[rw_x] = int16(mid)\n"), "{umain}");
+    assert!(umain.contains("    ceilingclip[rw_x] = int16(3)\n"), "{umain}");
     assert!(
         umain.contains("    end = unsafe(addr<int const?>(unsafe(unsafe(addr(table_0[0]))[5])))\n"),
         "{umain}"

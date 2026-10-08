@@ -304,20 +304,17 @@ def foo() {
     var p2 : s const?
     var t1 : t?
     var t2 : t const?
-    var cx : int
     var ut_y : int
     x = 42 + 1
     y = 42.0lf + 1.0lf
     z = 42.0 + 1.0
     n = 0
     m = 0
-    n = m
     p1 = unsafe(addr(s))
     p2 = unsafe(addr(s))
     t1 = unsafe(reinterpret<t?>(p1))
     t2 = unsafe(reinterpret<t const?>(p2))
-    cx = n
-    ut_y = cx
+    ut_y = m
     return
 }
 [sideeffects]
