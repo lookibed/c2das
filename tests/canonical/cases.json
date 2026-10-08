@@ -1076,6 +1076,61 @@
       "runtime": "required"
     },
     {
+      "id": "p190-float-compare-nan-safe",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p190_float_compare_nan_safe.c",
+      "c_graph": "single-tu",
+      "translator_flags": ["--float-compare", "nan-safe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "float_compare_nan_safe", "return_type": "int" },
+      "das_entrypoint": "float_compare_nan_safe",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p191-target-flag-unimplemented",
+      "status": "negative",
+      "source_root": "tests/syntax",
+      "translation_entry": "p191_target_flag_unimplemented.c",
+      "c_graph": "single-tu",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
+      "das_entrypoint": "not-applicable",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "expected_error": {
+        "cause": "--memory-model linear is not implemented yet"
+      },
+      "runtime": "not-applicable"
+    },
+    {
+      "id": "p192-dialect-eden-refuses-option",
+      "status": "negative",
+      "source_root": "tests/syntax",
+      "translation_entry": "p192_dialect_eden_refuses_option.c",
+      "c_graph": "single-tu",
+      "translator_flags": ["--dialect", "eden-0.6.4", "--das-option", "heap_size_limit = 1"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
+      "das_entrypoint": "not-applicable",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "expected_error": {
+        "cause": "--dialect eden-0.6.4 refuses `options heap_size_limit = 1`",
+        "location": "p192_dialect_eden_refuses_option.c"
+      },
+      "runtime": "not-applicable"
+    },
+    {
       "id": "p96-memcpy-builtin",
       "status": "ready",
       "source_root": "tests/syntax",

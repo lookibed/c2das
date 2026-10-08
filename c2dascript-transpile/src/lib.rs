@@ -8,6 +8,7 @@ pub mod cfg;
 mod compile_cmds;
 pub mod convert_type;
 pub mod renamer;
+pub mod target;
 pub mod translator;
 pub mod with_stmts;
 
@@ -151,6 +152,9 @@ pub enum LibcMode {
     Ffi,
     /// Replacement where one exists, FFI otherwise. Not implemented.
     All,
+    /// The EdenSpark sandbox's libc: no `fio`, output to `print`, files
+    /// from project assets (`docs/eden-flags.md` flag 5). Not implemented.
+    Eden,
 }
 
 impl LibcMode {
@@ -161,6 +165,7 @@ impl LibcMode {
             "std" => Some(Self::Std),
             "ffi" => Some(Self::Ffi),
             "all" => Some(Self::All),
+            "eden" => Some(Self::Eden),
             _ => None,
         }
     }
@@ -172,11 +177,12 @@ impl LibcMode {
             Self::Std => "std",
             Self::Ffi => "ffi",
             Self::All => "all",
+            Self::Eden => "eden",
         }
     }
 
     /// Every spelling `--libc` accepts, in the order the usage text lists them.
-    pub const ALL: [Self; 4] = [Self::NoStd, Self::Std, Self::Ffi, Self::All];
+    pub const ALL: [Self; 5] = [Self::NoStd, Self::Std, Self::Ffi, Self::All, Self::Eden];
 }
 
 impl std::fmt::Display for LibcMode {
@@ -305,6 +311,10 @@ pub struct TranspilerConfig {
     /// Translator diagnostics switched off (`-Wno-<name>`). A name here wins
     /// over both the default set and `-Wall`.
     pub disabled_warnings: HashSet<Diagnostic>,
+    /// Target switches for a runtime other than master daslang
+    /// (`--target eden` and its individual flags, `target.rs`).  The
+    /// default is master daslang and leaves output unchanged.
+    pub target: target::TargetOptions,
 }
 
 /// AST-level inventory for target-specific C surfaces.  These counts are
@@ -381,6 +391,7 @@ impl Default for TranspilerConfig {
             module_layout: ModuleLayout::Unity,
             enabled_warnings: HashSet::new(),
             disabled_warnings: HashSet::new(),
+            target: target::TargetOptions::default(),
         }
     }
 }

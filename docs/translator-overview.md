@@ -204,6 +204,29 @@ runtime module (`c2da_runtime` unless `--runtime-module` names it) and writes ev
 cluster file, fragment and the shared module into one directory; run the unit that defines
 `main` (or the cluster file named after it) from there.
 
+Target switches for the EdenSpark editor's daslang (plan: [`eden-flags.md`](eden-flags.md);
+sandbox rules: [`eden-target.md`](eden-target.md)). All are opt-in; without them the output
+is unchanged.
+
+- `--float-compare nan-safe` routes every `float`/`double` `==`, `!=`, `<`, `<=`, `>`, `>=`
+  the translator writes for C (binary operators, truthiness, `!x`) through `[inline]`
+  `c2da_fcmp_*` helpers that test NaN by bits (`daslib/math_bits`) first. Proved on master
+  daslang by `p190-float-compare-nan-safe` (C and daslang agree, NaN operands included).
+- `--dialect eden-0.6.4` checks the finished module and fails with a `TranslationError` on an
+  `options` line outside the sandbox list, a `require` of a refused module (`daslib/fio`, so
+  any `--libc std` program today), a `!` original operator or a `memmove` builtin call. A
+  construct inside a declaration is located at that C declaration.
+- `--no-unsafe` fails on any `unsafe`, `addr`, `reinterpret`, `intptr` or `delete` node in the
+  output, naming the first ten sites with the C declaration that owns each.
+  `--no-unsafe=report` prints a per-construct census (C-owned vs translator-generated) and
+  the ten declarations with the most sites to stderr, and writes the module.
+- `--memory-model linear`, `--fnptr-model table`, `--varargs-model heap`, `--heap-reserve`,
+  `--entry eden`, `--records typed` and `--libc eden` are parsed and refused by name
+  (`... is not implemented yet`, exit 2) before any output is written. `--target eden` sets
+  all of the above, so it is refused too until they land.
+- `scripts/eden_check.py <generated dir>` compiles every generated module under a local
+  sandbox model (`EDEN_SANDBOX_PROJECT=<sandbox.das_project>`) and prints a text census.
+
 ## Validation pipeline
 
 Validation is layered. A rendered file that merely parses is not a passing translation.

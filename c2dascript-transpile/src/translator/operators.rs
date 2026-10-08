@@ -366,6 +366,7 @@ impl<'c> Translation<'c> {
                 let rhs_inf = Self::infer_type(&rhs_val.val)
                     .or(rhs_da_from_c.clone())
                     .or_else(|| rhs_kind.as_ref().map(|k| type_kind_to_datype(k)));
+                let compare_ty = lhs_inf.clone();
                 let (lhs_val, rhs_val) = if let (Some(ref lt), Some(ref rt)) = (lhs_inf, rhs_inf) {
                     if lt != rt && !is_ptr && !matches!(op, CBinOp::Comma) {
                         (
@@ -384,13 +385,36 @@ impl<'c> Translation<'c> {
                 };
                 let combined = lhs_val
                     .zip(rhs_val)
-                    .map(|(l, r)| mk().binary_op(das_op, l, r));
+                    .map(|(l, r)| self.compare_or_binary_op(das_op, compare_ty.as_ref(), l, r));
                 Ok(if is_ptr {
                     combined.map(|v| DaExpr::Unsafe(Box::new(v)))
                 } else {
                     combined
                 })
             }
+        }
+    }
+
+    /// `left op right`, except that under `--float-compare nan-safe` a
+    /// comparison of two operands of the floating type `ty` is the NaN-guarded
+    /// helper call (`float_compare.rs`).  Every floating comparison the
+    /// translator writes for C — a binary operator, truthiness, `!x` — goes
+    /// through here.
+    pub(crate) fn compare_or_binary_op(
+        &self,
+        op: &'static str,
+        ty: Option<&DaType>,
+        left: DaExpr,
+        right: DaExpr,
+    ) -> DaExpr {
+        match ty {
+            Some(ty) if self.tcfg.target.float_compare == crate::target::FloatCompare::NanSafe => {
+                match super::float_compare::guarded(op, ty, left, right) {
+                    Ok(call) => call,
+                    Err((left, right)) => mk().binary_op(op, left, right),
+                }
+            }
+            _ => mk().binary_op(op, left, right),
         }
     }
 
@@ -546,9 +570,10 @@ impl<'c> Translation<'c> {
             self.bool_to_integer(lhs_val.map(|v| self.promote_operand(v, lhs_kind, lhs_target)));
         let rhs_val =
             self.bool_to_integer(rhs_val.map(|v| self.promote_operand(v, rhs_kind, rhs_target)));
+        let operand_ty = lhs_target.da_type();
         Ok(lhs_val
             .zip(rhs_val)
-            .map(|(l, r)| mk().binary_op(das_op, l, r)))
+            .map(|(l, r)| self.compare_or_binary_op(das_op, Some(&operand_ty), l, r)))
     }
 
     #[allow(dead_code)]
@@ -1311,6 +1336,7 @@ impl<'c> Translation<'c> {
             {
                 Some(DaType::bool())
             }
+            call if super::float_compare::is_guarded_compare(call) => Some(DaType::bool()),
             DaExpr::Op2 { left, .. } => Self::infer_type(left),
             DaExpr::Op1 { expr: inner, .. } => Self::infer_type(inner),
             // daScript requires both arms of a conditional expression to have
@@ -1531,13 +1557,11 @@ impl<'c> Translation<'c> {
                         // `!d` is `d == 0` in the operand's own floating type.
                         // Comparing against an integer zero would make every
                         // value with magnitude below one test as false.
-                        let zero =
-                            super::literals::floating_zero_for_datype(&self.convert_type(qty)?);
-                        return Ok(val.map(|v| DaExpr::Op2 {
-                            op: "==",
-                            left: Box::new(v),
-                            right: Box::new(zero),
-                        }));
+                        let float_ty = self.convert_type(qty)?;
+                        let zero = super::literals::floating_zero_for_datype(&float_ty);
+                        return Ok(
+                            val.map(|v| self.compare_or_binary_op("==", Some(&float_ty), v, zero))
+                        );
                     }
                     // `!e` on an enumeration tests its integer value.  A
                     // daScript enum has no numeric value of its own, and only

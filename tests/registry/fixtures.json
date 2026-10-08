@@ -5966,6 +5966,89 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p190-float-compare-nan-safe",
+      "canonical_cases": [
+        "p190-float-compare-nan-safe"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "float_compare_nan_safe",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p190_float_compare_nan_safe",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p190_float_compare_nan_safe.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p191-target-flag-unimplemented",
+      "canonical_cases": [
+        "p191-target-flag-unimplemented"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "--memory-model linear is not implemented yet"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p191_target_flag_unimplemented",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/p191_target_flag_unimplemented.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p192-dialect-eden-refuses-option",
+      "canonical_cases": [
+        "p192-dialect-eden-refuses-option"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "--dialect eden-0.6.4 refuses `options heap_size_limit = 1`",
+          "location": "p192_dialect_eden_refuses_option.c"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p192_dialect_eden_refuses_option",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/p192_dialect_eden_refuses_option.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p19-runtime-memory-calls",
       "canonical_cases": [
         "p19-runtime-memory-calls"

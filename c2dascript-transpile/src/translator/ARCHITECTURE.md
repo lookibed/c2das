@@ -254,6 +254,24 @@ record's last byte (as before).  The former place for every bitfield read `struc
 `p151-bitfield-storage-units` is the fixture.  (`unsigned short` and `_Bool` bitfields produce
 storage-type arithmetic daslang rejects, before and after this rule — an open gap.)
 
+## Target switches (`--float-compare`, `--dialect`, `--no-unsafe`)
+
+`crate::target::TargetOptions` holds the switches for a runtime other than master daslang
+(`docs/eden-flags.md`); its default is master daslang and changes nothing.  A switch whose
+lowering does not exist yet is refused by name in `main.rs` before translation.
+
+- `float_compare.rs` owns `--float-compare nan-safe`.  Every floating comparison an owner
+  builds goes through `Translation::compare_or_binary_op` (`operators.rs`): the arithmetic
+  binary path, the generic binary path, truthiness (`convert_condition`) and `!x`.  A new
+  owner that writes a floating `==`/`<`/… must call it too, or the comparison is not IEEE
+  in the EdenSpark editor.  The guarded call counts as a boolean expression
+  (`is_boolean_expression`, `infer_type`).
+- `target_check.rs` owns `--dialect eden-0.6.4` and `--no-unsafe`.  They are checkers over the
+  finished `DaModule` parts (options, requires, declarations) called once from `mod.rs`, after
+  every module pass; they never rewrite the module.  `das_ast` nodes have no C location, so a
+  site is located at the C declaration that owns it, or named as translator-generated.  The
+  `--runtime-module`/`--module-layout source` shared module is not checked yet.
+
 ## Module-wide policy
 
 Facts that hold for the whole output rather than for one lowering — the `options` header and

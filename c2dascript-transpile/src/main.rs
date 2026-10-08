@@ -11,7 +11,7 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all] [--runtime-module <name>] [--module-layout unity|source] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all|eden] [--target master|eden] [--float-compare ieee|nan-safe] [--dialect master|eden-0.6.4] [--no-unsafe[=fail|report|off]] [--memory-model raw|linear] [--fnptr-model value|table] [--varargs-model array|heap] [--heap-reserve <bytes>] [--entry main|eden] [--records natural|typed] [--runtime-module <name>] [--module-layout unity|source] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
@@ -62,6 +62,109 @@ fn main() {
     let (enabled_warnings, disabled_warnings) = take_warning_switches(&mut args);
     // Which libc entry points the translated module may call. `nostd` is the
     // default and the only mode that is fully implemented besides `std`.
+    // Target switches (`target.rs`, `docs/eden-flags.md`).  `--target eden`
+    // sets the whole preset; an individual flag given with it overrides its
+    // part of the preset, whatever the order on the command line.
+    let preset = take_value(&mut args, "--target");
+    let mut target = match preset.as_deref() {
+        None | Some("master") => c2dascript_transpile::target::TargetOptions::default(),
+        Some("eden") => c2dascript_transpile::target::TargetOptions::eden(),
+        Some(other) => {
+            eprintln!("unknown target '{other}'; expected one of master, eden");
+            std::process::exit(1);
+        }
+    };
+    let preset_libc =
+        (preset.as_deref() == Some("eden")).then_some(c2dascript_transpile::LibcMode::Eden);
+    use c2dascript_transpile::target as tg;
+    if let Some(v) = take_switch(
+        &mut args,
+        "--memory-model",
+        tg::MemoryModel::parse,
+        &tg::MemoryModel::ALL.map(tg::MemoryModel::as_str),
+    ) {
+        target.memory_model = v;
+    }
+    if let Some(v) = take_switch(
+        &mut args,
+        "--fnptr-model",
+        tg::FnPtrModel::parse,
+        &tg::FnPtrModel::ALL.map(tg::FnPtrModel::as_str),
+    ) {
+        target.fnptr_model = v;
+    }
+    if let Some(v) = take_switch(
+        &mut args,
+        "--float-compare",
+        tg::FloatCompare::parse,
+        &tg::FloatCompare::ALL.map(tg::FloatCompare::as_str),
+    ) {
+        target.float_compare = v;
+    }
+    if let Some(v) = take_switch(
+        &mut args,
+        "--varargs-model",
+        tg::VarargsModel::parse,
+        &tg::VarargsModel::ALL.map(tg::VarargsModel::as_str),
+    ) {
+        target.varargs_model = v;
+    }
+    if let Some(v) = take_switch(
+        &mut args,
+        "--dialect",
+        tg::Dialect::parse,
+        &tg::Dialect::ALL.map(tg::Dialect::as_str),
+    ) {
+        target.dialect = v;
+    }
+    if let Some(v) = take_switch(
+        &mut args,
+        "--entry",
+        tg::EntryModel::parse,
+        &tg::EntryModel::ALL.map(tg::EntryModel::as_str),
+    ) {
+        target.entry = v;
+    }
+    if let Some(v) = take_switch(
+        &mut args,
+        "--records",
+        tg::RecordsModel::parse,
+        &tg::RecordsModel::ALL.map(tg::RecordsModel::as_str),
+    ) {
+        target.records = v;
+    }
+    if let Some(text) = take_value(&mut args, "--heap-reserve") {
+        match text.parse::<u64>() {
+            Ok(bytes) if bytes > 0 => target.heap_reserve = Some(bytes),
+            _ => {
+                eprintln!("--heap-reserve '{text}' is not a positive byte count");
+                std::process::exit(1);
+            }
+        }
+    }
+    if take_flag(&mut args, "--no-unsafe") {
+        target.no_unsafe = tg::NoUnsafe::Fail;
+    }
+    if let Some(mode) = take_prefixed(&mut args, "--no-unsafe=") {
+        target.no_unsafe = match mode.as_str() {
+            "fail" => tg::NoUnsafe::Fail,
+            "report" => tg::NoUnsafe::Report,
+            "off" => tg::NoUnsafe::Off,
+            _ => {
+                eprintln!("unknown --no-unsafe mode '{mode}'; expected one of fail, report, off");
+                std::process::exit(1);
+            }
+        };
+    }
+    // A target switch the translator cannot honour yet stops before any
+    // output is written, by name.
+    let missing = target.unimplemented();
+    if !missing.is_empty() {
+        for flag in &missing {
+            eprintln!("{flag} is not implemented yet");
+        }
+        std::process::exit(2);
+    }
     let libc = match take_value(&mut args, "--libc") {
         Some(text) => match c2dascript_transpile::LibcMode::parse(&text) {
             Some(mode) => mode,
@@ -77,14 +180,16 @@ fn main() {
                 std::process::exit(1);
             }
         },
-        None => c2dascript_transpile::LibcMode::default(),
+        None => preset_libc.unwrap_or_default(),
     };
     // A mode the translator cannot honour must stop before any output is
     // written: a partially-honoured libc policy is indistinguishable from a
     // wrong one in the generated module.
     if matches!(
         libc,
-        c2dascript_transpile::LibcMode::Ffi | c2dascript_transpile::LibcMode::All
+        c2dascript_transpile::LibcMode::Ffi
+            | c2dascript_transpile::LibcMode::All
+            | c2dascript_transpile::LibcMode::Eden
     ) {
         eprintln!("libc mode '{libc}' is not implemented yet");
         std::process::exit(2);
@@ -153,6 +258,7 @@ fn main() {
         module_layout,
         enabled_warnings,
         disabled_warnings,
+        target,
     };
 
     let path = Path::new(&args[0]);
@@ -254,6 +360,27 @@ fn take_prefixed(args: &mut Vec<String>, prefix: &str) -> Option<String> {
         value = Some(args.remove(index)[prefix.len()..].to_owned());
     }
     value
+}
+
+/// `take_value` for a target switch: parses the word with `parse`, or exits
+/// naming the accepted spellings.
+fn take_switch<T>(
+    args: &mut Vec<String>,
+    option: &str,
+    parse: fn(&str) -> Option<T>,
+    spellings: &[&str],
+) -> Option<T> {
+    let text = take_value(args, option)?;
+    match parse(&text) {
+        Some(value) => Some(value),
+        None => {
+            eprintln!(
+                "unknown {option} value '{text}'; expected one of {}",
+                spellings.join(", ")
+            );
+            std::process::exit(1);
+        }
+    }
 }
 
 /// `take_option` for an option whose value is a word rather than a path.

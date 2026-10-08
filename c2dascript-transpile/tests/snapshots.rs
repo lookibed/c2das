@@ -40,6 +40,7 @@ fn config(output_dir: &Path) -> TranspilerConfig {
         module_layout: c2dascript_transpile::ModuleLayout::Unity,
         enabled_warnings: Default::default(),
         disabled_warnings: Default::default(),
+        target: Default::default(),
     }
 }
 

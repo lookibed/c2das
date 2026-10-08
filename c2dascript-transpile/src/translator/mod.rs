@@ -30,6 +30,7 @@ mod atomics;
 mod builtins;
 mod comments;
 mod enums;
+mod float_compare;
 mod functions;
 mod global_order;
 mod inline;
@@ -44,6 +45,7 @@ mod pointers;
 mod runtime;
 mod simd;
 mod structs_unions;
+mod target_check;
 pub(crate) mod value_lowering;
 mod variadic;
 
@@ -2853,12 +2855,9 @@ impl<'c> Translation<'c> {
             // own type. Routing it through an integer comparison would make
             // every value with magnitude below one — `0.5`, `-0.5` — test as
             // false.
-            let zero = literals::floating_zero_for_datype(&self.convert_type(qty)?);
-            return Ok(val.map(|v| DaExpr::Op2 {
-                op: "!=",
-                left: Box::new(v),
-                right: Box::new(zero),
-            }));
+            let float_ty = self.convert_type(qty)?;
+            let zero = literals::floating_zero_for_datype(&float_ty);
+            return Ok(val.map(|v| self.compare_or_binary_op("!=", Some(&float_ty), v, zero)));
         }
         if let Some(inferred) = Self::infer_type(&val.val) {
             if inferred.is_numeric() && !matches!(inferred.kind, DaTypeKind::Bool) {
@@ -3780,6 +3779,8 @@ pub(crate) fn is_boolean_expression(expr: &DaExpr) -> bool {
             matches!(*op, "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||")
         }
         DaExpr::Unsafe(inner) => is_boolean_expression(inner),
+        // A `--float-compare nan-safe` comparison is a `bool` helper call.
+        DaExpr::Call(..) => float_compare::is_guarded_compare(expr),
         _ => false,
     }
 }
@@ -4233,6 +4234,7 @@ fn translate_impl(
         _ => "c2da_str_".to_owned(),
     });
     builtins::reset_builtin_helpers();
+    float_compare::reset();
     libc::reset();
 
     // Prune unreachable system declarations (removes __-prefixed noise from system headers)
@@ -4517,6 +4519,9 @@ fn translate_impl(
     // address — and before any initializer that points into it.
     module_decls.extend(literals::take_string_literal_declarations());
     module_decls.extend(builtins::take_builtin_helper_declarations());
+    // `--float-compare nan-safe` helpers (empty under the default `ieee`).
+    let float_compare_requires = float_compare::module_requires();
+    module_decls.extend(float_compare::take_declarations());
     module_decls.extend(std::mem::take(&mut *t.record_array_helpers.borrow_mut()).into_values());
     // The `--libc std` replacement prelude, if this translation unit used any
     // of it. In the default `nostd` mode this is empty and the module is
@@ -4666,6 +4671,12 @@ fn translate_impl(
     // `--libc std` prelude stands on, and only when a std helper is in the
     // module.
     requires.extend(libc::module_requires());
+    requires.extend(float_compare_requires);
+
+    // Target checkers (`--dialect`, `--no-unsafe`) read the finished module;
+    // with neither selected this is a no-op.
+    let options = module_options(t.tcfg);
+    target_check::check_module(&t, main_file, &requires, &options, &module_decls)?;
 
     // Build the daScript module.  The header is the caller's choice: an
     // anonymous `options gen2` module by default, `module <stem> public` and
@@ -4689,7 +4700,7 @@ fn translate_impl(
                         if name == "main")
                 })),
         requires,
-        options: module_options(t.tcfg),
+        options,
         decls: module_decls,
     };
 
