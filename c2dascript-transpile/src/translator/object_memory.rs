@@ -212,11 +212,16 @@ impl<'c> Translation<'c> {
                 }))
             }
             // `q->u` and longer chains are already address-backed places.  A
-            // record field of a *local* struct is not, and
+            // union field of a natural record named from an object (`s.u`)
+            // is the address of its inline storage.  A record field of a
+            // *local* storage-backed struct is neither, and
             // `member_place_address` says so by returning `None`.
             CExprKind::Member(..) => match self.member_place_address(ctx, expr)? {
                 Some(address) => Ok(Some(address)),
-                None => self.wrapper_storage_address(ctx, expr, ctype),
+                None => match self.inline_record_place_address(ctx, expr)? {
+                    Some(address) => Ok(Some(address)),
+                    None => self.wrapper_storage_address(ctx, expr, ctype),
+                },
             },
             _ => self.wrapper_storage_address(ctx, expr, ctype),
         }
@@ -422,19 +427,26 @@ impl<'c> Translation<'c> {
         };
         // The by-name spelling extends only through a typed record pointer,
         // a record whose layout the module proves, and a field that has a
-        // daScript field of its own (a bitfield has none).
+        // daScript field of its own (a bitfield has none).  A member of an
+        // inline union field (`p->u.word`) is the union's storage field
+        // itself when its daScript type is the storage type; every other
+        // member reads the field's bytes through its own type.
         let named = match base.named {
             Some(mut named) if bitfield_width.is_none() && !base.raw_is_address => self
                 .ast_context
                 .parents
                 .get(&field)
                 .copied()
-                .filter(|&parent| self.record_has_proven_layout(parent))
                 .and_then(|parent| {
-                    let name = self.natural_field_name(parent, field)?;
-                    named.records.push(parent);
-                    named.path.push(name);
-                    Some(named)
+                    if self.record_has_proven_layout(parent) {
+                        let name = self.natural_field_name(parent, field)?;
+                        named.records.push(parent);
+                        named.path.push(name);
+                        return Some(named);
+                    }
+                    let storage = self.inline_record_storage(parent)?;
+                    let member = writable_type(self.convert_type(field_ty).ok()?);
+                    (!named.path.is_empty() && member == storage).then_some(named)
                 }),
             _ => None,
         };
@@ -1107,6 +1119,9 @@ fn raw_address_is_reevaluable(expr: &DaExpr) -> bool {
     match expr {
         DaExpr::Var(_) | DaExpr::ConstNull | DaExpr::ConstInt(_) | DaExpr::ConstUInt(_) => true,
         DaExpr::Field(base, _) | DaExpr::SafeField(base, _) => raw_address_is_reevaluable(base),
+        // The address of a named place (an inline union field, `addr(s.u)`)
+        // is as free to spell again as the name.
+        DaExpr::Addr(inner) => raw_address_is_reevaluable(inner),
         DaExpr::Unsafe(inner) => raw_address_is_reevaluable(inner),
         DaExpr::Cast { expr, .. } => raw_address_is_reevaluable(expr),
         _ => false,

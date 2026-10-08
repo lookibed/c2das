@@ -1802,6 +1802,12 @@ impl<'c> Translation<'c> {
                 })?;
             return Ok(Some((field, self.field_address(base, field)?)));
         }
+        // `s.u = v` on a union field of a natural record overwrites the
+        // field's inline bytes; the storage integer is never assigned a
+        // wrapper.
+        if let Some(address) = self.inline_record_place_address(ctx.used(), expr)? {
+            return Ok(Some((field, address)));
+        }
         Ok(None)
     }
 }

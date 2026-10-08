@@ -141,6 +141,19 @@ impl<'c> Translation<'c> {
                             name.clone()
                         }
                     });
+                // A union member lies inline, as the integer storage of its
+                // own size and alignment (`layout.rs inline_union_storage`):
+                // the record stays natural and its other fields are reached
+                // by name.  daScript zero-fills the integer, which is the
+                // union's zero value.
+                if let Some((_, storage)) = self.inline_record_storage_of(typ.ctype) {
+                    das_fields.push(DaField {
+                        name: field_name,
+                        field_type: storage,
+                        default: None,
+                    });
+                    continue;
+                }
                 // A storage-backed member is raw storage the containing
                 // object owns, so every instance of this record has to
                 // allocate its own.  The field default is what daScript
@@ -275,7 +288,7 @@ impl<'c> Translation<'c> {
         ctx: ExprContext,
         record_id: CRecordId,
         ids: &[CExprId],
-        _override_ty: Option<CQualTypeId>,
+        union_field: Option<CFieldId>,
     ) -> TranslationResult<WithStmts<DaExpr>> {
         let name = self.storage_record_name(record_id)?;
         let storage = self.record_zero_storage(record_id)?;
@@ -287,12 +300,13 @@ impl<'c> Translation<'c> {
             return Ok(out);
         }
         let fields = self.record_fields(record_id)?;
-        // C initializes exactly one member of a union — Clang always reports
-        // it first — while a struct takes its initializers in field order.
+        // C initializes exactly one member of a union — the first, or the
+        // one a designator names (Clang's `union_field`) — while a struct
+        // takes its initializers in field order.
         let is_union = matches!(self.ast_context[record_id].kind, CDeclKind::Union { .. });
         let pairs: Vec<(CFieldId, CExprId)> = if is_union {
-            match (fields.first(), ids.first()) {
-                (Some(&field), Some(&init)) => vec![(field, init)],
+            match (union_field.or(fields.first().copied()), ids.first()) {
+                (Some(field), Some(&init)) => vec![(field, init)],
                 _ => vec![],
             }
         } else {
@@ -383,15 +397,15 @@ impl<'c> Translation<'c> {
                 return self.bitfield_store(address, field, value);
             }
         }
-        if let CExprKind::InitList(_, ref elements, _, _) = self.ast_context[init].kind {
+        if let CExprKind::InitList(_, ref elements, union_field, _) = self.ast_context[init].kind {
             let elements = elements.clone();
             match self.ast_context.resolve_type(address.ctype.ctype).kind {
                 CTypeKind::Struct(record) | CTypeKind::Union(record) => {
                     let fields = self.record_fields(record)?;
                     let is_union = matches!(self.ast_context[record].kind, CDeclKind::Union { .. });
                     let pairs: Vec<(CFieldId, CExprId)> = if is_union {
-                        match (fields.first(), elements.first()) {
-                            (Some(&field), Some(&element)) => vec![(field, element)],
+                        match (union_field.or(fields.first().copied()), elements.first()) {
+                            (Some(field), Some(&element)) => vec![(field, element)],
                             _ => vec![],
                         }
                     } else {
@@ -951,10 +965,178 @@ impl<'c> Translation<'c> {
         )
     }
 
+    /// The place of a storage-backed record field (a union, a packed or
+    /// bitfield struct) of a natural record named by `.` from an object
+    /// (`s.u`, `s.inner.u`, `a[i].u`): the field's record, its inline
+    /// storage type (`layout.rs inline_record_storage`) and the daScript
+    /// field of that type.  `None` for any other member expression; a chain
+    /// with an `->` in it is an address-backed place already
+    /// (`object_memory.rs member_place_address`).
+    pub(crate) fn inline_record_place(
+        &self,
+        ctx: ExprContext,
+        expr: CExprId,
+    ) -> TranslationResult<Option<(CRecordId, DaType, WithStmts<DaExpr>)>> {
+        let expr = self.strip_lvalue_wrappers(expr);
+        let CExprKind::Member(_, base, field, MemberKind::Dot, _) = self.ast_context[expr].kind
+        else {
+            return Ok(None);
+        };
+        self.inline_record_member_place(ctx, base, field)
+    }
+
+    /// [`Self::inline_union_place`] from the parts of the member expression.
+    fn inline_record_member_place(
+        &self,
+        ctx: ExprContext,
+        base: CExprId,
+        field: CFieldId,
+    ) -> TranslationResult<Option<(CRecordId, DaType, WithStmts<DaExpr>)>> {
+        let CDeclKind::Field { typ, .. } = self.ast_context[field].kind else {
+            return Ok(None);
+        };
+        let Some((record, storage)) = self.inline_record_storage_of(typ.ctype) else {
+            return Ok(None);
+        };
+        let parent = *self
+            .ast_context
+            .parents
+            .get(&field)
+            .ok_or_else(|| TranslationError::generic("field has no parent record"))?;
+        if !self.record_has_proven_layout(parent) {
+            return Ok(None);
+        }
+        let name = self.natural_field_name(parent, field).ok_or_else(|| {
+            TranslationError::generic("inline union field of a natural record has no name")
+        })?;
+        let base_ty = self.ast_context[base].kind.get_qual_type();
+        let base = self.convert_expr(ctx.used(), base, base_ty)?;
+        Ok(Some((
+            record,
+            storage,
+            base.map(|base| DaExpr::Field(Box::new(base), name)),
+        )))
+    }
+
+    /// The byte address of an inline record field of a natural record named
+    /// by `.` from an object: the address of the storage field, so that the
+    /// record's members are read and written through their own types at
+    /// Clang's offsets, exactly as behind a pointer to the record.  Such a
+    /// field of an rvalue record (`f().u`) is bound to a temporary first.
+    pub(crate) fn inline_record_place_address(
+        &self,
+        ctx: ExprContext,
+        expr: CExprId,
+    ) -> TranslationResult<Option<CObjectAddress>> {
+        let Some((record, storage, place)) = self.inline_record_place(ctx, expr)? else {
+            return Ok(None);
+        };
+        let member = self.strip_lvalue_wrappers(expr);
+        let ctype = self.ast_context[member]
+            .kind
+            .get_qual_type()
+            .unwrap_or(CQualTypeId::new(self.record_ctype(record)?));
+        let is_unsafe = place.is_unsafe;
+        let mut stmts = place.stmts;
+        let place = if self.ast_context[member].kind.lrvalue().is_lvalue() {
+            place.val
+        } else {
+            let tmp = self.renamer.borrow_mut().fresh();
+            stmts.push(DaStmt::Var {
+                name: tmp.clone(),
+                var_type: storage,
+                init: Some(place.val),
+            });
+            DaExpr::Var(tmp)
+        };
+        let raw = self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(
+            place,
+        )))));
+        Ok(Some(CObjectAddress {
+            raw: WithStmts::new(stmts, raw).merge_unsafe(is_unsafe),
+            raw_is_address: true,
+            ctype,
+            byte_offset: 0,
+            storage_size_bytes: None,
+            named: None,
+        }))
+    }
+
+    /// The inline storage value of a record held by a wrapper: the bytes the
+    /// wrapper names, read as the storage type.  This is how a braced
+    /// initializer, a cast to union or a record value reaches an inline
+    /// record field of a natural record.
+    pub(crate) fn inline_record_value_from_wrapper(
+        &self,
+        wrapper: WithStmts<DaExpr>,
+        record: CRecordId,
+        storage: &DaType,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let is_unsafe = wrapper.is_unsafe;
+        let mut stmts = wrapper.stmts;
+        let source = match wrapper.val {
+            place if is_wrapper_place(&place) => place,
+            other => {
+                let tmp = self.renamer.borrow_mut().fresh();
+                stmts.push(DaStmt::Var {
+                    name: tmp.clone(),
+                    var_type: DaType::named(&self.storage_record_name(record)?),
+                    init: Some(other),
+                });
+                DaExpr::Var(tmp)
+            }
+        };
+        let raw = DaExpr::Field(Box::new(source), "c2da_storage".into());
+        if matches!(storage.kind, DaTypeKind::FixedArray(..)) {
+            let size = self.record_layout(record)?.object.size_bytes;
+            let tmp = self.renamer.borrow_mut().fresh();
+            stmts.push(DaStmt::Var {
+                name: tmp.clone(),
+                var_type: storage.clone(),
+                init: None,
+            });
+            let tmp_address = self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(
+                DaExpr::Addr(Box::new(DaExpr::Var(tmp.clone()))),
+            )));
+            stmts.extend(self.object_byte_copy(tmp_address, raw, size, ObjectCopy::Disjoint)?);
+            return Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe));
+        }
+        let value = DaExpr::Unsafe(Box::new(DaExpr::Index(
+            Box::new(self.raw_address_to_pointer(raw, DaType::pointer(storage.clone()))),
+            Box::new(DaExpr::ConstInt(0)),
+        )));
+        Ok(WithStmts::new(stmts, value).merge_unsafe(is_unsafe))
+    }
+
+    /// The daScript value a C initializer gives an inline record field of a
+    /// natural record, or `None` when the field is not one.  An element C
+    /// leaves implicit is the storage type's zero.
+    pub(crate) fn inline_record_field_initializer(
+        &self,
+        ctx: ExprContext,
+        init: CExprId,
+        field_ty: CQualTypeId,
+    ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        let Some((record, storage)) = self.inline_record_storage_of(field_ty.ctype) else {
+            return Ok(None);
+        };
+        let init_expr = self.strip_lvalue_wrappers(init);
+        if matches!(
+            self.ast_context[init_expr].kind,
+            CExprKind::ImplicitValueInit(_)
+        ) {
+            return Ok(Some(WithStmts::new_val(zero_for_datype(&storage))));
+        }
+        let wrapper = self.convert_expr(ctx.used(), init, Some(field_ty))?;
+        self.inline_record_value_from_wrapper(wrapper, record, &storage)
+            .map(Some)
+    }
+
     pub fn convert_member_expr(
         &self,
         ctx: ExprContext,
         qual_ty: CQualTypeId,
+        member: CExprId,
         expr: CExprId,
         decl: CDeclId,
         kind: MemberKind,
@@ -965,6 +1147,12 @@ impl<'c> Translation<'c> {
         // aggregate intermediate never reaches `raw_load` as an rvalue.
         if let Some(base) = self.member_place_address(ctx, expr)? {
             return self.member_place_lvalue(base, decl);
+        }
+        // A union field of a natural record read as a value is a C by-value
+        // copy of the union: a fresh wrapper over a copy of the field's bytes
+        // (`raw_load` on the field's address), never the storage integer.
+        if let Some(address) = self.inline_record_place_address(ctx, member)? {
+            return self.raw_load(address);
         }
         if matches!(kind, MemberKind::Arrow) {
             let base_ctype = self.ast_context[expr]

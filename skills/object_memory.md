@@ -8,7 +8,11 @@ layout (`layout.rs record_has_proven_layout`) is spelled `p.field` / `p.inner.fi
 (`named_field_lvalue`, the only such lowering), and module assembly refuses a record named
 without its `static_assert` layout proof; a `const S *` base is converted through
 `abi.rs named_field_base`.  Addresses of fields, fixed-array fields, aggregate copies, bitfields
-and storage-backed records stay on Clang byte offsets.  A storage-backed object's storage is its
+and storage-backed records stay on Clang byte offsets.  A storage-backed record field (union,
+packed or bitfield struct) of a natural record is inline integer storage (`layout.rs
+inline_record_storage`): its members are read through their own types at the field's address
+(`inline_record_place_address`), a member of the storage's own type is the field itself, and the
+record's other fields stay by-name.  A storage-backed object's storage is its
 identity: arrays of them are one contiguous block, pointer arithmetic on them is raw and scaled by
 Clang's size, and assignment or initialization copies bytes in place, never replacing a wrapper
 (`translator/ARCHITECTURE.md`, "Storage-backed objects").  Aggregate rvalue copies, by-value ABI,

@@ -5632,6 +5632,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p176-inline-union-fields",
+      "canonical_cases": [
+        "p176-inline-union-fields"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "tick 12 a=12,19 b=-5,7,0 c=3,0\ntick 23 a=14,18 removed=1\npool 14 1 1 -50\nslot 1 1\npun 3fc00000 0 0\npun 3.1416 1\ncopy 40000000 40490fff 3f000000\nback 40490fff 2\nmixed m 1122334455667799 112233445566aaaa 16\nbytes abc z 4\nwide 12 4 32\nactor 5 10 -20 270 3001 9 7 | 1 3 200 4 | 6 24 16\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p176_inline_union_fields",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p176_inline_union_fields.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p17-runtime-malloc",
       "canonical_cases": [
         "p17-runtime-malloc"

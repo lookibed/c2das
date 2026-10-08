@@ -418,7 +418,6 @@ fn p103_records_with_zero_sized_fields_are_storage_backed() {
         ("MidZero", 8),
         ("Tail", 4),
         ("AnonWithEmpty", 2),
-        ("Outer", 12),
     ] {
         assert!(
             d.contains(&format!(
@@ -427,6 +426,13 @@ fn p103_records_with_zero_sized_fields_are_storage_backed() {
             "{record} must be storage-backed with Clang's size {size}"
         );
     }
+    // A record embedding one of them by value holds its bytes inline (p176):
+    // `Outer` is natural, `inner` its eight bytes as `uint[2]`, and the proof
+    // asserts Clang's offsets around it.
+    assert!(d.contains("struct Outer {\n    inner : uint[2]\n    after : int\n}\n"));
+    assert!(d.contains(
+        "static_assert(typeinfo offsetof<after>(type<Outer>) == 8, \"C layout of Outer: offsetof after\")"
+    ));
     assert!(
         !d.contains("    e : Empty\n") && !d.contains("    es : Empty[4]\n"),
         "no daslang field of an empty struct"
@@ -509,16 +515,12 @@ fn p105_unproven_and_address_places_keep_byte_offsets() {
         "p105_field_by_offset_kept",
         c2dascript_transpile::LibcMode::Std,
     );
-    // Union, a record containing one, bitfields, packed, over-aligned and a
-    // flexible array member are storage-backed: Clang offsets only.
+    // Union, bitfields, packed, over-aligned and a flexible array member are
+    // storage-backed: Clang offsets only.
     for (function, access) in [
         (
             "word_of",
             "unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(w))))[0])",
-        ),
-        (
-            "tag_and_byte",
-            "unsafe(unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(h))))[0])",
         ),
         (
             "bits_of",
@@ -543,12 +545,24 @@ fn p105_unproven_and_address_places_keep_byte_offsets() {
             "{function} lost its byte offset:\n{body}"
         );
     }
-    for record in ["Word", "HasUnion", "Bits", "Packed", "Aligned", "Flex"] {
+    for record in ["Word", "Bits", "Packed", "Aligned", "Flex"] {
         assert!(
             !d.contains(&format!("type<{record}>")),
             "a storage-backed record has no daslang layout to prove: {record}"
         );
     }
+    // A record containing a union is natural (p176): the union field is its
+    // inline storage, `tag` goes by name and the union's array member is
+    // read at the field's offset.
+    assert!(d.contains("struct HasUnion {\n    tag : int\n    w : uint\n}\n"));
+    assert!(d.contains(
+        "static_assert(typeinfo offsetof<w>(type<HasUnion>) == 4, \"C layout of HasUnion: offsetof w\")"
+    ));
+    let body = function_body(&d, "tag_and_byte");
+    assert!(
+        body.contains("    var c2da_fresh0 : uint8? = unsafe(reinterpret<uint8?>(unsafe(reinterpret<uint64>(h)) + 4ul))\n    return h.tag + int(unsafe(unsafe(reinterpret<uint8?>(c2da_fresh0))[0]))"),
+        "{body}"
+    );
     // In the proven `Buf`, the scalar fields go by name while the address of
     // a field and an element of a fixed-array field stay on offsets.
     assert!(d.contains("    s_0 = b_0.len + b_0.tail\n"));
@@ -708,7 +722,15 @@ fn p132_storage_objects_keep_their_storage() {
     assert!(d.contains(
         "        var c2da_fresh18 : node[3] = c2da_ginit_ring()\n        for (c2da_fresh19, c2da_fresh20 in ring, c2da_fresh18) {\n            unsafe(memmove(unsafe(reinterpret<void?>(c2da_fresh19.c2da_storage)), unsafe(reinterpret<void?>(c2da_fresh20.c2da_storage)), 21ul))\n"
     ));
-    assert!(!d.contains("ring = c2da_ginit_ring()") && !d.contains("states = c2da_ginit_states()"));
+    assert!(!d.contains("ring = c2da_ginit_ring()"));
+    // `st_t` holds its union inline (p176) and is a natural record: its
+    // cyclic array is assigned in place like any other daslang global, and
+    // the union member is read at the field's address.
+    assert!(d.contains("struct st_t {\n    id : int\n    a : uint64\n    mine : int?\n}\n"));
+    assert!(d.contains("        states = c2da_ginit_states()\n"));
+    assert!(d.contains(
+        "invoke(unsafe(unsafe(reinterpret<function<():void>?>(unsafe(reinterpret<uint64>(unsafe(addr(unsafe(unsafe(addr(states[0]))[0]).a))))))[0]))"
+    ));
     // An initialised (acyclic) array is built the same way.
     assert!(
         d.contains("var table_0 : pair_t[3] = c2da_records_pair_t_3(c2da_rt_calloc(1ul, 15ul))")
@@ -1941,5 +1963,104 @@ fn p112_std_sscanf_rejects_unimplemented_conversions() {
     assert!(
         error.contains("p112_std_sscanf_unsupported.c:8:31"),
         "missing the format's source location: {error}"
+    );
+}
+
+#[test]
+fn p176_union_fields_lie_inline_in_natural_records() {
+    let d = transpile_with_libc(
+        "p176_inline_union_fields",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // A union field is the unsigned integer of its size and alignment (a
+    // fixed array of them when wider); the record keeps its own fields and
+    // its layout proof covers the union field.  The union itself keeps its
+    // wrapper for the objects that name it on their own.
+    assert!(d.contains("struct thinker_s {\n    prev : thinker_s?\n    next : thinker_s?\n    function_0 : uint64\n}\n"));
+    assert!(d.contains("struct mobj_s {\n    thinker : thinker_s\n    x : int\n"));
+    assert!(d.contains("struct sample {\n    id : int\n    bits : uint\n    tail : int\n}\n"));
+    assert!(d.contains("struct mixed {\n    tag : int8\n    w : uint64\n}\n"));
+    assert!(d.contains("struct bytes3 {\n    u : uint8[3]\n    end : int8\n}\n"));
+    assert!(d.contains("struct actionf_t {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 8ul)\n}\n"));
+    assert!(d.contains("static_assert(typeinfo offsetof<function_0>(type<thinker_s>) == 16, \"C layout of thinker_s: offsetof function_0\")"));
+    assert!(d.contains("static_assert(typeinfo offsetof<bits>(type<sample>) == 4, \"C layout of sample: offsetof bits\")"));
+    // A union aligned beyond eight bytes has no inline storage: the record
+    // that holds it stays storage-backed.
+    assert!(d.contains("struct wide {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 32ul)\n}\n"));
+    // A packed record and a bitfield record embedded by value are inline
+    // storage of their own alignment; their members are read through their
+    // own types at the field's offset, and the record's other fields go by
+    // name.
+    assert!(d.contains("struct actor {\n    id : int\n    spawn : uint8[10]\n    tint : uint\n    after : int\n}\n"));
+    assert!(d.contains("struct mapthing {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 10ul)\n}\n"));
+    let body = function_body(&d, "main_0");
+    assert!(
+        body.contains("unsafe(unsafe(reinterpret<int16?>(unsafe(reinterpret<uint64>(unsafe(addr(ac.spawn))))))[3]) = int16(int(unsafe(unsafe(reinterpret<int16?>(unsafe(reinterpret<uint64>(ap))))[5])) + 1)"),
+        "{body}"
+    );
+    assert!(body.contains("i64 = int64(ap.after)"), "{body}");
+    assert!(
+        body.contains("int(uint(unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(ap))))[4]) >> 16 & 0xff))"),
+        "{body}"
+    );
+    // The other fields of the record are reached by name, through the
+    // embedded record too.
+    let body = function_body(&d, "think_mobj");
+    assert!(body.contains("    mo.x += 2\n    mo.y -= 1\n"), "{body}");
+    // A function-pointer member is read, compared and called through its
+    // own type at the field's offset; the removal mark is a reinterpret.
+    let body = function_body(&d, "run_thinkers");
+    assert!(
+        body.contains("if (unsafe(unsafe(reinterpret<actionf_v?>(unsafe(reinterpret<uint64>(t_0))))[2]) == unsafe(reinterpret<actionf_v>(0xfffffffffffffffful))) {"),
+        "{body}"
+    );
+    assert!(
+        body.contains("invoke(unsafe(unsafe(reinterpret<actionf_p1?>(unsafe(reinterpret<uint64>(t_0))))[2]), unsafe(reinterpret<uint8?>(t_0)))"),
+        "{body}"
+    );
+    assert!(body.contains("        t_0 = unsafe(reinterpret<thinker_s?>(t_0.next))\n"), "{body}");
+    // A malloc'd record is the raw heap block typed as the record; a store
+    // into the union member of the embedded thinker is at Clang's offset.
+    let body = function_body(&d, "spawn");
+    assert!(
+        body.contains("    unsafe(unsafe(reinterpret<actionf_p1?>(unsafe(reinterpret<uint64>(mo_1))))[2]) = @@think_mobj\n"),
+        "{body}"
+    );
+    let body = function_body(&d, "main_0");
+    // A member whose type is the storage type is the field itself.
+    assert!(body.contains("    sp.bits = 0x40490fdbu\n"), "{body}");
+    // Members of a union field of a local record are read through the
+    // field's address; a member of an rvalue record's union is bound first.
+    assert!(
+        body.contains("unsafe(unsafe(reinterpret<float?>(unsafe(reinterpret<uint64>(unsafe(addr(s_1.bits))))))[0])"),
+        "{body}"
+    );
+    assert!(
+        body.contains("unsafe(unsafe(reinterpret<uint8?>(unsafe(reinterpret<uint64>(unsafe(addr(t_1.bits))))))[0]) = 0xffu8\n"),
+        "{body}"
+    );
+    assert!(body.contains("    var c2da_fresh9 : uint = make_sample(3, 0.5).bits\n"), "{body}");
+    // A union value assigned to the field, and the field assigned to a
+    // union object, copy the union's bytes; the pointer to the member and
+    // to the union are the field's address.
+    assert!(
+        body.contains("unsafe(memmove(unsafe(reinterpret<void?>(unsafe(reinterpret<uint64>(unsafe(addr(s_1.bits)))))), unsafe(reinterpret<void?>(c2da_fresh8.c2da_storage)), 4ul))"),
+        "{body}"
+    );
+    assert!(
+        body.contains("unsafe(memmove(unsafe(reinterpret<void?>(unsafe(reinterpret<uint64>(sp)) + 4ul)), unsafe(reinterpret<void?>(c2da_fresh10.c2da_storage)), 4ul))"),
+        "{body}"
+    );
+    assert!(body.contains("    var fnp : actionf_t?\n"), "{body}");
+    assert!(
+        body.contains("var c2da_fresh3 : actionf_p1? = unsafe(reinterpret<actionf_p1?>(unsafe(reinterpret<uint64>(unsafe(addr(unsafe(unsafe(addr(pool[0]))[1]).thinker.function_0))))))"),
+        "{body}"
+    );
+    // The braced initializer of a union field reads the storage out of the
+    // wrapper the initializer builds.
+    let body = function_body(&d, "make_sample");
+    assert!(
+        body.contains("s_0 = sample(id = id, bits = unsafe(unsafe(reinterpret<uint?>(c2da_fresh2.c2da_storage))[0]), tail = id * 2)"),
+        "{body}"
     );
 }

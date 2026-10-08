@@ -493,8 +493,12 @@ fn named_field_access_requires_a_layout_proof() {
     }
     let base = method_body(&object_memory, "pointer_member_address");
     assert!(base.contains("CTypeKind::Struct(record) if self.record_has_proven_layout(record) =>"));
+    // The path extends through a proven record, or stays on the storage
+    // field of an inline union whose member has the storage's own type.
     let field = method_body(&object_memory, "field_address");
-    assert!(field.contains(".filter(|&parent| self.record_has_proven_layout(parent))"));
+    assert!(field.contains("if self.record_has_proven_layout(parent) {"));
+    assert!(field.contains("let storage = self.inline_record_storage(parent)?;"));
+    assert!(field.contains("(!named.path.is_empty() && member == storage).then_some(named)"));
 
     // Module assembly refuses a record named without its proof.
     let take = method_body(&layout, "take_layout_proof_declaration");

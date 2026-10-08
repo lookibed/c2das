@@ -1228,9 +1228,15 @@ impl<'c> Translation<'c> {
                     .merge_unsafe(arr_val.is_unsafe || idx_val.is_unsafe))
             }
 
-            Member(ty, expr, field_id, member_kind, _lrvalue) => {
-                self.convert_member_expr(ctx, *ty, *expr, *field_id, *member_kind, override_ty)
-            }
+            Member(ty, expr, field_id, member_kind, _lrvalue) => self.convert_member_expr(
+                ctx,
+                *ty,
+                expr_id,
+                *expr,
+                *field_id,
+                *member_kind,
+                override_ty,
+            ),
 
             DeclRef(_ty, decl_id, _lrvalue) => {
                 // Inside an inlined body a parameter is not a name at all: it
@@ -1766,7 +1772,7 @@ impl<'c> Translation<'c> {
 
             ImplicitValueInit(ty) => {
                 if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
-                    return self.convert_storage_record_literal(ctx, record_id, &[], override_ty);
+                    return self.convert_storage_record_literal(ctx, record_id, &[], None);
                 }
                 let das_type = self.convert_type(*ty)?;
                 Ok(WithStmts::new_val(zero_for_datype(&das_type)))
@@ -1802,7 +1808,7 @@ impl<'c> Translation<'c> {
                 if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
                     let fields: Vec<CExprId> = init_ids.clone();
                     let value =
-                        self.convert_storage_record_literal(ctx, record_id, &fields, override_ty)?;
+                        self.convert_storage_record_literal(ctx, record_id, &fields, *union_field)?;
                     return Ok(value);
                 }
                 if let Some(struct_init) = self.convert_struct_init_list(ctx, *ty, init_ids)? {
@@ -3386,7 +3392,12 @@ impl<'c> Translation<'c> {
         fields
             .iter()
             .all(|&field| match self.ast_context[field].kind {
-                CDeclKind::Field { typ, .. } => self.declaration_zero_fills(typ.ctype),
+                // An inline union field is an integer (or a fixed array of
+                // them) daslang zero-fills.
+                CDeclKind::Field { typ, .. } => {
+                    self.inline_record_storage_of(typ.ctype).is_some()
+                        || self.declaration_zero_fills(typ.ctype)
+                }
                 _ => false,
             })
     }
@@ -3481,7 +3492,7 @@ impl<'c> Translation<'c> {
         // initializer is written into its own bytes at Clang offsets.
         if self.is_storage_backed_record(rec_id) {
             return self
-                .convert_storage_record_literal(ctx, rec_id, init_ids, Some(ty))
+                .convert_storage_record_literal(ctx, rec_id, init_ids, None)
                 .map(Some);
         }
         let das_type = self.convert_type(ty)?;
@@ -3506,7 +3517,12 @@ impl<'c> Translation<'c> {
             let CDeclKind::Field { name, typ, .. } = &self.ast_context[field_id].kind else {
                 continue;
             };
-            let item = self.convert_expr(ctx, init_id, Some(*typ))?;
+            // A union field is its inline storage, read out of the wrapper
+            // the initializer element produces.
+            let item = match self.inline_record_field_initializer(ctx, init_id, *typ)? {
+                Some(item) => item,
+                None => self.convert_expr(ctx, init_id, Some(*typ))?,
+            };
             is_unsafe |= item.is_unsafe;
             stmts.extend(item.stmts);
             let field_name = self

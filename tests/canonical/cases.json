@@ -1603,6 +1603,23 @@
       "runtime": "required"
     },
     {
+      "id": "p176-inline-union-fields",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p176_inline_union_fields.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "tick 12 a=12,19 b=-5,7,0 c=3,0\ntick 23 a=14,18 removed=1\npool 14 1 1 -50\nslot 1 1\npun 3fc00000 0 0\npun 3.1416 1\ncopy 40000000 40490fff 3f000000\nback 40490fff 2\nmixed m 1122334455667799 112233445566aaaa 16\nbytes abc z 4\nwide 12 4 32\nactor 5 10 -20 270 3001 9 7 | 1 3 200 4 | 6 24 16\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p176_union_fields_lie_inline_in_natural_records",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

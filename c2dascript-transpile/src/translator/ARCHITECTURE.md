@@ -57,6 +57,29 @@ typedef-of-anonymous-struct path; a field whose type does not convert is a sourc
 error, never a dropped field.  `p103-zero-sized-fields` and
 `n12-typedef-record-field-unsupported` are the fixtures.
 
+A storage-backed record *field* — a union, a packed or bitfield struct embedded by value —
+does not make its record storage-backed.  It lies inline, as the unsigned integer of its
+alignment (`uint8`, `uint16`, `uint`, `uint64`), or a fixed array of it when the record is
+wider (`layout.rs inline_record_storage`; a record aligned beyond eight bytes, or an array of
+storage-backed records, has no inline storage and keeps the record storage-backed).  The
+record stays natural, its layout proof covers the inline field, and its other fields are
+`p.field`.  The embedded record keeps its wrapper for every object that names it on its own
+(a local, a global, a parameter, an object behind a pointer to it): its place inside a
+natural record is bytes at the field's address, exactly as an object reached through a
+pointer is.  A member is read and written through its own type at that address
+(`p->function.acp1` is `reinterpret<actionf_p1?>(p)[k]`, `s.bits.f` is
+`reinterpret<float?>(addr(s.bits))[0]`, a bitfield member goes through its unit there;
+`object_memory.rs storage_object_address` / `structs_unions.rs inline_record_place_address`);
+a member whose daScript type is the storage type is the field itself (`p->bits.u` is
+`p.bits`, `field_address`).  The field read as a value is a fresh wrapper over a copy of its
+bytes (`convert_member_expr`), assigned a value it takes the value's bytes (`operators.rs
+address_backed_member_place`), and a braced initializer or cast reaches it as the storage
+read out of the wrapper it builds (`inline_record_field_initializer`).  Doom's `thinker_t`
+with its `actionf_t` union, `mobj_t` with its packed `mapthing_t spawnpoint`, and every
+record that embeds them are natural on this rule.  `p176-inline-union-fields` is the
+fixture.  (A member of an rvalue record's inline field, `f().u.m`, binds the storage to a
+temporary first.)
+
 ## Storage-backed objects: one wrapper, one block, one identity
 
 A storage-backed wrapper is named once, by its record (`storage_record_name`), and every C
@@ -147,8 +170,8 @@ reinterpret compiles to its operand.  A null base raises daslang's located excep
 interpreter (the indexed load faulted) and is unchanged elsewhere; `unsafe_deref` drops the
 check as it drops the index check.  What stays on byte offsets: addresses of fields (`&p->f`),
 fixed-array fields (`p->arr[i]` — daslang bounds-checks a fixed-array index and C indexes past
-field arrays; a separate decision), whole-record and whole-array copies, bitfields, unions and
-every storage-backed record.  `p104-field-by-name`, `p105-field-by-offset-kept` and the source
+field arrays; a separate decision), whole-record and whole-array copies, bitfields, union
+members of a type other than the union field's storage, and every storage-backed record.  `p104-field-by-name`, `p105-field-by-offset-kept` and the source
 invariant `named_field_access_requires_a_layout_proof` are the fixtures.
 
 ## Bitfield storage units

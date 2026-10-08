@@ -279,8 +279,10 @@ impl<'c> Translation<'c> {
     /// * `__attribute__((packed))`, `#pragma pack` and an explicit alignment
     ///   are declarations that the layout is not the natural one;
     /// * a bitfield has no daScript field at all;
-    /// * a field that is itself storage-backed occupies eight bytes of address
-    ///   in daScript rather than its C bytes inline;
+    /// * a field that is itself storage-backed is inline integer storage of
+    ///   its own size and alignment (`inline_record_storage`); one with no
+    ///   such storage (aligned beyond eight bytes), or an array of them,
+    ///   would occupy eight bytes of address rather than its C bytes;
     /// * a zero-sized field (a GNU empty struct, a zero-length array, or an
     ///   array of either) takes no bytes in Clang's layout, while daScript
     ///   gives every record field at least one byte, so every later offset
@@ -378,17 +380,27 @@ impl<'c> Translation<'c> {
     /// `None` when the type has no inline daScript representation at all.
     fn natural_layout_of(&self, ctype: CTypeId) -> Option<CLayout> {
         match self.ast_context.resolve_type(ctype).kind {
-            CTypeKind::Struct(record) => {
-                // A storage-backed field is an eight-byte address in daScript,
-                // not the record's bytes, so the containing record's layout
-                // can never match Clang's.
+            // A storage-backed record field (a union, a packed or bitfield
+            // struct) is its bytes inline, as an unsigned integer (or a
+            // fixed array of them) of the record's own size and alignment,
+            // when it has such a representation; a wrapper would be an
+            // eight-byte address instead of the record's bytes.
+            CTypeKind::Struct(record) | CTypeKind::Union(record) => {
                 if self.is_storage_backed_record(record) {
-                    return None;
+                    self.inline_record_storage(record)?;
                 }
                 self.layout_of(ctype).ok()
             }
-            CTypeKind::Union(_) => None,
             CTypeKind::ConstantArray(element, count) => {
+                // An array of storage-backed records keeps the whole record
+                // storage-backed: its subscripts are not inline places yet.
+                match self.ast_context.resolve_type(element).kind {
+                    CTypeKind::Union(_) => return None,
+                    CTypeKind::Struct(record) if self.is_storage_backed_record(record) => {
+                        return None
+                    }
+                    _ => {}
+                }
                 let element = self.natural_layout_of(element)?;
                 Some(CLayout {
                     size_bytes: element.size_bytes.checked_mul(count as u64)?,
@@ -397,6 +409,64 @@ impl<'c> Translation<'c> {
             }
             CTypeKind::IncompleteArray(_) | CTypeKind::VariableArray(..) => None,
             _ => self.layout_of(ctype).ok(),
+        }
+    }
+
+    /// The daScript storage a storage-backed C record (a union, a packed or
+    /// bitfield struct) occupies *inline*, as a field of a natural record:
+    /// the unsigned integer of the record's alignment (`uint8`, `uint16`,
+    /// `uint`, `uint64`), or a fixed array of it when the record is wider
+    /// than its alignment.  `None` for a natural record (a daScript field
+    /// of its own type), and when the record has no such representation (an
+    /// incomplete one, one aligned beyond eight bytes, or a zero-sized one),
+    /// in which case the record that holds it is storage-backed too.
+    ///
+    /// The record keeps its wrapper for every object named on its own (a
+    /// local, a global, a parameter): only its place inside a natural record
+    /// is these bytes, exactly as an object reached through a pointer is.
+    /// A member is read and written at the field's address, through the
+    /// member's own type; a member whose daScript type is this storage type
+    /// is the field itself (`object_memory.rs field_address`).
+    pub(crate) fn inline_record_storage(&self, record: CRecordId) -> Option<DaType> {
+        if !matches!(
+            self.ast_context[record].kind,
+            CDeclKind::Union {
+                fields: Some(_),
+                ..
+            } | CDeclKind::Struct {
+                fields: Some(_),
+                ..
+            }
+        ) || !self.is_storage_backed_record(record)
+        {
+            return None;
+        }
+        let layout = self.record_layout(record).ok()?.object;
+        let unit = match layout.align_bytes {
+            1 => DaType::uint8(),
+            2 => DaType::uint16(),
+            4 => DaType::uint(),
+            8 => DaType::uint64(),
+            _ => return None,
+        };
+        if layout.size_bytes == 0 || layout.size_bytes % layout.align_bytes != 0 {
+            return None;
+        }
+        let count = usize::try_from(layout.size_bytes / layout.align_bytes).ok()?;
+        Some(if count == 1 {
+            unit
+        } else {
+            DaType::fixed_array(unit, count)
+        })
+    }
+
+    /// [`Self::inline_record_storage`] for the record a C type names, if any.
+    pub(crate) fn inline_record_storage_of(&self, ctype: CTypeId) -> Option<(CRecordId, DaType)> {
+        match self.ast_context.resolve_type(ctype).kind {
+            CTypeKind::Union(record) | CTypeKind::Struct(record) => {
+                Some((record, self.inline_record_storage(record)?))
+            }
+            _ => None,
         }
     }
 
