@@ -131,6 +131,18 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   daslang structs; under the model they carry no layout proof.
 - **Static data.** String literals whose address is taken are placed in the heap by the
   `[init]` function.
+- **Record values (step 4).** A whole struct read through a pointer (`s = *p`, `return
+  p[i]`, an argument `f(*p)`) is read into a fresh daslang value field by field at Clang's
+  offsets; a struct assigned through a pointer is written the same way; heap to heap
+  (`*p = *q`, `a->in = b->in`) is one `c2da_lin_memmove` of `sizeof`. Nested structs and
+  array fields are unrolled (more than 4096 scalars is refused). `a[i]` over a declared
+  array that is a daslang value (a local, a field of a record value) is plain daslang
+  indexing. Case `p197-linear-record-values` (C == daslang; `--no-unsafe` and
+  `eden_check.py` ok); `p198` is the located refusal of a record with bitfields. Still
+  open: a by-value parameter of a record with a pointer field stays raw-memory lowered
+  (the `unsafe` net refuses it), and an array field of a call result (`f().arr[i]`) is emitted
+  as `cast<int[3]>(f()).arr[i]`, which daslang rejects at compile time; the fixture avoids
+  both.
 - **Library.** `malloc`/`calloc`/`realloc`/`free`, `memcpy`/`memmove`/`memset`/`memcmp`/
   `strlen` are `c2da_lin_*` byte loops over the heap. Step 4 added `strchr`/`strrchr`/
   `strcmp`/`strncmp`/`strcpy`/`strncpy`/`strcat`/`strstr` the same way (case
@@ -139,8 +151,8 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   C source:
   - `&` of a local or global, and a declared array used as a pointer (step 4,
     `--locals-in-heap`);
-  - a record or array value read or assigned through a pointer;
-  - a bitfield through a pointer;
+  - a record value with bitfields read or assigned through a pointer (step 4 copies
+    every other record value: see below), and a bitfield through a pointer;
   - a wide string literal;
   - a cast between data and function pointers;
   - any other libc function over C memory (string-literal arguments aside);

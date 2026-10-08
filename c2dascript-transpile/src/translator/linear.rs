@@ -21,6 +21,7 @@
 //! (`target_check.rs check_linear`), so no raw-pointer form can slip through.
 use super::*;
 use crate::target::MemoryModel;
+use crate::translator::layout::NaturalMember;
 use std::collections::HashMap as StdHashMap;
 
 /// The heap: one module global.
@@ -318,6 +319,139 @@ impl<'c> Translation<'c> {
         })
     }
 
+    /// A struct or array whose whole value is copied to or from the heap.
+    fn is_aggregate(&self, ty: CTypeId) -> bool {
+        matches!(
+            self.ast_context.resolve_type(ty).kind,
+            CTypeKind::Struct(_) | CTypeKind::Union(_) | CTypeKind::ConstantArray(..)
+        )
+    }
+
+    /// The scalar leaves of an aggregate value: for each, its kind, its
+    /// daScript place below `place`, and its byte offset from the start of
+    /// the value (Clang's field offsets).  A union, a storage-backed record
+    /// or a leaf with no heap form is refused at `at`.
+    fn aggregate_leaves(
+        &self,
+        at: CExprId,
+        ty: CTypeId,
+        place: DaExpr,
+        offset: i64,
+        out: &mut Vec<(Scalar, DaExpr, i64)>,
+    ) -> TranslationResult<()> {
+        /// More leaves than this are refused rather than unrolled.
+        const MAX_LEAVES: usize = 4096;
+        if out.len() > MAX_LEAVES {
+            return Err(self.linear_refuse(at, "a record or array value of more than 4096 scalars through a pointer"));
+        }
+        if let Some(s) = self.scalar_of(ty) {
+            out.push((s, place, offset));
+            return Ok(());
+        }
+        match self.ast_context.resolve_type(ty).kind {
+            CTypeKind::Struct(record) if !self.is_storage_backed_record(record) => {
+                let Some(members) = self.natural_members(record) else {
+                    return Err(self.linear_refuse(at, "a record value with no natural layout through a pointer"));
+                };
+                for member in members {
+                    match member {
+                        NaturalMember::Field(fid) => {
+                            let CDeclKind::Field { typ, .. } = &self.ast_context[fid].kind else {
+                                return Err(TranslationError::generic("C record member is not a field"));
+                            };
+                            let name = self.natural_field_name(record, fid).ok_or_else(|| {
+                                TranslationError::generic("record field name not declared yet")
+                            })?;
+                            let field = DaExpr::Field(Box::new(place.clone()), name);
+                            self.aggregate_leaves(at, typ.ctype, field, offset + self.field_offset(fid)?, out)?;
+                        }
+                        // A bitfield of a daScript record value is itself
+                        // still raw-memory lowered under the model.
+                        NaturalMember::BitfieldUnit { .. } => {
+                            return Err(self.linear_refuse(at, "a record value with bitfields through a pointer"));
+                        }
+                    }
+                }
+                Ok(())
+            }
+            CTypeKind::ConstantArray(elem, n) => {
+                let size = self.sizeof_type(elem)?;
+                for i in 0..n {
+                    let item = DaExpr::Index(Box::new(place.clone()), Box::new(DaExpr::ConstInt(i as i64)));
+                    self.aggregate_leaves(at, elem, item, offset + i as i64 * size, out)?;
+                }
+                Ok(())
+            }
+            _ => Err(self.linear_refuse(
+                at,
+                "a value of this type through a pointer (unions, enumerations and function pointers in the heap are read field by field only)",
+            )),
+        }
+    }
+
+    /// The whole aggregate at the stable heap address `a`, read into a
+    /// fresh daScript value field by field.
+    fn load_aggregate(&self, at: CExprId, ty: CQualTypeId, a: &DaExpr) -> TranslationResult<WithStmts<DaExpr>> {
+        let name = self.fresh_name();
+        let mut leaves = vec![];
+        self.aggregate_leaves(at, ty.ctype, DaExpr::Var(name.clone()), 0, &mut leaves)?;
+        let mut stmts = vec![DaStmt::Var {
+            name: name.clone(),
+            var_type: self.convert_type(ty)?,
+            init: None,
+        }];
+        for (s, place, off) in leaves {
+            stmts.push(DaStmt::Expr(DaExpr::Assign(Box::new(place), Box::new(load(s, &plus(a, off))))));
+        }
+        Ok(WithStmts::new(stmts, DaExpr::Var(name)))
+    }
+
+    /// Stores the aggregate `value` (a daScript value) at the stable heap
+    /// address `a` field by field; the expression is the stored value.
+    fn store_aggregate(
+        &self,
+        at: CExprId,
+        ty: CQualTypeId,
+        a: &DaExpr,
+        value: WithStmts<DaExpr>,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let (mut stmts, v) = value.into_stmts_and_val();
+        let v = match v {
+            DaExpr::Var(_) => v,
+            other => {
+                let name = self.fresh_name();
+                stmts.push(DaStmt::Var {
+                    name: name.clone(),
+                    var_type: self.convert_type(ty)?,
+                    init: Some(other),
+                });
+                DaExpr::Var(name)
+            }
+        };
+        let mut leaves = vec![];
+        self.aggregate_leaves(at, ty.ctype, v.clone(), 0, &mut leaves)?;
+        let mut fresh = || self.fresh_name();
+        for (s, place, off) in leaves {
+            stmts.extend(store(s, &plus(a, off), &place, &mut fresh));
+        }
+        Ok(WithStmts::new(stmts, v))
+    }
+
+    /// The heap address of `expr_id` when it is an lvalue-to-rvalue read of
+    /// a heap place (parentheses stripped).
+    fn heap_read_source(&self, ctx: ExprContext, expr_id: CExprId) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        let mut e = expr_id;
+        loop {
+            match &self.ast_context[e].kind {
+                CExprKind::Paren(_, inner) => e = *inner,
+                CExprKind::ImplicitCast(_, inner, CastKind::LValueToRValue, _, _) => {
+                    return self.heap_place(ctx, *inner);
+                }
+                _ => return Ok(None),
+            }
+        }
+    }
+
     fn scalar_or_refuse(&self, expr_id: CExprId, ty: CTypeId) -> TranslationResult<Scalar> {
         self.scalar_of(ty).ok_or_else(|| {
             self.linear_refuse(
@@ -437,6 +571,32 @@ impl<'c> Translation<'c> {
         }
     }
 
+    /// `a[i]` over a declared array that is a daScript value (a local, a
+    /// global, a field of one): plain daScript indexing, the decay never
+    /// becomes an address.  `None` for anything else.
+    fn linear_daslang_index(
+        &self,
+        ctx: ExprContext,
+        expr_id: CExprId,
+    ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        let CExprKind::ArraySubscript(_, lhs, rhs, _) = self.ast_context[expr_id].kind else {
+            return Ok(None);
+        };
+        let (array, idx) = match (self.decayed_array(lhs), self.decayed_array(rhs)) {
+            (Some(array), _) => (array, rhs),
+            (None, Some(array)) => (array, lhs),
+            _ => return Ok(None),
+        };
+        if matches!(self.ast_context[array].kind, CExprKind::Literal(..)) {
+            return Ok(None);
+        }
+        let base = self.convert_expr(ctx.used(), array, None)?;
+        let index = self.convert_expr(ctx.used(), idx, None)?;
+        Ok(Some(base.zip(index).map(|(b, i)| {
+            DaExpr::Index(Box::new(b), Box::new(Self::as_int(i)))
+        })))
+    }
+
     /// The array operand of an array-to-pointer decay, parentheses stripped.
     fn decayed_array(&self, expr_id: CExprId) -> Option<CExprId> {
         let mut e = expr_id;
@@ -491,8 +651,15 @@ impl<'c> Translation<'c> {
         match kind {
             Unary(ty, CUnOp::Deref, ..) | ArraySubscript(ty, ..) | Member(ty, ..) => {
                 let Some(address) = self.heap_place(ctx, expr_id)? else {
-                    return Ok(None);
+                    return self.linear_daslang_index(ctx, expr_id);
                 };
+                if self.is_aggregate(ty.ctype) {
+                    let (mut stmts, a) = self.stable(address, DaType::int()).into_stmts_and_val();
+                    let value = self.load_aggregate(expr_id, ty, &a)?;
+                    let (vstmts, v) = value.into_stmts_and_val();
+                    stmts.extend(vstmts);
+                    return Ok(Some(WithStmts::new(stmts, v)));
+                }
                 let s = self.scalar_or_refuse(expr_id, ty.ctype)?;
                 let address = self.stable(address, DaType::int());
                 Ok(Some(address.map(|a| load(s, &a))))
@@ -548,6 +715,12 @@ impl<'c> Translation<'c> {
                 let Some(address) = self.heap_place(ctx, inner)? else {
                     return Ok(None);
                 };
+                if self.is_aggregate(ty.ctype) {
+                    let (mut stmts, a) = self.stable(address, DaType::int()).into_stmts_and_val();
+                    let (vstmts, v) = self.load_aggregate(expr_id, ty, &a)?.into_stmts_and_val();
+                    stmts.extend(vstmts);
+                    return Ok(Some(WithStmts::new(stmts, v)));
+                }
                 let s = self.scalar_or_refuse(expr_id, ty.ctype)?;
                 let address = self.stable(address, DaType::int());
                 Ok(Some(address.map(|a| load(s, &a))))
@@ -644,6 +817,31 @@ impl<'c> Translation<'c> {
                 let Some(address) = self.heap_place(ctx, lhs)? else {
                     return Ok(None);
                 };
+                if self.is_aggregate(lhs_ty.ctype) {
+                    let (mut stmts, a) = self.stable(address, DaType::int()).into_stmts_and_val();
+                    // Heap to heap: one byte copy (memmove: C allows the
+                    // exact overlap of `*p = *p`).
+                    if let Some(source) = self.heap_read_source(ctx, rhs)? {
+                        let (sstmts, src) = source.into_stmts_and_val();
+                        stmts.extend(sstmts);
+                        let size = self.sizeof_type(lhs_ty.ctype)?;
+                        let copy = DaExpr::Call(
+                            Box::new(DaExpr::Var("c2da_lin_memmove".into())),
+                            vec![a.clone(), src, cast(DaType::uint64(), DaExpr::ConstInt(size))],
+                        );
+                        if !ctx.is_used() {
+                            return Ok(Some(WithStmts::new(stmts, copy)));
+                        }
+                        stmts.push(DaStmt::Expr(copy));
+                        let (vstmts, v) = self.load_aggregate(expr_id, lhs_ty, &a)?.into_stmts_and_val();
+                        stmts.extend(vstmts);
+                        return Ok(Some(WithStmts::new(stmts, v)));
+                    }
+                    let value = self.convert_expr(ctx.used(), rhs, Some(lhs_ty))?;
+                    let (vstmts, v) = self.store_aggregate(expr_id, lhs_ty, &a, value)?.into_stmts_and_val();
+                    stmts.extend(vstmts);
+                    return Ok(Some(WithStmts::new(stmts, v)));
+                }
                 let s = self.scalar_or_refuse(lhs, lhs_ty.ctype)?;
                 let address = self.stable(address, DaType::int());
                 let value = self.convert_expr(ctx.used(), rhs, Some(lhs_ty))?;

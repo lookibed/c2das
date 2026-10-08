@@ -6162,6 +6162,62 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p197-linear-record-values",
+      "canonical_cases": [
+        "p197-linear-record-values"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_record_values",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p197_linear_record_values",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p197_linear_record_values.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p198-linear-refuses-bitfield-record-value",
+      "canonical_cases": [
+        "p198-linear-refuses-bitfield-record-value"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "not supported under --memory-model linear yet: a record value with bitfields through a pointer",
+          "location": "p198_linear_refuses_bitfield_record_value.c:11"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p198_linear_refuses_bitfield_record_value",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/p198_linear_refuses_bitfield_record_value.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p19-runtime-memory-calls",
       "canonical_cases": [
         "p19-runtime-memory-calls"

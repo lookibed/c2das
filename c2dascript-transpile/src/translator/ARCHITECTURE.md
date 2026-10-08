@@ -321,6 +321,12 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     `memmove`, `memset`, `memcmp`, `strlen` and the `<string.h>` string functions
     (`strchr`, `strrchr`, `strcmp`, `strncmp`, `strcpy`, `strncpy`, `strcat`, `strstr`)
     are byte loops over `c2da_mem`, called from `linear_call`'s one table.
+  - **Record values.** `aggregate_leaves` lists the scalar leaves of a struct or array
+    type (daScript place, Clang offset); `load_aggregate`/`store_aggregate` copy a whole
+    value between a daScript value and the heap through them, and a heap-to-heap
+    assignment is one `c2da_lin_memmove`. A union, a storage-backed record or a record
+    with bitfields is refused. `linear_daslang_index` keeps `a[i]` over a daScript-resident
+    declared array as daScript indexing instead of refusing its decay.
     `prune_raw_runtime` drops the `c2da_rt_*` raw prelude when nothing names it.
   - **Fails closed.** These are refused with a located "not supported under --memory-model
     linear yet: …" error: `&` of a local or global, a declared array used as a pointer
