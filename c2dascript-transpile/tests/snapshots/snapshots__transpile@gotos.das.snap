@@ -68,10 +68,10 @@ def c2da_rt_take_free(need : uint64) : int {
                 break
             }
         }
-        slot -= 1
+        slot--
     }
     if (best >= 0) {
-        c2da_rt_alloc_free[best_slot] = c2da_rt_alloc_free[length(c2da_rt_alloc_free) - 1]
+        c2da_rt_alloc_free[best_slot] = int(c2da_rt_alloc_free[length(c2da_rt_alloc_free) - 1])
         pop(c2da_rt_alloc_free)
     }
     return best
@@ -181,7 +181,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
 def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
-        unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
+        unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = uint8(unsafe(unsafe(reinterpret<uint8?>(src))[i]))
         i = i + 0x1
     }
     return dst
@@ -205,14 +205,14 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     if (dst < src) {
         var i : uint64 = 0x0
         while (i < count) {
-            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
+            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = uint8(unsafe(unsafe(reinterpret<uint8?>(src))[i]))
             i = i + 0x1
         }
     } else {
         var i : uint64 = count
         while (i > 0x0) {
             i = i - 0x1
-            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
+            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = uint8(unsafe(unsafe(reinterpret<uint8?>(src))[i]))
         }
     }
     return dst
@@ -294,7 +294,7 @@ def sum(var count : int) : int {
         goto label 1
     }
     x += count
-    count -= 1
+    count--
     goto label 0
     label 1:
     return x
@@ -315,7 +315,7 @@ def goto_error_simple(var x_0 : int) : int {
     label 2:
     return x_0 + 6
     label 3:
-    x_0 += 1
+    x_0++
     if (x_0 != 0) {
         goto label 4
     }
@@ -381,7 +381,7 @@ def multi_goto_error(var x_2 : int) : int {
     label 8:
     return x_2 + 10
     label 9:
-    x_2 += 1
+    x_2++
     if (x_2 != 0) {
         goto label 12
     }
@@ -439,7 +439,7 @@ def multi_goto_error_common(var x_3 : int) : int {
     x_3 += 5
     goto label 6
     label 10:
-    x_3 += 1
+    x_3++
     if (x_3 != 0) {
         goto label 13
     }

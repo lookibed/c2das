@@ -68,10 +68,10 @@ def c2da_rt_take_free(need : uint64) : int {
                 break
             }
         }
-        slot -= 1
+        slot--
     }
     if (best >= 0) {
-        c2da_rt_alloc_free[best_slot] = c2da_rt_alloc_free[length(c2da_rt_alloc_free) - 1]
+        c2da_rt_alloc_free[best_slot] = int(c2da_rt_alloc_free[length(c2da_rt_alloc_free) - 1])
         pop(c2da_rt_alloc_free)
     }
     return best
@@ -181,7 +181,7 @@ def c2da_rt_calloc(count : uint64; size : uint64) : uint64 {
 def c2da_rt_memcpy(dst : uint64; src : uint64; count : uint64) : uint64 {
     var i : uint64 = 0x0
     while (i < count) {
-        unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
+        unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = uint8(unsafe(unsafe(reinterpret<uint8?>(src))[i]))
         i = i + 0x1
     }
     return dst
@@ -205,14 +205,14 @@ def c2da_rt_memmove(dst : uint64; src : uint64; count : uint64) : uint64 {
     if (dst < src) {
         var i : uint64 = 0x0
         while (i < count) {
-            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
+            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = uint8(unsafe(unsafe(reinterpret<uint8?>(src))[i]))
             i = i + 0x1
         }
     } else {
         var i : uint64 = count
         while (i > 0x0) {
             i = i - 0x1
-            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = unsafe(unsafe(reinterpret<uint8?>(src))[i])
+            unsafe(unsafe(reinterpret<uint8?>(dst))[i]) = uint8(unsafe(unsafe(reinterpret<uint8?>(src))[i]))
         }
     }
     return dst
@@ -308,7 +308,7 @@ def irreducible(var x : int) : int {
     x += 2
     goto label 0
     label 5:
-    x += 1
+    x++
     goto label 2
     panic("unreachable: fell out of a translated control-flow graph")
 }
@@ -319,7 +319,7 @@ def jump_to_irreducible(var x_0 : int) : int {
     } elif (x_0 == 1) {
         goto label 7
     }
-    x_0 += 1
+    x_0++
     label 0:
     x_0 += 2
     label 1:

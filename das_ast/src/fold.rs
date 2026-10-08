@@ -82,8 +82,44 @@
 //! same conditions: daScript's pointer `+=` moves by the same `n` elements, and
 //! needs the `unsafe` block because the call-shaped `unsafe(…)` does not take
 //! an assignment.
+//!
+//! # Value stores
+//!
+//! daslang's `sv_makeCopy` (`ast_simulate.cpp`) stores a right-hand side that
+//! is a *reference* — a name, a field, an element, a dereference — with
+//! `SimNode_CopyRefValue`, a memcpy of a runtime size, and a right-hand side
+//! that is a *value* with the typed `Set_TT<T>`.  A same-type `T(x)` of a
+//! reference `x` is simulated as `x` read as a value (`R2V`), so it turns the
+//! store into `Set_TT<T>` with no node of its own.  The interpreter fuses
+//! `CopyRefValue` with a local on either side (`CopyRefValueLocAny`,
+//! `…_AnyPtr_Local`, `…LocArgro`) into nodes as fast as `Set_TT`, so the
+//! device pays only where neither side is rooted at a local; measured on
+//! 20 M-iteration loops (ns per store, reference against value form):
+//! `*p = q[i]` 7.6 → 6.1, `*p = g` 6.5 → 5.1, `*p = param` 5.4 → 4.0,
+//! `g = param` 9.5 → 8.3, `p.f = q.f` through pointers 4.5 → 3.5,
+//! `p[i] = q[j]` 8.6 → 7.2; but `*p = loc` 3.2 → 4.0, `g = loc` 7.3 → 8.5,
+//! `loc = s.f` 1.3 → 2.1, and `loc = q[i]`, `var x = q[i]`, `loc = g`,
+//! `x = y` unchanged.  Pointers (`p = q[i]` needs `addr(*q[i])`, a wash),
+//! `bool` (no `bool(x)` in daslang) and enumerations are left alone.
+//!
+//! So an assignment statement `place = value` is written `place = T(value)`
+//! with [`CastKind::Value`] when `T` is the type of `place` under the rule
+//! above, a plain builtin number; `value` is a reference expression (a name,
+//! `s.f`, `a[i]`, `*p`, possibly under the call-shaped `unsafe(…)`) of exactly
+//! that type; and neither `place` nor `value` is a local name or a field of
+//! one (a parameter is not a local: it is read through `GetArgumentRef`,
+//! which fuses on neither side).  Initialisers of locals are never rewritten.
+//! The identity fold does not touch a `Value` cast.
+//!
+//! # Increments
+//!
+//! A statement `place += 1` (or `-= 1`) on a builtin integer is `place++`
+//! (`place--`): daslang simulates the postfix statement as the fused
+//! `Inc_TT`/`Dec_TT` (`IncLoc_TT` on a local) where `+=` is `SetAdd_TT` over a
+//! constant node — 6.9 → 4.9 ns on a global, 4.0 → 3.0 through a pointer,
+//! equal on a local — and its linter flags the `+= 1` form (PERF013).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{CastKind, DaBlock, DaDecl, DaExpr, DaFunction, DaStmt, DaType, DaTypeKind};
 
@@ -470,6 +506,9 @@ struct Folder<'m> {
     module: &'m ModuleTypes,
     /// Innermost last; `None` for a name whose type is not known.
     scopes: Vec<HashMap<String, Option<DaType>>>,
+    /// The parameters of the function being walked: names in a scope that
+    /// are not locals ("Value stores").
+    params: HashSet<String>,
 }
 
 impl<'m> Folder<'m> {
@@ -477,6 +516,7 @@ impl<'m> Folder<'m> {
         Folder {
             module,
             scopes: Vec::new(),
+            params: HashSet::new(),
         }
     }
 
@@ -492,12 +532,14 @@ impl<'m> Folder<'m> {
         match decl {
             DaDecl::Function(function) => {
                 self.scopes.push(HashMap::new());
+                let outer_params = std::mem::take(&mut self.params);
                 for param in &mut function.params {
                     self.walk_stmt(param);
                 }
                 if let Some(body) = &mut function.body {
                     self.walk_expr(body);
                 }
+                self.params = outer_params;
                 self.scopes.pop();
             }
             DaDecl::Variable(variable) => {
@@ -583,10 +625,13 @@ impl<'m> Folder<'m> {
                 let mut ty = param_type.clone();
                 ty.is_const |= !*is_mutable;
                 self.bind(name, Some(ty));
+                self.params.insert(name.clone());
             }
             DaStmt::Expr(expr) => {
                 self.walk_expr(expr);
                 self.compound_assignment(expr);
+                self.value_store(expr);
+                self.increment(expr);
             }
             DaStmt::Decl(decl) => self.walk_decl(decl),
         }
@@ -659,6 +704,81 @@ impl<'m> Folder<'m> {
         };
     }
 
+    /// `place = value` as `place = T(value)` with a [`CastKind::Value`] cast
+    /// (module documentation, "Value stores").
+    fn value_store(&self, expr: &mut DaExpr) {
+        let DaExpr::Assign(place, value) = expr else {
+            return;
+        };
+        let Some(ty) = self.type_of(place).map(value_of) else {
+            return;
+        };
+        if !is_builtin_number(&ty.kind)
+            || !is_reference(value)
+            || !self.has_value_type(value, &ty)
+            || self.is_local_place(place)
+            || self.is_local_place(value)
+        {
+            return;
+        }
+        let read = std::mem::replace(&mut **value, DaExpr::ConstNull);
+        **value = DaExpr::Cast {
+            kind: CastKind::Value,
+            expr: Box::new(read),
+            to: ty,
+        };
+    }
+
+    /// Whether `expr` is a local name, or a field of a local structure value
+    /// (not of one behind a pointer), under the call-shaped `unsafe(…)` or
+    /// not: a place the interpreter reads or writes through a fused `Loc`
+    /// node ("Value stores").
+    fn is_local_place(&self, expr: &DaExpr) -> bool {
+        match expr {
+            DaExpr::Unsafe(inner) if !matches!(**inner, DaExpr::Block(_)) => {
+                self.is_local_place(inner)
+            }
+            DaExpr::Var(name) => {
+                !self.params.contains(name)
+                    && self.scopes.iter().any(|scope| scope.contains_key(name))
+            }
+            DaExpr::Field(base, _) => {
+                self.is_local_place(base)
+                    && matches!(
+                        self.type_of(base).map(|ty| ty.kind),
+                        Some(DaTypeKind::Named(_))
+                    )
+            }
+            _ => false,
+        }
+    }
+
+    /// `place += 1` / `place -= 1` as `place++` / `place--` (module
+    /// documentation, "Increments").
+    fn increment(&self, expr: &mut DaExpr) {
+        let DaExpr::AssignOp { op, left, right } = expr else {
+            return;
+        };
+        let step = match *op {
+            "+=" => "++",
+            "-=" => "--",
+            _ => return,
+        };
+        let Some(ty) = self.type_of(left).map(value_of) else {
+            return;
+        };
+        if integer_kind(&ty.kind).is_none()
+            || !matches!(integer_constant(right), Some((1, kind)) if kind == ty.kind)
+        {
+            return;
+        }
+        let place = std::mem::replace(&mut **left, DaExpr::ConstNull);
+        *expr = DaExpr::IncDec {
+            op: step,
+            place: Box::new(place),
+        };
+    }
+
     /// Whether `place ± step` is daScript's arithmetic on a typed pointer:
     /// `place` a `T?` with a pointee type, `step` an `int` or `int64`.
     fn is_pointer_step(&self, place: &DaExpr, step: &DaExpr) -> bool {
@@ -692,7 +812,7 @@ impl<'m> Folder<'m> {
             ConstBool(_) => Some(DaType::bool()),
             Var(name) => known(self.lookup(name)),
             Cast {
-                kind: CastKind::Cast | CastKind::Reinterpret,
+                kind: CastKind::Cast | CastKind::Reinterpret | CastKind::Value,
                 to,
                 ..
             } => known(Some(to.clone())),
@@ -929,7 +1049,8 @@ impl<'m> Folder<'m> {
             | GotoComputed(inner)
             | Addr(inner)
             | Deref(inner)
-            | DerefExplicit(inner) => self.walk_expr(inner),
+            | DerefExplicit(inner)
+            | IncDec { place: inner, .. } => self.walk_expr(inner),
             Index(left, right)
             | SafeIndex(left, right)
             | Op2 { left, right, .. }
@@ -1035,6 +1156,19 @@ impl<'m> Folder<'m> {
                 }
             }
         }
+    }
+}
+
+/// Whether `expr` is a reference expression — a name, a field, an element or
+/// a dereference, under the call-shaped `unsafe(…)` or not — which daslang
+/// stores with `CopyRefValue` ("Value stores").
+fn is_reference(expr: &DaExpr) -> bool {
+    use DaExpr::*;
+    match expr {
+        Unsafe(inner) => !matches!(**inner, Block(_)) && is_reference(inner),
+        Var(_) | Field(..) | SafeField(..) | Index(..) | SafeIndex(..) | Deref(_)
+        | DerefExplicit(_) => true,
+        _ => false,
     }
 }
 
@@ -1332,7 +1466,8 @@ mod tests {
                     assign(var("d"), op2("/", var("d"), DaExpr::ConstDouble(2.0))),
                 ]
             ),
-            vec!["x += 1", "x <<= i", "a[i] -= 1", "d /= 2.0lf"]
+            // A step of one is the fused `++`/`--` ("Increments").
+            vec!["x++", "x <<= i", "a[i]--", "d /= 2.0lf"]
         );
         // Kept: a call in the value (it could write the place between the
         // two reads), the place as the right operand, a storage type with no

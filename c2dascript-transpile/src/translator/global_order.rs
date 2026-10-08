@@ -407,7 +407,9 @@ pub(crate) fn collect_names(expr: &DaExpr, out: &mut Vec<String>) {
                 collect_names(a, out);
             }
         }
-        Delete(e) | Addr(e) | Deref(e) | DerefExplicit(e) | Unsafe(e) => collect_names(e, out),
+        Delete(e) | Addr(e) | Deref(e) | DerefExplicit(e) | Unsafe(e) | IncDec { place: e, .. } => {
+            collect_names(e, out)
+        }
         MakeStruct { fields, .. } => {
             for (_, e) in fields {
                 collect_names(e, out);

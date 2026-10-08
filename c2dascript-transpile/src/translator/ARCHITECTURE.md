@@ -315,6 +315,25 @@ non-constant elision made in a lowering is where the type is known by constructi
 object whose storage is that same daScript type writes no conversion
 (`abi::narrow_arith_to_storage`).
 
+The same pass is the one decision point for two interpreter-speed spellings of a statement
+(`fold.rs value_store`, `increment`; `das_ast::fold`, "Value stores" and "Increments").
+daslang's `sv_makeCopy` stores a *reference* right-hand side — a name, a field, an element,
+a dereference — with `CopyRefValue`, a memcpy of a runtime size, and a *value* with the typed
+`Set_TT<T>`; a same-type `T(x)` of a reference `x` is simulated as `x` read as a value and
+costs no node.  The interpreter fuses `CopyRefValue` with a local on either side into nodes as
+fast as `Set_TT`, so a scalar store `place = value` of a builtin number is written
+`place = T(value)` (`CastKind::Value`, which the identity fold never removes and the printer
+spells like the conversion) only when `value` is a reference expression of exactly `T` and
+neither side is a local name or a field of a local structure — `*dest = uint8(colormap[i])`,
+`g = int(p[i])`, `p.a = int(q.b)` through pointers, `garr[0] = int(param)` — while
+`loc = p[i]`, `*p = loc`, `g = lp.a` and every local initialiser keep the plain copy
+(measured 20 M-iteration stores: `*p = q[i]` 7.6 → 6.1 ns, `p.f = q.f` 4.5 → 3.5,
+`g = param` 9.5 → 8.3; `*p = loc` would go 3.2 → 4.0).  Pointers, `bool` and enumerations
+are left alone.  A statement `x += 1` / `x -= 1` on a builtin integer is `x++` / `x--`
+(`DaExpr::IncDec`): daslang's fused `Inc_TT`/`Dec_TT` against `SetAdd_TT` over a constant node
+(6.9 → 4.9 ns on a global, 4.0 → 3.0 through a pointer, equal on a local), and its linter
+flags the `+= 1` form (PERF013).  `p180-value-stores` is the fixture.
+
 The printer renders a declaration's annotations as one bracketed, comma-separated block
 (`[export, unsafe_deref]`).  daScript's grammar accepts exactly one block per declaration;
 two consecutive `[...]` lines are a syntax error.

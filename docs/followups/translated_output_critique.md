@@ -64,6 +64,14 @@
    is the same shape.  Array fields stay on offsets; the finding waits for an unchecked
    index that computes in pointer width (a candidate issue for the `lookibed/daScript`
    fork).
+6. **`CopyRefValue` stores.**  Landed in part (`das_ast::fold`, "Value stores" and
+   "Increments"; `p180-value-stores`): a scalar store whose right-hand side is a reference
+   not rooted at a local is `place = T(value)`, which daslang stores with `Set_TT<T>`; a
+   statement `x += 1` / `x -= 1` is the fused `x++` / `x--`.  What stays: the
+   `c2da_postinc`/`c2da_fresh` temporaries themselves — a local initialised from a
+   reference measures the same as the value form (`CopyRefValueLocAny` is fused), so the
+   remaining cost is the temporary's existence, not its copy (see
+   `interpreter_hot_loops.md`, mapping 4, for the numbers).
 8. **`[sideeffects]`** was added for daScript#10, where a call was wrongly treated as pure and
    dropped. Removing it needs proof that a store through a `uint64`-reinterpreted address is
    seen as a side effect.

@@ -69,6 +69,16 @@ pub enum DaExpr {
         left: Box<DaExpr>,
         right: Box<DaExpr>,
     },
+    /// `place++` / `place--` as a statement: daslang's fused in-place
+    /// increment (`Inc_TT`/`Dec_TT`, one node) where `place += 1` is a
+    /// `SetAdd_TT` over a constant node.  Built only by `das_ast::fold`
+    /// ("Increments") from a statement-level `place += 1` / `place -= 1`;
+    /// its value is never used.
+    IncDec {
+        /// `"++"` or `"--"`.
+        op: &'static str,
+        place: Box<DaExpr>,
+    },
 
     // -- pipe --
     /// `left |> right` — maps to rpipe expression
@@ -200,6 +210,15 @@ pub enum CastKind {
     Cast,
     Reinterpret,
     Upcast,
+    /// A *value read* of a reference expression of exactly the target type,
+    /// spelled like the numeric conversion `T(expr)`.  It converts nothing:
+    /// daslang simulates a same-type `T(x)` as `x` read as a value (an `R2V`
+    /// node), and `sv_makeCopy` then stores it with the typed `Set_TT<T>`
+    /// instead of the runtime-sized `CopyRefValue` memcpy it emits for a
+    /// reference right-hand side.  An interpreter-speed device built only by
+    /// `das_ast::fold` ("Value stores"), which the identity fold never
+    /// removes.
+    Value,
 }
 
 /// Block expression — `{ stmts }`.
@@ -386,6 +405,7 @@ fn expr_precedence(expr: &DaExpr) -> u8 {
         | DaExpr::SafeField(_, _)
         | DaExpr::Index(_, _)
         | DaExpr::SafeIndex(_, _)
+        | DaExpr::IncDec { .. }
         | DaExpr::Call(_, _) => PREC_POSTFIX,
         // `unsafe { … }` is a block statement, not an operand; the call-shaped
         // `unsafe(expr)` form is an atom.
@@ -620,6 +640,13 @@ impl DaExpr {
                 write_operand(f, right, PREC_ASSIGN)
             }
 
+            IncDec { op, place } => {
+                // `*p++` would step the pointer: a dereferenced place is
+                // parenthesised, `(*p)++`.
+                write_operand(f, place, PREC_POSTFIX)?;
+                write!(f, "{}", op)
+            }
+
             Pipe(left, right) => {
                 write_operand(f, left, PREC_PIPE)?;
                 write!(f, " |> ")?;
@@ -750,7 +777,7 @@ impl DaExpr {
                 // literal of that type: it is spelled as that literal.
                 if let Some((value, kind, hex)) = crate::fold::typed_integer_literal(self) {
                     write_typed_integer_literal(f, value, kind, hex)
-                } else if *kind == CastKind::Cast && to.is_numeric() {
+                } else if (*kind == CastKind::Cast || *kind == CastKind::Value) && to.is_numeric() {
                     write!(f, "{}({})", to, expr)
                 } else if let (CastKind::Reinterpret, DaExpr::Addr(place), true) = (
                     kind,

@@ -64,6 +64,19 @@ Every item below is a translator mapping: a C shape and the daslang form c2das w
   final value after the loop when it is live.
 - **Mapping 4** has a cleaner fix on the daslang side: `sv_makeCopy` could use `Set_TT` with
   an R2V operand for POD references. That is a candidate for the `lookibed/daScript` fork.
+  Landed on the translator side (`das_ast::fold`, "Value stores"; `translator/ARCHITECTURE.md`,
+  "Module-wide policy"; `p180-value-stores`): a scalar store of a reference not rooted at a
+  local is `place = T(value)` (`CastKind::Value`), so `*dest = uint8(dc_colormap[…])`,
+  `ds_xstep = int(cachedxstep[y])`, `p.a = int(q.b)`.  Micro-benchmarks (20 M stores, two
+  runs): `*p = q[i]` 7.6 → 6.1 ns, `*p = g` 6.5 → 5.1, `*p = param` 5.4 → 4.0,
+  `g = param` 9.5 → 8.3, `p.f = q.f` through pointers 4.5 → 3.5, `p[i] = q[j]` 8.6 → 7.2.
+  Not rewritten because the interpreter already fuses the copy with the local
+  (`CopyRefValueLocAny`, `…_AnyPtr_Local`): `loc = q[i]`, `var x = q[i]`, `loc = g`
+  (equal) and `*p = loc` 3.2 → 4.0, `g = loc` 7.3 → 8.5, `loc = s.f` 1.3 → 2.1 (worse).
+  Pointers (`p = addr(*q[i])` is a wash), `bool` (no `bool(x)`) and enumerations stay.
+  Statement `x += 1` / `x -= 1` is `x++` / `x--` (fused `Inc_TT`: 6.9 → 4.9 ns on a
+  global, 4.0 → 3.0 through a pointer, equal on a local).  Doom's `R_MapPlane` now has its
+  nine stores typed; `R_DrawColumn`/`R_DrawSpan` the two from the profile.
 - **Benchmark honesty.** The C build hashes every frame too, so the ratio to C stays fair.
   But 44% of the translated `decode_us` is the harness hash, so engine gains show at about
   half their size. Time the hash separately before Doom is a headline.

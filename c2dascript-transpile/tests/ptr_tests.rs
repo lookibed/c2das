@@ -298,7 +298,7 @@ fn p99_conditionals_without_statements_are_daslang_expressions() {
     // A right operand or an arm with statements keeps the guarded flag, so
     // `i++` runs only when C evaluates it.
     assert!(d.contains(
-        "if (x > y) {\n        var c2da_postinc_1 : int = i_0\n        i_0 += 1\n        if (c2da_postinc_1 != 0) {"
+        "if (x > y) {\n        var c2da_postinc_1 : int = i_0\n        i_0++\n        if (c2da_postinc_1 != 0) {"
     ));
     assert!(d.contains(" = note(10, i_0)\n    }\n    value_0 = c2da_fresh"));
     // A pointer arm whose conversion to the result type the lowering spells
@@ -951,11 +951,11 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
     let body = function_body(&d, "main_0");
     // `for` steps, statements and a statement-level comma: no copy.
     assert!(
-        body.contains("    while (i < 3) {\n        total += i\n        i += 1\n    }\n"),
+        body.contains("    while (i < 3) {\n        total += i\n        i++\n    }\n"),
         "{body}"
     );
     assert!(
-        body.contains("        total += 1\n        i += 1\n        j -= 1\n"),
+        body.contains("        total++\n        i++\n        j--\n"),
         "{body}"
     );
     assert!(
@@ -966,19 +966,19 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
     // `while (n--)`.
     assert!(
         body.contains(
-            "var c2da_postinc_2 : int = i\n    i += 1\n    a[c2da_postinc_2] = 7"
+            "var c2da_postinc_2 : int = i\n    i++\n    a[c2da_postinc_2] = 7"
         ),
         "{body}"
     );
     assert!(
-        body.contains("var c2da_postinc_4 : int = i\n    i -= 1\n    y = c2da_postinc_4"),
+        body.contains("var c2da_postinc_4 : int = i\n    i--\n    y = c2da_postinc_4"),
         "{body}"
     );
     // `*q++ = 5` with a value that cannot observe `q`: store, then step.
     assert!(body.contains("    *q = 5\n    unsafe {\n        q += 1\n    }\n"), "{body}");
     assert!(
         body.contains(
-            "var c2da_postinc_6 : int = n\n        n -= 1\n        if (c2da_postinc_6 == 0) {\n            break\n"
+            "var c2da_postinc_6 : int = n\n        n--\n        if (c2da_postinc_6 == 0) {\n            break\n"
         ),
         "{body}"
     );
@@ -1008,8 +1008,8 @@ fn p153_self_updates_are_compound_assignments() {
         "d -= 0.5lf",
         "arr[i] *= 3",
         "arr[i - 1] += arr[i]",
-        "*p -= 1",
-        "a.count += 1",
+        "(*p)--",
+        "a.count++",
         "pa.mean += 0.5lf",
         "global_total *= 2",
         "i += k",
@@ -1163,12 +1163,12 @@ fn p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer
     // A local pointer and a value that cannot reach it: the store, then the
     // step — a pure value, a read through another pointer, a global read.
     assert!(
-        main.contains("        *dest = table_0[i_0 & 15]\n        unsafe {\n            dest += 1\n        }\n"),
+        main.contains("        *dest = uint8(table_0[i_0 & 15])\n        unsafe {\n            dest += 1\n        }\n"),
         "{main}"
     );
     assert!(
         main.contains(
-            "        *dest = *c2da_postinc\n        unsafe {\n            dest += 1\n        }\n"
+            "        *dest = uint8(*c2da_postinc)\n        unsafe {\n            dest += 1\n        }\n"
         ),
         "{main}"
     );
@@ -1197,7 +1197,7 @@ fn p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer
         "{main}"
     );
     assert!(
-        main.contains("    var c2da_postinc_2 : uint8? = out\n    unsafe {\n        out += 1\n    }\n    var c2da_postinc_3 : uint8 const? = in_0\n    unsafe {\n        in_0 += 1\n    }\n    *c2da_postinc_2 = *c2da_postinc_3\n"),
+        main.contains("    var c2da_postinc_2 : uint8? = out\n    unsafe {\n        out += 1\n    }\n    var c2da_postinc_3 : uint8 const? = in_0\n    unsafe {\n        in_0 += 1\n    }\n    *c2da_postinc_2 = uint8(*c2da_postinc_3)\n"),
         "{main}"
     );
     assert!(
@@ -1362,7 +1362,7 @@ fn p160_loops_are_daslang_loops() {
         "{body}"
     );
     assert!(
-        body.contains("            a += 1\n            b -= 7\n            continue\n"),
+        body.contains("            a++\n            b -= 7\n            continue\n"),
         "{body}"
     );
     // A condition with statements of its own is tested at the top of the body.
@@ -1385,7 +1385,7 @@ fn p160_loops_are_daslang_loops() {
         "{body}"
     );
     assert!(
-        body.contains("        if (total_1 > 3000) {\n            break\n        }\n        total_1 += 1\n        break\n    }\n"),
+        body.contains("        if (total_1 > 3000) {\n            break\n        }\n        total_1++\n        break\n    }\n"),
         "{body}"
     );
     // A loop body's C declaration is re-initialised on every pass.
@@ -1466,7 +1466,7 @@ fn p161_switch_is_a_label_region_or_a_chain() {
         "{body}"
     );
     let body = function_body(&d, "no_cases");
-    assert!(body.contains("    x_1 += 1\n    return x_1"), "{body}");
+    assert!(body.contains("    x_1++\n    return x_1"), "{body}");
     // An `if` arm holding an inner region and the outer `break` is spliced
     // into the outer region's labels, where that jump can land.
     let body = function_body(&d, "break_past_region");
@@ -1532,14 +1532,14 @@ fn p179_small_switches_are_inline_chains() {
     let body = function_body(&d, "mid_break");
     assert!(!body.contains("label"), "{body}");
     assert!(
-        body.contains("    if (x_2 == 1) {\n        r_2 = 10\n        if (y <= 0) {\n            r_2 += 1\n            if (y < -5) {\n                r_2 += 2\n            } else {\n                r_2 += 4\n                r_2 += 8\n            }\n        }\n    } elif (x_2 == 2) {\n        if (y > 0) {\n            r_2 = 20\n            if (y <= 10) {\n                r_2 += 1\n            }\n        } else {\n            r_2 += 2\n        }\n    } elif (x_2 == 3) {\n        if (y != 0) {\n            return -3\n        }\n        r_2 = 30\n    }\n    return r_2"),
+        body.contains("    if (x_2 == 1) {\n        r_2 = 10\n        if (y <= 0) {\n            r_2++\n            if (y < -5) {\n                r_2 += 2\n            } else {\n                r_2 += 4\n                r_2 += 8\n            }\n        }\n    } elif (x_2 == 2) {\n        if (y > 0) {\n            r_2 = 20\n            if (y <= 10) {\n                r_2++\n            }\n        } else {\n            r_2 += 2\n        }\n    } elif (x_2 == 3) {\n        if (y != 0) {\n            return -3\n        }\n        r_2 = 30\n    }\n    return r_2"),
         "{body}"
     );
     // `continue` inside the chain is the loop's.
     let body = function_body(&d, "loop_continue");
     assert!(!body.contains("label"), "{body}");
     assert!(
-        body.contains("        if (c2da_fresh1 == 0) {\n            continue\n        } elif (c2da_fresh1 == 1) {\n            acc += 1\n            if (acc > 5) {\n                continue\n            }\n            acc += 10\n        } elif (c2da_fresh1 == 2) {\n"),
+        body.contains("        if (c2da_fresh1 == 0) {\n            continue\n        } elif (c2da_fresh1 == 1) {\n            acc++\n            if (acc > 5) {\n                continue\n            }\n            acc += 10\n        } elif (c2da_fresh1 == 2) {\n"),
         "{body}"
     );
     // Nested chains; the inner `break` under an `if` is a negated `if`.
@@ -1567,11 +1567,56 @@ fn p179_small_switches_are_inline_chains() {
     // Fall-through and a `break` deeper in an `if` that statements follow
     // keep the region; Duff's device is flat.
     let body = function_body(&d, "fallthrough");
-    assert!(body.contains("    label 0:\n    r_4 += 1\n    label 1:\n    r_4 += 2\n    goto label 3\n"), "{body}");
+    assert!(body.contains("    label 0:\n    r_4++\n    label 1:\n    r_4 += 2\n    goto label 3\n"), "{body}");
     let body = function_body(&d, "deep_break");
     assert!(body.contains("    label 0:\n    if (y_0 != 0) {\n        if (y_0 > 2) {\n            goto label 2\n        }\n"), "{body}");
     let body = function_body(&d, "duff");
-    assert!(body.contains("    label 1:\n    label 2:\n    r_7 += 1\n    label 3:\n"), "{body}");
+    assert!(body.contains("    label 1:\n    label 2:\n    r_7++\n    label 3:\n"), "{body}");
+}
+
+#[test]
+fn p180_scalar_stores_of_references_read_values() {
+    let d = transpile_with_libc(
+        "p180_value_stores",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // A store through a pointer of an element, a global or a parameter reads
+    // the value: `T(ref)`, which daslang stores with `Set_TT<T>`
+    // (`das_ast::fold`, "Value stores").
+    let body = function_body(&d, "through_pointer");
+    assert!(body.contains("    *dest = int(unsafe(src[i]))\n"), "{body}");
+    assert!(body.contains("    unsafe(dest[1]) = int(unsafe(src[i + 1]))\n"), "{body}");
+    assert!(body.contains("    unsafe(dest[2]) = int(g)\n"), "{body}");
+    assert!(body.contains("    unsafe(dest[3]) = int(param_0)\n"), "{body}");
+    // Into a global or a global element.
+    let body = function_body(&d, "into_global");
+    assert!(body.contains("    g = int(unsafe(src_0[i_0]))\n"), "{body}");
+    assert!(body.contains("    garr[0] = int(param_1)\n"), "{body}");
+    assert!(body.contains("    garr[1] = int(*src_0)\n"), "{body}");
+    // Fields through pointers; the narrow and real types.
+    let body = function_body(&d, "fields");
+    assert!(body.contains("    p.a = int(q.b)\n    q.a = int(p.b)\n"), "{body}");
+    let body = function_body(&d, "narrow");
+    assert!(body.contains("    *dest_0 = uint8(unsafe(src_1[i_1]))\n"), "{body}");
+    assert!(body.contains("    *fd = float(unsafe(fs[i_1]))\n"), "{body}");
+    // A local on either side, a field of a local structure and a local's
+    // initialiser keep the plain copy: the interpreter fuses those.
+    let body = function_body(&d, "locals");
+    assert!(body.contains("    loc = unsafe(src_2[i_2])\n"), "{body}");
+    assert!(body.contains("    other = loc\n    *src_2 = loc\n    g = lp.a\n    loc = g\n    other = unsafe(src_2[i_2])\n"), "{body}");
+    assert!(!body.contains("int("), "{body}");
+    // A pointer store is not rewritten.
+    let body = function_body(&d, "pointers");
+    assert!(body.contains("    gp = unsafe(reinterpret<int?>(unsafe(slots[i_3])))\n"), "{body}");
+    // `x += 1` / `x -= 1` statements are the fused `x++` / `x--`; a dereferenced
+    // place is parenthesised; another step stays a compound assignment.
+    let body = function_body(&d, "steps");
+    assert!(
+        body.contains("    g++\n    g--\n    (*p_0)++\n    unsafe(p_0[1])--\n    q_0.a++\n    q_0.b--\n    gl++\n    g += 2\n"),
+        "{body}"
+    );
+    let body = function_body(&d, "main_0");
+    assert!(body.contains("    local++\n    local--\n    local++\n"), "{body}");
 }
 
 #[test]
@@ -2103,7 +2148,7 @@ fn p176_union_fields_lie_inline_in_natural_records() {
     // The other fields of the record are reached by name, through the
     // embedded record too.
     let body = function_body(&d, "think_mobj");
-    assert!(body.contains("    mo.x += 2\n    mo.y -= 1\n"), "{body}");
+    assert!(body.contains("    mo.x += 2\n    mo.y--\n"), "{body}");
     // A function-pointer member is read, compared and called through its
     // own type at the field's offset; the removal mark is a reinterpret.
     let body = function_body(&d, "run_thinkers");
@@ -2252,14 +2297,14 @@ fn p178_declared_array_subscripts_are_fixed_array_indexes() {
         main.contains("    floorclip[rw_x] = int16(int(ceilingclip[rw_x]) + 1)\n"),
         "{main}"
     );
-    assert!(main.contains("    main__counter[1] += 1\n    main__counter[1] += local[2]\n"), "{main}");
+    assert!(main.contains("    main__counter[1]++\n    main__counter[1] += local[2]\n"), "{main}");
     assert!(main.contains("    local[rw_x] = local[rw_x - 1] * 2\n    local[0] <<= 3\n"), "{main}");
     // An array of arrays is indexed twice; an array of natural records
     // reaches the element's field by name.
     assert!(main.contains("            grid[i_3][j_0] = i_3 * 10 + j_0\n"), "{main}");
-    assert!(main.contains("    grid[1][2] += grid[2][3]\n    grid[2][0] += 1\n"), "{main}");
+    assert!(main.contains("    grid[1][2] += grid[2][3]\n    grid[2][0]++\n"), "{main}");
     assert!(main.contains("        points[i_4].x = i_4\n        points[i_4].y = i_4 * i_4\n"), "{main}");
-    assert!(main.contains("    points[2].y += points[3].x\n    points[1].x += 1\n"), "{main}");
+    assert!(main.contains("    points[2].y += points[3].x\n    points[1].x++\n"), "{main}");
     assert!(main.contains("    v_0 = by_value(planes[1], 2)\n"), "{main}");
     // The address of an element is the decayed pointer stepped by the index:
     // `&table[5]` is the one-past-the-end pointer a fixed-array index would

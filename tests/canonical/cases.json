@@ -1671,6 +1671,23 @@
       "runtime": "required"
     },
     {
+      "id": "p180-value-stores",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p180_value_stores.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "pointer 2 3 9 77\nglobal 3 88 1\nfields 4 2 2 4\nnarrow 7 1.5\nlocals 5 4 1\npointers 2\nsteps 3 3 2 5 1 1 6\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p180_scalar_stores_of_references_read_values",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",
