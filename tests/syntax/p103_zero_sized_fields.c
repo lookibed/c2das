@@ -5,7 +5,9 @@
  * storage-backed: its bytes are Clang's and every access, by name or through
  * a pointer, uses Clang's offsets.  Each line below reads a field written
  * through the other path (by name vs through a pointer or raw ints), so a
- * daslang layout that disagrees with Clang's prints a different value. */
+ * daslang layout that disagrees with Clang's prints a different value.
+ * `Outer`, which embeds such a record by value, stays natural and holds the
+ * record's bytes inline (p176). */
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

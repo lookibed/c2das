@@ -1,9 +1,10 @@
 /* Field accesses that stay on Clang's byte offsets although a pointer to a
- * record reaches them: a union, a record containing a union, a bitfield
- * record, a packed and an over-aligned record, a flexible array member (all
- * storage-backed), and, in a record whose layout is proven, the address of a
- * field and an element of a fixed-array field.  Each line reads back what
- * the other spelling wrote, so a wrong offset prints a different value. */
+ * record reaches them: a union, a bitfield record, a packed and an
+ * over-aligned record, a flexible array member (all storage-backed), the
+ * array member of a union field of a natural record (`HasUnion`, p176), and,
+ * in a record whose layout is proven, the address of a field and an element
+ * of a fixed-array field.  Each line reads back what the other spelling
+ * wrote, so a wrong offset prints a different value. */
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
