@@ -1,60 +1,76 @@
-# Doom's hot loops in the interpreter: what the translator emits and what it should
+# Doom in the interpreter: where the time goes and what the translator should emit
 
-Recorded 2026-10-08 from the daslang author's reading of the Doom renderer and the
-translator's current output (`--libc std`, unity layout, commit `376cd991c`).  Every node
-below is a translator mapping: a C shape and the daslang form c2das writes for it.  Nothing
-here is measured yet; each mapping is measured in the interpreter before it is kept
-(interpreter speed over beauty).
+## Sources
 
-## The loops
+- Recorded 2026-10-08 from the daslang author's reading of the Doom renderer.
+- Interpreter profile of `doom_bench_all.das`:
+  - `--libc std`, unity layout, commit `a7a7045a2`, 1000 frames;
+  - `daslang --das-profiler` plus `options log_nodes = true`;
+  - hand-edited copies of the generated module, medians of 3 interleaved runs, frame
+    hashes checked. The baseline spread is about ±1.5%, so effects under ~3% are noise.
 
-Three inner loops carry most of Doom's frame time: the wall/sprite column
-(`R_DrawColumn`), the floor span (`R_DrawSpan`) and their variants (fuzz, translated
-colours).  Today `R_DrawColumn` comes out as:
+Every item below is a translator mapping: a C shape and the daslang form c2das writes for it.
 
-```das
-while (true) {
-    *dest_8 = unsafe(unsafe(reinterpret<uint8?>(dc_colormap))[int(unsafe(unsafe(reinterpret<uint8?>(dc_source))[frac_7 >> 16 & 127]))])
-    unsafe { dest_8 += 320 }
-    frac_7 += fracstep
-    var c2da_postinc_67 : int = count_9
-    count_9 -= 1
-    if (c2da_postinc_67 == 0) { break }
-}
-```
+## Where the time goes
 
-`dc_colormap` and `dc_source` are already declared `uint8?` (`lighttable_t = uint8`), so the
-`reinterpret<uint8?>` around them changes nothing in type and only adds work.
+| function | share of `decode_us` |
+|---|---|
+| `dg_hash_frame`: the harness's per-frame FNV hash, 64 000 pixels | ≈ 32% by profile, 44% by removal |
+| `R_DrawColumn` | 14% |
+| `R_DrawSpan` | 13% |
+| `R_RenderSegLoop`, self | 4.5% |
+| `FixedMul`, 1.7 M calls | 2.7% |
 
-## Nodes: C shape → daslang form
+## What the nodes show
 
-| # | C | today | target |
+- **`do { … } while (count--)`.** Today it is `while (true)` with a counter copy, a decrement
+  and `if (copy == 0) break`. That is four nodes plus a constant condition per iteration.
+  `for (_ in range(n))` is one fused `ForRange` node.
+- **`*dest = a[int(b[i])]`.** This becomes `SimNode_CopyRefValue`, a runtime-size memcpy of
+  one byte, because the right-hand side is a reference. daslang's `sv_makeCopy` emits a typed
+  `Set_TT<T>` only for a non-reference right-hand side; a same-type cast `uint8(…)` gets it.
+  The same applies to `g = ptr[i]` and `g = param`.
+- **Global reads are `GetGlobalR2V`.** They cost the same as a local read, so hoisting them
+  into locals removes nothing.
+- **The index chain is already fused.** `int(source[frac >> 16 & 127])` costs nothing extra.
+- **Calls are cheap.** `FixedMul` is a `FastCall`; inlining it measured no gain.
+- **A bitfield struct copied by value is expensive.** `struct color c = colors[k]` with four
+  8-bit bitfields becomes:
+  - a `c2da_rt_calloc` per call, never freed;
+  - a `memmove` of the struct;
+  - three re-reads of the same word per pixel;
+  - about 36 nodes per pixel in total.
+
+## Measured mappings
+
+| # | C | target daslang form | measured on Doom |
 |---|---|---|---|
-| 1 | `do { … } while (count--);`, `count` not read in the body or after the loop | `while (true)` with a counter copy, a decrement and `if (copy == 0) break` | `for (_ in range(count + 1)) { … }` |
-| 2 | `a[b[i]]`, `a` and `b` pointers to bytes | `unsafe(reinterpret<uint8?>(a))[int(unsafe(reinterpret<uint8?>(b))[i])]` | `a[int(b[i])]` with no reinterpret on an operand that already has the pointer type |
-| 3 | `a[k + b[c[i]]]` (fuzz), `a[b[c[i]]]` (translated sprites) | the same wrappers, nested | node 2 applied at every level |
-| 4 | `*p++ = v` | temporary copy of `p`, `unsafe { p += 1 }`, store through the copy | `*p = v` then `p += 1` |
-| 5 | `*p = v; p += k` | already a store and an add | unchanged; node 4 makes 4 and 5 the same shape |
-| 6 | a global pointer read in a loop that cannot write it (`dc_colormap`, `dc_source`, `ds_colormap`, `ds_source`) | read on every iteration | read once into a `let` local before the loop |
+| 1 | a small bitfield struct (≤ 8 bytes) copied into a local and only read | the word read once, fields by shift/mask; no heap storage, no `memmove` | −12% (harness hash) |
+| 2 | `do { … } while (count--)`, `count` dead after the loop, `count >= 0` on entry | `for (_ in range(count + 1))` | −10.4% (two draw loops) |
+| 3 | `for (i = 0; i < N; i++)`, `i` not written in the body, dead after | `for (i in range(N))` | ≈ −4.5% (estimate from the hash loop) |
+| 4 | a scalar store whose right-hand side is a reference (`*p = a[i]`, `g = ptr[i]`, `g = param`) | a value right-hand side, so daslang emits `Set_TT<T>` | −4.6% from two statements (borderline); hundreds of sites |
+| — | 1 + 2 + global hoist | | −20.7% |
+
+## Not worth doing
+
+- **Hoisting loop-invariant globals into locals:** −1.4%, within noise.
+- **Inlining small functions such as `FixedMul`:** no gain.
 
 ## Notes
 
-- **Node 1 legality.** The `for` runs `count + 1` times, which matches C only when
-  `count >= 0` on entry. Otherwise the C loop runs until the counter wraps. The translator
-  emits the `for` only when it can see the bound is non-negative, or guards it
-  (`if (count >= 0)` and keep today's loop in the else branch). Every other case keeps
-  today's form.
-- **Node 2 is a printer-level fact.**
-  - A `reinterpret` whose source and target types are equal is dropped.
-  - The `int(…)` on a byte index stays: daslang indexes with `int`.
-- **Node 4** changes no evaluation order when `v` does not read or write `p`. When it does,
-  today's form stays.
-- **Node 6 needs whole-program facts.** The global's address is never taken, and no call
-  in the loop writes it. The link pass of `--module-layout source` collects per-symbol
-  facts, so that is where this is built. Unproven cases stay as they are.
+- **Mapping 2** keeps today's loop when it cannot see `count >= 0` on entry, or when it can
+  only guard it.
+- **Mapping 3:** daslang forbids shadowing, so the C local is either dropped or assigned its
+  final value after the loop when it is live.
+- **Mapping 4** has a cleaner fix on the daslang side: `sv_makeCopy` could use `Set_TT` with
+  an R2V operand for POD references. That is a candidate for the `lookibed/daScript` fork.
+- **Benchmark honesty.** The C build hashes every frame too, so the ratio to C stays fair.
+  But 44% of the translated `decode_us` is the harness hash, so engine gains show at about
+  half their size. Time the hash separately before Doom is a headline.
 
 ## Order
 
-1. Nodes 2 and 4: local, no analysis.
-2. Node 1, then a Doom interpreter profile against today.
-3. Node 6, once the link pass carries the facts.
+1. Mappings 2 and 3 (loops).
+2. Mapping 1 (bitfield structs by value).
+3. Mapping 4.
+4. Re-profile after each step.
