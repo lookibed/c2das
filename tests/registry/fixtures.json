@@ -5548,6 +5548,62 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p173-same-type-pointer-index",
+      "canonical_cases": [
+        "p173-same-type-pointer-index"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "direct 19008 typedef 19008 signed 1138 void 13632\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p173_same_type_pointer_index",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p173_same_type_pointer_index.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p174-post-step-store",
+      "canonical_cases": [
+        "p174-post-step-store"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "0 7 14 21 56 63 70 77 25 1 5 42 6 0 7 15 1 0 3 2 1 \nout 17 dest 8 back 18 level 25\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p174_post_step_store",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p174_post_step_store.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p17-runtime-malloc",
       "canonical_cases": [
         "p17-runtime-malloc"

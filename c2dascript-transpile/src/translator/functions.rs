@@ -124,6 +124,7 @@ impl<'c> Translation<'c> {
         _attrs: &indexmap::IndexSet<crate::c_ast::Attribute>,
     ) -> TranslationResult<DaDecl> {
         self.function_context.borrow_mut().enter_new(name);
+        self.function_context.borrow_mut().set_body(body);
 
         let (ret_ctype, is_variadic): (Option<CQualTypeId>, bool) =
             match self.ast_context.resolve_type(typ).kind {

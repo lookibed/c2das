@@ -290,6 +290,6 @@ typedef size_t = uint64
 typedef uint64_t = uint64
 [export, sideeffects]
 def index_typedef(var arr : uint64?) {
-    var foo3 : uint64 = unsafe(unsafe(reinterpret<uint64?>(arr))[25])
+    var foo3 : uint64 = unsafe(arr[25])
     return
 }

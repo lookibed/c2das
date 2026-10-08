@@ -769,6 +769,13 @@ impl<'c> Translation<'c> {
             };
             return Ok(lower_raw_store(stored, is_used).prepend_stmts(address_stmts));
         }
+        if op == CBinOp::Assign && !is_used {
+            if let Some(stored) =
+                self.post_step_store(ctx, lhs, rhs, lhs_type_id, &lhs_kind, &lhs_da_type)?
+            {
+                return Ok(stored);
+            }
+        }
         let lhs_val = self.convert_lvalue_once(ctx, lhs, lhs_type_id)?;
 
         if op != CBinOp::Assign {
@@ -936,6 +943,131 @@ impl<'c> Translation<'c> {
         Ok(lower_assignment_expr(assign, lhs_expr, is_used)
             .prepend_stmts(stmts)
             .merge_unsafe(lhs_val.is_unsafe || rhs_val.is_unsafe))
+    }
+
+    /// `*p++ = v` (or `*p-- = v`) as a statement, lowered to the store and
+    /// then the step — `*p = v` followed by `p += 1` — instead of a copy of
+    /// `p` taken before the step and stored through afterwards.
+    ///
+    /// C sequences the store after both operands' value computations and
+    /// leaves the step of `p` unsequenced against `v` (C11 6.5.16p3,
+    /// 6.5.2.4p2); the two forms are therefore the same program only when
+    /// `v` can neither read nor write `p`, and that is proved here from the
+    /// C expression, never guessed:
+    ///
+    /// - `p` is a variable named directly (`*s->p++ = v` keeps today's form);
+    /// - `v` names `p` nowhere, calls nothing and runs no statement
+    ///   expression (a callee could reach `p` through its address or as a
+    ///   global);
+    /// - when `v` reads or writes memory at all (`*q`, `q[i]`, `s->f`,
+    ///   `s.f`), `p` is a block-scope variable whose address the function
+    ///   never takes, so no such access can be `p` under another name.  A
+    ///   global `p` with `*out++ = *in++` keeps the copy: `in` may point at
+    ///   `out`.
+    ///
+    /// Everything that does not fit returns `None` and is lowered as before.
+    /// Only the statement form qualifies: the value of the expression is the
+    /// stored value, which the plain lowering names.
+    fn post_step_store(
+        &self,
+        ctx: ExprContext,
+        lhs: CExprId,
+        rhs: CExprId,
+        lhs_type_id: CQualTypeId,
+        lhs_kind: &CTypeKind,
+        lhs_da_type: &DaType,
+    ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        let CExprKind::Unary(_, CUnOp::Deref, stepped, _) =
+            self.ast_context[self.strip_lvalue_wrappers(lhs)].kind
+        else {
+            return Ok(None);
+        };
+        let CExprKind::Unary(step_ty, step_op @ (CUnOp::PostIncrement | CUnOp::PostDecrement), pointer_expr, _) =
+            self.ast_context[self.strip_lvalue_wrappers(stepped)].kind
+        else {
+            return Ok(None);
+        };
+        let CExprKind::DeclRef(pointer_ty, pointer_decl, _) =
+            self.ast_context[self.strip_lvalue_wrappers(pointer_expr)].kind
+        else {
+            return Ok(None);
+        };
+        let CDeclKind::Variable {
+            has_static_duration,
+            has_thread_duration,
+            ..
+        } = self.ast_context[pointer_decl].kind
+        else {
+            return Ok(None);
+        };
+        if !self.is_pointer_type(pointer_ty.ctype)
+            || self.storage_backed_record_of(lhs_type_id.ctype).is_some()
+        {
+            return Ok(None);
+        }
+        // The right operand, as C sees it.
+        let mut reads_memory = false;
+        for node in DFExpr::new(&self.ast_context, SomeId::Expr(rhs)) {
+            let SomeId::Expr(expr) = node else {
+                // A statement inside the operand is a statement expression.
+                return Ok(None);
+            };
+            match self.ast_context[expr].kind {
+                CExprKind::DeclRef(_, decl, _) if decl == pointer_decl => return Ok(None),
+                CExprKind::Call(..)
+                | CExprKind::Statements(..)
+                | CExprKind::VAArg(..)
+                | CExprKind::CompoundLiteral(..) => return Ok(None),
+                CExprKind::Unary(_, CUnOp::Deref, ..)
+                | CExprKind::ArraySubscript(..)
+                | CExprKind::Member(..) => reads_memory = true,
+                _ => {}
+            }
+        }
+        if reads_memory
+            && (has_static_duration
+                || has_thread_duration
+                || self.local_address_is_taken(pointer_decl))
+        {
+            return Ok(None);
+        }
+        let pointer = self.convert_expr(ctx.used(), pointer_expr, Some(pointer_ty))?;
+        if !pointer.stmts.is_empty() || !matches!(pointer.val, DaExpr::Var(_)) {
+            return Ok(None);
+        }
+        let value = self.convert_expr(ctx.used(), rhs, Some(lhs_type_id))?;
+        let value = self.lower_to_c_value(
+            value,
+            self.ast_context[rhs].kind.get_qual_type(),
+            lhs_da_type.clone(),
+            ValueSite::Assignment,
+        )?;
+        if matches!(value.val, DaExpr::Assign(..) | DaExpr::IfThenElse { .. }) {
+            return Ok(None);
+        }
+        let step_op = match step_op {
+            CUnOp::PostIncrement => CBinOp::AssignAdd,
+            _ => CBinOp::AssignSubtract,
+        };
+        let step = self.convert_increment(ctx.unused(), step_ty, step_op, pointer_expr, false)?;
+        let is_unsafe = pointer.is_unsafe || value.is_unsafe || step.is_unsafe;
+        let mut stmts = value.stmts;
+        let place = DaExpr::Deref(Box::new(pointer.val));
+        let stored = self.coerce_assignment_value(value.val, lhs_kind, lhs_da_type);
+        stmts.push(DaStmt::Expr(DaExpr::Assign(
+            Box::new(place),
+            Box::new(stored),
+        )));
+        let mut step_stmts = step.stmts;
+        let Some(DaStmt::Expr(step_expr)) = step_stmts.pop() else {
+            return Err(TranslationError::generic(
+                "pointer step of a post-step store has no assignment",
+            ));
+        };
+        stmts.extend(step_stmts);
+        Ok(Some(
+            WithStmts::new(stmts, step_expr).merge_unsafe(is_unsafe),
+        ))
     }
 
     /// Strip the C nodes that do not change an lvalue's identity.

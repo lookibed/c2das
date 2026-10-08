@@ -296,7 +296,8 @@ fn p100_conversions_of_values_already_of_the_target_type_are_dropped() {
     assert!(d.contains("bits = get_bits(word_0, 8u)\n"));
     assert!(d.contains("more = 16u * get_bits(word_0, 4u)\n"));
     assert!(d.contains("return ns / 1000000000l\n"));
-    assert!(d.contains("return unsafe(unsafe(reinterpret<uint8 const?>(in_0))[i])\n"));
+    // Indexing a pointer already of the element pointer type needs no reinterpret.
+    assert!(d.contains("return unsafe(in_0[i])\n"));
     assert!(d.contains("from_const = unsafe(unsafe(addr(table_0[0]))[ci])\n"));
     // `uint8(c ? int(t1) : int(t2))` of two `uint8`s is the conditional.
     assert!(d.contains("return int(t2) == 255 ? t1 : t2\n"));
@@ -625,7 +626,7 @@ fn p122_bool_conditions_test_the_bool_itself() {
     assert!(d.contains("if (a && o.level > 2) {"));
     assert!(d.contains("if (b || o.verbose) {"));
     assert!(d.contains("if (!(a && b)) {"));
-    assert!(d.contains("if (unsafe(unsafe(reinterpret<bool const?>(flags))[i]) && i >= 0) {"));
+    assert!(d.contains("if (unsafe(flags[i]) && i >= 0) {"));
     assert!(!d.contains("== true ? 1 : 0) != 0"));
     // An integer constant returned as `_Bool` is a `bool` constant.
     assert!(d.contains("    return true\n"));
@@ -923,10 +924,11 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
         body.contains("var c2da_postinc_5 : int = i\n    i -= 1\n    y = c2da_postinc_5"),
         "{body}"
     );
-    assert!(body.contains("*c2da_postinc_6 = 5"), "{body}");
+    // `*q++ = 5` with a value that cannot observe `q`: store, then step.
+    assert!(body.contains("    *q = 5\n    unsafe {\n        q += 1\n    }\n"), "{body}");
     assert!(
         body.contains(
-            "var c2da_postinc_8 : int = n\n        n -= 1\n        if (c2da_postinc_8 == 0) {\n            break\n"
+            "var c2da_postinc_7 : int = n\n        n -= 1\n        if (c2da_postinc_7 == 0) {\n            break\n"
         ),
         "{body}"
     );
@@ -1065,6 +1067,97 @@ fn p171_calls_keep_their_side_effects_and_null_casts_are_null() {
     // `(state_t *) S_NULL` with an enumeration constant 0 is the null pointer.
     assert!(d.contains("= null\n"), "{d}");
     assert!(!d.contains("reinterpret<state_t?>(0)"), "{d}");
+}
+
+#[test]
+fn p173_pointer_subscript_of_its_own_type_has_no_reinterpret() {
+    let d = transpile_with_libc(
+        "p173_same_type_pointer_index",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // Globals declared through the `lighttable_t` typedef, `const` parameters
+    // and plain locals are indexed as they are.
+    let main = function_body(&d, "main_0");
+    assert!(
+        main.contains("direct += uint(unsafe(dc_colormap[int(unsafe(dc_source[i_4 & 127]))]))"),
+        "{main}"
+    );
+    let typedef = function_body(&d, "sum_typedef_bytes");
+    assert!(
+        typedef.contains("acc += uint(unsafe(map[int(unsafe(src[i_1]))]))"),
+        "{typedef}"
+    );
+    // `char *` and `unsigned char *` each index their own pointer; neither
+    // is reinterpreted to the other.
+    let signed = function_body(&d, "sum_signed_chars");
+    assert!(
+        signed.contains("acc_0 += int(unsafe(bytes[i_2])) + int(unsafe(text[i_2]))"),
+        "{signed}"
+    );
+    assert!(
+        signed.contains("bytes = unsafe(reinterpret<uint8?>(text))"),
+        "{signed}"
+    );
+    // A `void *` cast to `unsigned char *` is a conversion and stays one.
+    let void = function_body(&d, "sum_void");
+    assert!(
+        void.contains("unsafe(unsafe(reinterpret<uint8?>(blob))[i_3])"),
+        "{void}"
+    );
+}
+
+#[test]
+fn p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer() {
+    let d = transpile_with_libc("p174_post_step_store", c2dascript_transpile::LibcMode::Std);
+    let main = function_body(&d, "main_0");
+    // A local pointer and a value that cannot reach it: the store, then the
+    // step — a pure value, a read through another pointer, a global read.
+    assert!(
+        main.contains("        *dest = unsafe(unsafe(addr(table_0[0]))[i_0 & 15])\n        unsafe {\n            dest += 1\n        }\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains(
+            "        *dest = *c2da_postinc\n        unsafe {\n            dest += 1\n        }\n"
+        ),
+        "{main}"
+    );
+    assert!(
+        main.contains("    *mark = uint8(level)\n    unsafe {\n        mark += 1\n    }\n"),
+        "{main}"
+    );
+    // A global pointer with a value that reads no memory.
+    assert!(
+        main.contains("    *out = 42u8\n    unsafe {\n        out += 1\n    }\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("    *out = uint8(level + 1)\n    unsafe {\n        out += 1\n    }\n"),
+        "{main}"
+    );
+    // The post-decrement form.
+    assert!(
+        main.contains("    *back = 1u8\n    unsafe {\n        back -= 1\n    }\n    *back = 2u8\n    unsafe {\n        back -= 1\n    }\n    *back = 3u8\n"),
+        "{main}"
+    );
+    // The copy stays when the value names the pointer, reads memory while
+    // the pointer is a global, or calls a function.
+    assert!(
+        main.contains("    var c2da_postinc_0 : uint8? = mark\n    unsafe {\n        mark += 1\n    }\n    *c2da_postinc_0 = uint8(mark != null ? 1 : 0)\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("    var c2da_postinc_2 : uint8? = out\n    unsafe {\n        out += 1\n    }\n    var c2da_postinc_3 : uint8 const? = in_0\n    unsafe {\n        in_0 += 1\n    }\n    *c2da_postinc_2 = *c2da_postinc_3\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("    *c2da_postinc_6 = next_level()\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("    *c2da_postinc_7 = out_is_set()\n"),
+        "{main}"
+    );
 }
 
 #[test]

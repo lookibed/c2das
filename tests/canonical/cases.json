@@ -1552,6 +1552,40 @@
       "rust_assertion": "ptr_tests::p172_undefined_extern_object_is_refused_not_declared", "runtime": "not-applicable"
     },
     {
+      "id": "p173-same-type-pointer-index",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p173_same_type_pointer_index.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "direct 19008 typedef 19008 signed 1138 void 13632\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p173_pointer_subscript_of_its_own_type_has_no_reinterpret",
+      "runtime": "required"
+    },
+    {
+      "id": "p174-post-step-store",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p174_post_step_store.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "0 7 14 21 56 63 70 77 25 1 5 42 6 0 7 15 1 0 3 2 1 \nout 17 dest 8 back 18 level 25\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

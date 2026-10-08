@@ -113,6 +113,11 @@ pub struct FuncContext {
     va_list_decl_ids: Option<IndexSet<CDeclId>>,
     param_aliases: HashMap<String, String>,
     return_type: Option<CQualTypeId>,
+    /// The body of the function being translated, the scope every
+    /// `&local` is looked for in.
+    body: Option<CStmtId>,
+    /// The locals whose address the body takes, found on first demand.
+    address_taken: Option<IndexSet<CDeclId>>,
 }
 
 impl FuncContext {
@@ -151,6 +156,52 @@ impl FuncContext {
     }
     pub fn get_param_alias(&self, c_name: &str) -> Option<String> {
         self.param_aliases.get(c_name).cloned()
+    }
+    pub fn set_body(&mut self, body: Option<CStmtId>) {
+        self.body = body;
+        self.address_taken = None;
+    }
+}
+
+impl<'c> Translation<'c> {
+    /// Whether the function being translated ever takes the address of the
+    /// block-scope variable `decl` (`&p`), so that a read or write through
+    /// any pointer may reach `p`.  With no function body in scope every
+    /// variable counts as addressable.
+    pub(crate) fn local_address_is_taken(&self, decl: CDeclId) -> bool {
+        let Some(body) = self.function_context.borrow().body else {
+            return true;
+        };
+        if self.function_context.borrow().address_taken.is_none() {
+            let mut taken = IndexSet::new();
+            for node in DFExpr::new(&self.ast_context, SomeId::Stmt(body)) {
+                let SomeId::Expr(expr) = node else { continue };
+                if let CExprKind::Unary(_, CUnOp::AddressOf, operand, _) =
+                    self.ast_context[expr].kind
+                {
+                    let mut place = operand;
+                    loop {
+                        match self.ast_context[place].kind {
+                            CExprKind::Paren(_, inner)
+                            | CExprKind::ImplicitCast(_, inner, _, _, _)
+                            | CExprKind::ExplicitCast(_, inner, _, _, _)
+                            | CExprKind::Unary(_, CUnOp::Extension, inner, _) => place = inner,
+                            CExprKind::DeclRef(_, decl, _) => {
+                                taken.insert(decl);
+                                break;
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+            }
+            self.function_context.borrow_mut().address_taken = Some(taken);
+        }
+        self.function_context
+            .borrow()
+            .address_taken
+            .as_ref()
+            .map_or(true, |taken| taken.contains(&decl))
     }
 }
 
@@ -1151,7 +1202,13 @@ impl<'c> Translation<'c> {
                         && Self::infer_type(&arr_val.val)
                             .map_or(true, |inferred| writable_type(inferred) != target_type)
                     {
-                        self.abi_pointer_cast(arr_val.val, target_type)
+                        // A pointer whose own C type converts to the
+                        // subscript's pointer type is indexed as it is:
+                        // `dc_colormap[dc_source[i]]` with both declared
+                        // `lighttable_t *` is `dc_colormap[int(dc_source[i])]`,
+                        // not two `reinterpret<uint8?>` of `uint8?` values
+                        // (`abi.rs abi_pointer_cast_from`).
+                        self.abi_pointer_cast_from(arr_val.val, *arr, target_type)?
                     } else {
                         arr_val.val
                     }
