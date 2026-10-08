@@ -7,6 +7,8 @@
 # ignore rust build dirs everywhere
 **/target/
 /.c2das-target
+# the last translation of every case (scripts/run_c2das_cases.py latest_root)
+/.c2das-out
 # rust-analyzer's own check target dir (never contend with the case runner's lock)
 /.ra-target
 **/instrument.target/

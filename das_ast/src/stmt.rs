@@ -39,6 +39,12 @@ pub enum DaDecl {
     Structure(DaStructure),
     Enumeration(DaEnumeration),
     Alias(DaAlias),
+    /// A function or variable declaration visible in its own module only:
+    /// printed `def private f(...)` / `var private g : T`.  The module layout
+    /// that splits a program over several daslang modules wraps a declaration
+    /// in this after every module-wide pass has run, so the passes keep
+    /// matching the inner variants.
+    Private(Box<DaDecl>),
 }
 
 /// Type alias — `typedef name = type`
@@ -187,6 +193,11 @@ impl fmt::Display for DaDecl {
             DaDecl::Structure(s) => write!(f, "{}", s),
             DaDecl::Enumeration(e) => write!(f, "{}", e),
             DaDecl::Alias(a) => write!(f, "typedef {} = {}", a.name, a.aliased_type),
+            DaDecl::Private(inner) => match &**inner {
+                DaDecl::Function(func) => func.fmt_with_visibility(f, "private "),
+                DaDecl::Variable(var) => var.fmt_with_visibility(f, "private "),
+                other => write!(f, "{}", other),
+            },
         }
     }
 }
@@ -214,13 +225,27 @@ fn write_annotations(f: &mut fmt::Formatter, annotations: &[String]) -> fmt::Res
 
 impl fmt::Display for DaFunction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt_with_visibility(f, "")
+    }
+}
+
+impl DaFunction {
+    /// Renders the function with `visibility` (`""` or `"private "`) between
+    /// `def` and its name, which is where daslang's grammar puts it.
+    fn fmt_with_visibility(&self, f: &mut fmt::Formatter, visibility: &str) -> fmt::Result {
         write_annotations(f, &self.annotations)?;
         let params_str: Vec<String> = self
             .params
             .iter()
             .map(|p| format!("{}", p).trim().to_string())
             .collect();
-        write!(f, "def {}({})", self.name, params_str.join("; "))?;
+        write!(
+            f,
+            "def {}{}({})",
+            visibility,
+            self.name,
+            params_str.join("; ")
+        )?;
         if !matches!(self.ret_type.kind, DaTypeKind::Void) {
             write!(f, " : {}", self.ret_type)?;
         }
@@ -234,24 +259,32 @@ impl fmt::Display for DaFunction {
 
 impl fmt::Display for DaVariable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt_with_visibility(f, "")
+    }
+}
+
+impl DaVariable {
+    /// Renders the variable with `visibility` (`""` or `"private "`) between
+    /// the `var`/`let` keyword and its name (`var private g : int`).
+    fn fmt_with_visibility(&self, f: &mut fmt::Formatter, visibility: &str) -> fmt::Result {
         write_annotations(f, &self.annotations)?;
         let kw = if self.is_let { "let" } else { "var" };
         if let Some(init_expr) = &self.init {
             if let Some(init_text) = typed_initializer_text(&self.var_type, init_expr) {
                 writeln!(
                     f,
-                    "{} {} : {} = {}",
-                    kw, self.name, self.var_type, init_text
+                    "{} {}{} : {} = {}",
+                    kw, visibility, self.name, self.var_type, init_text
                 )
             } else {
                 writeln!(
                     f,
-                    "{} {} : {} = {}",
-                    kw, self.name, self.var_type, init_expr
+                    "{} {}{} : {} = {}",
+                    kw, visibility, self.name, self.var_type, init_expr
                 )
             }
         } else {
-            writeln!(f, "{} {} : {}", kw, self.name, self.var_type)
+            writeln!(f, "{} {}{} : {}", kw, visibility, self.name, self.var_type)
         }
     }
 }

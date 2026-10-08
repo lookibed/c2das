@@ -245,9 +245,39 @@ impl ExprContext {
     }
 }
 
+/// What one translation unit knows about the rest of the program under
+/// `--module-layout source` (`lib.rs link_units`): the daslang module it
+/// becomes, which module owns each external symbol it references but does not
+/// define, and the modules it therefore `require`s.  `None` on a `Translation`
+/// is the single-module layout, where a cross-unit reference fails closed.
+#[derive(Clone, Debug, Default)]
+pub struct UnitLink {
+    /// This unit's module name (the C file's stem).
+    pub module: String,
+    /// External symbol → owning module, for every symbol another unit defines
+    /// and this unit references.
+    pub owners: HashMap<String, String>,
+    /// The owner modules, each once, in a fixed order.
+    pub requires: Vec<String>,
+}
+
+/// A translated unit under `--module-layout source`: its own module text plus
+/// what it contributes to the shared runtime module (`lib.rs`), which is
+/// written once after every unit.
+pub struct UnitOutput {
+    pub source: String,
+    /// The unit's C type section — records, aliases, enumerations and the
+    /// enumeration-constant `let`s — in declaration order.  The same C type
+    /// reaches the shared module once; a unit whose copy differs fails closed.
+    pub shared_types: Vec<DaDecl>,
+    /// The `--libc std` helpers this unit needed, before any module pass.
+    pub libc_helpers: Vec<DaDecl>,
+}
+
 pub struct Translation<'c> {
     pub ast_context: TypedAstContext,
     pub tcfg: &'c TranspilerConfig,
+    pub link: Option<UnitLink>,
     pub function_context: RefCell<FuncContext>,
     pub type_converter: RefCell<TypeConverter>,
     pub renamer: RefCell<Renamer<CDeclId>>,
@@ -326,6 +356,7 @@ impl<'c> Translation<'c> {
             inline_frames: RefCell::new(vec![]),
             ast_context,
             tcfg,
+            link: None,
             main_file: main_file.to_path_buf(),
         }
     }
@@ -497,9 +528,22 @@ impl<'c> Translation<'c> {
                                 }));
                             }
                             CTypeKind::Enum(_) => {
-                                let variants = match &inner_decl.kind {
-                                    CDeclKind::Enum { variants, .. } => variants.clone(),
-                                    _ => vec![],
+                                // The enumeration's integer type is Clang's
+                                // compatible type for it (`enums.rs
+                                // enum_integral_type`), the same fact
+                                // `convert_enum` reads when the `enum`
+                                // declaration itself is reached first: the
+                                // declaration a C type lowers to cannot depend
+                                // on whether its `typedef` or its tag was
+                                // visited first.  The enumerators go through
+                                // the renamer for the same reason.
+                                let (variants, integral_type) = match &inner_decl.kind {
+                                    CDeclKind::Enum {
+                                        variants,
+                                        integral_type,
+                                        ..
+                                    } => (variants.clone(), *integral_type),
+                                    _ => (vec![], None),
                                 };
                                 let mut das_variants = vec![];
                                 for &vid in &variants {
@@ -515,7 +559,7 @@ impl<'c> Translation<'c> {
                                             }
                                         };
                                         das_variants.push(DaEnumVariant {
-                                            name: name.clone(),
+                                            name: self.declare_value_name(vid, name),
                                             value: das_val,
                                         });
                                     }
@@ -525,7 +569,7 @@ impl<'c> Translation<'c> {
                                         .type_converter
                                         .borrow_mut()
                                         .ensure_decl_name(decl_id, &typedef_target),
-                                    base_type: DaType::int(),
+                                    base_type: self.enum_integral_type(integral_type)?,
                                     variants: das_variants,
                                 }));
                             }
@@ -3822,21 +3866,90 @@ pub fn translate_checked(
     Vec<(&'static str, Vec<&'static str>)>,
     IndexSet<ExternCrate>,
 )> {
-    translate_impl(ast_context, tcfg, main_file, true)
+    let output = translate_impl(ast_context, tcfg, main_file, None, true)?;
+    Ok((output.source, None, vec![], IndexSet::new()))
+}
+
+/// `translate_checked` for one unit of a `--module-layout source` program:
+/// `link` says what the other units define, and the result carries this
+/// unit's contributions to the shared module.
+pub fn translate_unit(
+    ast_context: TypedAstContext,
+    tcfg: &TranspilerConfig,
+    main_file: &Path,
+    link: UnitLink,
+) -> TranslationResult<UnitOutput> {
+    translate_impl(ast_context, tcfg, main_file, Some(link), true)
+}
+
+impl Translation<'_> {
+    /// The module that owns external symbol `name` under the source layout,
+    /// when another unit defines it.
+    pub(crate) fn link_owner(&self, name: &str) -> Option<&str> {
+        self.link
+            .as_ref()
+            .and_then(|link| link.owners.get(name))
+            .map(String::as_str)
+    }
 }
 
 fn translate_impl(
     ast_context: TypedAstContext,
     tcfg: &TranspilerConfig,
     main_file: &Path,
+    link: Option<UnitLink>,
     strict_top_level: bool,
-) -> TranslationResult<(
-    String,
-    Option<()>,
-    Vec<(&'static str, Vec<&'static str>)>,
-    IndexSet<ExternCrate>,
-)> {
+) -> TranslationResult<UnitOutput> {
     let mut t = Translation::new(ast_context, tcfg, main_file);
+    t.link = link;
+
+    // Source layout: an external symbol is spelled by its C name in every
+    // module — the owner's definition and the other units' references alike —
+    // so every such name is claimed first, on the fresh renamer, in one fixed
+    // order.  A name the renamer would still alter (a daslang reserved word
+    // such as `print`) cannot be made to agree across units and fails closed;
+    // C's `main` is the one exception, kept as `main_0` and never referenced
+    // across units (the `--libc std` entry wrapper calls it by that name).
+    let mut public_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+    if t.link.is_some() {
+        let mut externals: Vec<(String, CDeclId, bool)> = t
+            .ast_context
+            .iter_decls()
+            .filter_map(|(&decl_id, decl)| match &decl.kind {
+                CDeclKind::Function {
+                    is_global: true,
+                    name,
+                    body,
+                    ..
+                } if name != "main" => Some((name.clone(), decl_id, body.is_some())),
+                CDeclKind::Variable {
+                    has_static_duration: true,
+                    is_externally_visible: true,
+                    is_defn,
+                    ident,
+                    ..
+                } => Some((ident.clone(), decl_id, *is_defn)),
+                _ => None,
+            })
+            .filter(|(name, _, defines)| *defines || t.link_owner(name).is_some())
+            .collect();
+        externals.sort();
+        for (name, decl_id, defines) in externals {
+            let das_name = t.declare_value_name(decl_id, &name);
+            if das_name != name {
+                return Err(format_translation_err!(
+                    t.ast_context.display_loc(&t.ast_context[decl_id].loc),
+                    "unsupported module layout: external symbol {} would be spelled {} in \
+                     daslang and cannot be shared between modules",
+                    name,
+                    das_name,
+                ));
+            }
+            if defines {
+                public_names.insert(das_name);
+            }
+        }
+    }
 
     // Per-translation-unit arenas: the string-literal backing arrays and the
     // builtin prelude helpers are collected while lowering and drained into
@@ -4002,6 +4115,14 @@ fn translate_impl(
         // defining unit never writes; there is no program-wide symbol table
         // yet, so the declaration fails closed like an external call does.
         let converted = match decl.kind {
+            // Source layout: the object lives in its owner's module, which
+            // this unit `require`s, so the name resolves there and this unit
+            // declares nothing for it.
+            CDeclKind::Variable {
+                is_defn: false,
+                ref ident,
+                ..
+            } if t.link_owner(ident).is_some() => continue,
             CDeclKind::Variable {
                 is_defn: false,
                 ref ident,
@@ -4110,6 +4231,10 @@ fn translate_impl(
     // precede the objects — a hoisted `static const` table keyed by enum
     // constants among them.
     module_decls.extend(enum_const_decls);
+    // Under the source layout the type section and the enumeration constants
+    // — everything between the runtime prelude and here — move to the shared
+    // module after the passes below (see `UnitOutput::shared_types`).
+    let shared_type_end = module_decls.len();
     // A C string literal has static storage duration; its backing byte array
     // is a module-level object, declared before any function that takes its
     // address — and before any initializer that points into it.
@@ -4119,7 +4244,14 @@ fn translate_impl(
     // The `--libc std` replacement prelude, if this translation unit used any
     // of it. In the default `nostd` mode this is empty and the module is
     // unchanged.
-    module_decls.extend(libc::take_declarations());
+    // Under the source layout these helpers go to the shared module too —
+    // the `errno` cell and the stream tables are program state, and two
+    // units must not each carry a copy — so the pre-pass declarations are
+    // kept aside and this unit's copy is dropped after the passes.
+    let libc_helpers = libc::take_declarations();
+    let libc_range = module_decls.len()..module_decls.len() + libc_helpers.len();
+    let libc_contribution = t.link.is_some().then(|| libc_helpers.clone());
+    module_decls.extend(libc_helpers);
     // Function-scope `static` storage lowered while pass 2 walked the bodies
     // joins the file-scope objects: both are module-level `var`s, and an
     // initializer in either group may name one in the other.
@@ -4139,7 +4271,15 @@ fn translate_impl(
     ));
     // The `std` entry wrapper calls the translated C `main`, so it comes after
     // every translated function.
-    module_decls.extend(libc::take_entry_declarations());
+    let entry_declarations = libc::take_entry_declarations();
+    let entry_names: std::collections::HashSet<String> = entry_declarations
+        .iter()
+        .filter_map(|decl| match decl {
+            DaDecl::Function(function) => Some(function.name.clone()),
+            _ => None,
+        })
+        .collect();
+    module_decls.extend(entry_declarations);
     // The compile-time proof that every natural record's daScript layout is
     // Clang's is a fact about the module's type section, emitted once after
     // every owner has declared its records and lowered every field access
@@ -4192,6 +4332,55 @@ fn translate_impl(
         module_decls.drain(..runtime_decl_count);
         requires.push(name.clone());
     }
+    // Source layout (`UnitLink`): the type section, the enumeration constants
+    // and the `--libc std` helpers leave for the shared module (the runtime
+    // module, which the layout always names); every function and object the
+    // C program did not give external linkage becomes `private`, so two
+    // units' same-named statics, string literals and generated helpers never
+    // clash; the units this one references are `require`d.
+    let mut shared_types = Vec::new();
+    if let Some(link) = &t.link {
+        // The runtime prelude was drained from the head just above, so every
+        // recorded position has moved down by its length.
+        let runtime_removed = if t.tcfg.runtime_module.is_some() {
+            runtime_decl_count
+        } else {
+            0
+        };
+        let libc_decls = module_decls
+            .drain(libc_range.start - runtime_removed..libc_range.end - runtime_removed)
+            .count();
+        debug_assert_eq!(libc_decls, libc_contribution.as_ref().map_or(0, Vec::len));
+        shared_types = module_decls
+            .drain(..shared_type_end - runtime_removed)
+            .collect();
+        for decl in &mut module_decls {
+            let name = match &*decl {
+                DaDecl::Function(function) => &function.name,
+                DaDecl::Variable(variable) => &variable.name,
+                _ => continue,
+            };
+            // The std entry wrapper is daslang's `[export]` entry point and
+            // stays public with the C program's own external symbols.
+            if public_names.contains(name) || entry_names.contains(name) {
+                continue;
+            }
+            if let DaDecl::Function(function) = decl {
+                function
+                    .annotations
+                    .retain(|annotation| annotation != "export");
+            }
+            let inner = std::mem::replace(
+                decl,
+                DaDecl::Alias(das_ast::DaAlias {
+                    name: String::new(),
+                    aliased_type: DaType::void(),
+                }),
+            );
+            *decl = DaDecl::Private(Box::new(inner));
+        }
+        requires.extend(link.requires.iter().cloned());
+    }
     // The only other `require` lines the translator emits are the ones the
     // `--libc std` prelude stands on, and only when a std helper is in the
     // module.
@@ -4200,18 +4389,34 @@ fn translate_impl(
     // Build the daScript module.  The header is the caller's choice: an
     // anonymous `options gen2` module by default, `module <stem> public` and
     // extra `options` lines when the build that consumes the output asks
-    // for them (see TranspilerConfig::public_module / das_options).
+    // for them (see TranspilerConfig::public_module / das_options); under the
+    // source layout every unit is a named module so the others can `require`
+    // it.
     let module = DaModule {
         name: main_file
             .file_stem()
             .map(|s| s.to_string_lossy().to_string()),
-        public: t.tcfg.public_module,
+        // The unit defining C `main` is the program's entry point and stays
+        // an anonymous module: daslang runs the `[export]` entry of the file
+        // it is given only when that file is not itself a `module`
+        // ("program is setup as both module, and endpoint"), and
+        // `lib.rs link_units` refuses a unit that would `require` it.
+        public: t.tcfg.public_module
+            || (t.link.is_some()
+                && !t.ast_context.iter_decls().any(|(_, decl)| {
+                    matches!(&decl.kind, CDeclKind::Function { name, body: Some(_), .. }
+                        if name == "main")
+                })),
         requires,
         options: module_options(t.tcfg),
         decls: module_decls,
     };
 
-    Ok((module.to_string(), None, vec![], IndexSet::new()))
+    Ok(UnitOutput {
+        source: module.to_string(),
+        shared_types,
+        libc_helpers: libc_contribution.unwrap_or_default(),
+    })
 }
 
 /// The `options` header of every module this translator writes.
@@ -4241,7 +4446,45 @@ fn module_options(tcfg: &TranspilerConfig) -> Vec<String> {
 /// writes.  It depends on no translation unit, which is what lets the units
 /// share one heap.
 pub fn runtime_module_source(tcfg: &TranspilerConfig, name: &str) -> String {
+    shared_module_source(tcfg, name, vec![], vec![])
+}
+
+/// `runtime_module_source` for `--module-layout source`: the shared module
+/// also carries the program's C type section (`UnitOutput::shared_types`,
+/// merged by `lib.rs`) and the union of the units' `--libc std` helpers,
+/// objects first, so the one `errno` cell and the one set of stream tables
+/// are initialized before any helper reads them.  The helpers stand on
+/// daslib, hence the `require` lines (`libc::STD_MODULE_REQUIRES`).
+pub fn shared_module_source(
+    tcfg: &TranspilerConfig,
+    name: &str,
+    shared_types: Vec<DaDecl>,
+    libc_helpers: Vec<DaDecl>,
+) -> String {
     let mut decls = c2da_runtime_helpers();
+    // The merged type section is ordered once more the way a unit's is
+    // (`translate_impl`): a record completed by one unit and only named by
+    // another has to follow the records it embeds, wherever the merge put it.
+    let (constants, types): (Vec<DaDecl>, Vec<DaDecl>) = shared_types
+        .into_iter()
+        .partition(|decl| matches!(decl, DaDecl::Variable(_)));
+    decls.extend(global_order::order_record_declarations(
+        global_order::order_type_aliases(types),
+    ));
+    decls.extend(constants);
+    let (objects, functions): (Vec<DaDecl>, Vec<DaDecl>) = libc_helpers
+        .into_iter()
+        .partition(|decl| matches!(decl, DaDecl::Variable(_)));
+    let requires = if objects.is_empty() && functions.is_empty() {
+        vec![]
+    } else {
+        libc::STD_MODULE_REQUIRES
+            .iter()
+            .map(|module| (*module).to_owned())
+            .collect()
+    };
+    decls.extend(objects);
+    decls.extend(functions);
     if tcfg.unsafe_deref {
         apply_unsafe_deref(&mut decls);
     }
@@ -4250,7 +4493,7 @@ pub fn runtime_module_source(tcfg: &TranspilerConfig, name: &str) -> String {
     DaModule {
         name: Some(name.to_owned()),
         public: true,
-        requires: vec![],
+        requires,
         options: module_options(tcfg),
         decls,
     }

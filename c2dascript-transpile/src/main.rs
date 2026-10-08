@@ -11,7 +11,7 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all] [--runtime-module <name>] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all] [--runtime-module <name>] [--module-layout unity|source] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
@@ -102,9 +102,33 @@ fn main() {
             std::process::exit(1);
         }
     }
+    // How the program is laid out over daslang modules
+    // (TranspilerConfig::module_layout).  `source` links the units of a
+    // compile_commands.json, so a single `--file` is refused below.
+    let module_layout = match take_value(&mut args, "--module-layout") {
+        Some(text) => match c2dascript_transpile::ModuleLayout::parse(&text) {
+            Some(layout) => layout,
+            None => {
+                let layouts: Vec<&str> = c2dascript_transpile::ModuleLayout::ALL
+                    .iter()
+                    .map(|layout| layout.as_str())
+                    .collect();
+                eprintln!(
+                    "unknown module layout '{text}'; expected one of {}",
+                    layouts.join(", ")
+                );
+                std::process::exit(1);
+            }
+        },
+        None => c2dascript_transpile::ModuleLayout::default(),
+    };
     let output_dir = take_option(&mut args, "--output-dir");
     if args.is_empty() {
         eprintln!("Expected compile_commands.json or --file <file.c>");
+        std::process::exit(1);
+    }
+    if module_layout == c2dascript_transpile::ModuleLayout::Source && args[0] == "--file" {
+        eprintln!("--module-layout source links a program: pass its compile_commands.json");
         std::process::exit(1);
     }
     let config = c2dascript_transpile::TranspilerConfig {
@@ -126,6 +150,7 @@ fn main() {
         das_options,
         libc,
         runtime_module,
+        module_layout,
         enabled_warnings,
         disabled_warnings,
     };

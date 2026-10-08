@@ -11,8 +11,10 @@ pub mod renamer;
 pub mod translator;
 pub mod with_stmts;
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs::{self, File};
+
+use das_ast::DaDecl;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -45,6 +47,10 @@ pub enum TranspileError {
         path: PathBuf,
         error: std::io::Error,
     },
+    /// `--module-layout source` cannot lay the program out: a reference cycle
+    /// between units, two definitions of one external symbol, two units with
+    /// one stem, or a shared type the units declare differently.
+    Layout(String),
 }
 
 impl std::fmt::Display for TranspileError {
@@ -57,6 +63,7 @@ impl std::fmt::Display for TranspileError {
             Self::ClangAst(error) => write!(f, "Clang AST export: {error}"),
             Self::Translation(error) => write!(f, "{error}"),
             Self::Output { path, error } => write!(f, "cannot write {}: {error}", path.display()),
+            Self::Layout(error) => write!(f, "module layout: {error}"),
         }
     }
 }
@@ -75,6 +82,49 @@ pub enum ExternCrate {
     NumTraits,
     Memoffset,
     Libc,
+}
+
+/// How a program's translation units are laid out over daslang modules
+/// (`--module-layout`).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ModuleLayout {
+    /// One `.das` per translation unit, each a complete module carrying its
+    /// own prelude copy; a reference to another unit's symbol fails closed.
+    /// The default.
+    #[default]
+    Unity,
+    /// One `module <stem>` per `.c` file.  The runtime prelude, the C type
+    /// section and the `--libc std` helpers go to one shared module
+    /// (`--runtime-module`, default [`DEFAULT_RUNTIME_MODULE`]); a unit
+    /// `require`s the modules whose external symbols it references; a C
+    /// `static` is `private`.  Only an acyclic program is accepted: a
+    /// reference cycle between units is a [`TranspileError::Layout`].
+    Source,
+}
+
+/// The shared module's name under `--module-layout source` when
+/// `--runtime-module` names none.
+pub const DEFAULT_RUNTIME_MODULE: &str = "c2da_runtime";
+
+impl ModuleLayout {
+    pub const ALL: [Self; 2] = [Self::Unity, Self::Source];
+
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.as_str() == text)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unity => "unity",
+            Self::Source => "source",
+        }
+    }
+}
+
+impl std::fmt::Display for ModuleLayout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 /// libc policy for a translation unit (`--libc`).
@@ -186,7 +236,7 @@ impl std::fmt::Display for InlineMode {
 }
 
 /// Configuration settings for the translation process
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TranspilerConfig {
     pub dump_untyped_context: bool,
     pub dump_typed_context: bool,
@@ -241,6 +291,10 @@ pub struct TranspilerConfig {
     /// helper set is chosen per unit from the calls the unit makes and built
     /// on the unit's own Clang target facts (`libc.rs StdLayout`).
     pub runtime_module: Option<String>,
+    /// How the program is laid out over daslang modules (`--module-layout`).
+    /// See [`ModuleLayout`]; `unity` is the default and leaves output
+    /// unchanged.
+    pub module_layout: ModuleLayout,
     /// Translator diagnostics switched on beyond the default set
     /// (`-W<name>`); [`Diagnostic::All`] switches on every one of them.
     pub enabled_warnings: HashSet<Diagnostic>,
@@ -320,6 +374,7 @@ impl Default for TranspilerConfig {
             das_options: vec![],
             libc: LibcMode::NoStd,
             runtime_module: None,
+            module_layout: ModuleLayout::Unity,
             enabled_warnings: HashSet::new(),
             disabled_warnings: HashSet::new(),
         }
@@ -382,6 +437,21 @@ pub fn transpile(
             return Err(vec![TranspileError::CompileCommands(e.to_string())]);
         }
     };
+    // The source layout links the units before translating any of them, so
+    // it has no per-unit "continue past a failure" mode: a failed unit is a
+    // failed program.
+    if tcfg.module_layout == ModuleLayout::Source {
+        return transpile_source_layout(
+            &tcfg,
+            &lcmds
+                .iter()
+                .flat_map(|lcmd| lcmd.cmd_inputs.iter().map(|cmd| cmd.abs_file()))
+                .collect::<Vec<_>>(),
+            cc_db,
+            extra_clang_args,
+        )
+            .map_err(|error| vec![error]);
+    }
 
     let mut outputs = Vec::new();
     let mut failures = Vec::new();
@@ -445,6 +515,17 @@ pub fn transpile_checked(
     );
     let lcmds = get_compile_commands(cc_db, &tcfg.filter)
         .map_err(|error| TranspileError::CompileCommands(error.to_string()))?;
+    if tcfg.module_layout == ModuleLayout::Source {
+        return transpile_source_layout(
+            &tcfg,
+            &lcmds
+                .iter()
+                .flat_map(|lcmd| lcmd.cmd_inputs.iter().map(|cmd| cmd.abs_file()))
+                .collect::<Vec<_>>(),
+            cc_db,
+            extra_clang_args,
+        );
+    }
     let mut outputs = Vec::new();
     for lcmd in &lcmds {
         for cmd in &lcmd.cmd_inputs {
@@ -494,6 +575,24 @@ fn transpile_single_checked(
 
     println!("Transpiling {}", file);
 
+    let typed_context = typed_context_for(tcfg, input_path, cc_db, extra_clang_args)?;
+
+    let (das_code, _maybe_decl_map, _pragmas, _crates) =
+        translator::translate_checked(typed_context, tcfg, input_path)
+            .map_err(TranspileError::Translation)?;
+
+    let output_path = output_path_for(tcfg, input_path)?;
+    write_output(&output_path, &das_code)?;
+    Ok(output_path)
+}
+
+/// Runs the Clang exporter over one unit and types its AST.
+fn typed_context_for(
+    tcfg: &TranspilerConfig,
+    input_path: &Path,
+    cc_db: &Path,
+    extra_clang_args: &[&str],
+) -> Result<TypedAstContext, TranspileError> {
     let untyped_context = match ast_exporter::get_untyped_ast(
         input_path,
         cc_db,
@@ -510,29 +609,360 @@ fn transpile_single_checked(
         }
         Ok(cxt) => cxt,
     };
+    let conv = ConversionContext::new(input_path, &untyped_context);
+    Ok(conv.into_typed_context())
+}
 
-    let typed_context = {
-        let conv = ConversionContext::new(input_path, &untyped_context);
-        conv.into_typed_context()
-    };
-
-    let (das_code, _maybe_decl_map, _pragmas, _crates) =
-        translator::translate_checked(typed_context, tcfg, input_path)
-            .map_err(TranspileError::Translation)?;
-
-    let output_path = output_path_for(tcfg, input_path)?;
-    let mut file = File::create(&output_path).map_err(|error| TranspileError::Output {
-        path: output_path.clone(),
+fn write_output(output_path: &Path, das_code: &str) -> Result<(), TranspileError> {
+    let mut file = File::create(output_path).map_err(|error| TranspileError::Output {
+        path: output_path.to_path_buf(),
         error,
     })?;
     file.write_all(das_code.as_bytes())
         .map_err(|error| TranspileError::Output {
-            path: output_path.clone(),
+            path: output_path.to_path_buf(),
             error,
         })?;
-
     println!("Wrote {}", output_path.display());
-    Ok(output_path)
+    Ok(())
+}
+
+/// `--module-layout source`: one `module <stem>` per unit plus the shared
+/// module, written only once every unit has translated.
+///
+/// The link pre-pass ([`link_units`]) reads every unit's Clang AST before any
+/// is translated: it needs the whole program to say which module owns each
+/// external symbol, and it refuses a reference cycle (the next layout stage)
+/// and a symbol two units define.  The shared module then takes the runtime
+/// prelude, the merged C type section — the same C type reaches it once, and
+/// a unit whose copy of a type prints differently fails closed, so a type
+/// crossing a call boundary is one daslang type — and the union of the
+/// units' `--libc std` helpers.
+fn transpile_source_layout(
+    tcfg: &TranspilerConfig,
+    inputs: &[PathBuf],
+    cc_db: &Path,
+    extra_clang_args: &[&str],
+) -> Result<Vec<PathBuf>, TranspileError> {
+    let mut contexts = Vec::with_capacity(inputs.len());
+    for input_path in inputs {
+        if !input_path.exists() {
+            return Err(TranspileError::MissingInput(input_path.clone()));
+        }
+        println!("Reading {}", input_path.display());
+        contexts.push(typed_context_for(
+            tcfg,
+            input_path,
+            cc_db,
+            extra_clang_args,
+        )?);
+    }
+    let runtime_module = tcfg
+        .runtime_module
+        .clone()
+        .unwrap_or_else(|| DEFAULT_RUNTIME_MODULE.to_owned());
+    let links = link_units(inputs, &contexts, &runtime_module)?;
+    let shared_tcfg = TranspilerConfig {
+        runtime_module: Some(runtime_module.clone()),
+        ..tcfg.clone()
+    };
+
+    let mut sources: Vec<(PathBuf, String)> = Vec::with_capacity(inputs.len());
+    let mut shared_types: Vec<DaDecl> = Vec::new();
+    let mut shared_type_text: HashMap<String, (String, PathBuf)> = HashMap::new();
+    let mut libc_helpers: BTreeMap<String, (DaDecl, PathBuf)> = BTreeMap::new();
+    for ((input_path, context), link) in inputs.iter().zip(contexts).zip(links) {
+        println!("Transpiling {}", link.module);
+        let output = translator::translate_unit(context, &shared_tcfg, input_path, link)
+            .map_err(TranspileError::Translation)?;
+        for decl in output.shared_types {
+            let key = shared_decl_key(&decl);
+            let text = decl.to_string();
+            // A unit that only sees `struct S;` (an opaque handle, C11
+            // 6.2.5p22) declares the record with no fields; the unit that
+            // completes it owns the one shared declaration.
+            let is_opaque_record = |d: &DaDecl| {
+                matches!(d, DaDecl::Structure(s) if s.fields.is_empty())
+            };
+            match shared_type_text.get(&key) {
+                None => {
+                    shared_type_text.insert(key, (text, input_path.clone()));
+                    shared_types.push(decl);
+                }
+                Some((seen, _)) if *seen == text => {}
+                Some(_) if is_opaque_record(&decl) => {}
+                Some((seen, _))
+                    if matches!(&shared_types.iter().find(|d| shared_decl_key(d) == key),
+                        Some(d) if is_opaque_record(d)) =>
+                {
+                    let _ = seen;
+                    let position = shared_types
+                        .iter()
+                        .position(|d| shared_decl_key(d) == key)
+                        .expect("the opaque declaration is in the shared set");
+                    shared_types[position] = decl;
+                    shared_type_text.insert(key, (text, input_path.clone()));
+                }
+                Some((seen, first)) => {
+                    let differing = seen
+                        .lines()
+                        .zip(text.lines())
+                        .find(|(a, b)| a != b)
+                        .map(|(a, b)| format!("; first difference: `{a}` vs `{b}`"))
+                        .unwrap_or_default();
+                    return Err(TranspileError::Layout(format!(
+                        "{key} is declared differently by {} and {}; the source layout \
+                         shares one declaration of every C type{differing}",
+                        first.display(),
+                        input_path.display()
+                    )));
+                }
+            }
+        }
+        for decl in output.libc_helpers {
+            let key = shared_decl_key(&decl);
+            match libc_helpers.get(&key) {
+                None => {
+                    libc_helpers.insert(key, (decl, input_path.clone()));
+                }
+                Some((seen, _)) if seen.to_string() == decl.to_string() => {}
+                Some((_, first)) => {
+                    return Err(TranspileError::Layout(format!(
+                        "std helper {key} is built differently by {} and {} (different C \
+                         target facts); the source layout shares one std prelude",
+                        first.display(),
+                        input_path.display()
+                    )));
+                }
+            }
+        }
+        sources.push((output_path_for(tcfg, input_path)?, output.source));
+    }
+
+    let mut outputs = Vec::with_capacity(sources.len() + 1);
+    for (output_path, source) in &sources {
+        write_output(output_path, source)?;
+        outputs.push(output_path.clone());
+    }
+    let output_dir = tcfg.output_dir.clone().unwrap_or_else(|| PathBuf::from("."));
+    let shared_path = output_dir.join(&runtime_module).with_extension("das");
+    let shared_source = translator::shared_module_source(
+        &shared_tcfg,
+        &runtime_module,
+        shared_types,
+        libc_helpers.into_values().map(|(decl, _)| decl).collect(),
+    );
+    write_output(&shared_path, &shared_source)?;
+    outputs.push(shared_path);
+    Ok(outputs)
+}
+
+/// `kind name` of a shared declaration, the identity it is merged by.
+fn shared_decl_key(decl: &DaDecl) -> String {
+    match decl {
+        DaDecl::Function(f) => format!("function {}", f.name),
+        DaDecl::Variable(v) => format!("variable {}", v.name),
+        DaDecl::Structure(s) => format!("struct {}", s.name),
+        DaDecl::Enumeration(e) => format!("enum {}", e.name),
+        DaDecl::Alias(a) => format!("typedef {}", a.name),
+        DaDecl::Private(inner) => shared_decl_key(inner),
+    }
+}
+
+/// The link pre-pass of the source layout.
+///
+/// A unit defines the external symbols it gives external linkage and a body
+/// or an object (C11 6.2.2, 6.9.2); it references every external function
+/// and object it declares without defining.  A reference to a symbol no unit
+/// defines is not a link edge — the unit's own lowering fails closed on a
+/// call to it as before, and an unused prototype from a header costs nothing.
+/// The edges unit → owner must form a DAG, because daslang refuses a cyclic
+/// `require`; the cycle is reported by its files.
+fn link_units(
+    inputs: &[PathBuf],
+    contexts: &[TypedAstContext],
+    runtime_module: &str,
+) -> Result<Vec<translator::UnitLink>, TranspileError> {
+    let mut stems: Vec<String> = Vec::with_capacity(inputs.len());
+    let mut stem_of: HashMap<String, PathBuf> = HashMap::new();
+    for input in inputs {
+        let stem = input
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .ok_or_else(|| TranspileError::MissingInput(input.clone()))?;
+        if let Some(other) = stem_of.insert(stem.clone(), input.clone()) {
+            return Err(TranspileError::Layout(format!(
+                "{} and {} would both become module {stem}",
+                other.display(),
+                input.display()
+            )));
+        }
+        if stem == runtime_module {
+            return Err(TranspileError::Layout(format!(
+                "{} would become module {stem}, the shared runtime module's name",
+                input.display()
+            )));
+        }
+        stems.push(stem);
+    }
+
+    let mut owner: HashMap<String, usize> = HashMap::new();
+    let mut references: Vec<BTreeSet<String>> = Vec::with_capacity(inputs.len());
+    // The unit defining C `main` stays an anonymous module so daslang runs
+    // it as the program (`translator::translate_impl`); nothing may `require`
+    // it.
+    let mut entry_unit: Option<usize> = None;
+    for (unit, context) in contexts.iter().enumerate() {
+        let mut defines = BTreeSet::new();
+        let mut refs = BTreeSet::new();
+        for (_, decl) in context.iter_decls() {
+            match &decl.kind {
+                CDeclKind::Function {
+                    is_global: true,
+                    name,
+                    body: Some(_),
+                    ..
+                } => {
+                    defines.insert(name.clone());
+                }
+                CDeclKind::Variable {
+                    has_static_duration: true,
+                    is_externally_visible: true,
+                    is_defn: true,
+                    ident,
+                    ..
+                } => {
+                    defines.insert(ident.clone());
+                }
+                _ => {}
+            }
+        }
+        // A reference is a use, not a declaration: a header's prototype that
+        // the unit never names makes no edge (it would make every pair of
+        // units sharing a header a cycle).
+        for (_, expr) in context.iter_exprs() {
+            let CExprKind::DeclRef(_, decl_id, _) = expr.kind else {
+                continue;
+            };
+            match &context[decl_id].kind {
+                CDeclKind::Function {
+                    is_global: true,
+                    name,
+                    ..
+                } => {
+                    refs.insert(name.clone());
+                }
+                CDeclKind::Variable {
+                    has_static_duration: true,
+                    is_externally_visible: true,
+                    ident,
+                    ..
+                } => {
+                    refs.insert(ident.clone());
+                }
+                _ => {}
+            }
+        }
+        for name in defines {
+            if name == "main" {
+                entry_unit = Some(unit);
+                continue;
+            }
+            refs.remove(&name);
+            if let Some(&other) = owner.get(&name) {
+                return Err(TranspileError::Layout(format!(
+                    "{name} is defined by both {} and {}",
+                    inputs[other].display(),
+                    inputs[unit].display()
+                )));
+            }
+            owner.insert(name, unit);
+        }
+        references.push(refs);
+    }
+
+    let mut links: Vec<translator::UnitLink> = Vec::with_capacity(inputs.len());
+    let mut edges: Vec<BTreeSet<usize>> = Vec::with_capacity(inputs.len());
+    for (unit, refs) in references.iter().enumerate() {
+        let mut owners = HashMap::new();
+        let mut deps = BTreeSet::new();
+        for name in refs {
+            if let Some(&other) = owner.get(name) {
+                if other != unit {
+                    if entry_unit == Some(other) {
+                        return Err(TranspileError::Layout(format!(
+                            "{} references {name}, defined by the entry unit {}; the unit \
+                             with `main` is run as the program and cannot be required",
+                            inputs[unit].display(),
+                            inputs[other].display()
+                        )));
+                    }
+                    owners.insert(name.clone(), stems[other].clone());
+                    deps.insert(other);
+                }
+            }
+        }
+        links.push(translator::UnitLink {
+            module: stems[unit].clone(),
+            owners,
+            requires: deps.iter().map(|&dep| stems[dep].clone()).collect(),
+        });
+        edges.push(deps);
+    }
+
+    // Depth-first search for a back edge; `path` is the chain of units being
+    // visited, so the cycle is the tail of it from the revisited unit.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Mark {
+        New,
+        Active,
+        Done,
+    }
+    fn visit(
+        unit: usize,
+        edges: &[BTreeSet<usize>],
+        marks: &mut [Mark],
+        path: &mut Vec<usize>,
+    ) -> Option<Vec<usize>> {
+        marks[unit] = Mark::Active;
+        path.push(unit);
+        for &next in &edges[unit] {
+            match marks[next] {
+                Mark::Done => {}
+                Mark::Active => {
+                    let start = path.iter().position(|&u| u == next).unwrap_or(0);
+                    let mut cycle = path[start..].to_vec();
+                    cycle.push(next);
+                    return Some(cycle);
+                }
+                Mark::New => {
+                    if let Some(cycle) = visit(next, edges, marks, path) {
+                        return Some(cycle);
+                    }
+                }
+            }
+        }
+        path.pop();
+        marks[unit] = Mark::Done;
+        None
+    }
+    let mut marks = vec![Mark::New; inputs.len()];
+    for unit in 0..inputs.len() {
+        if marks[unit] == Mark::New {
+            if let Some(cycle) = visit(unit, &edges, &mut marks, &mut Vec::new()) {
+                let files: Vec<String> = cycle
+                    .iter()
+                    .map(|&u| inputs[u].display().to_string())
+                    .collect();
+                return Err(TranspileError::Layout(format!(
+                    "the units reference each other in a cycle, which daslang's `require` \
+                     refuses: {}; a cyclic layout is not supported yet",
+                    files.join(" -> ")
+                )));
+            }
+        }
+    }
+    Ok(links)
 }
 
 use crate::compile_cmds::CompileCmd;

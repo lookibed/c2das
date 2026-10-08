@@ -64,6 +64,23 @@ particular:
   (the module passes run before the prelude is split off). The `--libc std` helpers stay in
   each unit: their set is chosen per unit from the calls it makes and built on the unit's
   own Clang target facts. Without the flag the output is exactly the single-module layout.
+- `--module-layout source` (opt-in; `unity`, the default, is the layout above) takes a
+  `compile_commands.json` and writes one `module <stem>` per `.c` file. A link pre-pass reads
+  every unit's Clang AST first: it records the external functions and objects each unit
+  defines and the ones it uses, refuses two definitions of one symbol and a reference cycle
+  between units (daslang refuses a cyclic `require`; the diagnostic names the files of the
+  cycle), and refuses a unit that would `require` the unit defining `main`. Each unit then
+  `require`s the modules owning the symbols it uses, so a call or an `extern` object that
+  the single-module layout rejects resolves there, spelled by its C name (a name daslang would
+  rename, such as `print`, fails closed); a C `static` function or object, and every
+  generated per-unit helper, is `private`. The runtime prelude, the C type section (records,
+  aliases, enumerations and the enumeration-constant `let`s, so one C type is one daslang
+  type on both sides of a call) and the `--libc std` helpers — the one `errno` cell and the
+  one set of stream tables — go to the shared module, `--runtime-module <name>` or
+  `c2da_runtime` by default; a type or std helper two units declare differently fails
+  closed (an opaque `struct S;` defers to the unit that completes it). The unit defining
+  `main` stays an anonymous module and is the file to run. Only acyclic programs are
+  accepted in this stage.
 - Function pointers are typed daScript function values called through `invoke`;
   `__builtin_popcount/clz/ctz/ffs/bswap*/*_overflow/expect` and a few more have real
   lowerings, every other builtin is a diagnostic.
@@ -110,6 +127,11 @@ python3 scripts/run_c2das_cases.py --list           # every case and its status
   unrepresentable field type, a variadic function-pointer call and the like are rejected
   under `--strict` with the declared diagnostic and produce no output.
 - `python3 scripts/run_c2das_cases.py --list` is the count; the README does not carry one.
+- The last translation of every case is kept for reading and linting in
+  `.c2das-out/latest/<case-id>/canonical/` (git-ignored; `C2DAS_LATEST_DIR` moves it), with a
+  `TRANSLATION.json` naming the commit and the translator command. `corpus_matrix.py` keeps
+  its translations beside it as `matrix-<variant>/`. Each run replaces the previous copy of
+  that case and variant, and a translation is kept even when its program then fails.
 
 On the inherited c2rust unit fixtures (`tests/unit/*/src/*.c`, not part of the gate) a survey
 of 2026-09-06 found strict translation accepting 66 of 97 and 49 of those compiling with
@@ -160,6 +182,9 @@ program. `--libc std` translates a whole program including its `main`; `--strict
 unsupported construct into a hard error. `--runtime-module <name>` writes the shared runtime
 prelude once as `<output dir>/<name>.das` (the name must be a daslang identifier) and makes
 each translated unit `require` it; run the unit's `.das` from that directory as usual.
+`--module-layout source` needs a `compile_commands.json` (not `--file`), implies the shared
+runtime module (`c2da_runtime` unless `--runtime-module` names it) and writes every unit and
+the shared module into one directory; run the unit that defines `main` from there.
 
 ## Validation pipeline
 

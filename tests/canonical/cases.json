@@ -1802,6 +1802,57 @@
         "headline": "doomgeneric (Doom engine), 320×200",
         "timed": "demo tick loop"
       }
+    },
+    {
+      "id": "m01-module-layout-source",
+      "status": "ready",
+      "source_root": "tests/syntax/m01_module_layout_source",
+      "translation_entry": "main.c",
+      "translation_units": ["counter.c", "split.c", "main.c"],
+      "c_graph": "multi-tu-source",
+      "libc": "std",
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-w"]
+      },
+      "c_reference": {
+        "entrypoint": "main",
+        "return_type": "int"
+      },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "lo=93 hi=16\napplied=24\nmode=2 helper=0\nshared=24\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "m02-module-layout-cycle",
+      "status": "negative",
+      "source_root": "tests/syntax/m02_module_layout_cycle",
+      "translation_entry": "ring_a.c",
+      "translation_units": ["ring_a.c", "ring_b.c", "ring_c.c"],
+      "c_graph": "multi-tu-source",
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-w"]
+      },
+      "c_reference": {
+        "entrypoint": "not-applicable",
+        "return_type": "int"
+      },
+      "das_entrypoint": "not-applicable",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "expected_error": {
+        "operation": "module layout",
+        "type": "not-applicable",
+        "location": "ring_b.c",
+        "cause": "the units reference each other in a cycle, which daslang's `require` refuses"
+      },
+      "runtime": "not-applicable"
     }
   ]
 }

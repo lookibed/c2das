@@ -274,14 +274,16 @@ class Prepared:
 
     def translate(self, c_entry: Path, out_dir: Path, extra: list[str] | None = None) -> Path:
         """Strict translation of one C translation unit; returns the module it wrote."""
-        sh(
-            ["cargo", "run", "-q", "-p", "c2dascript-transpile", "--", "--strict", *(extra or []),
-             *self.libc_flags(), "--output-dir", str(out_dir), "--file", str(c_entry), *self.flags],
-            cwd=ROOT, env=self.env, label=f"c2das transpilation of {c_entry.name}",
-        )
+        command = ["cargo", "run", "-q", "-p", "c2dascript-transpile", "--", "--strict", *(extra or []),
+                   *self.libc_flags(), "--output-dir", str(out_dir), "--file", str(c_entry), *self.flags]
+        sh(command, cwd=ROOT, env=self.env, label=f"c2das transpilation of {c_entry.name}")
         module = out_dir / c_entry.with_suffix(".das").name
         if not module.is_file():
             raise MatrixFailure(f"{self.case['id']}: transpiler produced no fresh output for {c_entry.name}")
+        # The variant is the output directory's place in the workspace
+        # (`generated`, `generated_bench`, `aot-…-generated`, …).
+        variant = "-".join(out_dir.relative_to(self.work).parts)
+        runner.store_latest(self.case["id"], f"matrix-{variant}", out_dir, command)
         return module
 
 

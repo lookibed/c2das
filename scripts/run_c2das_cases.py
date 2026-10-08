@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 from pathlib import Path
@@ -89,6 +90,16 @@ def load_cases() -> list[dict[str, Any]]:
             isinstance(flag, str) and flag.strip() for flag in translator_flags
         ):
             raise CaseFailure(f"{identifier}: translator_flags must be a list of flag strings")
+        units = case.get("translation_units")
+        if units is not None:
+            if not isinstance(units, list) or len(units) < 2 or not all(
+                isinstance(unit, str) and unit.endswith(".c") for unit in units
+            ):
+                raise CaseFailure(
+                    f"{identifier}: translation_units must list two or more source-root-relative .c files"
+                )
+            if case["translation_entry"] not in units:
+                raise CaseFailure(f"{identifier}: translation_entry must be one of translation_units")
         if "expected_exporter_failure" in case:
             failure = case["expected_exporter_failure"]
             if not isinstance(failure, dict) or not all(
@@ -178,6 +189,54 @@ def libc_flags(case: dict[str, Any]) -> list[str]:
     return flags
 
 
+def latest_root() -> Path:
+    """Where the last translation of every case is kept for analysis and linters.
+
+    `C2DAS_LATEST_DIR` overrides the default `<checkout>/.c2das-out/latest`
+    (git-ignored).  Generated daslang is evidence, not source: nothing here is
+    committed, and each translation replaces the previous one of the same
+    case and variant.
+    """
+    return Path(os.environ.get("C2DAS_LATEST_DIR", str(ROOT / ".c2das-out" / "latest")))
+
+
+def git_head() -> str:
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "--short=9", "HEAD"], cwd=ROOT, text=True, capture_output=True
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=ROOT, text=True, capture_output=True,
+        ).stdout.strip()
+    except OSError:
+        return "unknown"
+    return f"{head}{'-dirty' if dirty else ''}" if head else "unknown"
+
+
+def store_latest(case_id: str, variant: str, generated_dir: Path, command: list[str]) -> Path:
+    """Copy one fresh translation to `<latest_root>/<case_id>/<variant>/`.
+
+    Called right after the translator wrote its output, before the program
+    runs, so a translation whose run fails is kept too.  `TRANSLATION.json`
+    records the commit (`-dirty` when tracked files differ from it), the
+    translator command line and the time.
+    """
+    target = latest_root() / case_id / variant
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(generated_dir, target)
+    manifest = {
+        "case": case_id,
+        "variant": variant,
+        "commit": git_head(),
+        "translated_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "command": command,
+    }
+    (target / "TRANSLATION.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    return target
+
+
 def copied_flags(flags: list[str], copied_root: Path) -> list[str]:
     resolved: list[str] = []
     for flag in flags:
@@ -186,6 +245,40 @@ def copied_flags(flags: list[str], copied_root: Path) -> list[str]:
         else:
             resolved.append(flag)
     return resolved
+
+
+def translation_input_args(
+    case: dict[str, Any], copied_root: Path, work: Path, compiler: str, clang_flags: list[str]
+) -> list[str]:
+    """The transpiler's input arguments for the case.
+
+    A single-unit case is `--file <entry> <clang flags>`.  A case declaring
+    `translation_units` (two or more source-root-relative `.c` files, the
+    `translation_entry` among them) is a whole program: the runner writes a
+    `compile_commands.json` in the temporary workspace naming every unit with
+    the case's compiler and flags, and the translator links them under
+    `--module-layout source` — one daslang module per unit plus the shared
+    runtime module, all in the generated directory.  The entry unit's `.das`
+    is the program daslang runs.
+    """
+    units = case.get("translation_units")
+    if units is None:
+        return ["--file", str(copied_root / Path(case["translation_entry"])), *clang_flags]
+    commands = []
+    for unit in units:
+        unit_path = copied_root / Path(unit)
+        if not unit_path.is_file():
+            raise CaseFailure(f"{case['id']}: missing translation unit {unit_path}")
+        commands.append(
+            {
+                "directory": str(copied_root),
+                "file": str(unit_path),
+                "arguments": [compiler, *clang_flags, str(unit_path)],
+            }
+        )
+    database = work / "compile_commands.json"
+    database.write_text(json.dumps(commands, indent=2), encoding="utf-8")
+    return ["--module-layout", "source", str(database)]
 
 
 def make_reference_main(case: dict[str, Any], destination: Path) -> Path:
@@ -251,11 +344,15 @@ def run_negative_translation(case: dict[str, Any], c_input: Path, env: dict[str,
     try:
         generated_dir = work / "generated"
         flags = copied_flags(case["clang"].get("flags", []), c_input.parent)
+        compiler = case["clang"].get("compiler", "clang-18")
+        # The fixture directory is the source root for a multi-unit case, so
+        # its units are named relative to it without copying.
+        source_root = ROOT / case["source_root"]
         result = subprocess.run(
             [
                 "cargo", "run", "-q", "-p", "c2dascript-transpile", "--",
                 "--strict", *libc_flags(case), "--output-dir", str(generated_dir),
-                "--file", str(c_input), *flags,
+                *translation_input_args(case, source_root, work, compiler, flags),
             ],
             cwd=ROOT, env=env, text=True, capture_output=True,
         )
@@ -321,7 +418,10 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         reference = work / "c-reference"
         clang_flags = copied_flags(case["clang"].get("flags", []), copied_root)
         reference_sources = case["c_reference"].get("sources")
-        if reference_sources is None and case["c_reference"].get("entrypoint") == "main":
+        if reference_sources is None and case.get("translation_units") is not None:
+            # A multi-unit program is its own C reference: every unit, linked.
+            c_sources = [copied_root / Path(unit) for unit in case["translation_units"]]
+        elif reference_sources is None and case["c_reference"].get("entrypoint") == "main":
             # The fixture defines its own C main; it is the reference program.
             c_sources = [translated_c]
         elif reference_sources is None:
@@ -356,28 +456,23 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         else:
             compare(case, "C reference", reference_result, expected)
 
-        run(
-            [
-                "cargo",
-                "run",
-                "-q",
-                "-p",
-                "c2dascript-transpile",
-                "--",
-                "--strict",
-                *libc_flags(case),
-                "--output-dir",
-                str(generated_dir),
-                "--file",
-                str(translated_c),
-                *clang_flags,
-            ],
-            cwd=ROOT,
-            env=env,
-            label="c2das transpilation",
-        )
+        translate_command = [
+            "cargo",
+            "run",
+            "-q",
+            "-p",
+            "c2dascript-transpile",
+            "--",
+            "--strict",
+            *libc_flags(case),
+            "--output-dir",
+            str(generated_dir),
+            *translation_input_args(case, copied_root, work, compiler, clang_flags),
+        ]
+        run(translate_command, cwd=ROOT, env=env, label="c2das transpilation")
         if not generated_das.is_file():
             raise CaseFailure(f"{case['id']}: transpiler produced no fresh output at {generated_das}")
+        store_latest(case["id"], "canonical", generated_dir, translate_command)
 
         if "das_program" in case:
             das_program = copied_root / Path(case["das_program"])

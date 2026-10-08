@@ -3653,6 +3653,148 @@
       "status": "supported"
     },
     {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m01_module_layout_source--counter",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m01_module_layout_source/counter.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "canonical_case": "m01-module-layout-source",
+      "canonical_cases": [
+        "m01-module-layout-source"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "lo=93 hi=16\napplied=24\nmode=2 helper=0\nshared=24\n"
+        }
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m01_module_layout_source--main",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "required",
+      "source": "tests/syntax/m01_module_layout_source/main.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m01_module_layout_source--split",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m01_module_layout_source/split.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "canonical_case": "m02-module-layout-cycle",
+      "canonical_cases": [
+        "m02-module-layout-cycle"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "the units reference each other in a cycle, which daslang's `require` refuses",
+          "location": "ring_b.c",
+          "operation": "module layout",
+          "type": "not-applicable"
+        }
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m02_module_layout_cycle--ring_a",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/m02_module_layout_cycle/ring_a.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m02_module_layout_cycle--ring_b",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m02_module_layout_cycle/ring_b.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m02_module_layout_cycle--ring_c",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m02_module_layout_cycle/ring_c.c",
+      "status": "quarantined"
+    },
+    {
       "c_graph": "single-tu",
       "checked_in_das": null,
       "clang": {
@@ -10562,6 +10704,13 @@
       ],
       "description": "One C translation unit with the fixture-local Clang invocation.",
       "id": "single-tu"
+    },
+    {
+      "clang_flags": [
+        "-w"
+      ],
+      "description": "Several C translation units of one fixture directory, linked by the case runner into a generated compile_commands.json and translated under --module-layout source (one daslang module per unit plus the shared runtime module).",
+      "id": "multi-tu-source"
     },
     {
       "clang_flags": [

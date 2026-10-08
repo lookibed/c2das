@@ -366,6 +366,9 @@ impl ModuleTypes {
                     declare_once(&mut module.aliases, &alias.name, alias.aliased_type.clone())
                 }
                 DaDecl::Enumeration(_) => {}
+                // Visibility is applied after this pass has run; a wrapped
+                // declaration is not typed by it.
+                DaDecl::Private(_) => {}
             }
         }
         module
@@ -517,6 +520,7 @@ impl<'m> Folder<'m> {
                 }
             }
             DaDecl::Alias(_) => {}
+            DaDecl::Private(_) => {}
         }
         self.scopes = outer;
     }

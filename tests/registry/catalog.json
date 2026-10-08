@@ -111,6 +111,16 @@
       "status": "quarantined"
     },
     {
+      "c_graph": "multi-tu-source",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/m*/*.c",
+      "id": "syntax-module-layout",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
       "c_graph": "single-tu",
       "entrypoint": "not-applicable",
       "expected_kind": "textual-snapshot",
@@ -228,6 +238,13 @@
       ],
       "description": "One C translation unit with the fixture-local Clang invocation.",
       "id": "single-tu"
+    },
+    {
+      "clang_flags": [
+        "-w"
+      ],
+      "description": "Several C translation units of one fixture directory, linked by the case runner into a generated compile_commands.json and translated under --module-layout source (one daslang module per unit plus the shared runtime module).",
+      "id": "multi-tu-source"
     },
     {
       "clang_flags": [

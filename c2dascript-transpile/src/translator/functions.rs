@@ -1002,6 +1002,11 @@ impl<'c> Translation<'c> {
         }) {
             return Ok(());
         }
+        // Source layout: another unit's module defines it and this module
+        // `require`s that module, so the unqualified call resolves there.
+        if self.link_owner(name).is_some() {
+            return Ok(());
+        }
         Err(format_translation_err!(
             self.ast_context.display_loc(&self.ast_context[func].loc),
             "unsupported external call: {}",
