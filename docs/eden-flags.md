@@ -55,7 +55,7 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | # | Flag | What it changes in the output | Eden rule it answers | c2das today | Status |
 |---|---|---|---|---|---|
 | 1 | `--memory-model linear` | An address is an `int`/`uint` offset into one `array<uint8>` heap; NULL is 0, with the first bytes reserved. Loads and stores are `[inline]` byte helpers (`load_u32`, `store_u32`, …), shaped like wasm3das `m3_exec_defs.das`. Floats go through `math_bits`. Pointer-backed records become an offset plus Clang's field offsets. | `unsafe`, `addr`, `reinterpret`, pointer arithmetic and `intptr` are refused in every form (§2) | Raw host addresses: `c2da_rt_heap` plus `reinterpret<T?>(address)[i]`; 16 675 `unsafe` across the generated files (§5). The biggest piece of work. | **Core implemented** (`translator/linear.rs`): `int` offsets, in-place byte loads and stores, records through pointers, string literals, allocator and byte functions; what it does not cover fails closed. Cases `p193`, `p194`, `p195` |
-| 2 | `--locals-in-heap` (part of 1) | A local whose address is taken lives in a C stack region of the heap, with a stack pointer global, as clang's wasm lowering does. Other locals stay daslang locals. | No `addr(local)` (§2) | Uses `addr(local)` | Not yet: no flag |
+| 2 | `--locals-in-heap` (part of 1) | A local whose address is taken lives in a C stack region of the heap, with a stack pointer global, as clang's wasm lowering does. Other locals stay daslang locals. | No `addr(local)` (§2) | Uses `addr(local)` | **Locals implemented, implied by `--memory-model linear`** (no separate flag; see "C stack (step 4)" below); case `p199`. Globals and parameters whose address is taken are still refused (`p195`) |
 | 3 | `--fnptr-model table` | A function pointer is an index into a per-signature global `array<function<…>>`, filled by an init function. `c2da_relink()` refills the tables after a hot reload. Calls are `invoke(table[i], …)`. | Function values whose type mentions a struct become null on hot reload (§3; wasm3das rebuilds its op tables in `m3_NewRuntime`) | `@@f` values stored as host function values | Not yet: parsed, refused by name |
 | 4 | `--float-compare nan-safe` | Every float comparison is guarded by a bit-test `isnan` from `math_bits`: `eq = !isnan(a) && !isnan(b) && a == b`, and so on. | NaN comparisons are not IEEE in the editor: `NaN == NaN` is true, `NaN < 1` is true (§3) | Plain `==`, `<` | **Implemented** (`translator/float_compare.rs`): `[inline]` `c2da_fcmp_*` helpers over binary operators, truthiness and `!x`; case `p190-float-compare-nan-safe`. Not covered: the `--libc std` helpers' own floating compares |
 | 5 | `--libc eden` | A libc prelude with:<ul><li>no `fio`; stdout and stderr go to `print` line buffers;</li><li>files read from project assets through a host callback (`request_text` plus `get_binary_asset`); no writes;</li><li>no `exit` (the program ends by returning);</li><li>`memcpy`/`memset`/`memmove`/`memcmp` as byte loops over the heap.</li></ul> | `fio`, `network` and `jobque_boost` are refused; `memmove` is missing; `memcpy` on pointers needs `unsafe` (§2, §4, §6) | `--libc std` uses `fio` and the `memcpy`/`memmove` builtins | **Implemented** (`translator/libc.rs`; under flag 1 `memcpy`/`memmove`/`memset`/`memcmp`/`strlen` are the `c2da_lin_*` heap byte loops, and the std formatter behind `printf` is still refused there), see "`--libc eden` as built" below); cases `p72/p76/p81/p82-eden-*`, `binjgb-cgb-acid2-eden` |
@@ -131,6 +131,20 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   daslang structs; under the model they carry no layout proof.
 - **Static data.** String literals whose address is taken are placed in the heap by the
   `[init]` function.
+- **C stack (step 4).** A local (not a parameter, not a `static`) whose address is taken
+  (`&x`, `&s.f`, `&a[i]`) or whose array decays to a pointer other than as the base of
+  `a[i]` gets a 16-byte aligned slot in its function's frame; every read, write and
+  address of it is a heap access at `c2da_fp + offset`, and its initializer is a store
+  there. Other locals stay daslang locals. The stack is a fixed 1 MiB region right above
+  the static block (not at the top of the heap: the heap grows by `resize`), growing down
+  from `c2da_lin_sp`; `c2da_lin_enter` panics with `c2da: C stack overflow` below it. A
+  function with a frame becomes two functions: `f_c2da_frame`, the body with an extra
+  `c2da_fp` parameter, and `f` itself, which saves `c2da_lin_sp`, calls the body with
+  `c2da_lin_enter(size)` and restores it, so every return path of the body (early returns,
+  returns inside loops, recursion) pops the frame. Such a function is never inlined.
+  Not done: an `exit` or a trap that unwinds through frames leaves `c2da_lin_sp` lowered;
+  the program ends there, so it matters only if the host calls the entry again.
+  Case `p199-linear-locals-in-heap` (C == daslang; `--no-unsafe` and `eden_check.py` ok).
 - **Record values (step 4).** A whole struct read through a pointer (`s = *p`, `return
   p[i]`, an argument `f(*p)`) is read into a fresh daslang value field by field at Clang's
   offsets; a struct assigned through a pointer is written the same way; heap to heap
@@ -149,8 +163,8 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   `p196-linear-strings`; `--no-unsafe` and `eden_check.py` ok).
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
-  - `&` of a local or global, and a declared array used as a pointer (step 4,
-    `--locals-in-heap`);
+  - `&` of a global or a parameter, and a global array (or an array in a parameter or a
+    call result) used as a pointer;
   - a record value with bitfields read or assigned through a pointer (step 4 copies
     every other record value: see below), and a bitfield through a pointer;
   - a wide string literal;
@@ -171,7 +185,8 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
     of structs from `calloc`, a linked list built and freed, string literals,
     `strlen`/`memcmp`/`memset`/`memcpy` and an overlapping `memmove`, `realloc` growth, and
     `malloc` of an impossible size answering NULL.
-- `p195-linear-refuses-local-address` is the located refusal of `&x`.
+- `p195-linear-refuses-local-address` is the located refusal of `&` of a global (it
+  refused `&x` of a local until step 4).
 - With `--no-unsafe --dialect eden-0.6.4 --float-compare nan-safe` added, both fixtures
   translate. `scripts/eden_check.py` against the wasm3das `sandbox.das_project` reports
   `ok` for both, with 0 `unsafe`, `addr`, `reinterpret` and `intptr`.
@@ -225,10 +240,14 @@ Things the target cannot fix and has to document:
      index.
    - Core of `--memory-model linear` done (above): fixtures p193/p194 match C, the
      sandbox model accepts them, and the column kernel costs about 1.2× raw. Still to do:
-     - `--locals-in-heap` for `&local`/`&global` and declared arrays used as pointers;
-     - record and array values through pointers (byte copies);
-     - the std formatter (`printf %s`, `vformat`) and the other libc string functions
-       over `c2da_mem`;
+     - `--locals-in-heap`: locals done in step 4 (p199); `&global`, `&param` and global
+       arrays used as pointers still to do (globals placed in the heap from `[init]`);
+     - record and array values through pointers: done in step 4 (p197), except records
+       with bitfields;
+     - `<string.h>` string functions: done in step 4 (p196); the std formatter
+       (`printf %s`, `snprintf`, `vformat`) over `c2da_mem` still to do — binjgb under
+       `--libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe` stops first
+       there (`snprintf` in `replace_extension`, `common.c:18`);
      - by-value struct parameters with pointer fields;
      - then binjgb.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,

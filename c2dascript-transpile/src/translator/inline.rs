@@ -202,6 +202,15 @@ impl<'c> Translation<'c> {
         if *is_global || *is_implicit {
             return None;
         }
+        // `--memory-model linear`: a function with a C stack frame keeps its
+        // call, which pushes and pops the frame.
+        if self.is_linear()
+            && self
+                .linear_plan_frame(*body, parameters)
+                .map_or(true, |(_, size)| size > 0)
+        {
+            return None;
+        }
         let CTypeKind::Function(ret_ty, _, is_variadic, _, _) =
             self.ast_context.resolve_type(*typ).kind.clone()
         else {

@@ -389,6 +389,9 @@ pub struct Translation<'c> {
     /// Currently only C function-scope `static` storage, which has to outlive
     /// the call that declares it. Drained once, by `translate_impl`.
     pub(crate) hoisted_statics: RefCell<Vec<DaDecl>>,
+    /// `--memory-model linear`: the bodies of functions with a C stack frame
+    /// (`linear.rs linear_frame_wrap`); the C name is their wrapper.
+    pub(crate) frame_bodies: RefCell<Vec<DaDecl>>,
     /// Record and enumeration declarations found inside a function body.
     /// daScript has no function-scope type declaration, so a C block-scope
     /// `struct`/`union`/`enum` becomes a module-level type exactly like a
@@ -443,6 +446,7 @@ impl<'c> Translation<'c> {
             layout_proofs: RefCell::default(),
             named_zero_fill_cache: RefCell::new(HashMap::new()),
             hoisted_statics: RefCell::new(vec![]),
+            frame_bodies: RefCell::new(vec![]),
             hoisted_types: RefCell::new(vec![]),
             storage_globals: RefCell::new(HashMap::new()),
             record_array_helpers: RefCell::default(),
@@ -3184,6 +3188,13 @@ impl<'c> Translation<'c> {
                     is_defn,
                     "Only local variable definitions should be extracted"
                 );
+                // `--memory-model linear`: a local whose address is taken
+                // lives in the function's C stack frame (`linear.rs`).
+                if self.is_linear() {
+                    if let Some(info) = self.linear_frame_decl(ctx, decl_id, initializer, typ)? {
+                        return Ok(info);
+                    }
+                }
 
                 let rust_name = self.declare_value_name(decl_id, ident);
                 if self.function_context.borrow().va_list_arg_name.is_some()
@@ -4569,6 +4580,7 @@ fn translate_impl(
             .as_ref()
             .map_or(&no_foreign_refs, |link| &link.foreign_refs),
     ));
+    module_decls.extend(std::mem::take(&mut *t.frame_bodies.borrow_mut()));
     // The `std` entry wrapper calls the translated C `main`, so it comes after
     // every translated function.
     let entry_declarations = libc::take_entry_declarations();

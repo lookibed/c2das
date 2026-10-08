@@ -328,9 +328,17 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     with bitfields is refused. `linear_daslang_index` keeps `a[i]` over a daScript-resident
     declared array as daScript indexing instead of refusing its decay.
     `prune_raw_runtime` drops the `c2da_rt_*` raw prelude when nothing names it.
-  - **Fails closed.** These are refused with a located "not supported under --memory-model
-    linear yet: …" error: `&` of a local or global, a declared array used as a pointer
-    (step 4), a record or array value read through a pointer, a bitfield through a pointer,
+  - **C stack.** `functions.rs convert_function` asks `linear_plan_frame` for the
+    function's address-taken locals (by `&` or array decay, through `.`/`[i]` of a declared
+    array) and installs the frame; `heap_place` answers `c2da_fp + offset` for such a
+    `DeclRef`, so every existing load/store/aggregate path covers them, and
+    `mod.rs convert_decl_stmt_info` turns their declaration into the initializer's store
+    (`linear_frame_decl`). `linear_frame_wrap` splits the function into the body
+    (`<name>_c2da_frame`, extra `c2da_fp` parameter, kept in `Translation::frame_bodies`)
+    and a wrapper that pushes/pops the frame around the call; `inline.rs` never inlines a
+    function with a frame. Any other use of such a local's name is refused. These are refused with a located "not supported under --memory-model
+    linear yet: …" error: `&` of a global or a parameter, a global array used as a pointer,
+    a record value with bitfields through a pointer, a bitfield through a pointer,
     a wide string literal, a data↔function pointer cast, and any other library function
     that takes or returns C memory. A string-literal argument does not count. As a net,
     `target_check.rs check_linear` refuses any `unsafe` construct left in the finished

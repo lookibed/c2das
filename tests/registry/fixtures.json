@@ -6121,8 +6121,8 @@
       "expected": {
         "kind": "translation-error",
         "value": {
-          "cause": "not supported under --memory-model linear yet: the address of a local or global object",
-          "location": "p195_linear_refuses_local_address.c:9"
+          "cause": "not supported under --memory-model linear yet: the address of a global object or a parameter",
+          "location": "p195_linear_refuses_local_address.c:11"
         }
       },
       "family": "syntax-pointer-legacy",
@@ -6214,6 +6214,34 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "not-applicable",
       "source": "tests/syntax/p198_linear_refuses_bitfield_record_value.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p199-linear-locals-in-heap",
+      "canonical_cases": [
+        "p199-linear-locals-in-heap"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_locals_in_heap",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p199_linear_locals_in_heap",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p199_linear_locals_in_heap.c",
       "status": "supported"
     },
     {

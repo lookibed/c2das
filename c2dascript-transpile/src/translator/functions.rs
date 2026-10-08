@@ -125,6 +125,16 @@ impl<'c> Translation<'c> {
     ) -> TranslationResult<DaDecl> {
         self.function_context.borrow_mut().enter_new(name);
         self.function_context.borrow_mut().set_body(body);
+        // `--memory-model linear`: the locals whose address is taken live in
+        // a C stack frame in the heap (`linear.rs`).
+        let frame_size = match body {
+            Some(body_id) if self.is_linear() => {
+                let (frame, size) = self.linear_plan_frame(body_id, parameters)?;
+                self.linear_set_frame(frame);
+                size
+            }
+            _ => 0,
+        };
 
         let (ret_ctype, is_variadic): (Option<CQualTypeId>, bool) =
             match self.ast_context.resolve_type(typ).kind {
@@ -294,6 +304,14 @@ impl<'c> Translation<'c> {
         // `nostd` naming is untouched.
         if self.libc_std() && name == "main" && body.is_some() {
             self.require_std_main_wrapper(&fn_name, decl_id, parameters.len())?;
+        }
+        if self.is_linear() {
+            self.linear_set_frame(Default::default());
+            if frame_size > 0 {
+                let (inner, outer) = self.linear_frame_wrap(func, frame_size)?;
+                self.frame_bodies.borrow_mut().push(inner);
+                return Ok(outer);
+            }
         }
         Ok(func)
     }

@@ -1180,8 +1180,8 @@
         "exit_code": 0
       },
       "expected_error": {
-        "cause": "not supported under --memory-model linear yet: the address of a local or global object",
-        "location": "p195_linear_refuses_local_address.c:9"
+        "cause": "not supported under --memory-model linear yet: the address of a global object or a parameter",
+        "location": "p195_linear_refuses_local_address.c:11"
       },
       "runtime": "not-applicable"
     },
@@ -1213,6 +1213,23 @@
       "clang": { "compiler": "clang-18", "flags": ["-w"] },
       "c_reference": { "entrypoint": "linear_record_values", "return_type": "int" },
       "das_entrypoint": "linear_record_values",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p199-linear-locals-in-heap",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p199_linear_locals_in_heap.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_locals_in_heap", "return_type": "int" },
+      "das_entrypoint": "linear_locals_in_heap",
       "expected": {
         "stdout": "",
         "exit_code": 0

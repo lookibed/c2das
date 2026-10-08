@@ -35,9 +35,26 @@ thread_local! {
         RefCell::new((vec![0; RESERVED], StdHashMap::new()));
 }
 
+thread_local! {
+    /// The C stack frame of the function being translated: each local whose
+    /// address is taken (or whose array decays to a pointer), at its offset
+    /// from the frame pointer `c2da_fp`.
+    static FRAME: RefCell<StdHashMap<CDeclId, i64>> = RefCell::new(StdHashMap::new());
+}
+
+/// The frame pointer parameter of a function body with a C stack frame.
+pub(crate) const FP: &str = "c2da_fp";
+/// Bytes of the C stack region (`c2da_lin_enter` panics past it).
+const STACK_BYTES: usize = 1 << 20;
+
 /// Clears the static block at the start of a translation unit.
 pub fn reset() {
     STATIC.with(|s| *s.borrow_mut() = (vec![0; RESERVED], StdHashMap::new()));
+    FRAME.with(|f| f.borrow_mut().clear());
+}
+
+fn frame_offset(decl: CDeclId) -> Option<i64> {
+    FRAME.with(|f| f.borrow().get(&decl).copied())
 }
 
 /// The offset of a string literal's bytes (with its NUL) in the static block.
@@ -319,6 +336,174 @@ impl<'c> Translation<'c> {
         })
     }
 
+    /// The local object an lvalue names: a variable, a field of one, an
+    /// element of a declared array.  `None` for anything reached through a
+    /// pointer.
+    fn object_root(&self, e: CExprId) -> Option<CDeclId> {
+        match &self.ast_context[e].kind {
+            CExprKind::Paren(_, inner) => self.object_root(*inner),
+            CExprKind::DeclRef(_, decl, _) => Some(*decl),
+            CExprKind::Member(_, base, _, MemberKind::Dot, _) => self.object_root(*base),
+            CExprKind::ArraySubscript(_, lhs, rhs, _) => {
+                let array = self.decayed_array(*lhs).or_else(|| self.decayed_array(*rhs))?;
+                self.object_root(array)
+            }
+            _ => None,
+        }
+    }
+
+    /// The C stack frame of a function body: every local (not a parameter,
+    /// not a `static`) whose address is taken or whose array decays to a
+    /// pointer other than as the base of `a[i]`, at a 16-byte aligned
+    /// offset.  Returns the frame's map and size.
+    pub(crate) fn linear_plan_frame(
+        &self,
+        body: CStmtId,
+        parameters: &[CDeclId],
+    ) -> TranslationResult<(StdHashMap<CDeclId, i64>, i64)> {
+        let nodes: Vec<CExprId> = DFExpr::new(&self.ast_context, SomeId::Stmt(body))
+            .filter_map(|n| match n {
+                SomeId::Expr(e) => Some(e),
+                _ => None,
+            })
+            .collect();
+        let mut subscript_bases = std::collections::HashSet::new();
+        for &e in &nodes {
+            if let CExprKind::ArraySubscript(_, lhs, rhs, _) = self.ast_context[e].kind {
+                for side in [lhs, rhs] {
+                    let mut s = side;
+                    while let CExprKind::Paren(_, i) = self.ast_context[s].kind {
+                        s = i;
+                    }
+                    subscript_bases.insert(s);
+                }
+            }
+        }
+        let mut map = StdHashMap::new();
+        let mut size = 0i64;
+        for &e in &nodes {
+            let root = match &self.ast_context[e].kind {
+                CExprKind::Unary(_, CUnOp::AddressOf, arg, _) => self.object_root(*arg),
+                CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _)
+                    if !subscript_bases.contains(&e) =>
+                {
+                    self.object_root(*inner)
+                }
+                _ => None,
+            };
+            let Some(decl) = root else { continue };
+            if map.contains_key(&decl) || parameters.contains(&decl) {
+                continue;
+            }
+            let CDeclKind::Variable {
+                has_static_duration: false,
+                has_thread_duration: false,
+                typ,
+                ..
+            } = self.ast_context[decl].kind
+            else {
+                continue;
+            };
+            let bytes = self.sizeof_type(typ.ctype).map_err(|_| {
+                self.linear_refuse(e, "a local of this type in the C stack (--locals-in-heap)")
+            })?;
+            map.insert(decl, size);
+            size += (bytes + 15) & !15;
+        }
+        Ok((map, size))
+    }
+
+    /// Makes `frame` the frame the following lowering reads.
+    pub(crate) fn linear_set_frame(&self, frame: StdHashMap<CDeclId, i64>) {
+        FRAME.with(|f| *f.borrow_mut() = frame);
+    }
+
+    /// The declaration of a local that lives in the C stack: no daScript
+    /// variable, only the store of its initializer at its frame slot.
+    pub(crate) fn linear_frame_decl(
+        &self,
+        ctx: ExprContext,
+        decl_id: CDeclId,
+        initializer: Option<CExprId>,
+        typ: CQualTypeId,
+    ) -> TranslationResult<Option<crate::cfg::DeclStmtInfo>> {
+        let Some(off) = frame_offset(decl_id) else {
+            return Ok(None);
+        };
+        let Some(init) = initializer else {
+            return Ok(Some(crate::cfg::DeclStmtInfo::new(vec![], vec![], vec![])));
+        };
+        let a = plus(&DaExpr::Var(FP.into()), off);
+        let value = self.convert_expr(ctx.used(), init, Some(typ))?;
+        let stored = if self.is_aggregate(typ.ctype) {
+            self.store_aggregate(init, typ, &a, value)?
+        } else {
+            let s = self.scalar_or_refuse(init, typ.ctype)?;
+            let value = self.force_temp(value, s.da_type());
+            self.emit_store(s, WithStmts::new_val(a), value)
+        };
+        let (stmts, _) = stored.into_stmts_and_val();
+        Ok(Some(crate::cfg::DeclStmtInfo::new(vec![], stmts.clone(), stmts)))
+    }
+
+    /// Splits a function with a C stack frame into the body, which takes the
+    /// frame pointer as its last parameter, and a wrapper under the C name
+    /// that pushes the frame, calls the body and pops the frame, so every
+    /// return path of the body restores the stack pointer.
+    pub(crate) fn linear_frame_wrap(&self, func: DaDecl, frame: i64) -> TranslationResult<(DaDecl, DaDecl)> {
+        let DaDecl::Function(f) = func else {
+            return Err(TranslationError::generic("a C stack frame on a non-function"));
+        };
+        let body_name = format!("{}_c2da_frame", f.name);
+        let mut args: Vec<DaExpr> = f
+            .params
+            .iter()
+            .filter_map(|p| match p {
+                DaStmt::Param { name, .. } => Some(DaExpr::Var(name.clone())),
+                _ => None,
+            })
+            .collect();
+        let mut inner = f.clone();
+        inner.name = body_name.clone();
+        inner.annotations.clear();
+        inner.params.push(DaStmt::Param {
+            name: FP.into(),
+            param_type: DaType::int(),
+            default: None,
+            is_mutable: false,
+        });
+        args.push(DaExpr::Call(
+            Box::new(DaExpr::Var("c2da_lin_enter".into())),
+            vec![DaExpr::ConstInt(frame)],
+        ));
+        let call = DaExpr::Call(Box::new(DaExpr::Var(body_name)), args);
+        let saved = "c2da_saved_sp".to_owned();
+        let mut stmts = vec![DaStmt::Let {
+            name: saved.clone(),
+            var_type: Some(DaType::int()),
+            init: Some(DaExpr::Var("c2da_lin_sp".into())),
+        }];
+        let restore = DaStmt::Expr(DaExpr::Assign(
+            Box::new(DaExpr::Var("c2da_lin_sp".into())),
+            Box::new(DaExpr::Var(saved)),
+        ));
+        if matches!(f.ret_type.kind, DaTypeKind::Void) {
+            stmts.push(DaStmt::Expr(call));
+            stmts.push(restore);
+        } else {
+            stmts.push(DaStmt::Let {
+                name: "c2da_result".into(),
+                var_type: Some(f.ret_type.clone()),
+                init: Some(call),
+            });
+            stmts.push(restore);
+            stmts.push(DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Var("c2da_result".into()))))));
+        }
+        let mut outer = f;
+        outer.body = Some(DaExpr::Block(DaBlock { stmts }));
+        Ok((DaDecl::Function(inner), DaDecl::Function(outer)))
+    }
+
     /// A struct or array whose whole value is copied to or from the heap.
     fn is_aggregate(&self, ty: CTypeId) -> bool {
         matches!(
@@ -518,6 +703,8 @@ impl<'c> Translation<'c> {
         use CExprKind::*;
         match &self.ast_context[expr_id].kind {
             Paren(_, inner) => self.heap_place(ctx, *inner),
+            DeclRef(_, decl, _) => Ok(frame_offset(*decl)
+                .map(|off| WithStmts::new_val(plus(&DaExpr::Var(FP.into()), off)))),
             Unary(_, CUnOp::Deref, ptr, _) => {
                 let ptr_ty = self.qual_of(*ptr)?;
                 if !self.is_data_pointer(ptr_ty.ctype) {
@@ -681,7 +868,7 @@ impl<'c> Translation<'c> {
                         Some(address) => Ok(Some(address)),
                         None => Err(self.linear_refuse(
                             expr_id,
-                            "the address of a local or global object (step 4, --locals-in-heap)",
+                            "the address of a global object or a parameter (only locals live in the C stack)",
                         )),
                     },
                 }
@@ -690,6 +877,12 @@ impl<'c> Translation<'c> {
             // `linear_incdec` / `linear_binary` itself, so a condition or a
             // `for` step that converts them directly is covered too.
             Call(_, func, args) => self.linear_call(ctx, expr_id, func, &args),
+            // Reads, writes and addresses of a C-stack local go through
+            // `heap_place`; any other use of its name has no daScript object.
+            DeclRef(_, decl, _) if frame_offset(decl).is_some() => Err(self.linear_refuse(
+                expr_id,
+                "this use of a local that lives in the C stack (--locals-in-heap)",
+            )),
             Literal(_, CLiteral::String(..)) => Ok(None),
             _ => Ok(None),
         }
@@ -734,7 +927,7 @@ impl<'c> Translation<'c> {
                     Some(address) => Ok(Some(address)),
                     None => Err(self.linear_refuse(
                         expr_id,
-                        "a declared array used as a pointer (step 4, --locals-in-heap)",
+                        "a global array, or an array in a parameter or a call result, used as a pointer (only locals live in the C stack)",
                     )),
                 }
             }
@@ -1217,13 +1410,19 @@ pub fn runtime_source(reserve: u64) -> String {
     } else {
         String::new()
     };
-    let brk = (n + 15) & !15;
+    // The C stack: a fixed region above the static block, growing down
+    // from its top; `c2da_lin_enter` pushes a frame, the function wrapper
+    // pops it.
+    let stack_base = (n + 15) & !15;
+    let stack_top = stack_base + STACK_BYTES;
+    let brk = stack_top;
     format!(
         r#"
 // --memory-model linear runtime: C memory is c2da_mem, an address is an int offset.
 var c2da_mem : array<uint8>
 var private c2da_lin_brk : int = 0
 var private c2da_lin_free_list : int = 0
+var c2da_lin_sp : int = {stack_top}
 let private c2da_lin_limit : int64 = {reserve}l
 {init}
 [init]
@@ -1231,6 +1430,16 @@ def private c2da_lin_init() {{
     reserve(c2da_mem, c2da_lin_limit)
     resize(c2da_mem, {brk})
 {copy}    c2da_lin_brk = {brk}
+}}
+
+// Pushes a C stack frame of `size` bytes and answers its address.
+def c2da_lin_enter(size : int) : int {{
+    let fp = c2da_lin_sp - size
+    if (fp < {stack_base}) {{
+        panic("c2da: C stack overflow")
+    }}
+    c2da_lin_sp = fp
+    return fp
 }}
 
 def private c2da_lin_ld32(a : int) : int {{
