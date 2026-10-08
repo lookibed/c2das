@@ -512,6 +512,14 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
         Some(target)
     }
 
+    /// Make `name` unavailable to every later pick, as if a declaration in
+    /// the outermost scope already used it.  The source layout reserves the
+    /// names another unit of the same daslang module declares
+    /// (`translator::UnitLink::reserved_values`).
+    pub fn reserve_root(&mut self, name: &str) {
+        self.scopes[0].reserve(name.to_owned());
+    }
+
     pub fn insert(&mut self, key: T, basename: &str) -> Option<String> {
         self.insert_in_scope(key, basename, None)
     }

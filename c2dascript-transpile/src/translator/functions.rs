@@ -858,7 +858,16 @@ impl<'c> Translation<'c> {
         let value = DaExpr::FuncRef(self.declare_value_name(decl_id, name));
         let emitted = self.convert_type(CQualTypeId::new(typ))?;
         let designated = self.convert_type(pointer_ty)?;
-        if emitted == designated {
+        // Source layout: a function another unit defines is emitted there
+        // with its definition's prototype, which an unprototyped declaration
+        // in this unit does not show; `emitted` is then only the declared
+        // type, so the conversion is always made.
+        let unprototyped_elsewhere = self.link_owner(name).is_some()
+            && matches!(
+                self.ast_context.resolve_type(typ).kind,
+                CTypeKind::Function(_, _, _, _, false)
+            );
+        if emitted == designated && !unprototyped_elsewhere {
             return Ok(Some(value));
         }
         // A function value is a C pointer crossing to another pointer type,

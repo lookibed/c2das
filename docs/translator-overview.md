@@ -67,9 +67,8 @@ particular:
 - `--module-layout source` (opt-in; `unity`, the default, is the layout above) takes a
   `compile_commands.json` and writes one `module <stem>` per `.c` file. A link pre-pass reads
   every unit's Clang AST first: it records the external functions and objects each unit
-  defines and the ones it uses, refuses two definitions of one symbol and a reference cycle
-  between units (daslang refuses a cyclic `require`; the diagnostic names the files of the
-  cycle), and refuses a unit that would `require` the unit defining `main`. Each unit then
+  defines and the ones it uses, refuses two definitions of one symbol, and refuses a module
+  that would `require` the module defining `main`. Each unit then
   `require`s the modules owning the symbols it uses, so a call or an `extern` object that
   the single-module layout rejects resolves there, spelled by its C name (a name daslang would
   rename, such as `print`, fails closed); a C `static` function or object, and every
@@ -79,8 +78,26 @@ particular:
   one set of stream tables — go to the shared module, `--runtime-module <name>` or
   `c2da_runtime` by default; a type or std helper two units declare differently fails
   closed (an opaque `struct S;` defers to the unit that completes it). The unit defining
-  `main` stays an anonymous module and is the file to run. Only acyclic programs are
-  accepted in this stage.
+  `main` stays an anonymous module and is the file to run.
+  Units that reference each other in a cycle (a strongly connected component of the unit
+  graph; daslang refuses a cyclic `require`) are compiled as one module, a cluster: the file
+  `<lexically first member stem>_cluster.das` — or `<entry stem>.das`, anonymous, for the
+  cluster holding `main` — carries the header, the options and the union of the members'
+  `require`s and `include`s each member's fragment `<stem>.das.inc` (declarations only), in
+  compilation-database order except that a fragment whose object initializers reach another
+  fragment's objects is included after it. The fragment extension is not `.das` because a
+  fragment is not a program on its own and a tool that compiles every `.das` file of a
+  directory standalone, such as the EdenSpark editor, must not pick it up; daslang's
+  `include` takes any file name. The members share one module scope, so the renamer of each
+  member reserves the external symbols its mates define and every name the earlier members
+  (database order) declared: a same-named C `static`, string-literal array or generated helper
+  is renamed (`plr` / `plr_0`), and stays `private`. A C type name two units define at
+  different places (a file-local `typedef struct {..} anim_t;` in each) keeps its name at the
+  lexically first place and becomes `anim_t_0`, `anim_t_1`, ... at the others, in every
+  layout-source program; an anonymous record is `Unnamed_<file>_<line>` of its definition.
+  An identical fixed-name helper is declared once; a different one fails closed. Doom
+  (`doomgeneric-demo1-std-source`, 83 units) lays out as 28 single-unit modules, a 51-unit
+  cluster `am_map_cluster.das`, a 3-unit cluster `i_system_cluster.das` and `c2da_runtime.das`.
 - Function pointers are typed daScript function values called through `invoke`;
   `__builtin_popcount/clz/ctz/ffs/bswap*/*_overflow/expect` and a few more have real
   lowerings, every other builtin is a diagnostic.
@@ -183,8 +200,9 @@ unsupported construct into a hard error. `--runtime-module <name>` writes the sh
 prelude once as `<output dir>/<name>.das` (the name must be a daslang identifier) and makes
 each translated unit `require` it; run the unit's `.das` from that directory as usual.
 `--module-layout source` needs a `compile_commands.json` (not `--file`), implies the shared
-runtime module (`c2da_runtime` unless `--runtime-module` names it) and writes every unit and
-the shared module into one directory; run the unit that defines `main` from there.
+runtime module (`c2da_runtime` unless `--runtime-module` names it) and writes every unit,
+cluster file, fragment and the shared module into one directory; run the unit that defines
+`main` (or the cluster file named after it) from there.
 
 ## Validation pipeline
 

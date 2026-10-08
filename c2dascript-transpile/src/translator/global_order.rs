@@ -66,9 +66,17 @@ pub(crate) struct StorageGlobal {
     pub in_place: bool,
 }
 
+///
+/// `foreign_refs` are the declarations the module holds beyond these: the
+/// other fragments of a `--module-layout source` cluster, which share the
+/// module (`UnitLink::foreign_refs`), as name → the names a function's body
+/// or an object's initializer reads.  daslang's check follows them like this
+/// unit's own, so a cycle running through another fragment is broken here
+/// too.  Empty for a module of its own.
 pub(crate) fn order_value_declarations(
     decls: Vec<DaDecl>,
     storage_globals: &HashMap<String, StorageGlobal>,
+    foreign_refs: &HashMap<String, Vec<String>>,
 ) -> Vec<DaDecl> {
     let n = decls.len();
     if n == 0 {
@@ -78,7 +86,10 @@ pub(crate) fn order_value_declarations(
     // A name may be declared more than once in a malformed module; the first
     // declaration is the one an initializer would bind to.
     let mut var_index: HashMap<&str, usize> = HashMap::new();
-    let mut fn_refs: HashMap<&str, Vec<String>> = HashMap::new();
+    let mut fn_refs: HashMap<&str, Vec<String>> = foreign_refs
+        .iter()
+        .map(|(name, refs)| (name.as_str(), refs.clone()))
+        .collect();
     for (i, decl) in decls.iter().enumerate() {
         match decl {
             DaDecl::Variable(v) => {

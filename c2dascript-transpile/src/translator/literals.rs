@@ -24,6 +24,8 @@ use super::type_kind_to_datype;
 pub struct StringLiteralPool {
     /// Interned literals, keyed by (unit byte width, raw bytes).
     entries: Vec<((u8, Vec<u8>), String)>,
+    /// The name prefix of the backing arrays (`reset_string_literals`).
+    prefix: String,
 }
 
 thread_local! {
@@ -75,8 +77,16 @@ pub fn floating_zero_for_datype(ty: &DaType) -> DaExpr {
 }
 
 /// Clears the pool at the start of a translation unit.
-pub fn reset_string_literals() {
-    STRING_LITERALS.with(|pool| pool.borrow_mut().entries.clear());
+/// Clears the pool; `prefix` starts every backing array's name, `c2da_str_`
+/// for a translation unit that is a module of its own and
+/// `c2da_str_<unit>_` for a fragment of a `--module-layout source` cluster,
+/// whose arrays share one module scope with the other fragments'.
+pub fn reset_string_literals(prefix: String) {
+    STRING_LITERALS.with(|pool| {
+        let mut pool = pool.borrow_mut();
+        pool.entries.clear();
+        pool.prefix = prefix;
+    });
 }
 
 /// Returns the module-level declarations backing every interned literal, in
@@ -118,7 +128,7 @@ fn intern_string_literal(bytes: &[u8], width: u8) -> String {
         if let Some((_, name)) = pool.entries.iter().find(|(entry, _)| *entry == key) {
             return name.clone();
         }
-        let name = format!("c2da_str_{}", pool.entries.len());
+        let name = format!("{}{}", pool.prefix, pool.entries.len());
         pool.entries.push((key, name.clone()));
         name
     })

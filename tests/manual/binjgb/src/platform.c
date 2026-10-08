@@ -48,7 +48,7 @@ static void gb_script_buttons(int frame_index, JoypadButtons *buttons) {
 
 /* The ROM named by the last argument, padded to MINIMUM_ROM_SIZE.  Returns 0
  * when there is no argument or the file cannot be read. */
-static int gb_load_rom(int argc, char **argv, FileData *out) {
+int gb_load_rom(int argc, char **argv, FileData *out) {
     out->data = NULL;
     out->size = 0;
     if (argc < 2) {
@@ -60,7 +60,7 @@ static int gb_load_rom(int argc, char **argv, FileData *out) {
     return 1;
 }
 
-static Emulator *gb_create(const FileData *rom) {
+Emulator *gb_create(const FileData *rom) {
     EmulatorInit init;
     Emulator *emulator = NULL;
 
@@ -82,7 +82,7 @@ static Emulator *gb_create(const FileData *rom) {
 
 /* Runs frame `frame_index` of the script: sets its buttons and emulates until
  * the PPU finishes the next frame.  Returns 0 on an invalid opcode. */
-static int gb_run_frame(Emulator *emulator, int frame_index) {
+int gb_run_frame(Emulator *emulator, int frame_index) {
     Ticks until_ticks = emulator_get_ticks(emulator) + PPU_FRAME_TICKS;
 
     gb_script_buttons(frame_index, &gb_live_buttons);
@@ -100,7 +100,7 @@ static int gb_run_frame(Emulator *emulator, int frame_index) {
     }
 }
 
-static int32_t gb_frame_hash(Emulator *emulator) {
+int32_t gb_frame_hash(Emulator *emulator) {
     const RGBA *pixels = *emulator_get_frame_buffer(emulator);
     uint32_t hash = 2166136261u;
     int i = 0;

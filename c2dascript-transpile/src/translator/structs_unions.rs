@@ -36,7 +36,7 @@ impl<'c> Translation<'c> {
                             None => self
                                 .type_converter
                                 .borrow_mut()
-                                .declare_decl_name(decl_id, "Unnamed"),
+                                .declare_decl_name(decl_id, &self.anonymous_record_name(decl_id)),
                         }
                     }
                 }
@@ -208,7 +208,9 @@ impl<'c> Translation<'c> {
                 }
             }
         }
-        let raw_name = name.clone().unwrap_or_else(|| "Unnamed".into());
+        let raw_name = name
+            .clone()
+            .unwrap_or_else(|| self.anonymous_record_name(decl_id));
         let name = self
             .type_converter
             .borrow_mut()

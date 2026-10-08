@@ -47,9 +47,11 @@ pub enum TranspileError {
         path: PathBuf,
         error: std::io::Error,
     },
-    /// `--module-layout source` cannot lay the program out: a reference cycle
-    /// between units, two definitions of one external symbol, two units with
-    /// one stem, or a shared type the units declare differently.
+    /// `--module-layout source` cannot lay the program out: two definitions of
+    /// one external symbol, two units with one stem (or a stem taking a
+    /// cluster's or the shared module's name), a shared type the units declare
+    /// differently, a module requiring the one with `main`, or two fragments
+    /// of a cluster declaring one generated helper differently.
     Layout(String),
 }
 
@@ -97,8 +99,10 @@ pub enum ModuleLayout {
     /// section and the `--libc std` helpers go to one shared module
     /// (`--runtime-module`, default [`DEFAULT_RUNTIME_MODULE`]); a unit
     /// `require`s the modules whose external symbols it references; a C
-    /// `static` is `private`.  Only an acyclic program is accepted: a
-    /// reference cycle between units is a [`TranspileError::Layout`].
+    /// `static` is `private`.  Units that reference each other in a cycle
+    /// (daslang refuses a cyclic `require`) are one module: a cluster file
+    /// `include`s each unit's `<stem>.das.inc` fragment
+    /// ([`FRAGMENT_EXTENSION`]).
     Source,
 }
 
@@ -628,12 +632,16 @@ fn write_output(output_path: &Path, das_code: &str) -> Result<(), TranspileError
 }
 
 /// `--module-layout source`: one `module <stem>` per unit plus the shared
-/// module, written only once every unit has translated.
+/// module, written only once every unit has translated.  Units on a reference
+/// cycle are one module, a cluster: `<name>.das` holds the header, options and
+/// `require`s and `include`s each member's `<stem>.das.inc` fragment.
 ///
 /// The link pre-pass ([`link_units`]) reads every unit's Clang AST before any
 /// is translated: it needs the whole program to say which module owns each
-/// external symbol, and it refuses a reference cycle (the next layout stage)
-/// and a symbol two units define.  The shared module then takes the runtime
+/// external symbol, which units form clusters, and it refuses a symbol two
+/// units define.  A cluster is translated twice: the first pass learns every
+/// fragment's module-level declarations, which the second gives each member
+/// for its initialization-order pass and which order the includes.  The shared module then takes the runtime
 /// prelude, the merged C type section — the same C type reaches it once, and
 /// a unit whose copy of a type prints differently fails closed, so a type
 /// crossing a call boundary is one daslang type — and the union of the
@@ -661,18 +669,96 @@ fn transpile_source_layout(
         .runtime_module
         .clone()
         .unwrap_or_else(|| DEFAULT_RUNTIME_MODULE.to_owned());
-    let links = link_units(inputs, &contexts, &runtime_module)?;
+    let (links, clusters) = link_units(inputs, &contexts, &runtime_module)?;
     let shared_tcfg = TranspilerConfig {
         runtime_module: Some(runtime_module.clone()),
         ..tcfg.clone()
     };
+    let output_dir = tcfg.output_dir.clone().unwrap_or_else(|| PathBuf::from("."));
+    let mut cluster_of: HashMap<usize, usize> = HashMap::new();
+    for (index, cluster) in clusters.iter().enumerate() {
+        for &member in &cluster.members {
+            cluster_of.insert(member, index);
+        }
+    }
+    // Per cluster: the module-level declarations its fragments made so far,
+    // name → (text, unit), and the union of their `require`s.
+    let mut cluster_decls: Vec<BTreeMap<String, (String, PathBuf)>> =
+        vec![BTreeMap::new(); clusters.len()];
+    let mut cluster_requires: Vec<BTreeSet<String>> = vec![BTreeSet::new(); clusters.len()];
+
+    // Every fragment's initialization-order pass needs the module-level
+    // functions and objects of its module mates (`UnitLink::foreign_refs`),
+    // which exist only once those are translated: a cluster is translated a
+    // first time, with the same name reservations, to learn them.
+    let mut links = links;
+    let mut clusters = clusters;
+    for cluster in &mut clusters {
+        let mut declared: BTreeSet<String> = BTreeSet::new();
+        let mut reads: Vec<Vec<(String, Vec<String>)>> = Vec::new();
+        let mut objects: Vec<BTreeSet<String>> = Vec::new();
+        for &member in &cluster.members {
+            let mut link = links[member].clone();
+            link.reserved_values.extend(declared.iter().cloned());
+            let output = translator::translate_unit(
+                contexts[member].clone(),
+                &shared_tcfg,
+                &inputs[member],
+                link,
+            )
+            .map_err(TranspileError::Translation)?;
+            declared.extend(output.fragment_decls.iter().map(fragment_decl_name));
+            objects.push(
+                output
+                    .fragment_decls
+                    .iter()
+                    .filter(|decl| match decl {
+                        DaDecl::Private(inner) => matches!(**inner, DaDecl::Variable(_)),
+                        other => matches!(other, DaDecl::Variable(_)),
+                    })
+                    .map(fragment_decl_name)
+                    .collect(),
+            );
+            reads.push(
+                output
+                    .fragment_decls
+                    .iter()
+                    .filter_map(translator::module_level_reads)
+                    .collect(),
+            );
+        }
+        for (index, &member) in cluster.members.iter().enumerate() {
+            for (other, member_reads) in reads.iter().enumerate() {
+                if other == index {
+                    continue;
+                }
+                for (name, names) in member_reads {
+                    links[member]
+                        .foreign_refs
+                        .entry(name.clone())
+                        .or_insert_with(|| names.clone());
+                }
+            }
+        }
+        cluster.members = include_order(&cluster.members, &reads, &objects);
+    }
 
     let mut sources: Vec<(PathBuf, String)> = Vec::with_capacity(inputs.len());
     let mut shared_types: Vec<DaDecl> = Vec::new();
     let mut shared_type_text: HashMap<String, (String, PathBuf)> = HashMap::new();
     let mut libc_helpers: BTreeMap<String, (DaDecl, PathBuf)> = BTreeMap::new();
-    for ((input_path, context), link) in inputs.iter().zip(contexts).zip(links) {
+    for (unit, ((input_path, context), mut link)) in
+        inputs.iter().zip(contexts).zip(links).enumerate()
+    {
         println!("Transpiling {}", link.module);
+        let cluster = cluster_of.get(&unit).copied();
+        if let Some(cluster) = cluster {
+            // Units of one cluster are translated in compilation-database
+            // order, each after reserving every name the earlier ones
+            // declared, so a later unit's same-named static is renamed.
+            link.reserved_values
+                .extend(cluster_decls[cluster].keys().cloned());
+        }
         let output = translator::translate_unit(context, &shared_tcfg, input_path, link)
             .map_err(TranspileError::Translation)?;
         for decl in output.shared_types {
@@ -736,7 +822,44 @@ fn transpile_source_layout(
                 }
             }
         }
-        sources.push((output_path_for(tcfg, input_path)?, output.source));
+        let Some(cluster) = cluster else {
+            sources.push((output_path_for(tcfg, input_path)?, output.source));
+            continue;
+        };
+        // A fragment: declarations only.  A name an earlier fragment of the
+        // cluster declared can only be a generated helper with a fixed name
+        // (a renamer-picked name avoids the reserved ones); the same text is
+        // declared once, a different one fails closed.
+        let mut text = String::new();
+        for decl in output.fragment_decls {
+            let name = fragment_decl_name(&decl);
+            let decl_text = decl.to_string();
+            match cluster_decls[cluster].get(&name) {
+                Some((seen, _)) if *seen == decl_text => continue,
+                Some((_, first)) => {
+                    return Err(TranspileError::Layout(format!(
+                        "{name} is declared differently by {} and {}, which reference each \
+                         other in a cycle and share one module",
+                        first.display(),
+                        input_path.display()
+                    )));
+                }
+                None => {
+                    cluster_decls[cluster].insert(name, (decl_text.clone(), input_path.clone()));
+                }
+            }
+            text.push_str(&decl_text);
+            text.push('\n');
+        }
+        cluster_requires[cluster].extend(output.requires);
+        fs::create_dir_all(&output_dir).map_err(|error| TranspileError::Output {
+            path: output_dir.clone(),
+            error,
+        })?;
+        sources.push((
+            output_dir.join(format!("{}.{FRAGMENT_EXTENSION}", stem_of_path(input_path))),
+            text,
+        ));
     }
 
     let mut outputs = Vec::with_capacity(sources.len() + 1);
@@ -744,7 +867,34 @@ fn transpile_source_layout(
         write_output(output_path, source)?;
         outputs.push(output_path.clone());
     }
-    let output_dir = tcfg.output_dir.clone().unwrap_or_else(|| PathBuf::from("."));
+    for (cluster, requires) in clusters.iter().zip(cluster_requires) {
+        // The cluster's own name is not a module to require; the shared
+        // runtime module and the std prelude's daslib modules are, first.
+        let mut ordered: Vec<String> = Vec::new();
+        for require in std::iter::once(runtime_module.clone())
+            .chain(requires.iter().filter(|r| **r != runtime_module).cloned())
+        {
+            if require != cluster.name && requires.contains(&require) && !ordered.contains(&require)
+            {
+                ordered.push(require);
+            }
+        }
+        let includes: Vec<String> = cluster
+            .members
+            .iter()
+            .map(|&member| format!("{}.{FRAGMENT_EXTENSION}", stem_of_path(&inputs[member])))
+            .collect();
+        let path = output_dir.join(format!("{}.das", cluster.name));
+        let source = translator::cluster_module_source(
+            &shared_tcfg,
+            &cluster.name,
+            !cluster.entry,
+            ordered,
+            &includes,
+        );
+        write_output(&path, &source)?;
+        outputs.push(path);
+    }
     let shared_path = output_dir.join(&runtime_module).with_extension("das");
     let shared_source = translator::shared_module_source(
         &shared_tcfg,
@@ -755,6 +905,92 @@ fn transpile_source_layout(
     write_output(&shared_path, &shared_source)?;
     outputs.push(shared_path);
     Ok(outputs)
+}
+
+/// The extension of a cluster member's fragment file, `<stem>.das.inc`.  It is
+/// not `.das` because a fragment is not a program on its own (no header, no
+/// `require`s, names its module mates define) and a tool that compiles every
+/// `.das` file of a directory standalone — the EdenSpark editor among them,
+/// `docs/eden-flags.md` — must not pick it up; daslang's `include` accepts any
+/// file name.
+pub const FRAGMENT_EXTENSION: &str = "das.inc";
+
+/// The order a cluster's module file includes its fragments in.
+///
+/// daslang initializes a module's objects in declaration order, `include`
+/// being textual, and rejects an initializer that names an object declared
+/// after it — following functions, through calls and `@@`, to the objects
+/// their bodies name (`global_order.rs`).  A fragment whose initializers
+/// reach another fragment's objects is therefore included after it.  The
+/// order is otherwise the compilation database's; fragments that reach each
+/// other's objects keep that order, and daslang reports the object it cannot
+/// initialize.  `reads[i]`/`objects[i]` describe `members[i]` (name → names
+/// its body or initializer reads; the names of its objects).
+fn include_order(
+    members: &[usize],
+    reads: &[Vec<(String, Vec<String>)>],
+    objects: &[BTreeSet<String>],
+) -> Vec<usize> {
+    let mut refs: HashMap<&str, &[String]> = HashMap::new();
+    let mut owner: HashMap<&str, usize> = HashMap::new();
+    for (index, member_reads) in reads.iter().enumerate() {
+        for (name, names) in member_reads {
+            refs.entry(name.as_str()).or_insert(names.as_slice());
+        }
+        for object in &objects[index] {
+            owner.entry(object.as_str()).or_insert(index);
+        }
+    }
+    let count = members.len();
+    let mut after: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); count];
+    for index in 0..count {
+        let mut pending: Vec<&str> = reads[index]
+            .iter()
+            .filter(|(name, _)| objects[index].contains(name))
+            .flat_map(|(_, names)| names.iter().map(String::as_str))
+            .collect();
+        let mut seen: HashSet<&str> = HashSet::new();
+        while let Some(name) = pending.pop() {
+            if !seen.insert(name) {
+                continue;
+            }
+            if let Some(&other) = owner.get(name) {
+                if other != index {
+                    after[index].insert(other);
+                }
+                continue;
+            }
+            if let Some(names) = refs.get(name) {
+                pending.extend(names.iter().map(String::as_str));
+            }
+        }
+    }
+    let mut placed = vec![false; count];
+    let mut order = Vec::with_capacity(count);
+    while order.len() < count {
+        // The first fragment, in database order, whose dependencies are
+        // placed; on a cycle, the first unplaced one.
+        let next = (0..count)
+            .find(|&index| !placed[index] && after[index].iter().all(|&dep| placed[dep]))
+            .or_else(|| (0..count).find(|&index| !placed[index]))
+            .expect("an unplaced fragment remains");
+        placed[next] = true;
+        order.push(members[next]);
+    }
+    order
+}
+
+/// The module-level name a fragment's declaration takes.
+fn fragment_decl_name(decl: &DaDecl) -> String {
+    let key = shared_decl_key(decl);
+    key.split_once(' ')
+        .map_or(key.clone(), |(_, name)| name.to_owned())
+}
+
+fn stem_of_path(path: &Path) -> String {
+    path.file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// `kind name` of a shared declaration, the identity it is merged by.
@@ -776,13 +1012,14 @@ fn shared_decl_key(decl: &DaDecl) -> String {
 /// and object it declares without defining.  A reference to a symbol no unit
 /// defines is not a link edge — the unit's own lowering fails closed on a
 /// call to it as before, and an unused prototype from a header costs nothing.
-/// The edges unit → owner must form a DAG, because daslang refuses a cyclic
-/// `require`; the cycle is reported by its files.
+/// daslang refuses a cyclic `require`, so the units of every strongly
+/// connected component of the edges unit → owner become one module, a
+/// [`SourceCluster`]; the components then form a DAG of `require`s.
 fn link_units(
     inputs: &[PathBuf],
     contexts: &[TypedAstContext],
     runtime_module: &str,
-) -> Result<Vec<translator::UnitLink>, TranspileError> {
+) -> Result<(Vec<translator::UnitLink>, Vec<SourceCluster>), TranspileError> {
     let mut stems: Vec<String> = Vec::with_capacity(inputs.len());
     let mut stem_of: HashMap<String, PathBuf> = HashMap::new();
     for input in inputs {
@@ -881,88 +1118,263 @@ fn link_units(
         references.push(refs);
     }
 
+    // The edges unit → owner of a symbol it references.
+    let edges: Vec<BTreeSet<usize>> = references
+        .iter()
+        .enumerate()
+        .map(|(unit, refs)| {
+            refs.iter()
+                .filter_map(|name| owner.get(name).copied())
+                .filter(|&other| other != unit)
+                .collect()
+        })
+        .collect();
+
+    // Units that reference each other in a cycle — a strongly connected
+    // component of the graph — cannot be modules that `require` each other;
+    // they are one module, a cluster.  The component of a unit is found by
+    // Tarjan's algorithm; a component's identity is its lowest unit index.
+    let component = strongly_connected_components(&edges);
+    let mut clusters: Vec<SourceCluster> = Vec::new();
+    let mut cluster_of: Vec<Option<usize>> = vec![None; inputs.len()];
+    for unit in 0..inputs.len() {
+        let members: Vec<usize> = (0..inputs.len())
+            .filter(|&other| component[other] == component[unit])
+            .collect();
+        if members.len() < 2 || members[0] != unit {
+            continue;
+        }
+        // Named after the lexically first member's stem, so the name depends
+        // on the program and not on the order of the compilation database.
+        let first = members
+            .iter()
+            .map(|&member| stems[member].as_str())
+            .min()
+            .expect("a cluster has members");
+        // The cluster holding C `main` is the program daslang runs, an
+        // anonymous module; it takes the entry unit's name so the program
+        // file is `<entry stem>.das` whatever the layout of the units.
+        let entry = entry_unit.filter(|entry| members.contains(entry));
+        let name = match entry {
+            Some(entry) => stems[entry].clone(),
+            None => format!("{first}_cluster"),
+        };
+        if let Some(other) = stem_of.get(&name).filter(|_| entry.is_none()) {
+            return Err(TranspileError::Layout(format!(
+                "{} would become module {name}, the name of the module of the units that \
+                 reference each other in a cycle: {}",
+                other.display(),
+                members
+                    .iter()
+                    .map(|&member| inputs[member].display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )));
+        }
+        if name == runtime_module {
+            return Err(TranspileError::Layout(format!(
+                "the cluster module {name} would take the shared runtime module's name"
+            )));
+        }
+        for &member in &members {
+            cluster_of[member] = Some(clusters.len());
+        }
+        clusters.push(SourceCluster {
+            name,
+            entry: entry.is_some(),
+            members,
+        });
+    }
+    let module_of = |unit: usize| -> String {
+        match cluster_of[unit] {
+            Some(cluster) => clusters[cluster].name.clone(),
+            None => stems[unit].clone(),
+        }
+    };
+
+    // A C type name two units define at different places is two C types
+    // (a file-local `typedef struct {..} anim_t;` in each), and every C type
+    // lives in the one shared module: the definition at the lexically first
+    // place keeps the name, the n-th other place reserves the name and its
+    // first n-1 renamer spellings so that the renamer gives it `<name>_<n-1>`.
+    let mut type_sites: BTreeMap<(&'static str, String), BTreeMap<String, Vec<usize>>> =
+        BTreeMap::new();
+    for (unit, context) in contexts.iter().enumerate() {
+        for (_, decl) in context.iter_decls() {
+            let (kind, name) = match &decl.kind {
+                CDeclKind::Typedef { name, .. } => ("typedef", name.clone()),
+                CDeclKind::Struct {
+                    name: Some(name),
+                    fields: Some(_),
+                    ..
+                }
+                | CDeclKind::Union {
+                    name: Some(name),
+                    fields: Some(_),
+                    ..
+                } => ("record", name.clone()),
+                CDeclKind::Enum {
+                    name: Some(name),
+                    variants,
+                    ..
+                } if !variants.is_empty() => ("enum", name.clone()),
+                _ => continue,
+            };
+            let Some(site) = context.display_loc(&decl.loc) else {
+                continue;
+            };
+            let units = type_sites
+                .entry((kind, name))
+                .or_default()
+                .entry(site.to_string())
+                .or_default();
+            if !units.contains(&unit) {
+                units.push(unit);
+            }
+        }
+    }
+    let mut reserved_types: Vec<Vec<String>> = vec![Vec::new(); inputs.len()];
+    for ((_, name), sites) in &type_sites {
+        for (index, units) in sites.values().enumerate().skip(1) {
+            for &unit in units {
+                reserved_types[unit].push(name.clone());
+                reserved_types[unit].extend((0..index - 1).map(|n| format!("{name}_{n}")));
+            }
+        }
+    }
+
     let mut links: Vec<translator::UnitLink> = Vec::with_capacity(inputs.len());
-    let mut edges: Vec<BTreeSet<usize>> = Vec::with_capacity(inputs.len());
     for (unit, refs) in references.iter().enumerate() {
         let mut owners = HashMap::new();
-        let mut deps = BTreeSet::new();
+        let mut requires = BTreeSet::new();
         for name in refs {
             if let Some(&other) = owner.get(name) {
                 if other != unit {
-                    if entry_unit == Some(other) {
+                    let same_module =
+                        cluster_of[unit].is_some() && cluster_of[unit] == cluster_of[other];
+                    let other_is_entry = match cluster_of[other] {
+                        Some(cluster) => clusters[cluster].entry,
+                        None => entry_unit == Some(other),
+                    };
+                    if other_is_entry && !same_module {
                         return Err(TranspileError::Layout(format!(
-                            "{} references {name}, defined by the entry unit {}; the unit \
-                             with `main` is run as the program and cannot be required",
+                            "{} references {name}, defined by {} in the entry module; the \
+                             module with `main` is run as the program and cannot be required",
                             inputs[unit].display(),
                             inputs[other].display()
                         )));
                     }
-                    owners.insert(name.clone(), stems[other].clone());
-                    deps.insert(other);
-                }
-            }
-        }
-        links.push(translator::UnitLink {
-            module: stems[unit].clone(),
-            owners,
-            requires: deps.iter().map(|&dep| stems[dep].clone()).collect(),
-        });
-        edges.push(deps);
-    }
-
-    // Depth-first search for a back edge; `path` is the chain of units being
-    // visited, so the cycle is the tail of it from the revisited unit.
-    #[derive(Clone, Copy, PartialEq)]
-    enum Mark {
-        New,
-        Active,
-        Done,
-    }
-    fn visit(
-        unit: usize,
-        edges: &[BTreeSet<usize>],
-        marks: &mut [Mark],
-        path: &mut Vec<usize>,
-    ) -> Option<Vec<usize>> {
-        marks[unit] = Mark::Active;
-        path.push(unit);
-        for &next in &edges[unit] {
-            match marks[next] {
-                Mark::Done => {}
-                Mark::Active => {
-                    let start = path.iter().position(|&u| u == next).unwrap_or(0);
-                    let mut cycle = path[start..].to_vec();
-                    cycle.push(next);
-                    return Some(cycle);
-                }
-                Mark::New => {
-                    if let Some(cycle) = visit(next, edges, marks, path) {
-                        return Some(cycle);
+                    owners.insert(name.clone(), module_of(other));
+                    if !same_module {
+                        requires.insert(module_of(other));
                     }
                 }
             }
         }
-        path.pop();
-        marks[unit] = Mark::Done;
-        None
+        // A cluster member must not declare, as a private name, a name its
+        // module mates define as an external symbol.
+        let reserved_values = match cluster_of[unit] {
+            Some(cluster) => clusters[cluster]
+                .members
+                .iter()
+                .filter(|&&member| member != unit)
+                .flat_map(|&member| {
+                    owner
+                        .iter()
+                        .filter(move |(_, &defining)| defining == member)
+                        .map(|(name, _)| name.clone())
+                })
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect(),
+            None => vec![],
+        };
+        links.push(translator::UnitLink {
+            module: stems[unit].clone(),
+            owners,
+            requires: requires.into_iter().collect(),
+            fragment: cluster_of[unit].is_some(),
+            reserved_values,
+            reserved_types: std::mem::take(&mut reserved_types[unit]),
+            foreign_refs: HashMap::new(),
+        });
     }
-    let mut marks = vec![Mark::New; inputs.len()];
-    for unit in 0..inputs.len() {
-        if marks[unit] == Mark::New {
-            if let Some(cycle) = visit(unit, &edges, &mut marks, &mut Vec::new()) {
-                let files: Vec<String> = cycle
-                    .iter()
-                    .map(|&u| inputs[u].display().to_string())
-                    .collect();
-                return Err(TranspileError::Layout(format!(
-                    "the units reference each other in a cycle, which daslang's `require` \
-                     refuses: {}; a cyclic layout is not supported yet",
-                    files.join(" -> ")
-                )));
+    Ok((links, clusters))
+}
+
+/// Units of a `--module-layout source` program that reference each other in
+/// a cycle and so are compiled as one daslang module (`link_units`).
+struct SourceCluster {
+    /// `<lexically first member stem>_cluster`, or the entry unit's stem for
+    /// the cluster holding C `main`.
+    name: String,
+    /// Member units, in compilation-database order.
+    members: Vec<usize>,
+    /// A member defines C `main`: the module is the program and anonymous.
+    entry: bool,
+}
+
+/// Tarjan's strongly connected components: the component id of every node.
+fn strongly_connected_components(edges: &[BTreeSet<usize>]) -> Vec<usize> {
+    struct State<'e> {
+        edges: &'e [BTreeSet<usize>],
+        index: Vec<Option<usize>>,
+        low: Vec<usize>,
+        on_stack: Vec<bool>,
+        stack: Vec<usize>,
+        next: usize,
+        component: Vec<usize>,
+    }
+    fn visit(state: &mut State, node: usize) {
+        state.index[node] = Some(state.next);
+        state.low[node] = state.next;
+        state.next += 1;
+        state.stack.push(node);
+        state.on_stack[node] = true;
+        for &next in state.edges[node].iter() {
+            match state.index[next] {
+                None => {
+                    visit(state, next);
+                    state.low[node] = state.low[node].min(state.low[next]);
+                }
+                Some(index) if state.on_stack[next] => {
+                    state.low[node] = state.low[node].min(index);
+                }
+                Some(_) => {}
+            }
+        }
+        if Some(state.low[node]) == state.index[node] {
+            let mut members = Vec::new();
+            loop {
+                let member = state.stack.pop().expect("the root is on the stack");
+                state.on_stack[member] = false;
+                members.push(member);
+                if member == node {
+                    break;
+                }
+            }
+            let id = *members.iter().min().expect("a component has members");
+            for member in members {
+                state.component[member] = id;
             }
         }
     }
-    Ok(links)
+    let count = edges.len();
+    let mut state = State {
+        edges,
+        index: vec![None; count],
+        low: vec![0; count],
+        on_stack: vec![false; count],
+        stack: Vec::new(),
+        next: 0,
+        component: (0..count).collect(),
+    };
+    for node in 0..count {
+        if state.index[node].is_none() {
+            visit(&mut state, node);
+        }
+    }
+    state.component
 }
 
 use crate::compile_cmds::CompileCmd;

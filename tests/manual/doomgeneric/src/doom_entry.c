@@ -16,6 +16,18 @@
 
 #include "doomgeneric.h"
 
+/* The frame hashes go to stdout: the engine's console redirection of
+ * `engine_config.h` (force-included by the `--module-layout source` case)
+ * ends here.  The unity build `all.c` has already ended its own. */
+#undef printf
+#undef puts
+#undef putchar
+
+/* The platform layer's frame record and virtual clock (`dg_platform.c`). */
+extern int dg_frame_count;
+extern int32_t dg_frame_hash[];
+void dg_advance_clock(void);
+
 /* Frames recorded.  The first 41 are rendered inside `doomgeneric_Create`,
  * while `D_Display` runs the screen wipe (`f_wipe.c`'s melt) into DEMO1's
  * level, E1M5 of the shareware IWAD, one frame per virtual tic of the wipe.

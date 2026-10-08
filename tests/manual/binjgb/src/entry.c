@@ -15,6 +15,16 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "common.h"
+#include "emulator.h"
+
+/* The platform layer (`platform.c`), declared here for the case that
+ * compiles every unit on its own (`binjgb-cgb-acid2-std-source`). */
+int gb_load_rom(int argc, char **argv, FileData *out);
+Emulator *gb_create(const FileData *rom);
+int gb_run_frame(Emulator *emulator, int frame_index);
+int32_t gb_frame_hash(Emulator *emulator);
+
 #ifndef GB_FRAMES
 #define GB_FRAMES 60
 #endif

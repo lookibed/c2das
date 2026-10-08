@@ -338,6 +338,50 @@ The printer renders a declaration's annotations as one bracketed, comma-separate
 (`[export, unsafe_deref]`).  daScript's grammar accepts exactly one block per declaration;
 two consecutive `[...]` lines are a syntax error.
 
+### `--module-layout source`: clusters and fragments
+
+`lib.rs link_units` owns the program-level layout; `translate_impl` lowers one unit as before
+and is told what the rest of the program is through `UnitLink`.  Units on a reference cycle
+(Tarjan's strongly connected components of unit → owner of a referenced external symbol) are
+one daslang module, because daslang refuses a cyclic `require`: each member is a *fragment*
+(`UnitLink::fragment`), whose `UnitOutput` carries its module-level declarations and its
+`require`s instead of a module text, and `lib.rs` writes `<stem>.das.inc` (declarations only)
+and the cluster file (`translator::cluster_module_source`: header, options, the union of the
+`require`s, one `include` per fragment).  The cluster is `<lexically first stem>_cluster`, or
+the entry unit's stem — anonymous — when it holds `main`.  The fragment extension
+(`lib.rs FRAGMENT_EXTENSION`, `das.inc`) keeps fragments away from a tool that compiles every
+`.das` file standalone.
+
+The fragments share one module scope, and every rule that makes a name unique is the
+renamer's, never a text rewrite:
+
+- `UnitLink::reserved_values` — the external symbols the other members define, plus every
+  module-level name the earlier members (compilation-database order) declared — are reserved
+  on the value renamer right after the unit's own external names are claimed, so a static,
+  a hoisted function-scope static or a layout-proof function that would take one is renamed.
+- String-literal arrays are named `c2da_str_<stem>_<n>` in a fragment
+  (`literals::reset_string_literals`).
+- `UnitLink::reserved_types` (every source-layout unit, not only fragments): a C type name
+  defined at two places is two C types sharing one shared module; the lexically first place
+  keeps the name, the others reserve it so the type renamer picks `<name>_<k>`.  An anonymous
+  record is `Unnamed_<file>_<line>` (`Translation::anonymous_record_name`), so the same record
+  reached through a header is one shared type and two units' records are two.
+- A fixed-name generated helper two fragments emit identically is declared once; a different
+  one fails closed (`TranspileError::Layout`).
+
+daslang's global-initialization check is module-wide and follows calls and `@@` into bodies,
+so a fragment's `global_order::order_value_declarations` gets the other members' functions and
+objects (`UnitLink::foreign_refs`, name → the names a body or initializer reads; the cluster
+is translated once more first to learn them) and routes a cycle through another fragment to
+`[init]` like a local one.  Object order across fragments is the include order
+(`lib.rs include_order`: a fragment whose initializers reach another's objects comes after
+it), and every fragment object without an initializer except an array is given C's zero
+(`default<T>`), which daslang requires of an object another initializer names.  A block-scope
+`extern T x;` of an object another unit defines emits nothing (the name resolves to the
+owner), and the designator of a function another unit defines, declared here without a
+prototype, is always converted to the C pointer type (`functions.rs
+function_designator_value`): the definition's prototype is not visible in this unit.
+
 ## One `unsafe` per node
 
 daslang's call-shaped `unsafe(expr)` is shallow: it marks only the root node of `expr`

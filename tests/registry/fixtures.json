@@ -1201,6 +1201,10 @@
     },
     {
       "c_graph": "binjgb",
+      "canonical_case": "binjgb-cgb-acid2-std-source",
+      "canonical_cases": [
+        "binjgb-cgb-acid2-std-source"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -1212,17 +1216,20 @@
           "-Isrc"
         ]
       },
-      "entrypoint": "graph-member",
+      "entrypoint": "main",
       "expected": {
-        "kind": "unregistered",
-        "value": "unregistered"
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "rom_bytes=32768\ntitle: \"CGB-ACID2\"\ncgb flag: CGB_FLAG_REQUIRED\nsgb flag: SGB_FLAG_NONE\ncart type: CART_TYPE_ROM_ONLY\nrom size: ROM_SIZE_32K\next ram size: EXT_RAM_SIZE_NONE\nheader checksum: 0xeb [OK]\nwidth=160\nheight=144\nframe[0]=1015431621\nframe[1]=838717591\nframe[2]=838717591\nframe[3]=838717591\nframe[4]=838717591\nframe[5]=838717591\nframe[6]=838717591\nframe[7]=838717591\nframe[8]=838717591\nframe[9]=838717591\nframe[10]=838717591\nframe[11]=838717591\nframe[12]=838717591\nframe[13]=838717591\nframe[14]=838717591\nframe[15]=838717591\nframe[16]=838717591\nframe[17]=838717591\nframe[18]=838717591\nframe[19]=838717591\nframe[20]=838717591\nframe[21]=838717591\nframe[22]=838717591\nframe[23]=838717591\nframe[24]=838717591\nframe[25]=838717591\nframe[26]=838717591\nframe[27]=838717591\nframe[28]=838717591\nframe[29]=838717591\nframe[30]=838717591\nframe[31]=838717591\nframe[32]=838717591\nframe[33]=838717591\nframe[34]=838717591\nframe[35]=838717591\nframe[36]=838717591\nframe[37]=838717591\nframe[38]=838717591\nframe[39]=838717591\nframe[40]=838717591\nframe[41]=838717591\nframe[42]=838717591\nframe[43]=838717591\nframe[44]=838717591\nframe[45]=838717591\nframe[46]=838717591\nframe[47]=838717591\nframe[48]=838717591\nframe[49]=838717591\nframe[50]=838717591\nframe[51]=838717591\nframe[52]=838717591\nframe[53]=838717591\nframe[54]=838717591\nframe[55]=838717591\nframe[56]=838717591\nframe[57]=838717591\nframe[58]=838717591\nframe[59]=838717591\nframes=60\nticks=5378896\n"
+        }
       },
       "family": "binjgb",
       "id": "tests--manual--binjgb--src--entry",
       "owner": "corpus graph inventory",
-      "runtime": "unverified",
+      "runtime": "required",
       "source": "tests/manual/binjgb/src/entry.c",
-      "status": "inventory-only"
+      "status": "supported"
     },
     {
       "c_graph": "binjgb",
@@ -1450,6 +1457,10 @@
     },
     {
       "c_graph": "doomgeneric",
+      "canonical_case": "doomgeneric-demo1-std-source",
+      "canonical_cases": [
+        "doomgeneric-demo1-std-source"
+      ],
       "checked_in_das": null,
       "clang": {
         "compile_commands": null,
@@ -1460,17 +1471,20 @@
           "-Isrc"
         ]
       },
-      "entrypoint": "graph-member",
+      "entrypoint": "main",
       "expected": {
-        "kind": "unregistered",
-        "value": "unregistered"
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "frame[0]=-288221841\nframe[1]=-1974147103\nframe[2]=-1371333551\nframe[3]=-311612633\nframe[4]=61684155\nframe[5]=274729465\nframe[6]=-575676439\nframe[7]=839636789\nframe[8]=-1757064413\nframe[9]=597874855\nframe[10]=756133791\nframe[11]=546555967\nframe[12]=840439929\nframe[13]=-1964124787\nframe[14]=1574317281\nframe[15]=-1968558826\nframe[16]=1018789605\nframe[17]=-737365355\nframe[18]=1332884193\nframe[19]=133681673\nframe[20]=1144928681\nframe[21]=-874128881\nframe[22]=20652115\nframe[23]=1477602998\nframe[24]=2127216700\nframe[25]=-2142760767\nframe[26]=935832973\nframe[27]=-494883972\nframe[28]=-1350608116\nframe[29]=-1104928309\nframe[30]=1520901762\nframe[31]=1449564386\nframe[32]=1319215018\nframe[33]=1137127970\nframe[34]=1403493386\nframe[35]=1309546109\nframe[36]=2124821507\nframe[37]=-722706232\nframe[38]=1183685786\nframe[39]=742349402\nframe[40]=742349402\nframe[41]=742349402\nframe[42]=742349402\nframe[43]=742349402\nframe[44]=742349402\nframe[45]=-1953597393\nframe[46]=-668979122\nframe[47]=575663143\nframe[48]=600575477\nframe[49]=-899223173\nframe[50]=-1895391426\nframe[51]=-2140389343\nframe[52]=-1973890294\nframe[53]=2050982887\nframe[54]=1435611004\nframe[55]=-513844599\nframe[56]=133742381\nframe[57]=1541739105\nframe[58]=1110043847\nframe[59]=-1514565496\nframe[60]=695570021\nframe[61]=1661577531\nframe[62]=1044374416\nframe[63]=319965919\nframe[64]=543616154\nframe[65]=1012607777\nframe[66]=-1224194418\nframe[67]=87956286\nframe[68]=-711226778\nframe[69]=763190869\nframes=70\n"
+        }
       },
       "family": "doomgeneric",
       "id": "tests--manual--doomgeneric--src--doom_entry",
       "owner": "corpus graph inventory",
-      "runtime": "unverified",
+      "runtime": "required",
       "source": "tests/manual/doomgeneric/src/doom_entry.c",
-      "status": "inventory-only"
+      "status": "supported"
     },
     {
       "c_graph": "h264bsd-mp4",
@@ -3735,20 +3749,18 @@
           "-w"
         ]
       },
-      "entrypoint": "not-applicable",
+      "entrypoint": "main",
       "expected": {
-        "kind": "translation-error",
+        "kind": "stdout-and-exit-code",
         "value": {
-          "cause": "the units reference each other in a cycle, which daslang's `require` refuses",
-          "location": "ring_b.c",
-          "operation": "module layout",
-          "type": "not-applicable"
+          "exit_code": 0,
+          "stdout": "result=7 calls=20\n"
         }
       },
       "family": "syntax-module-layout",
       "id": "tests--syntax--m02_module_layout_cycle--ring_a",
       "owner": "lib.rs link_units / translator module layout",
-      "runtime": "not-applicable",
+      "runtime": "required",
       "source": "tests/syntax/m02_module_layout_cycle/ring_a.c",
       "status": "supported"
     },
@@ -3792,6 +3804,76 @@
       "owner": "lib.rs link_units / translator module layout",
       "runtime": "unverified",
       "source": "tests/syntax/m02_module_layout_cycle/ring_c.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m03_module_layout_cycle_statics--left",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m03_module_layout_cycle_statics/left.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "canonical_case": "m03-module-layout-cycle-statics",
+      "canonical_cases": [
+        "m03-module-layout-cycle-statics"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "end=24 left=240 right=313 count=7 own=5 left_only=3\n"
+        }
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m03_module_layout_cycle_statics--main",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "required",
+      "source": "tests/syntax/m03_module_layout_cycle_statics/main.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m03_module_layout_cycle_statics--right",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m03_module_layout_cycle_statics/right.c",
       "status": "quarantined"
     },
     {

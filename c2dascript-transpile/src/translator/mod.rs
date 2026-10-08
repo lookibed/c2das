@@ -310,6 +310,25 @@ pub struct UnitLink {
     pub owners: HashMap<String, String>,
     /// The owner modules, each once, in a fixed order.
     pub requires: Vec<String>,
+    /// The unit is one of several that reference each other in a cycle and
+    /// share one daslang module (`lib.rs link_units`): it becomes an
+    /// `include` fragment holding declarations only, and the cluster's module
+    /// file carries the header, the options and the `require`s.
+    pub fragment: bool,
+    /// Value names this unit must not declare at module level: the external
+    /// symbols its cluster defines and the names the cluster's earlier
+    /// fragments declared.  A static, a string-literal array or a generated
+    /// helper that would take one is renamed by the renamer.
+    pub reserved_values: Vec<String>,
+    /// Type names this unit must not give its own C types: another unit
+    /// defines a different C type of the same name, and every C type lives
+    /// in the one shared module.
+    pub reserved_types: Vec<String>,
+    /// For a fragment: every other fragment's module-level function and
+    /// object, as name → the names its body or initializer reads, so the
+    /// initialization-order pass sees the whole module
+    /// (`global_order::order_value_declarations`).
+    pub foreign_refs: HashMap<String, Vec<String>>,
 }
 
 /// A translated unit under `--module-layout source`: its own module text plus
@@ -323,6 +342,12 @@ pub struct UnitOutput {
     pub shared_types: Vec<DaDecl>,
     /// The `--libc std` helpers this unit needed, before any module pass.
     pub libc_helpers: Vec<DaDecl>,
+    /// A fragment unit (`UnitLink::fragment`): its module-level
+    /// declarations, which `lib.rs` merges into the fragment text, and the
+    /// modules it `require`s, which go to the cluster's module file.  `source`
+    /// is empty for a fragment.
+    pub fragment_decls: Vec<DaDecl>,
+    pub requires: Vec<String>,
 }
 
 pub struct Translation<'c> {
@@ -3068,6 +3093,17 @@ impl<'c> Translation<'c> {
         decl_id: CDeclId,
     ) -> TranslationResult<crate::cfg::DeclStmtInfo> {
         match self.ast_context[decl_id].kind {
+            // Source layout: a block-scope `extern T x;` names an object
+            // another unit defines (C11 6.2.2p4); the name was claimed as
+            // that external symbol (`translate_impl`) and resolves to its
+            // owner's module, so the declaration emits nothing.
+            CDeclKind::Variable {
+                has_static_duration: true,
+                is_defn: false,
+                is_externally_visible: true,
+                ref ident,
+                ..
+            } if self.link_owner(ident).is_some() => Ok(crate::cfg::DeclStmtInfo::empty()),
             // A function-scope `static` is not a local at all: it has the
             // lifetime of the program and is initialised exactly once, before
             // `main` (C 6.2.4p3, 6.7.9p4 — its initialiser is a constant
@@ -4080,6 +4116,31 @@ pub fn translate_unit(
 }
 
 impl Translation<'_> {
+    /// The name an anonymous record is declared under.  One module: `Unnamed`
+    /// (the renamer numbers the others).  Under the source layout every C
+    /// type lives in the one shared module, where two units' anonymous
+    /// records must not take each other's label, while the same record seen
+    /// through a header by two units must keep one: the label is
+    /// `Unnamed_<file>_<line>` of its definition.
+    pub(crate) fn anonymous_record_name(&self, decl_id: CDeclId) -> String {
+        if self.link.is_none() {
+            return "Unnamed".to_owned();
+        }
+        let decl = &self.ast_context[decl_id];
+        let (Some(path), Some(loc)) = (self.ast_context.get_source_path(decl), decl.loc.as_ref())
+        else {
+            return "Unnamed".to_owned();
+        };
+        let stem: String = path
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_default()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        format!("Unnamed_{stem}_{}", loc.begin_line)
+    }
+
     /// The module that owns external symbol `name` under the source layout,
     /// when another unit defines it.
     pub(crate) fn link_owner(&self, name: &str) -> Option<&str> {
@@ -4146,12 +4207,31 @@ fn translate_impl(
                 public_names.insert(das_name);
             }
         }
+        // Only now, after this unit's own external names are claimed, are the
+        // names the rest of its daslang module uses reserved: a C static that
+        // shares one of them is renamed, deterministically, by the renamer.
+        let link = t.link.as_ref().expect("checked above");
+        for name in &link.reserved_values {
+            t.renamer.borrow_mut().reserve_root(name);
+        }
+        for name in &link.reserved_types {
+            t.type_converter.borrow_mut().reserve_type_name(name);
+        }
     }
 
     // Per-translation-unit arenas: the string-literal backing arrays and the
     // builtin prelude helpers are collected while lowering and drained into
     // the module below.
-    literals::reset_string_literals();
+    literals::reset_string_literals(match &t.link {
+        Some(link) if link.fragment => format!(
+            "c2da_str_{}_",
+            link.module
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect::<String>()
+        ),
+        _ => "c2da_str_".to_owned(),
+    });
     builtins::reset_builtin_helpers();
     libc::reset();
 
@@ -4462,9 +4542,13 @@ fn translate_impl(
     let mut ordered = t.take_hoisted_statics();
     ordered.extend(value_decls);
     let storage_globals = std::mem::take(&mut *t.storage_globals.borrow_mut());
+    let no_foreign_refs = HashMap::new();
     module_decls.extend(global_order::order_value_declarations(
         ordered,
         &storage_globals,
+        t.link
+            .as_ref()
+            .map_or(&no_foreign_refs, |link| &link.foreign_refs),
     ));
     // The `std` entry wrapper calls the translated C `main`, so it comes after
     // every translated function.
@@ -4609,11 +4693,102 @@ fn translate_impl(
         decls: module_decls,
     };
 
+    // A cluster fragment hands its declarations and `require`s to `lib.rs`,
+    // which writes the fragment text and the cluster's module file.
+    if t.link.as_ref().map_or(false, |link| link.fragment) {
+        // daslang counts a module-level `var` without an initializer as never
+        // initialized and rejects an initializer naming it; another fragment
+        // may take its address (`global_order` spells the zero only for this
+        // unit's own readers), so every object gets C's zero (C11 6.7.9p10)
+        // spelled out.
+        let mut module = module;
+        for decl in &mut module.decls {
+            let variable = match decl {
+                DaDecl::Variable(variable) => variable,
+                DaDecl::Private(inner) => match &mut **inner {
+                    DaDecl::Variable(variable) => variable,
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            // `default<T[N]>` of a record array does not parse as the zero
+            // value; such an object keeps the bare declaration.
+            let is_array = matches!(
+                variable.var_type.kind,
+                das_ast::DaTypeKind::FixedArray(..) | das_ast::DaTypeKind::Array(_)
+            );
+            if variable.init.is_none() && !is_array {
+                variable.init = Some(DaExpr::DefaultValue(writable_type(
+                    variable.var_type.clone(),
+                )));
+            }
+        }
+        return Ok(UnitOutput {
+            source: String::new(),
+            shared_types,
+            libc_helpers: libc_contribution.unwrap_or_default(),
+            fragment_decls: module.decls,
+            requires: module.requires,
+        });
+    }
     Ok(UnitOutput {
         source: module.to_string(),
         shared_types,
         libc_helpers: libc_contribution.unwrap_or_default(),
+        fragment_decls: vec![],
+        requires: vec![],
     })
+}
+
+/// A module-level function or object of a cluster fragment as an entry of
+/// another fragment's `UnitLink::foreign_refs`: its name and the names its
+/// body or initializer reads.
+pub fn module_level_reads(decl: &DaDecl) -> Option<(String, Vec<String>)> {
+    let mut names = Vec::new();
+    match decl {
+        DaDecl::Private(inner) => return module_level_reads(inner),
+        DaDecl::Function(function) => {
+            if let Some(body) = &function.body {
+                collect_names(body, &mut names);
+            }
+            Some((function.name.clone(), names))
+        }
+        DaDecl::Variable(variable) => {
+            if let Some(init) = &variable.init {
+                collect_names(init, &mut names);
+            }
+            Some((variable.name.clone(), names))
+        }
+        _ => None,
+    }
+}
+
+/// The module file of a `--module-layout source` cluster: units that
+/// reference each other in a cycle, which daslang's `require` refuses, are one
+/// module whose file carries the header, the options and the union of the
+/// members' `require`s, then `include`s each member's fragment (path relative
+/// to this file).  `public` is false for the cluster holding C `main`, which is
+/// the program daslang runs and so stays an anonymous module.
+pub fn cluster_module_source(
+    tcfg: &TranspilerConfig,
+    name: &str,
+    public: bool,
+    requires: Vec<String>,
+    includes: &[String],
+) -> String {
+    let mut text = DaModule {
+        name: Some(name.to_owned()),
+        public,
+        requires,
+        options: module_options(tcfg),
+        decls: vec![],
+    }
+    .to_string();
+    text.push('\n');
+    for include in includes {
+        text.push_str(&format!("include {include}\n"));
+    }
+    text
 }
 
 /// The `options` header of every module this translator writes.

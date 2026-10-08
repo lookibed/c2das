@@ -26,8 +26,10 @@
 #define DG_MAX_FRAMES 4096
 
 static uint32_t dg_virtual_ms = 1000;
-static int dg_frame_count = 0;
-static int32_t dg_frame_hash[DG_MAX_FRAMES];
+/* Read by the entries, which `doom_entry.c` declares for itself when it is
+ * compiled on its own (the `--module-layout source` case). */
+int dg_frame_count = 0;
+int32_t dg_frame_hash[DG_MAX_FRAMES];
 
 /* 32-bit FNV-1a over the frame's pixels, one 24-bit RGB word per pixel. */
 static uint32_t dg_hash_frame(void)
@@ -79,7 +81,7 @@ void DG_SetWindowTitle(const char *title)
 
 /* One engine tic of virtual time (1000 / 35 ms, rounded down), advanced by
  * the entries between two `doomgeneric_Tick` calls. */
-static void dg_advance_clock(void)
+void dg_advance_clock(void)
 {
     dg_virtual_ms += 28;
 }

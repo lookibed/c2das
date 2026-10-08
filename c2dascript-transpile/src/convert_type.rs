@@ -98,6 +98,11 @@ impl TypeConverter {
             .insert(decl_id, name)
             .expect("Name already assigned")
     }
+    /// Make the type name `name` unavailable in this unit, so a declaration
+    /// that would take it is renamed (`translator::UnitLink::reserved_types`).
+    pub fn reserve_type_name(&mut self, name: &str) {
+        self.renamer.reserve_root(name);
+    }
     pub fn ensure_decl_name(&mut self, decl_id: CDeclId, name: &str) -> String {
         self.resolve_decl_name(decl_id)
             .unwrap_or_else(|| self.declare_decl_name(decl_id, name))
@@ -382,7 +387,7 @@ impl<'c> Translation<'c> {
                             return self.enum_integral_type(*integral_type);
                         }
                     }
-                    let name = tn.unwrap_or_else(|| "Unnamed".into());
+                    let name = tn.unwrap_or_else(|| self.anonymous_record_name(decl_id));
                     let resolved_name = self
                         .type_converter
                         .borrow_mut()
