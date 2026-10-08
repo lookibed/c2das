@@ -1,4 +1,5 @@
 //! Struct/union translation — полный порт c2rust structs_unions.rs
+use super::layout::NaturalMember;
 use super::object_memory::{CObjectAddress, ObjectCopy};
 use super::*;
 use std::ops::Index;
@@ -83,7 +84,9 @@ impl<'c> Translation<'c> {
     }
 
     /// The daScript fields of a C struct whose layout `layout.rs` reports as
-    /// natural (not storage-backed), in declaration order, one per C field.
+    /// natural (not storage-backed), in declaration order: one per C field,
+    /// and one unsigned integer per bitfield storage unit in place of the
+    /// bitfields it holds (`layout.rs natural_members`).
     ///
     /// This is the only builder of natural record fields: `convert_struct`
     /// and the typedef-of-anonymous-struct path both use it.  A field whose
@@ -95,8 +98,27 @@ impl<'c> Translation<'c> {
         decl_id: CRecordId,
         ids: &[CFieldId],
     ) -> TranslationResult<Vec<DaField>> {
+        let members = self.natural_members(decl_id).ok_or_else(|| {
+            TranslationError::generic("natural record fields requested for a storage-backed record")
+        })?;
+        let _ = ids;
         let mut das_fields = vec![];
-        for &fid in ids {
+        for member in members {
+            let fid = match member {
+                NaturalMember::Field(fid) => fid,
+                NaturalMember::BitfieldUnit {
+                    index, size_bytes, ..
+                } => {
+                    das_fields.push(DaField {
+                        name: NaturalMember::unit_name(index),
+                        field_type: NaturalMember::unit_type(size_bytes).ok_or_else(|| {
+                            TranslationError::generic("bitfield storage unit has no daScript type")
+                        })?,
+                        default: None,
+                    });
+                    continue;
+                }
+            };
             if let CDeclKind::Field { ref name, typ, .. } = self.ast_context[fid].kind {
                 // A field type that has no daScript representation is a
                 // gap in the translation, not something to approximate:
@@ -1018,6 +1040,33 @@ impl<'c> Translation<'c> {
         )))
     }
 
+    /// The place of a bitfield of a natural record named by `.` from an
+    /// object (`s.f`, `a[i].f`, `s.inner.f`): the record's storage-unit
+    /// field (`layout.rs natural_bitfield_unit`), spelled by name below the
+    /// object itself (`s.c2da_bits_0`), which `bitfield_load` and
+    /// `bitfield_store` shift and mask.  `None` for any other field.
+    pub(crate) fn natural_bitfield_place(
+        &self,
+        ctx: ExprContext,
+        base: CExprId,
+        field: CFieldId,
+    ) -> TranslationResult<Option<CObjectAddress>> {
+        if self.natural_bitfield_unit(field).is_none() {
+            return Ok(None);
+        }
+        let parent = *self
+            .ast_context
+            .parents
+            .get(&field)
+            .ok_or_else(|| TranslationError::generic("field has no parent record"))?;
+        if !self.record_has_proven_layout(parent) {
+            return Ok(None);
+        }
+        let base_ty = self.ast_context[base].kind.get_qual_type();
+        let base = self.convert_expr(ctx.used(), base, base_ty)?;
+        self.object_member_address(base, parent, field).map(Some)
+    }
+
     /// The byte address of an inline record field of a natural record named
     /// by `.` from an object: the address of the storage field, so that the
     /// record's members are read and written through their own types at
@@ -1182,6 +1231,11 @@ impl<'c> Translation<'c> {
             // address-backed field access.
             return self.member_place_lvalue(base_address, decl);
         }
+        // A bitfield of a natural record is a shift and a mask on the
+        // record's storage-unit field (`s.c2da_bits_0`), read in place.
+        if let Some(address) = self.natural_bitfield_place(ctx, expr, decl)? {
+            return self.bitfield_load(address, decl);
+        }
         let obj = self.convert_expr(ctx, expr, Some(qual_ty))?;
         let fn_ = match &self.ast_context[decl].kind {
             CDeclKind::Field { name, .. } => self
@@ -1251,7 +1305,7 @@ pub(crate) fn is_wrapper_place(expr: &DaExpr) -> bool {
 
 /// An operand of a wrapper element place that reads nothing but variables,
 /// constants and their arithmetic.
-fn is_pure_index(expr: &DaExpr) -> bool {
+pub(crate) fn is_pure_index(expr: &DaExpr) -> bool {
     match expr {
         DaExpr::Var(_) | DaExpr::ConstInt(_) | DaExpr::ConstUInt(_) => true,
         DaExpr::Cast { expr, .. } | DaExpr::Unsafe(expr) | DaExpr::Op1 { expr, .. } => {

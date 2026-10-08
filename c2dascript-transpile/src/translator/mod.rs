@@ -339,6 +339,11 @@ pub struct Translation<'c> {
     /// daScript record with the same fields. See
     /// [`Translation::is_storage_backed_record`].
     pub(crate) storage_backed_cache: RefCell<HashMap<CRecordId, bool>>,
+    /// The daScript fields of each natural record, bitfields folded into
+    /// their storage units; `None` for a storage-backed record.  See
+    /// [`Translation::natural_members`].
+    pub(crate) natural_members_cache:
+        RefCell<HashMap<CRecordId, Option<Vec<self::layout::NaturalMember>>>>,
     /// The natural records' compile-time layout proofs and the records
     /// accessed by field name. See [`self::layout::LayoutProofs`].
     pub(crate) layout_proofs: RefCell<self::layout::LayoutProofs>,
@@ -396,6 +401,7 @@ impl<'c> Translation<'c> {
             emitted_anon_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             layout_cache: RefCell::new(HashMap::new()),
             storage_backed_cache: RefCell::new(HashMap::new()),
+            natural_members_cache: RefCell::new(HashMap::new()),
             layout_proofs: RefCell::default(),
             named_zero_fill_cache: RefCell::new(HashMap::new()),
             hoisted_statics: RefCell::new(vec![]),
@@ -3510,10 +3516,64 @@ impl<'c> Translation<'c> {
             } => fields,
             _ => return Ok(None),
         };
+        let Some(members) = self.natural_members(rec_id) else {
+            return Ok(None);
+        };
         let mut is_unsafe = false;
         let mut stmts = vec![];
         let mut values = vec![];
-        for (&field_id, &init_id) in fields.iter().zip(init_ids.iter()) {
+        let init_of = |field_id: CFieldId| {
+            fields
+                .iter()
+                .position(|candidate| *candidate == field_id)
+                .and_then(|position| init_ids.get(position).copied())
+        };
+        for member in members {
+            let field_id = match member {
+                layout::NaturalMember::Field(field_id) => field_id,
+                // The bitfields of a storage unit compose the unit's word;
+                // one C leaves implicit contributes nothing to it, and a
+                // unit with no initializer at all is daScript's zero.
+                layout::NaturalMember::BitfieldUnit {
+                    index,
+                    size_bytes,
+                    fields: unit_fields,
+                    ..
+                } => {
+                    let mut parts = vec![];
+                    for unit_field in unit_fields {
+                        let Some(init_id) = init_of(unit_field) else {
+                            continue;
+                        };
+                        let init = self.strip_lvalue_wrappers(init_id);
+                        if matches!(self.ast_context[init].kind, CExprKind::ImplicitValueInit(_)) {
+                            continue;
+                        }
+                        let CDeclKind::Field { typ, .. } = &self.ast_context[unit_field].kind
+                        else {
+                            continue;
+                        };
+                        let item = self.convert_expr(ctx, init_id, Some(*typ))?;
+                        is_unsafe |= item.is_unsafe;
+                        stmts.extend(item.stmts);
+                        parts.push((unit_field, item.val));
+                    }
+                    if parts.is_empty() {
+                        continue;
+                    }
+                    let unit_type = layout::NaturalMember::unit_type(size_bytes).ok_or_else(|| {
+                        TranslationError::generic("bitfield storage unit has no daScript type")
+                    })?;
+                    values.push((
+                        layout::NaturalMember::unit_name(index),
+                        self.bitfield_unit_value(unit_type, size_bytes * 8, parts)?,
+                    ));
+                    continue;
+                }
+            };
+            let Some(init_id) = init_of(field_id) else {
+                continue;
+            };
             let CDeclKind::Field { name, typ, .. } = &self.ast_context[field_id].kind else {
                 continue;
             };

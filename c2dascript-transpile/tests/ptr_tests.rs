@@ -515,17 +515,15 @@ fn p105_unproven_and_address_places_keep_byte_offsets() {
         "p105_field_by_offset_kept",
         c2dascript_transpile::LibcMode::Std,
     );
-    // Union, bitfields, packed, over-aligned and a flexible array member are
-    // storage-backed: Clang offsets only.
+    // Union, packed, over-aligned and a flexible array member are
+    // storage-backed: Clang offsets only.  A bitfield record is natural
+    // (p177): its fields are shifts and masks on the unit field by name.
     for (function, access) in [
         (
             "word_of",
             "unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(w))))[0])",
         ),
-        (
-            "bits_of",
-            "unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(b))))[0]) >> 3",
-        ),
+        ("bits_of", "b.c2da_bits_0 >> 3 & 0x1f"),
         ("packed_of", "unsafe(reinterpret<uint64>(p)) + 1ul)), 4ul))"),
         (
             "aligned_of",
@@ -545,7 +543,7 @@ fn p105_unproven_and_address_places_keep_byte_offsets() {
             "{function} lost its byte offset:\n{body}"
         );
     }
-    for record in ["Word", "Bits", "Packed", "Aligned", "Flex"] {
+    for record in ["Word", "Packed", "Aligned", "Flex"] {
         assert!(
             !d.contains(&format!("type<{record}>")),
             "a storage-backed record has no daslang layout to prove: {record}"
@@ -892,27 +890,30 @@ fn p151_bitfields_go_through_their_aligned_storage_unit() {
         c2dascript_transpile::LibcMode::Std,
     );
     let body = function_body(&d, "main_0");
-    // `color.r` is bits 16..23 of the four-byte unit at offset 0: one aligned
-    // load, never a four-byte copy from byte 2 (two bytes past the record).
-    assert!(
-        body.contains(
-            "unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(last))))[0]) >> 16 & 0xff"
-        ),
-        "{body}"
-    );
+    // `color.r` is bits 16..23 of the four-byte unit at offset 0, the
+    // record's one field (p177): a shift and a mask on it, never a
+    // four-byte copy from byte 2 (two bytes past the record).
+    assert!(d.contains("struct color {\n    c2da_bits_0 : uint\n}\n"), "{d}");
+    assert!(body.contains("last.c2da_bits_0 >> 16 & 0xff"), "{body}");
     assert!(
         !body.contains("unsafe(reinterpret<uint64>(last)) + 2ul"),
         "{body}"
     );
     // The read-modify-write keeps the other fields of the unit.
-    assert!(body.contains("[0]) & 0xff00ffffu | "), "{body}");
+    assert!(body.contains("last.c2da_bits_0 = last.c2da_bits_0 & 0xff00ffffu | "), "{body}");
     // A 40-bit field of a `long long` is the eight-byte unit.
+    assert!(d.contains("struct wide {\n    c2da_bits_0 : uint64\n}\n"), "{d}");
+    assert!(body.contains("(0x123456ul & 0xfffffful) << 40ul"), "{body}");
+    // An ordinary field sharing a unit's bytes (`tagged.tag`), and a packed
+    // record, keep the storage-backed form; the packed record's field that
+    // straddles its unit keeps the byte path, and a bitfield record inside
+    // a union goes through the union's bytes.
+    assert!(d.contains("struct tagged {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"), "{d}");
+    assert!(body.contains(".c2da_storage + 3ul)), 4ul))"), "{body}");
     assert!(
-        body.contains("unsafe(unsafe(reinterpret<uint64?>(w.c2da_storage))[0]) >> 40 & 0xffffff"),
+        body.contains("unsafe(unsafe(reinterpret<uint?>(e.c2da_storage))[0]) & 0xfffff000u | 0xabcu & 0xfffu"),
         "{body}"
     );
-    // A packed record's field that straddles its unit keeps the byte path.
-    assert!(body.contains(".c2da_storage + 3ul)), 4ul))"), "{body}");
 }
 
 #[test]
@@ -939,19 +940,19 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
     // `while (n--)`.
     assert!(
         body.contains(
-            "var c2da_postinc_3 : int = i\n    i += 1\n    unsafe(unsafe(addr(a[0]))[c2da_postinc_3]) = 7"
+            "var c2da_postinc_2 : int = i\n    i += 1\n    unsafe(unsafe(addr(a[0]))[c2da_postinc_2]) = 7"
         ),
         "{body}"
     );
     assert!(
-        body.contains("var c2da_postinc_5 : int = i\n    i -= 1\n    y = c2da_postinc_5"),
+        body.contains("var c2da_postinc_4 : int = i\n    i -= 1\n    y = c2da_postinc_4"),
         "{body}"
     );
     // `*q++ = 5` with a value that cannot observe `q`: store, then step.
     assert!(body.contains("    *q = 5\n    unsafe {\n        q += 1\n    }\n"), "{body}");
     assert!(
         body.contains(
-            "var c2da_postinc_7 : int = n\n        n -= 1\n        if (c2da_postinc_7 == 0) {\n            break\n"
+            "var c2da_postinc_6 : int = n\n        n -= 1\n        if (c2da_postinc_6 == 0) {\n            break\n"
         ),
         "{body}"
     );
@@ -1987,11 +1988,11 @@ fn p176_union_fields_lie_inline_in_natural_records() {
     // A union aligned beyond eight bytes has no inline storage: the record
     // that holds it stays storage-backed.
     assert!(d.contains("struct wide {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 32ul)\n}\n"));
-    // A packed record and a bitfield record embedded by value are inline
-    // storage of their own alignment; their members are read through their
-    // own types at the field's offset, and the record's other fields go by
-    // name.
-    assert!(d.contains("struct actor {\n    id : int\n    spawn : uint8[10]\n    tint : uint\n    after : int\n}\n"));
+    // A packed record embedded by value is inline storage of its own
+    // alignment; its members are read through their own types at the
+    // field's offset, and the record's other fields go by name.  A bitfield
+    // record is natural (p177) and an ordinary field.
+    assert!(d.contains("struct actor {\n    id : int\n    spawn : uint8[10]\n    tint : color\n    after : int\n}\n"));
     assert!(d.contains("struct mapthing {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 10ul)\n}\n"));
     let body = function_body(&d, "main_0");
     assert!(
@@ -1999,8 +2000,9 @@ fn p176_union_fields_lie_inline_in_natural_records() {
         "{body}"
     );
     assert!(body.contains("i64 = int64(ap.after)"), "{body}");
+    assert!(body.contains("int(ap.tint.c2da_bits_0 >> 16 & 0xff)"), "{body}");
     assert!(
-        body.contains("int(uint(unsafe(unsafe(reinterpret<uint?>(unsafe(reinterpret<uint64>(ap))))[4]) >> 16 & 0xff))"),
+        body.contains("    ap.tint.c2da_bits_0 = ap.tint.c2da_bits_0 & 0xff00ffffu | (200u & 0xffu) << 16u\n"),
         "{body}"
     );
     // The other fields of the record are reached by name, through the
@@ -2063,4 +2065,80 @@ fn p176_union_fields_lie_inline_in_natural_records() {
         body.contains("s_0 = sample(id = id, bits = unsafe(unsafe(reinterpret<uint?>(c2da_fresh2.c2da_storage))[0]), tail = id * 2)"),
         "{body}"
     );
+}
+
+#[test]
+fn p177_bitfield_records_are_natural_with_unit_fields() {
+    let d = transpile_with_libc(
+        "p177_natural_bitfield_records",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // Every run of bitfields sharing a storage unit is one unsigned integer
+    // of the unit's size; the ordinary fields keep their own; the layout
+    // proof asserts each unit's offset once.
+    assert!(d.contains("struct color {\n    c2da_bits_0 : uint\n}\n"), "{d}");
+    assert!(
+        d.contains("struct packet {\n    kind : int\n    c2da_bits_0 : uint\n    c2da_bits_1 : uint16\n    c2da_bits_2 : uint8\n    tail : int16\n}\n"),
+        "{d}"
+    );
+    assert!(d.contains("struct pixel {\n    x : int\n    c : color\n    y : int\n}\n"), "{d}");
+    assert!(d.contains("static_assert(typeinfo offsetof<c2da_bits_0>(type<color>) == 0, \"C layout of color: offsetof c2da_bits_0\")"));
+    assert!(d.contains("static_assert(typeinfo offsetof<c2da_bits_1>(type<packet>) == 8, \"C layout of packet: offsetof c2da_bits_1\")"));
+    assert!(d.contains("static_assert(typeinfo offsetof<c2da_bits_2>(type<packet>) == 10, \"C layout of packet: offsetof c2da_bits_2\")"));
+    assert!(d.contains("static_assert(typeinfo offsetof<tail>(type<packet>) == 12, \"C layout of packet: offsetof tail\")"));
+    // A packed record, overlapping units of different sizes and a unit an
+    // ordinary field shares stay storage-backed.
+    assert!(d.contains("struct tight {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 5ul)\n}\n"), "{d}");
+    assert!(d.contains("struct mixed_units {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"), "{d}");
+    assert!(d.contains("struct tagged {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"), "{d}");
+    // Doom's frame hash: the palette entry is a value copy, each field a
+    // shift and a mask on the word; no allocation and no byte copy.
+    let body = function_body(&d, "hash_frame");
+    assert!(
+        body.contains("rgb = (c.c2da_bits_0 >> 16 & 0xff) << 16u | (c.c2da_bits_0 >> 8 & 0xff) << 8u | c.c2da_bits_0 & 0xff\n"),
+        "{body}"
+    );
+    assert!(!body.contains("calloc") && !body.contains("memcpy"), "{body}");
+    // Through a pointer: a read-modify-write of the unit by name.
+    let body = function_body(&d, "set_color");
+    assert!(body.contains("    p.c2da_bits_0 = p.c2da_bits_0 & 0xff00ffffu | (r & 0xffu) << 16u\n"), "{body}");
+    assert!(body.contains("    p.c2da_bits_0 = p.c2da_bits_0 & 0xffffff00u | b & 0xffu\n"), "{body}");
+    assert!(!body.contains("memcpy"), "{body}");
+    // Signed fields are sign-extended, a field as wide as its unit is the
+    // unit, a one-byte unit computes in `uint`.
+    let body = function_body(&d, "sum_packet");
+    assert!(body.contains("var c2da_fresh0 : int = int(unsafe(reinterpret<packet?>(p_0)).c2da_bits_0 & 0x3f)\n"), "{body}");
+    assert!(body.contains("        c2da_fresh0 |= -64\n"), "{body}");
+    assert!(body.contains("int(unsafe(reinterpret<packet?>(p_0)).c2da_bits_1)"), "{body}");
+    assert!(body.contains("uint8(uint(unsafe(reinterpret<packet?>(p_0)).c2da_bits_2) >> 4 & 0xf)"), "{body}");
+    // Initializers compose the units; constant ones fold into one word.
+    assert!(
+        d.contains("var palette : color[4] = fixed_array<color>(color(c2da_bits_0 = 0xff030201u), color(c2da_bits_0 = 0x0u), color(c2da_bits_0 = 0x1c80000u), color(c2da_bits_0 = 0x70707u))\n"),
+        "{d}"
+    );
+    let body = function_body(&d, "main_0");
+    assert!(
+        body.contains("    pk = packet(kind = 1, c2da_bits_0 = 0xfeee907bu, c2da_bits_1 = uint16(0xffff), c2da_bits_2 = 0xc9u8, tail = int16(-3))\n"),
+        "{body}"
+    );
+    assert!(body.contains("    px = pixel(x = 4, c = color(c2da_bits_0 = 0x4030201u), y = 5)\n"), "{body}");
+    // A copy is a value copy; stores go directly to the object, an array
+    // element, an embedded record, a malloc'd record.
+    assert!(body.contains("    d = c_0\n"), "{body}");
+    assert!(body.contains("    unsafe(unsafe(addr(pks[0]))[1]) = pk\n"), "{body}");
+    assert!(body.contains("    d.c2da_bits_0 = d.c2da_bits_0 & 0xff00ffffu | (99u & 0xffu) << 16u\n"), "{body}");
+    assert!(
+        body.contains("    unsafe(unsafe(addr(palette[0]))[1]).c2da_bits_0 = unsafe(unsafe(addr(palette[0]))[1]).c2da_bits_0 & 0xffffff00u | 100u & 0xffu\n"),
+        "{body}"
+    );
+    assert!(body.contains("    px.c.c2da_bits_0 = px.c.c2da_bits_0 & 0xff00ffffu | (77u & 0xffu) << 16u\n"), "{body}");
+    assert!(body.contains("    heap.c2da_bits_0 = heap.c2da_bits_0 & 0xffffffu | (255u & 0xffu) << 24u\n"), "{body}");
+    // A narrow unit computes in `uint` and is narrowed back; a field as
+    // wide as its unit replaces the unit.
+    assert!(body.contains("    pk.c2da_bits_2 = uint8(uint(pk.c2da_bits_2) & 0xf0u | 15u & 0xfu)\n"), "{body}");
+    assert!(body.contains("    pk.c2da_bits_1 = uint16(0u & 0xffffu)\n"), "{body}");
+    // The bytes are Clang's: `&s` as `uint8*`, `*(uint32_t *)&s`.
+    assert!(body.contains("    word = *unsafe(addr<uint?>(c_0))\n"), "{body}");
+    // The packed fallback keeps the byte path.
+    assert!(body.contains("t.c2da_storage + 3ul)), 4ul))"), "{body}");
 }

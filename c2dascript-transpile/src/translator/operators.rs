@@ -1808,6 +1808,11 @@ impl<'c> Translation<'c> {
         if let Some(address) = self.inline_record_place_address(ctx.used(), expr)? {
             return Ok(Some((field, address)));
         }
+        // `s.f = v` on a bitfield of a natural record is a read-modify-write
+        // of the record's storage-unit field, below the object itself.
+        if let Some(address) = self.natural_bitfield_place(ctx.used(), base_expr, field)? {
+            return Ok(Some((field, address)));
+        }
         Ok(None)
     }
 }

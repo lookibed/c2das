@@ -37,6 +37,12 @@ pub(crate) struct NamedPlace {
     pub base_type: DaType,
     /// `raw` is a `const S *` value still to be converted to `base_type`.
     pub base_converts: bool,
+    /// `raw` is the record object itself (a local, a global, an array
+    /// element, a field of one), not a pointer to it: the path is spelled
+    /// directly below it (`s.c2da_bits_0`), and `base_type` is the record.
+    /// Only a bitfield of a natural record is reached this way
+    /// (`structs_unions.rs natural_bitfield_place`).
+    pub base_is_object: bool,
     /// Every record the path steps through, outermost first.
     pub records: Vec<CRecordId>,
     /// The daScript field names, outermost first.
@@ -358,6 +364,15 @@ impl<'c> Translation<'c> {
         address.raw.clone().map(|raw| {
             let raw = if address.raw_is_address {
                 raw
+            } else if let Some(named) = address.named.as_ref().filter(|named| named.base_is_object) {
+                // A place below the record object itself: the address of
+                // the named field.
+                let place = named.path.iter().fold(raw, |base, field| {
+                    DaExpr::Field(Box::new(base), field.clone())
+                });
+                self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(
+                    place,
+                )))))
             } else {
                 self.pointer_to_raw_address(raw)
             };
@@ -432,17 +447,26 @@ impl<'c> Translation<'c> {
         // itself when its daScript type is the storage type; every other
         // member reads the field's bytes through its own type.
         let named = match base.named {
-            Some(mut named) if bitfield_width.is_none() && !base.raw_is_address => self
+            Some(mut named) if !base.raw_is_address => self
                 .ast_context
                 .parents
                 .get(&field)
                 .copied()
                 .and_then(|parent| {
                     if self.record_has_proven_layout(parent) {
-                        let name = self.natural_field_name(parent, field)?;
+                        // A bitfield of a natural record names its storage
+                        // unit (`p.c2da_bits_0`), the field the shift and
+                        // mask of `bitfield_load`/`bitfield_store` work on.
+                        let name = match bitfield_width {
+                            Some(_) => self.natural_bitfield_unit(field)?.name,
+                            None => self.natural_field_name(parent, field)?,
+                        };
                         named.records.push(parent);
                         named.path.push(name);
                         return Some(named);
+                    }
+                    if bitfield_width.is_some() {
+                        return None;
                     }
                     let storage = self.inline_record_storage(parent)?;
                     let member = writable_type(self.convert_type(field_ty).ok()?);
@@ -528,7 +552,13 @@ impl<'c> Translation<'c> {
         address: CObjectAddress,
     ) -> (Vec<DaStmt>, CObjectAddress) {
         let (mut stmts, address) = self.hoist_address_stmts(address);
-        if raw_address_is_reevaluable(&address.raw.val) {
+        let base_is_object = address
+            .named
+            .as_ref()
+            .map_or(false, |named| named.base_is_object);
+        if raw_address_is_reevaluable(&address.raw.val)
+            || (base_is_object && object_place_is_reevaluable(&address.raw.val))
+        {
             return (stmts, address);
         }
         let CObjectAddress {
@@ -541,6 +571,30 @@ impl<'c> Translation<'c> {
         } = address;
         let tmp = self.renamer.borrow_mut().fresh();
         let is_unsafe = raw.is_unsafe;
+        // A place below a record object that is not free to spell again
+        // (`a[f()].bits`) is bound through the object's address, as a typed
+        // pointer to the record, and the path goes on below that.
+        if let (Some(mut named), false, true) = (named.clone(), raw_is_address, base_is_object) {
+            let base_type = DaType::pointer(named.base_type.clone());
+            stmts.push(DaStmt::Var {
+                name: tmp.clone(),
+                var_type: base_type.clone(),
+                init: Some(DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(raw.val))))),
+            });
+            named.base_type = base_type;
+            named.base_is_object = false;
+            return (
+                stmts,
+                CObjectAddress {
+                    raw: WithStmts::new_val(DaExpr::Var(tmp)).merge_unsafe(is_unsafe),
+                    raw_is_address: false,
+                    ctype,
+                    byte_offset,
+                    storage_size_bytes,
+                    named: Some(named),
+                },
+            );
+        }
         // A by-name place keeps its typed record pointer, bound once in the
         // base type the field path starts from.
         if let (Some(mut named), false) = (named, raw_is_address) {
@@ -793,6 +847,34 @@ impl<'c> Translation<'c> {
         Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
     }
 
+    /// The word a bitfield's loads and stores go through, with its daScript
+    /// type and width in bits: the record's storage-unit field spelled by
+    /// name (`p.c2da_bits_0`, `s.c2da_bits_0`) for a bitfield of a natural
+    /// record reached by name, otherwise the object of the field's declared
+    /// type at the unit's byte offset (`layout.rs bitfield_unit`).
+    fn bitfield_storage(
+        &self,
+        address: &CObjectAddress,
+        field: CFieldId,
+    ) -> TranslationResult<(WithStmts<DaExpr>, DaType, u64)> {
+        let by_name = matches!(
+            &address.named,
+            Some(named) if !address.raw_is_address && !named.path.is_empty()
+        );
+        let storage = self.raw_load(address.clone())?;
+        if by_name {
+            let unit = self.natural_bitfield_unit(field).ok_or_else(|| {
+                TranslationError::generic("bitfield named by a path has no storage unit")
+            })?;
+            return Ok((storage, unit.unit_type, unit.size_bytes * 8));
+        }
+        Ok((
+            storage,
+            writable_type(self.convert_type(address.ctype)?),
+            self.raw_storage_size(address)? * 8,
+        ))
+    }
+
     pub(crate) fn bitfield_load(
         &self,
         address: CObjectAddress,
@@ -812,56 +894,77 @@ impl<'c> Translation<'c> {
         if width == 0 || width > 63 {
             return Err(TranslationError::generic("unsupported C bitfield width"));
         }
-        let storage = self.raw_load(address)?;
+        let (storage, storage_type, storage_bits) = self.bitfield_storage(&address, field)?;
         let field_ty = match self.ast_context[field].kind {
             CDeclKind::Field { typ, .. } => typ,
             _ => unreachable!(),
         };
         let target = writable_type(self.convert_type(field_ty)?);
+        let compute_type = bitfield_compute_type(&storage_type);
         let mask = (1u64 << width) - 1;
-        let extracted = storage.map(|storage| DaExpr::Cast {
-            kind: das_ast::CastKind::Cast,
-            expr: Box::new(DaExpr::Op2 {
-                op: "&",
-                left: Box::new(DaExpr::Op2 {
-                    op: ">>",
-                    left: Box::new(storage),
-                    right: Box::new(DaExpr::ConstInt(bit_offset as i64)),
-                }),
-                right: Box::new(DaExpr::ConstUInt(mask)),
-            }),
-            to: target.clone(),
-        });
-        if !self
+        let type_bits = self.layout_of(field_ty.ctype)?.size_bytes * 8;
+        let signed = self
             .ast_context
             .resolve_type(field_ty.ctype)
             .kind
             .is_signed_integral_type()
-        {
+            && width != type_bits;
+        // The field's bits, shifted down and masked out: neither step when
+        // it would do nothing (a field at bit 0, a field as wide as its
+        // unit), and no cast to the field's own type when the word is it.
+        let extracted = storage.map(|storage| {
+            let word = cast_unless(storage, &storage_type, &compute_type);
+            let shifted = if bit_offset == 0 {
+                word
+            } else {
+                DaExpr::Op2 {
+                    op: ">>",
+                    left: Box::new(word),
+                    right: Box::new(DaExpr::ConstInt(bit_offset as i64)),
+                }
+            };
+            let masked = if width == storage_bits {
+                shifted
+            } else {
+                DaExpr::Op2 {
+                    op: "&",
+                    left: Box::new(shifted),
+                    right: Box::new(DaExpr::ConstUInt(mask)),
+                }
+            };
+            if signed {
+                masked
+            } else {
+                cast_unless(masked, &compute_type, &target)
+            }
+        });
+        if !signed {
             return Ok(extracted);
         }
         // A signed C bitfield holds a two's-complement number `width` bits
         // wide.  Masking it out leaves the value zero-extended, so the sign
-        // bit is put back explicitly; the whole computation stays in the
-        // field's own daScript type, which has no implicit conversions.
-        let type_bits = self.layout_of(field_ty.ctype)?.size_bytes * 8;
-        let type_mask = if type_bits >= 64 {
+        // bit is put back explicitly.  The computation runs in the field's
+        // own daScript type, or in `int` for a one- or two-byte field
+        // (daslang has no operators on those), and is narrowed at the end.
+        let value_type = bitfield_compute_type(&target);
+        let value_bits = if value_type == DaType::int64() { 64 } else { 32 };
+        let type_mask = if value_bits >= 64 {
             u64::MAX
         } else {
-            (1u64 << type_bits) - 1
+            (1u64 << value_bits) - 1
         };
         let typed = |bits: u64| DaExpr::Cast {
             kind: das_ast::CastKind::Cast,
             expr: Box::new(DaExpr::ConstUInt(bits & type_mask)),
-            to: target.clone(),
+            to: value_type.clone(),
         };
         let tmp = self.renamer.borrow_mut().fresh();
         let is_unsafe = extracted.is_unsafe;
         let mut stmts = extracted.stmts;
         stmts.push(DaStmt::Var {
             name: tmp.clone(),
-            var_type: target.clone(),
-            init: Some(extracted.val),
+            var_type: value_type.clone(),
+            init: Some(cast_unless(extracted.val, &compute_type, &value_type)),
         });
         stmts.push(DaStmt::Expr(DaExpr::IfThenElse {
             cond: Box::new(DaExpr::Op2 {
@@ -886,7 +989,103 @@ impl<'c> Translation<'c> {
             elifs: vec![],
             else_: None,
         }));
-        Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe))
+        Ok(WithStmts::new(
+            stmts,
+            cast_unless(DaExpr::Var(tmp), &value_type, &target),
+        )
+        .merge_unsafe(is_unsafe))
+    }
+
+    /// The word of a bitfield storage unit composed from initializer values
+    /// of its fields: every value masked to its width and shifted to its
+    /// bit, or-ed together.  Constant values fold into one literal, so a
+    /// table of colours is a table of words.
+    pub(crate) fn bitfield_unit_value(
+        &self,
+        storage_type: DaType,
+        storage_bits: u64,
+        parts: Vec<(CFieldId, DaExpr)>,
+    ) -> TranslationResult<DaExpr> {
+        let storage_mask = if storage_bits >= 64 {
+            u64::MAX
+        } else {
+            (1u64 << storage_bits) - 1
+        };
+        // The arithmetic runs in the unit's compute type and the word is
+        // narrowed to the unit's; a wholly constant word is one literal.
+        let compute_type = bitfield_compute_type(&storage_type);
+        let typed_const = |literal: DaExpr| DaExpr::Cast {
+            kind: das_ast::CastKind::Cast,
+            expr: Box::new(literal),
+            to: compute_type.clone(),
+        };
+        let mut constant: u64 = 0;
+        let mut dynamic: Option<DaExpr> = None;
+        for (field, value) in parts {
+            let (width, bit_offset) = match self.ast_context[field].kind {
+                CDeclKind::Field {
+                    bitfield_width: Some(width),
+                    ..
+                } => (width, self.bitfield_unit(field)?.bit_offset),
+                _ => {
+                    return Err(TranslationError::generic(
+                        "bitfield unit value requested for non-bitfield",
+                    ))
+                }
+            };
+            if width == 0 || width > 63 {
+                return Err(TranslationError::generic("unsupported C bitfield width"));
+            }
+            let field_mask = (1u64 << width) - 1;
+            if let Some(bits) = integer_literal_bits(&value) {
+                constant |= (bits & field_mask) << bit_offset;
+                continue;
+            }
+            let in_compute_type = if Self::infer_type(&value).as_ref() == Some(&compute_type) {
+                value
+            } else {
+                typed_const(value)
+            };
+            let masked = DaExpr::Op2 {
+                op: "&",
+                left: Box::new(in_compute_type),
+                right: Box::new(typed_const(DaExpr::ConstUInt(field_mask & storage_mask))),
+            };
+            let placed = if bit_offset == 0 {
+                masked
+            } else {
+                DaExpr::Op2 {
+                    op: "<<",
+                    left: Box::new(masked),
+                    right: Box::new(typed_const(DaExpr::ConstInt(bit_offset as i64))),
+                }
+            };
+            dynamic = Some(match dynamic {
+                Some(acc) => DaExpr::Op2 {
+                    op: "|",
+                    left: Box::new(acc),
+                    right: Box::new(placed),
+                },
+                None => placed,
+            });
+        }
+        let constant_expr = typed_const(DaExpr::ConstUInt(constant & storage_mask));
+        let word = match dynamic {
+            None => {
+                return Ok(DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(DaExpr::ConstUInt(constant & storage_mask)),
+                    to: storage_type,
+                })
+            }
+            Some(acc) if constant == 0 => acc,
+            Some(acc) => DaExpr::Op2 {
+                op: "|",
+                left: Box::new(acc),
+                right: Box::new(constant_expr),
+            },
+        };
+        Ok(cast_unless(word, &compute_type, &storage_type))
     }
 
     pub(crate) fn bitfield_store(
@@ -912,13 +1111,14 @@ impl<'c> Translation<'c> {
         // A bitfield store is a read-modify-write, so the address serves both
         // halves and must be evaluated once for them.
         let (address_stmts, address) = self.materialize_address(address);
-        let storage = self.raw_load(address.clone())?;
         // The read-modify-write is performed in the field's own storage type.
         // Every constant is built in that type too: daScript has no implicit
         // numeric conversion, so a 64-bit mask against a 32-bit storage word
         // is a type error rather than a wider computation.
-        let storage_type = writable_type(self.convert_type(address.ctype)?);
-        let storage_bits = self.raw_storage_size(&address)? * 8;
+        let (storage, storage_type, storage_bits) = self.bitfield_storage(&address, field)?;
+        // A one- or two-byte word is widened for the arithmetic (daslang
+        // has no operators on those types) and narrowed back for the store.
+        let compute_type = bitfield_compute_type(&storage_type);
         let storage_mask = if storage_bits >= 64 {
             u64::MAX
         } else {
@@ -926,14 +1126,14 @@ impl<'c> Translation<'c> {
         };
         let field_mask = (1u64 << width) - 1;
         let shifted_mask = field_mask << bit_offset;
-        let in_storage_type = |expr: DaExpr| {
-            if Self::infer_type(&expr).as_ref() == Some(&storage_type) {
+        let in_compute_type = |expr: DaExpr| {
+            if Self::infer_type(&expr).as_ref() == Some(&compute_type) {
                 return expr;
             }
             DaExpr::Cast {
                 kind: das_ast::CastKind::Cast,
                 expr: Box::new(expr),
-                to: storage_type.clone(),
+                to: compute_type.clone(),
             }
         };
         // Masks are bit patterns, the shift distance is a count; each keeps
@@ -943,30 +1143,88 @@ impl<'c> Translation<'c> {
         let typed_const = |literal: DaExpr| DaExpr::Cast {
             kind: das_ast::CastKind::Cast,
             expr: Box::new(literal),
-            to: storage_type.clone(),
+            to: compute_type.clone(),
         };
         let storage_mask_const = |bits: u64| typed_const(DaExpr::ConstUInt(bits & storage_mask));
         let storage_count_const = |count: u64| typed_const(DaExpr::ConstInt(count as i64));
         let value_expr = value.val.clone();
-        let new_storage = storage.zip(value).map(|(old, value)| DaExpr::Op2 {
-            op: "|",
-            left: Box::new(DaExpr::Op2 {
+        let new_storage = storage.zip(value).map(|(old, value)| {
+            let placed = DaExpr::Op2 {
                 op: "&",
-                left: Box::new(old),
-                right: Box::new(storage_mask_const(!shifted_mask)),
-            }),
-            right: Box::new(DaExpr::Op2 {
-                op: "<<",
-                left: Box::new(DaExpr::Op2 {
-                    op: "&",
-                    left: Box::new(in_storage_type(value)),
-                    right: Box::new(storage_mask_const(field_mask)),
-                }),
-                right: Box::new(storage_count_const(bit_offset as u64)),
-            }),
+                left: Box::new(in_compute_type(value)),
+                right: Box::new(storage_mask_const(field_mask)),
+            };
+            let placed = if bit_offset == 0 {
+                placed
+            } else {
+                DaExpr::Op2 {
+                    op: "<<",
+                    left: Box::new(placed),
+                    right: Box::new(storage_count_const(bit_offset as u64)),
+                }
+            };
+            // A field as wide as its word replaces the word outright.
+            let word = if shifted_mask & storage_mask == storage_mask {
+                placed
+            } else {
+                DaExpr::Op2 {
+                    op: "|",
+                    left: Box::new(DaExpr::Op2 {
+                        op: "&",
+                        left: Box::new(cast_unless(old, &storage_type, &compute_type)),
+                        right: Box::new(storage_mask_const(!shifted_mask)),
+                    }),
+                    right: Box::new(placed),
+                }
+            };
+            cast_unless(word, &compute_type, &storage_type)
         });
         self.raw_store(address, new_storage)
             .map(|stored| stored.map(|_| value_expr).prepend_stmts(address_stmts))
+    }
+
+    /// The root of a by-name field path: the typed record pointer, or the
+    /// record object itself (`base_is_object`), that `field_address`
+    /// extends through proven records.  The one place a `NamedPlace` is
+    /// made.
+    fn named_place_root(
+        &self,
+        base_type: DaType,
+        base_converts: bool,
+        base_is_object: bool,
+    ) -> Option<NamedPlace> {
+        Some(NamedPlace {
+            base_type,
+            base_converts,
+            base_is_object,
+            records: vec![],
+            path: vec![],
+        })
+    }
+
+    /// The place of a field of a natural record below the record object
+    /// itself (`s.f`, `a[i].f`, `s.inner.f`), for a bitfield: its storage
+    /// unit, spelled by name directly below the object (`s.c2da_bits_0`),
+    /// which `bitfield_load` and `bitfield_store` shift and mask.
+    pub(crate) fn object_member_address(
+        &self,
+        base: WithStmts<DaExpr>,
+        record: CRecordId,
+        field: CFieldId,
+    ) -> TranslationResult<CObjectAddress> {
+        let record_ctype = CQualTypeId::new(self.record_ctype(record)?);
+        let record_type = writable_type(self.convert_type(record_ctype)?);
+        self.field_address(
+            CObjectAddress {
+                raw: base,
+                raw_is_address: false,
+                ctype: record_ctype,
+                byte_offset: 0,
+                storage_size_bytes: None,
+                named: self.named_place_root(record_type, false, true),
+            },
+            field,
+        )
     }
 
     pub(crate) fn pointer_member_address(
@@ -988,12 +1246,7 @@ impl<'c> Translation<'c> {
             // the base of a by-name field path.
             CTypeKind::Struct(record) if self.record_has_proven_layout(record) => {
                 let (base_type, base_converts) = self.named_field_base_type(base_ctype)?;
-                Some(NamedPlace {
-                    base_type,
-                    base_converts,
-                    records: vec![],
-                    path: vec![],
-                })
+                self.named_place_root(base_type, base_converts, false)
             }
             // A pointer to a union points at the union's bytes, exactly like a
             // pointer to a struct: `&u` yields the wrapper's storage address,
@@ -1115,6 +1368,64 @@ impl<'c> Translation<'c> {
 /// effects, and a dereference or a subscript reads memory the very store this
 /// address serves may overwrite.  Anything else is bound to a temporary by
 /// `materialize_address` rather than repeated.
+/// The type a bitfield's shifts and masks run in.  daslang defines no
+/// numeric operator on its one- and two-byte types, so a `uint8`/`uint16`
+/// word is widened to `uint` and an `int8`/`int16` one to `int`, and the
+/// result is narrowed back to the word's type.
+fn bitfield_compute_type(storage_type: &DaType) -> DaType {
+    if *storage_type == DaType::uint8() || *storage_type == DaType::uint16() {
+        DaType::uint()
+    } else if *storage_type == DaType::int8() || *storage_type == DaType::int16() {
+        DaType::int()
+    } else {
+        storage_type.clone()
+    }
+}
+
+/// `to(expr)` when `from` and `to` differ, `expr` itself when they are one.
+fn cast_unless(expr: DaExpr, from: &DaType, to: &DaType) -> DaExpr {
+    if from == to {
+        return expr;
+    }
+    DaExpr::Cast {
+        kind: das_ast::CastKind::Cast,
+        expr: Box::new(expr),
+        to: to.clone(),
+    }
+}
+
+/// The bits of an integer literal, typed or not, for folding a constant
+/// bitfield initializer into its unit's word; `None` for any other value.
+fn integer_literal_bits(expr: &DaExpr) -> Option<u64> {
+    match expr {
+        DaExpr::ConstInt(value) => Some(*value as u64),
+        DaExpr::ConstUInt(value) => Some(*value),
+        DaExpr::Cast { expr, .. } | DaExpr::Unsafe(expr) => integer_literal_bits(expr),
+        DaExpr::Op1 { op: "-", expr } => integer_literal_bits(expr).map(u64::wrapping_neg),
+        _ => None,
+    }
+}
+
+/// Whether a record object's place (the base of a bitfield of a natural
+/// record, `s`, `a[i]`, `s.inner`) can be spelled a second time without
+/// changing what the program does: a name, a field of one, or an element
+/// indexed by nothing but names, constants and their arithmetic.  The store
+/// such a place serves writes one storage unit of the object, which no
+/// index of that shape reads.
+fn object_place_is_reevaluable(expr: &DaExpr) -> bool {
+    match expr {
+        DaExpr::Var(_) => true,
+        DaExpr::Field(base, _) => object_place_is_reevaluable(base),
+        DaExpr::Index(base, index) => {
+            object_place_is_reevaluable(base) && super::structs_unions::is_pure_index(index)
+        }
+        // The decayed array (`unsafe(addr(a[0]))[i]`) is as free to spell
+        // again as the array.
+        DaExpr::Unsafe(inner) | DaExpr::Addr(inner) => object_place_is_reevaluable(inner),
+        _ => false,
+    }
+}
+
 fn raw_address_is_reevaluable(expr: &DaExpr) -> bool {
     match expr {
         DaExpr::Var(_) | DaExpr::ConstNull | DaExpr::ConstInt(_) | DaExpr::ConstUInt(_) => true,

@@ -1620,6 +1620,23 @@
       "runtime": "required"
     },
     {
+      "id": "p177-natural-bitfield-records",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p177_natural_bitfield_records.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "hash 1478662215\ncolor 10 20 30 40 | 11 21 99 39\nptr 3 2 1 41 | heap 9 8 7 255 | pal 100 1 0 1\nbytes 3 2 1 41 word 29010203 size 4\nalias 170\npacket 1 -5 1 0 -70000 65535 9 12 -3 sum -4450\npacket -32 0 -8388608 65535 15 14 size 16\narray -1 0 -8388608 | 0 1\npixel 4 1 2 77 6 5 size 12\nfallback p abcde fec 5 | 5 9 4 | T -120 2047 4\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p177_bitfield_records_are_natural_with_unit_fields",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

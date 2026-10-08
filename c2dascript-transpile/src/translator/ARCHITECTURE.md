@@ -80,6 +80,29 @@ record that embeds them are natural on this rule.  `p176-inline-union-fields` is
 fixture.  (A member of an rvalue record's inline field, `f().u.m`, binds the storage to a
 temporary first.)
 
+A struct with bitfields is natural too when its bitfields group into the storage units the
+System V ABI allocates them in (`layout.rs natural_members`): each run of bitfields sharing a
+unit — the field's declared type, aligned to its size, holding the field whole — is one
+unsigned integer of the unit's size (`c2da_bits_<n>`, `NaturalMember::BitfieldUnit`), the
+ordinary fields are themselves, and the natural daScript layout of those members is checked
+against Clang's offsets, size and alignment exactly as for any other record.  The layout
+proof asserts each unit's offset once (`register_layout_proof`).  A bitfield read is a shift
+and a mask on the unit, a write a read-modify-write of it, spelled by name below the record
+object (`s.c2da_bits_0`, `a[i].c2da_bits_0`; `structs_unions.rs natural_bitfield_place`,
+`object_memory.rs object_member_address`, the by-name root with `base_is_object`) or below a
+typed record pointer (`p.c2da_bits_0`; `field_address` pushes the unit name,
+`bitfield_storage` picks the word).  A one- or two-byte unit computes in `uint` and is
+narrowed back (daslang has no operators on `uint8`/`uint16`); a signed field is sign-extended
+in the field's type or `int`; a field as wide as its unit is the unit.  A braced initializer
+composes each unit from its fields' values, constants folded into one literal
+(`bitfield_unit_value`); a copy of the record is a value copy.  A bitfield that straddles its
+unit (packed), two units of different sizes at the same bytes (`uint8_t a:4; uint32_t b:4`),
+a unit an ordinary field shares (`char tag; int v:8`), an unnamed or zero-width bitfield, or
+a width over 63 keeps the record storage-backed, and a natural bitfield record reached
+through raw bytes (inside a union, through `char *`) keeps the byte path at the unit's
+offset.  Doom's `struct color` read per pixel in `dg_hash_frame` is the motivating case.
+`p177-natural-bitfield-records` is the fixture; `p151` keeps the storage-backed cases.
+
 ## Storage-backed objects: one wrapper, one block, one identity
 
 A storage-backed wrapper is named once, by its record (`storage_record_name`), and every C

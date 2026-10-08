@@ -30,6 +30,54 @@ pub(crate) struct CBitfieldUnit {
     pub size_bytes: u64,
 }
 
+/// One daScript field of a natural record: a C field of its own, or the
+/// storage unit a run of bitfields shares.
+///
+/// A bitfield has no daScript field; the unit its declared type allocates it
+/// in (`bitfield_unit`) does.  A natural record spells the unit as one
+/// unsigned integer of the unit's size (`c2da_bits_<n>`), and every bitfield
+/// of the unit is a shift and a mask on that field
+/// (`object_memory.rs bitfield_load` / `bitfield_store`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NaturalMember {
+    Field(CFieldId),
+    BitfieldUnit {
+        /// The unit's ordinal among the record's units, which names it.
+        index: usize,
+        byte_offset: u64,
+        size_bytes: u64,
+        fields: Vec<CFieldId>,
+    },
+}
+
+impl NaturalMember {
+    /// The daScript field name of a bitfield storage unit.
+    pub(crate) fn unit_name(index: usize) -> String {
+        format!("c2da_bits_{index}")
+    }
+
+    /// The unsigned daScript integer of a storage unit's size.
+    pub(crate) fn unit_type(size_bytes: u64) -> Option<DaType> {
+        Some(match size_bytes {
+            1 => DaType::uint8(),
+            2 => DaType::uint16(),
+            4 => DaType::uint(),
+            8 => DaType::uint64(),
+            _ => return None,
+        })
+    }
+}
+
+/// The storage unit of a bitfield of a natural record: the daScript field
+/// that holds it and the field's bits inside it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct NaturalBitfieldUnit {
+    pub name: String,
+    pub unit_type: DaType,
+    pub size_bytes: u64,
+    pub bit_offset: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CRecordLayout {
     pub object: CLayout,
@@ -84,7 +132,10 @@ impl<'c> Translation<'c> {
             return Ok(());
         }
         let layout = self.record_layout(record)?;
-        if layout.field_offsets_bits.len() != das_fields.len() {
+        let members = self.natural_members(record).ok_or_else(|| {
+            TranslationError::generic("layout proof requested for a storage-backed record")
+        })?;
+        if members.len() != das_fields.len() {
             return Err(TranslationError::generic(
                 "natural record fields do not match the Clang record layout",
             ));
@@ -124,13 +175,28 @@ impl<'c> Translation<'c> {
             assert("sizeof", None, layout.object.size_bytes)?,
             assert("alignof", None, layout.object.align_bytes)?,
         ];
-        for ((_, bits), field) in layout.field_offsets_bits.iter().zip(das_fields) {
-            if bits % 8 != 0 {
-                return Err(TranslationError::generic(
-                    "natural record field is not byte-addressable",
-                ));
-            }
-            stmts.push(assert("offsetof", Some(&field.name), bits / 8)?);
+        // One assertion per daScript field: a C field's own Clang offset, or
+        // the storage unit's, asserted once for every bitfield it holds.
+        for (member, field) in members.iter().zip(das_fields) {
+            let offset = match member {
+                NaturalMember::Field(id) => {
+                    let bits = layout
+                        .field_offsets_bits
+                        .iter()
+                        .find_map(|(candidate, bits)| (candidate == id).then_some(*bits))
+                        .ok_or_else(|| {
+                            TranslationError::generic("C field missing from record layout")
+                        })?;
+                    if bits % 8 != 0 {
+                        return Err(TranslationError::generic(
+                            "natural record field is not byte-addressable",
+                        ));
+                    }
+                    bits / 8
+                }
+                NaturalMember::BitfieldUnit { byte_offset, .. } => *byte_offset,
+            };
+            stmts.push(assert("offsetof", Some(&field.name), offset)?);
         }
         self.layout_proofs
             .borrow_mut()
@@ -278,7 +344,13 @@ impl<'c> Translation<'c> {
     /// * a union always overlaps its members and has no record representation;
     /// * `__attribute__((packed))`, `#pragma pack` and an explicit alignment
     ///   are declarations that the layout is not the natural one;
-    /// * a bitfield has no daScript field at all;
+    /// * a bitfield has no daScript field; its storage unit does, when the
+    ///   record's bitfields group into units that lie exactly where Clang
+    ///   puts them (`natural_members`): a unit is one unsigned integer of
+    ///   its size.  A bitfield that straddles its unit, two units of
+    ///   different sizes that overlap, a unit an ordinary field overlaps, an
+    ///   unnamed or zero-width bitfield, or a width daScript's shifts cannot
+    ///   serve keep the record storage-backed;
     /// * a field that is itself storage-backed is inline integer storage of
     ///   its own size and alignment (`inline_record_storage`); one with no
     ///   such storage (aligned beyond eight bytes), or an array of them,
@@ -316,8 +388,75 @@ impl<'c> Translation<'c> {
     }
 
     fn compute_storage_backed(&self, record: CRecordId) -> bool {
+        // An incomplete struct has no layout to diverge from; it is never
+        // accessed as an object either.
+        if matches!(
+            self.ast_context[record].kind,
+            CDeclKind::Struct { fields: None, .. }
+        ) {
+            return false;
+        }
+        let members = self.compute_natural_members(record);
+        let storage_backed = members.is_none();
+        self.natural_members_cache
+            .borrow_mut()
+            .insert(record, members);
+        storage_backed
+    }
+
+    /// The daScript fields of a natural record, in declaration order: the
+    /// C fields, with every run of bitfields that shares a storage unit
+    /// folded into that unit.  `None` for a storage-backed record and for
+    /// an incomplete one.
+    pub(crate) fn natural_members(&self, record: CRecordId) -> Option<Vec<NaturalMember>> {
+        if let Some(members) = self.natural_members_cache.borrow().get(&record) {
+            return members.clone();
+        }
+        if self.is_storage_backed_record(record) {
+            return None;
+        }
+        self.natural_members_cache
+            .borrow()
+            .get(&record)
+            .cloned()
+            .flatten()
+    }
+
+    /// The storage unit of a bitfield of a natural record, or `None` when
+    /// the field is not a bitfield or its record is storage-backed.
+    pub(crate) fn natural_bitfield_unit(&self, field: CFieldId) -> Option<NaturalBitfieldUnit> {
+        let CDeclKind::Field {
+            bitfield_width: Some(_),
+            platform_bit_offset,
+            ..
+        } = self.ast_context[field].kind
+        else {
+            return None;
+        };
+        let parent = *self.ast_context.parents.get(&field)?;
+        let members = self.natural_members(parent)?;
+        members.iter().find_map(|member| match member {
+            NaturalMember::BitfieldUnit {
+                index,
+                byte_offset,
+                size_bytes,
+                fields,
+            } if fields.contains(&field) => Some(NaturalBitfieldUnit {
+                name: NaturalMember::unit_name(*index),
+                unit_type: NaturalMember::unit_type(*size_bytes)?,
+                size_bytes: *size_bytes,
+                bit_offset: platform_bit_offset - byte_offset * 8,
+            }),
+            _ => None,
+        })
+    }
+
+    /// [`Self::natural_members`] computed from Clang's facts, with the
+    /// natural daScript layout of those members recomputed and compared
+    /// against Clang's offsets, size and alignment.
+    fn compute_natural_members(&self, record: CRecordId) -> Option<Vec<NaturalMember>> {
         let fields = match &self.ast_context[record].kind {
-            CDeclKind::Union { .. } => return true,
+            CDeclKind::Union { .. } => return None,
             CDeclKind::Struct {
                 is_packed: true, ..
             }
@@ -328,37 +467,92 @@ impl<'c> Translation<'c> {
             | CDeclKind::Struct {
                 max_field_alignment: Some(_),
                 ..
-            } => return true,
+            } => return None,
             CDeclKind::Struct {
                 fields: Some(fields),
                 ..
             } => fields.clone(),
-            // An incomplete struct has no layout to diverge from; it is never
-            // accessed as an object either.
-            _ => return false,
+            _ => return None,
         };
-        let Ok(layout) = self.record_layout(record) else {
-            return false;
-        };
+        let layout = self.record_layout(record).ok()?;
+        let mut members = vec![];
         let mut offset: u64 = 0;
         let mut max_align: u64 = 1;
-        for &field in &fields {
-            let (typ, bitfield_width) = match self.ast_context[field].kind {
-                CDeclKind::Field {
-                    typ,
-                    bitfield_width,
-                    ..
-                } => (typ, bitfield_width),
-                _ => return true,
-            };
-            if bitfield_width.is_some() {
-                return true;
+        // The unit the previous bitfield lies in, until a field outside it.
+        let mut unit: Option<(u64, u64, Vec<CFieldId>)> = None;
+        let mut unit_count = 0usize;
+        let mut flush = |unit: &mut Option<(u64, u64, Vec<CFieldId>)>,
+                         members: &mut Vec<NaturalMember>| {
+            if let Some((byte_offset, size_bytes, fields)) = unit.take() {
+                members.push(NaturalMember::BitfieldUnit {
+                    index: unit_count,
+                    byte_offset,
+                    size_bytes,
+                    fields,
+                });
+                unit_count += 1;
             }
-            let Some(natural) = self.natural_layout_of(typ.ctype) else {
-                return true;
+        };
+        for &field in &fields {
+            let CDeclKind::Field {
+                ref name,
+                typ,
+                bitfield_width,
+                platform_bit_offset,
+                platform_type_bitwidth,
+            } = self.ast_context[field].kind
+            else {
+                return None;
             };
+            if let Some(width) = bitfield_width {
+                // An unnamed bitfield (zero-width ones included) takes no
+                // initializer and names no member; it is left to the
+                // storage-backed form rather than modelled here.
+                if name.is_empty() || width == 0 || width > 63 {
+                    return None;
+                }
+                if platform_type_bitwidth == 0 || platform_type_bitwidth % 8 != 0 {
+                    return None;
+                }
+                let size_bytes = platform_type_bitwidth / 8;
+                NaturalMember::unit_type(size_bytes)?;
+                // The unit the System V ABI allocates the field in: its
+                // declared type, aligned to its size, holding the field
+                // whole (`bitfield_unit`).
+                let bit_in_unit = platform_bit_offset % platform_type_bitwidth;
+                let byte_offset = (platform_bit_offset / platform_type_bitwidth) * size_bytes;
+                if bit_in_unit + width > platform_type_bitwidth
+                    || byte_offset + size_bytes > layout.object.size_bytes
+                {
+                    return None;
+                }
+                match &mut unit {
+                    Some((unit_offset, unit_size, unit_fields))
+                        if *unit_offset == byte_offset && *unit_size == size_bytes =>
+                    {
+                        unit_fields.push(field);
+                        continue;
+                    }
+                    // A unit of another size at the same bytes overlaps.
+                    Some((unit_offset, unit_size, _)) if byte_offset < *unit_offset + *unit_size => {
+                        return None;
+                    }
+                    _ => {}
+                }
+                flush(&mut unit, &mut members);
+                offset = align_up(offset, size_bytes);
+                if offset != byte_offset {
+                    return None;
+                }
+                offset += size_bytes;
+                max_align = max_align.max(size_bytes);
+                unit = Some((byte_offset, size_bytes, vec![field]));
+                continue;
+            }
+            flush(&mut unit, &mut members);
+            let natural = self.natural_layout_of(typ.ctype)?;
             if natural.align_bytes == 0 || natural.size_bytes == 0 {
-                return true;
+                return None;
             }
             offset = align_up(offset, natural.align_bytes);
             let clang_offset = layout
@@ -367,13 +561,16 @@ impl<'c> Translation<'c> {
                 .find_map(|(candidate, bits)| (*candidate == field).then_some(*bits));
             match clang_offset {
                 Some(bits) if bits % 8 == 0 && bits / 8 == offset => {}
-                _ => return true,
+                _ => return None,
             }
             offset += natural.size_bytes;
             max_align = max_align.max(natural.align_bytes);
+            members.push(NaturalMember::Field(field));
         }
+        flush(&mut unit, &mut members);
         let natural_size = align_up(offset, max_align);
-        natural_size != layout.object.size_bytes || max_align != layout.object.align_bytes
+        (natural_size == layout.object.size_bytes && max_align == layout.object.align_bytes)
+            .then_some(members)
     }
 
     /// The size and alignment a C type occupies inside a daScript record, or

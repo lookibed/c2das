@@ -5660,6 +5660,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p177-natural-bitfield-records",
+      "canonical_cases": [
+        "p177-natural-bitfield-records"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "hash 1478662215\ncolor 10 20 30 40 | 11 21 99 39\nptr 3 2 1 41 | heap 9 8 7 255 | pal 100 1 0 1\nbytes 3 2 1 41 word 29010203 size 4\nalias 170\npacket 1 -5 1 0 -70000 65535 9 12 -3 sum -4450\npacket -32 0 -8388608 65535 15 14 size 16\narray -1 0 -8388608 | 0 1\npixel 4 1 2 77 6 5 size 12\nfallback p abcde fec 5 | 5 9 4 | T -120 2047 4\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p177_natural_bitfield_records",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p177_natural_bitfield_records.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p17-runtime-malloc",
       "canonical_cases": [
         "p17-runtime-malloc"
