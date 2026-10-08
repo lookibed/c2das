@@ -11,7 +11,7 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all] [--runtime-module <name>] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
@@ -89,6 +89,19 @@ fn main() {
         eprintln!("libc mode '{libc}' is not implemented yet");
         std::process::exit(2);
     }
+    // The program-wide runtime prelude written once as `<output dir>/<name>.das`
+    // and `require`d by every translated unit (TranspilerConfig::runtime_module).
+    // The name is a daslang module name, so it has to be an identifier.
+    let runtime_module = take_value(&mut args, "--runtime-module");
+    if let Some(name) = &runtime_module {
+        let mut chars = name.chars();
+        let is_identifier = matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
+            && chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !is_identifier {
+            eprintln!("--runtime-module '{name}' is not a daslang module name (identifier)");
+            std::process::exit(1);
+        }
+    }
     let output_dir = take_option(&mut args, "--output-dir");
     if args.is_empty() {
         eprintln!("Expected compile_commands.json or --file <file.c>");
@@ -112,6 +125,7 @@ fn main() {
         unsafe_deref,
         das_options,
         libc,
+        runtime_module,
         enabled_warnings,
         disabled_warnings,
     };

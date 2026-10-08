@@ -232,6 +232,15 @@ pub struct TranspilerConfig {
     /// Which libc entry points this translation unit may call (`--libc`).
     /// See [`LibcMode`]; `nostd` is the default and leaves output unchanged.
     pub libc: LibcMode,
+    /// Emit the program-wide runtime prelude (`translator::runtime_module_source`:
+    /// the `c2da_rt_*` raw heap, the variadic cursor and the fixed numeric
+    /// helpers) once, as the public module `<output dir>/<name>.das`, and make
+    /// every translated unit `require <name>` instead of carrying its own copy
+    /// (`--runtime-module <name>`).  `None`, the default, writes the prelude
+    /// into every unit as before.  The `--libc std` prelude is not moved: its
+    /// helper set is chosen per unit from the calls the unit makes and built
+    /// on the unit's own Clang target facts (`libc.rs StdLayout`).
+    pub runtime_module: Option<String>,
     /// Translator diagnostics switched on beyond the default set
     /// (`-W<name>`); [`Diagnostic::All`] switches on every one of them.
     pub enabled_warnings: HashSet<Diagnostic>,
@@ -310,6 +319,7 @@ impl Default for TranspilerConfig {
             unsafe_deref: false,
             das_options: vec![],
             libc: LibcMode::NoStd,
+            runtime_module: None,
             enabled_warnings: HashSet::new(),
             disabled_warnings: HashSet::new(),
         }
@@ -387,10 +397,36 @@ pub fn transpile(
         }
     }
     if failures.is_empty() {
+        write_runtime_module(&tcfg).map_err(|error| vec![error])?;
         Ok(outputs)
     } else {
         Err(failures)
     }
+}
+
+/// Writes the shared runtime module `<output dir>/<name>.das` when
+/// [`TranspilerConfig::runtime_module`] names one, and returns its path.
+///
+/// The module is a function of the configuration alone — no translation unit
+/// contributes to it — so it is written once, after every unit translated,
+/// and never for a run that failed: a failed translation writes no file.
+fn write_runtime_module(tcfg: &TranspilerConfig) -> Result<Option<PathBuf>, TranspileError> {
+    let Some(name) = &tcfg.runtime_module else {
+        return Ok(None);
+    };
+    let output_dir = tcfg.output_dir.clone().unwrap_or_else(|| PathBuf::from("."));
+    fs::create_dir_all(&output_dir).map_err(|error| TranspileError::Output {
+        path: output_dir.clone(),
+        error,
+    })?;
+    let output_path = output_dir.join(name).with_extension("das");
+    let source = translator::runtime_module_source(tcfg, name);
+    fs::write(&output_path, source).map_err(|error| TranspileError::Output {
+        path: output_path.clone(),
+        error,
+    })?;
+    println!("Wrote {}", output_path.display());
+    Ok(Some(output_path))
 }
 
 /// Translate every selected command and return every output path, failing on
@@ -420,6 +456,7 @@ pub fn transpile_checked(
             )?);
         }
     }
+    write_runtime_module(&tcfg)?;
     Ok(outputs)
 }
 

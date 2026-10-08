@@ -3992,14 +3992,36 @@ fn translate_impl(
             continue;
         }
         let decl = &t.ast_context[top_id];
-        match t.convert_decl(
-            ExprContext {
-                used: true,
-                is_const: false,
-                ..Default::default()
-            },
-            top_id,
-        ) {
+        // `extern int g;` with no definition in this translation unit names an
+        // object another unit owns (C11 6.2.2p4, 6.9.2).  The exporter folds
+        // every redeclaration into one node and marks it a definition when
+        // any of them defines the object — `extern int g; int g = 1;` and
+        // the tentative `int g;` both arrive as `is_defn: true` — so what is
+        // left is exactly the object no part of this unit defines.  Emitting
+        // a fresh `var g` would give the program a second object that the
+        // defining unit never writes; there is no program-wide symbol table
+        // yet, so the declaration fails closed like an external call does.
+        let converted = match decl.kind {
+            CDeclKind::Variable {
+                is_defn: false,
+                ref ident,
+                ..
+            } => Err(format_translation_err!(
+                t.ast_context.display_loc(&decl.loc),
+                "unsupported external object: {} is declared extern and defined nowhere in this \
+                 translation unit",
+                ident,
+            )),
+            _ => t.convert_decl(
+                ExprContext {
+                    used: true,
+                    is_const: false,
+                    ..Default::default()
+                },
+                top_id,
+            ),
+        };
+        match converted {
             Ok(das_decl) => decls.push(das_decl),
             Err(e) => {
                 if strict_top_level {
@@ -4059,6 +4081,10 @@ fn translate_impl(
     let value_decls = decls.split_off(type_decl_count);
     let type_decls = decls;
     let mut module_decls = c2da_runtime_helpers();
+    // The program-wide prelude is the head of the module; `--runtime-module`
+    // moves exactly these declarations out after every module pass has run
+    // over them (see `runtime_module_source`).
+    let runtime_decl_count = module_decls.len();
     // daScript resolves the structure a global variable's initializer names
     // against the structures already declared at that point: a `var g :
     // T[N] = fixed_array<T>(T(...), ...)` written above `struct T` fails with
@@ -4153,37 +4179,82 @@ fn translate_impl(
     // when a non-constant operand already has the target type.
     das_ast::fold::fold_module_conversions(&mut module_decls);
 
+    // `--runtime-module <name>`: the program-wide prelude lives in the shared
+    // module `<name>.das` (`runtime_module_source`), so this unit drops its
+    // copy and `require`s that module instead.  The passes above ran over the
+    // whole module first, so every translated body is the one the single-
+    // module layout writes: the conversion folding read the prelude's
+    // signatures exactly as before.  The `--libc std` helpers stay in the
+    // unit (`TranspilerConfig::runtime_module` says why); they call the
+    // `c2da_rt_*` functions through the `require`.
+    let mut requires = Vec::new();
+    if let Some(name) = &t.tcfg.runtime_module {
+        module_decls.drain(..runtime_decl_count);
+        requires.push(name.clone());
+    }
+    // The only other `require` lines the translator emits are the ones the
+    // `--libc std` prelude stands on, and only when a std helper is in the
+    // module.
+    requires.extend(libc::module_requires());
+
     // Build the daScript module.  The header is the caller's choice: an
     // anonymous `options gen2` module by default, `module <stem> public` and
     // extra `options` lines when the build that consumes the output asks
     // for them (see TranspilerConfig::public_module / das_options).
-    //
-    // `solid_context` is the translator's own default rather than a caller
-    // option, because it is a fact about the module the translator emits: the
-    // output declares all of its globals itself and never has another module
-    // splice more in, so baking their offsets is always correct here.  The
-    // order is fixed — `gen2`, `solid_context`, then the caller's
-    // `--das-option` lines — so the header is reproducible for a given
-    // command line.
-    let mut options: Vec<String> = vec!["gen2".into()];
-    if t.tcfg.solid_context {
-        options.push("solid_context = true".into());
-    }
-    options.extend(t.tcfg.das_options.iter().cloned());
     let module = DaModule {
         name: main_file
             .file_stem()
             .map(|s| s.to_string_lossy().to_string()),
         public: t.tcfg.public_module,
-        // The only `require` lines the translator emits are the ones the
-        // `--libc std` prelude stands on, and only when a std helper is in
-        // the module.
-        requires: libc::module_requires(),
-        options,
+        requires,
+        options: module_options(t.tcfg),
         decls: module_decls,
     };
 
     Ok((module.to_string(), None, vec![], IndexSet::new()))
+}
+
+/// The `options` header of every module this translator writes.
+///
+/// `solid_context` is the translator's own default rather than a caller
+/// option, because it is a fact about the module the translator emits: the
+/// output declares all of its globals itself and never has another module
+/// splice more in, so baking their offsets is always correct here.  The order
+/// is fixed — `gen2`, `solid_context`, then the caller's `--das-option` lines
+/// — so the header is reproducible for a given command line.
+fn module_options(tcfg: &TranspilerConfig) -> Vec<String> {
+    let mut options: Vec<String> = vec!["gen2".into()];
+    if tcfg.solid_context {
+        options.push("solid_context = true".into());
+    }
+    options.extend(tcfg.das_options.iter().cloned());
+    options
+}
+
+/// The shared runtime module `--runtime-module <name>` writes once per run:
+/// `module <name> public` holding the program-wide prelude every translated
+/// unit otherwise carries at its head (`c2da_runtime_helpers`: the `c2da_rt_*`
+/// raw heap and its record table, the variadic argument cursor, and the fixed
+/// numeric helpers).  Its declarations go through the same module-wide passes
+/// as a unit's — the null-dereference policy, `sideeffects`, constant-
+/// conversion folding — so they are the declarations the single-module layout
+/// writes.  It depends on no translation unit, which is what lets the units
+/// share one heap.
+pub fn runtime_module_source(tcfg: &TranspilerConfig, name: &str) -> String {
+    let mut decls = c2da_runtime_helpers();
+    if tcfg.unsafe_deref {
+        apply_unsafe_deref(&mut decls);
+    }
+    apply_side_effects(&mut decls);
+    das_ast::fold::fold_module_conversions(&mut decls);
+    DaModule {
+        name: Some(name.to_owned()),
+        public: true,
+        requires: vec![],
+        options: module_options(tcfg),
+        decls,
+    }
+    .to_string()
 }
 
 /// The annotation daScript reads to skip the generated null check on every

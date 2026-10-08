@@ -52,7 +52,18 @@ particular:
   translator also replaces the libc calls of a whole program (`printf`, `fopen`, `fread`,
   `clock_gettime`, `argv`, …) with daslib-backed helpers and lowers the C `main`, so the
   translated module is the program (`translator/libc.rs`). Every other external call is a
-  strict-mode diagnostic.
+  strict-mode diagnostic, and so is a file-scope `extern` object that no part of the
+  translation unit defines (`p172-extern-object-undefined`): the translator keeps no
+  program-wide symbol table, so an object another unit owns is refused rather than declared
+  a second time. `extern` followed by a definition in the same unit, and a tentative
+  definition (`int g;`), are definitions and translate.
+- `--runtime-module <name>` (opt-in) writes that program-wide `c2da_rt_*` prelude — the raw
+  heap, the variadic argument cursor and the fixed numeric helpers — once, as the public
+  module `<output dir>/<name>.das`, and every translated unit then `require`s it instead of
+  carrying its own copy, so several units share one heap. The unit's bodies are unchanged
+  (the module passes run before the prelude is split off). The `--libc std` helpers stay in
+  each unit: their set is chosen per unit from the calls it makes and built on the unit's
+  own Clang target facts. Without the flag the output is exactly the single-module layout.
 - Function pointers are typed daScript function values called through `invoke`;
   `__builtin_popcount/clz/ctz/ffs/bswap*/*_overflow/expect` and a few more have real
   lowerings, every other builtin is a diagnostic.
@@ -146,7 +157,9 @@ cargo run -q -p c2dascript-transpile -- path/to/compile_commands.json
 Extra arguments after the input are passed to Clang. They must describe the real C build:
 target, include paths, defines, and sysroot all affect the AST and therefore the translated
 program. `--libc std` translates a whole program including its `main`; `--strict` turns every
-unsupported construct into a hard error.
+unsupported construct into a hard error. `--runtime-module <name>` writes the shared runtime
+prelude once as `<output dir>/<name>.das` (the name must be a daslang identifier) and makes
+each translated unit `require` it; run the unit's `.das` from that directory as usual.
 
 ## Validation pipeline
 

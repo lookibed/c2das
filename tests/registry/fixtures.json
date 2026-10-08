@@ -5376,6 +5376,36 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p172-extern-object-undefined",
+      "canonical_cases": [
+        "p172-extern-object-undefined"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "unsupported external object: owned_elsewhere is declared extern and defined nowhere in this translation unit",
+          "location": "p172_extern_object_undefined.c:17:1",
+          "operation": "top-level declaration lowering",
+          "type": "Int"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p172_extern_object_undefined",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/p172_extern_object_undefined.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p17-runtime-malloc",
       "canonical_cases": [
         "p17-runtime-malloc"

@@ -1014,6 +1014,35 @@ fn p154_disjoint_site_temporaries_share_their_variables() {
     );
 }
 
+/// `extern int g;` with no definition in the unit is another unit's object:
+/// refused with its location, never a fresh `var g` (C11 6.2.2p4).  The two
+/// defining shapes in the same fixture — `extern` then a definition, and a
+/// tentative definition — must not trip the rule: the error names only the
+/// undefined one.
+#[test]
+fn p172_undefined_extern_object_is_refused_not_declared() {
+    let error = transpile_error("p172_extern_object_undefined");
+    assert!(
+        error.contains("operation=top-level declaration lowering"),
+        "{error}"
+    );
+    assert!(
+        error.contains(
+            "unsupported external object: owned_elsewhere is declared extern and defined \
+             nowhere in this translation unit"
+        ),
+        "{error}"
+    );
+    assert!(
+        error.contains("p172_extern_object_undefined.c:17:1"),
+        "the diagnostic must point at the extern declaration: {error}"
+    );
+    assert!(
+        !error.contains("defined_later") && !error.contains("tentative"),
+        "a definition in the unit is never an external object: {error}"
+    );
+}
+
 #[test]
 fn p171_calls_keep_their_side_effects_and_null_casts_are_null() {
     let d = transpile_with_libc(

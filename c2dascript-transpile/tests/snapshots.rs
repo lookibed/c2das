@@ -36,6 +36,7 @@ fn config(output_dir: &Path) -> TranspilerConfig {
         unsafe_deref: false,
         das_options: vec![],
         libc: c2dascript_transpile::LibcMode::NoStd,
+        runtime_module: None,
         enabled_warnings: Default::default(),
         disabled_warnings: Default::default(),
     }

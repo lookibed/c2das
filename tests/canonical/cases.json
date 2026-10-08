@@ -1546,6 +1546,12 @@
       "runtime": "required"
     },
     {
+      "id": "p172-extern-object-undefined", "status": "negative", "source_root": "tests/syntax", "translation_entry": "p172_extern_object_undefined.c", "c_graph": "single-tu",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": { "operation": "top-level declaration lowering", "type": "Int", "location": "p172_extern_object_undefined.c:17:1", "cause": "unsupported external object: owned_elsewhere is declared extern and defined nowhere in this translation unit" },
+      "rust_assertion": "ptr_tests::p172_undefined_extern_object_is_refused_not_declared", "runtime": "not-applicable"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",
