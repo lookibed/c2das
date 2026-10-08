@@ -1147,7 +1147,8 @@
       "canonical_case": "binjgb-cgb-acid2-std",
       "canonical_cases": [
         "binjgb-cgb-acid2-std",
-        "binjgb-cgb-acid2-eden"
+        "binjgb-cgb-acid2-eden",
+        "binjgb-cgb-acid2-eden-linear"
       ],
       "checked_in_das": null,
       "clang": {
@@ -6270,6 +6271,34 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p19_runtime_memory_calls.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p200-linear-printf",
+      "canonical_cases": [
+        "p200-linear-printf"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_printf",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "title: \"005||  q\"\nheader checksum: 0xeb [OK]\n1234=-2147483648\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p200_linear_printf",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p200_linear_printf.c",
       "status": "supported"
     },
     {

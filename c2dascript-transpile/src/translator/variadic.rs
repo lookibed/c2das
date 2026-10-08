@@ -419,11 +419,22 @@ impl<'c> Translation<'c> {
                 DaExpr::ConstUInt(0),
             )
         } else if kind.is_pointer() {
+            // `--memory-model linear`: a data pointer is already its `int`
+            // heap offset, widened like any integer.
+            let raw = if self.is_linear() {
+                DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(value),
+                    to: DaType::uint64(),
+                }
+            } else {
+                self.pointer_to_raw_address(value)
+            };
             (
                 DaExpr::ConstInt(3),
                 DaExpr::ConstInt(0),
                 DaExpr::ConstDouble(0.0),
-                self.pointer_to_raw_address(value),
+                raw,
             )
         } else {
             return Err(format_translation_err!(

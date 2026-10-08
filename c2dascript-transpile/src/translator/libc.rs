@@ -837,6 +837,13 @@ pub(crate) fn require_stream(helper: &'static str) -> &'static str {
     helper
 }
 
+/// Registers `c2da_std_write(handle, body)`, the one byte sink of every
+/// C stream: the `--memory-model linear` printf family writes through it.
+pub(crate) fn require_write() -> &'static str {
+    require(WRITE);
+    WRITE
+}
+
 /// Records the exported zero-argument `main` wrapper for a C `main`.
 ///
 /// C's `main` keeps the name the renamer gave it (`main_0`); the wrapper is the
@@ -1397,6 +1404,15 @@ impl<'c> Translation<'c> {
             return Ok(None);
         }
         let helper = require_stream(stream);
+        // `--memory-model linear`: a `FILE *` is the stream's handle as an
+        // `int`, like any pointer value (never dereferenced).
+        if self.is_linear() {
+            return Ok(Some(DaExpr::Cast {
+                kind: das_ast::CastKind::Cast,
+                expr: Box::new(call(helper, vec![])),
+                to: DaType::int(),
+            }));
+        }
         Ok(Some(self.raw_address_to_pointer(
             call(helper, vec![]),
             self.convert_type(typ)?,

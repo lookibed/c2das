@@ -161,6 +161,23 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   `strlen` are `c2da_lin_*` byte loops over the heap. Step 4 added `strchr`/`strrchr`/
   `strcmp`/`strncmp`/`strcpy`/`strncpy`/`strcat`/`strstr` the same way (case
   `p196-linear-strings`; `--no-unsafe` and `eden_check.py` ok).
+- **printf family (step 5).** `printf`, `fprintf`, `sprintf`, `snprintf`, `vprintf`,
+  `vfprintf`, `vsprintf` and `vsnprintf` are `c2da_lin_printf`/`c2da_lin_vprintf`/
+  `c2da_lin_snprintf`/`c2da_lin_vsnprintf`, appended only when a call uses them. One
+  formatter, `c2da_lin_vfmt`, reads the format from the heap and appends the bytes to a
+  local `array<uint8>`; a `%s` argument is a heap offset (`raw` of its `C2daVaArg`), NULL
+  prints `(null)`. It covers the flags `-+ #0`, width and precision (also `*`), the length
+  modifiers `hh h l ll j z t q L` (the promoted `int64` is cut to C's width), and `%d %i
+  %u %x %X %o %c %s %p %%`. A stream call writes through `c2da_std_write` (stdout is
+  handle 1; `stdout`/`stderr` themselves are their handles as `int`); a buffer call places
+  the bytes with `snprintf`'s rule (at most `n - 1` bytes and a NUL, answering the full
+  length; `sprintf` has no limit). A literal format with any other conversion (`%f`,
+  `%e`, `%g`, `%a`, `%n`, …) is refused, located at the format; a computed format with
+  one panics at run time. Variadic arguments are still a `[C2daVaArg(…)]` array per call
+  (a pointer argument is its offset widened to `uint64`); a `va_list` local is the
+  variadic cursor, never a C stack slot. A byte 0 produced by `%c` cannot cross a
+  daslang string on the stream path. Case `p200-linear-printf` (C == daslang;
+  `--no-unsafe --dialect eden-0.6.4` and `eden_check.py` ok).
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
   - `&` of a global or a parameter, and a global array (or an array in a parameter or a
@@ -172,8 +189,7 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   - any other libc function over C memory (string-literal arguments aside);
   - a split into several modules;
   - as a net, any construct that needs `unsafe` in the finished module. This catches, for
-    example, `printf`: the std formatter reads C strings through raw pointers. It also
-    catches a by-value struct parameter whose pointer field is indexed.
+    example, a by-value struct parameter whose pointer field is indexed.
 
 **Proof on master daslang (2026-10-09).** All of these use `--memory-model linear --libc eden`.
 
@@ -244,10 +260,11 @@ Things the target cannot fix and has to document:
        arrays used as pointers still to do (globals placed in the heap from `[init]`);
      - record and array values through pointers: done in step 4 (p197), except records
        with bitfields;
-     - `<string.h>` string functions: done in step 4 (p196); the std formatter
-       (`printf %s`, `snprintf`, `vformat`) over `c2da_mem` still to do — binjgb under
-       `--libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe` stops first
-       there (`snprintf` in `replace_extension`, `common.c:18`);
+     - `<string.h>` string functions: done in step 4 (p196); the printf family over
+       `c2da_mem`: done in step 5 (p200). binjgb under `--libc eden --memory-model linear
+       --dialect eden-0.6.4 --no-unsafe` (case `binjgb-cgb-acid2-eden-linear`, known-red)
+       then stops at `fopen` (`file_read_aligned`, `common.c:43`): the `<stdio.h>` file
+       functions over C memory;
      - by-value struct parameters with pointer fields;
      - then binjgb.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,

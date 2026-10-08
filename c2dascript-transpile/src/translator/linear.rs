@@ -47,10 +47,43 @@ pub(crate) const FP: &str = "c2da_fp";
 /// Bytes of the C stack region (`c2da_lin_enter` panics past it).
 const STACK_BYTES: usize = 1 << 20;
 
+thread_local! {
+    /// Whether a printf-family call was lowered: the formatter section of the
+    /// runtime is appended only then (it writes through `c2da_std_write`,
+    /// which the call site registers).
+    static FORMAT_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
+}
+
 /// Clears the static block at the start of a translation unit.
 pub fn reset() {
     STATIC.with(|s| *s.borrow_mut() = (vec![0; RESERVED], StdHashMap::new()));
     FRAME.with(|f| f.borrow_mut().clear());
+    FORMAT_USED.with(|u| u.set(false));
+}
+
+/// The first conversion of a printf format the linear formatter does not
+/// implement (`c2da_lin_vfmt`), as its C spelling.
+fn unsupported_linear_conversion(format: &[u8]) -> Option<String> {
+    let mut i = 0;
+    while i < format.len() {
+        if format[i] != b'%' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        while i < format.len() && b"-+ #0123456789.*hljztqL".contains(&format[i]) {
+            i += 1;
+        }
+        let Some(&conv) = format.get(i) else {
+            return Some(String::from_utf8_lossy(&format[start..]).into_owned());
+        };
+        i += 1;
+        if !b"diuxXocsp%".contains(&conv) {
+            return Some(String::from_utf8_lossy(&format[start..i]).into_owned());
+        }
+    }
+    None
 }
 
 fn frame_offset(decl: CDeclId) -> Option<i64> {
@@ -404,6 +437,11 @@ impl<'c> Translation<'c> {
             else {
                 continue;
             };
+            // A `va_list` decays at va_start/va_end/vsnprintf but is the
+            // variadic cursor (variadic.rs), never C memory.
+            if self.ast_context.is_va_list(typ.ctype) {
+                continue;
+            }
             let bytes = self.sizeof_type(typ.ctype).map_err(|_| {
                 self.linear_refuse(e, "a local of this type in the C stack (--locals-in-heap)")
             })?;
@@ -1261,6 +1299,89 @@ impl<'c> Translation<'c> {
         )
     }
 
+    /// The printf family over C memory: the format and every `%s`/`%p`
+    /// argument are heap offsets, the output is built by `c2da_lin_vfmt` and
+    /// leaves through `c2da_std_write` (a stream) or is placed in the heap
+    /// with C's `snprintf` truncation rule (a buffer).
+    ///
+    /// Argument roles: `H` a stream (`uint64` handle), `D` a destination
+    /// offset, `N` a size, `F` the format.  `printf` is `fprintf` on handle
+    /// 1 (stdout) and `sprintf` is `snprintf` without a limit.
+    fn linear_format_call(
+        &self,
+        ctx: ExprContext,
+        expr_id: CExprId,
+        base: &str,
+        args: &[CExprId],
+    ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        let (runtime, roles, va_list) = match base {
+            "printf" => ("c2da_lin_printf", "F", false),
+            "fprintf" => ("c2da_lin_printf", "HF", false),
+            "sprintf" => ("c2da_lin_snprintf", "DF", false),
+            "snprintf" => ("c2da_lin_snprintf", "DNF", false),
+            "vprintf" => ("c2da_lin_vprintf", "F", true),
+            "vfprintf" => ("c2da_lin_vprintf", "HF", true),
+            "vsprintf" => ("c2da_lin_vsnprintf", "DF", true),
+            "vsnprintf" => ("c2da_lin_vsnprintf", "DNF", true),
+            _ => return Ok(None),
+        };
+        let fixed = roles.len();
+        if args.len() < fixed || (va_list && args.len() != fixed + 1) {
+            return Err(self.linear_refuse(expr_id, &format!("`{base}` with {} arguments", args.len())));
+        }
+        let format_arg = args[fixed - 1];
+        if let Some(lit) = self.decayed_array(format_arg) {
+            if let CExprKind::Literal(_, CLiteral::String(bytes, 1)) = &self.ast_context[lit].kind {
+                if let Some(conv) = unsupported_linear_conversion(bytes) {
+                    return Err(self.linear_refuse(
+                        format_arg,
+                        &format!("printf conversion `{conv}` over C memory"),
+                    ));
+                }
+            }
+        }
+        let mut out = WithStmts::new_val(Vec::new());
+        if roles == "F" {
+            out.val.push(cast(DaType::uint64(), DaExpr::ConstInt(1)));
+        }
+        for (arg, role) in args.iter().zip(roles.chars()) {
+            let v = self.convert_expr(ctx.used(), *arg, None)?;
+            let t = if role == 'H' || role == 'N' { DaType::uint64() } else { DaType::int() };
+            out = out.zip(v).map(|(mut list, v)| {
+                list.push(if Self::infer_type(&v).as_ref() == Some(&t) { v } else { cast(t, v) });
+                list
+            });
+        }
+        if roles == "DF" {
+            out.val.insert(1, cast(DaType::uint64(), DaExpr::ConstInt(0x7fff_ffff)));
+        }
+        if va_list {
+            let cursor = self.va_list_call_argument(args[fixed])?;
+            let forwarded = self.forwarded_va_args(expr_id)?;
+            out = out.map(|mut list| {
+                list.push(cursor);
+                list.push(forwarded);
+                list
+            });
+        } else {
+            let mut tail = Vec::new();
+            for arg in &args[fixed..] {
+                let v = self.convert_expr(ctx.used(), *arg, None)?;
+                let ty = self.ast_context[*arg].kind.get_qual_type();
+                out.stmts.extend(v.stmts);
+                out.is_unsafe |= v.is_unsafe;
+                tail.push(self.pack_variadic_argument(*arg, v.val, ty)?);
+            }
+            out = out.map(|mut list| {
+                list.push(DaExpr::MakeArray(tail));
+                list
+            });
+        }
+        libc::require_write();
+        FORMAT_USED.with(|u| u.set(true));
+        Ok(Some(out.map(|list| DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list))))
+    }
+
     fn linear_call(
         &self,
         ctx: ExprContext,
@@ -1271,10 +1392,14 @@ impl<'c> Translation<'c> {
         let Some((name, has_body)) = self.callee_name(func) else {
             return Ok(None);
         };
-        if has_body {
+        // va_start/va_end/va_copy act on the variadic cursor, not on memory.
+        if has_body || self.match_vapart(func, args).is_some() {
             return Ok(None);
         }
         let base = name.strip_prefix("__builtin_").unwrap_or(&name);
+        if let Some(lowered) = self.linear_format_call(ctx, expr_id, base, args)? {
+            return Ok(Some(lowered));
+        }
         // (runtime function, argument types: `I` int, `U` uint64)
         let sig: Option<(&str, &str)> = match base {
             "malloc" => Some(("c2da_lin_malloc", "U")),
@@ -1416,6 +1541,7 @@ pub fn runtime_source(reserve: u64) -> String {
     let stack_base = (n + 15) & !15;
     let stack_top = stack_base + STACK_BYTES;
     let brk = stack_top;
+    let format_section = if FORMAT_USED.with(|u| u.get()) { FORMAT_RUNTIME } else { "" };
     format!(
         r#"
 // --memory-model linear runtime: C memory is c2da_mem, an address is an int offset.
@@ -1679,6 +1805,287 @@ def c2da_lin_strstr(h : int; n : int) : int {{
     }}
     return 0
 }}
-"#
+{format_section}"#
     )
 }
+
+/// The printf family over the heap (appended when a call uses it).  Flags in
+/// `c2da_lin_vfmt`: 1 `-`, 2 `+`, 4 space, 8 `#`, 16 `0`.  Length modifiers
+/// truncate the promoted `int64` to C's width; `%s` and `%p` read offsets.
+/// The translator refuses a literal format with any other conversion; a
+/// computed one panics at run time.
+const FORMAT_RUNTIME: &str = r#"
+// printf family over C memory: the format and %s/%p arguments are heap offsets.
+def private c2da_lin_pad(var out : array<uint8>; c : int; n : int) {
+    for (i in range(n)) {
+        push(out, uint8(c))
+    }
+}
+
+def private c2da_lin_fmt_int(var out : array<uint8>; neg : bool; mag : uint64; base : uint64; upper : bool; flags : int; width : int; prec : int) {
+    var digits : array<uint8>
+    var m = mag
+    while (m != 0ul) {
+        let d = int(m % base)
+        if (d < 10) {
+            push(digits, uint8(48 + d))
+        } elif (upper) {
+            push(digits, uint8(55 + d))
+        } else {
+            push(digits, uint8(87 + d))
+        }
+        m /= base
+    }
+    let nd = length(digits)
+    var p = prec < 0 ? 1 : prec
+    if ((flags & 8) != 0 && base == 8ul && p <= nd) {
+        p = nd + 1
+    }
+    let zeros = p > nd ? p - nd : 0
+    var prefix : array<uint8>
+    if (neg) {
+        push(prefix, uint8(45))
+    } elif ((flags & 2) != 0) {
+        push(prefix, uint8(43))
+    } elif ((flags & 4) != 0) {
+        push(prefix, uint8(32))
+    }
+    if ((flags & 8) != 0 && base == 16ul && mag != 0ul) {
+        push(prefix, uint8(48))
+        push(prefix, upper ? uint8(88) : uint8(120))
+    }
+    let body = length(prefix) + zeros + nd
+    let fill = width > body ? width - body : 0
+    let zero_fill = (flags & 1) == 0 && (flags & 16) != 0 && prec < 0
+    if ((flags & 1) == 0 && !zero_fill) {
+        c2da_lin_pad(out, 32, fill)
+    }
+    for (b in prefix) {
+        push(out, b)
+    }
+    if (zero_fill) {
+        c2da_lin_pad(out, 48, fill)
+    }
+    c2da_lin_pad(out, 48, zeros)
+    var i = nd - 1
+    while (i >= 0) {
+        push(out, digits[i])
+        i--
+    }
+    if ((flags & 1) != 0) {
+        c2da_lin_pad(out, 32, fill)
+    }
+}
+
+def private c2da_lin_fmt_bytes(var out : array<uint8>; s : int; n : int; flags : int; width : int) {
+    let fill = width > n ? width - n : 0
+    if ((flags & 1) == 0) {
+        c2da_lin_pad(out, 32, fill)
+    }
+    for (j in range(n)) {
+        push(out, c2da_mem[s + j])
+    }
+    if ((flags & 1) != 0) {
+        c2da_lin_pad(out, 32, fill)
+    }
+}
+
+// Appends the conversion of format f over args[start..] to out; answers the
+// index of the first argument it did not consume.
+def c2da_lin_vfmt(f : int; args : array<C2daVaArg>; start : int; var out : array<uint8>) : int {
+    var k = start
+    var i = f
+    while (c2da_mem[i] != uint8(0)) {
+        let c = int(c2da_mem[i])
+        i++
+        if (c != 37) {
+            push(out, uint8(c))
+            continue
+        }
+        var flags = 0
+        while (true) {
+            let g = int(c2da_mem[i])
+            if (g == 45) {
+                flags |= 1
+            } elif (g == 43) {
+                flags |= 2
+            } elif (g == 32) {
+                flags |= 4
+            } elif (g == 35) {
+                flags |= 8
+            } elif (g == 48) {
+                flags |= 16
+            } else {
+                break
+            }
+            i++
+        }
+        var width = 0
+        if (int(c2da_mem[i]) == 42) {
+            width = int(args[k].i64)
+            k++
+            i++
+            if (width < 0) {
+                flags |= 1
+                width = -width
+            }
+        } else {
+            while (int(c2da_mem[i]) >= 48 && int(c2da_mem[i]) <= 57) {
+                width = width * 10 + int(c2da_mem[i]) - 48
+                i++
+            }
+        }
+        var prec = -1
+        if (int(c2da_mem[i]) == 46) {
+            i++
+            prec = 0
+            if (int(c2da_mem[i]) == 42) {
+                prec = int(args[k].i64)
+                k++
+                i++
+            } else {
+                while (int(c2da_mem[i]) >= 48 && int(c2da_mem[i]) <= 57) {
+                    prec = prec * 10 + int(c2da_mem[i]) - 48
+                    i++
+                }
+            }
+        }
+        // 0: int, 1: hh, 2: h, 3: 64-bit
+        var size = 0
+        while (true) {
+            let g = int(c2da_mem[i])
+            if (g == 104) {
+                size = size == 2 ? 1 : 2
+            } elif (g == 108 || g == 106 || g == 122 || g == 116 || g == 113 || g == 76) {
+                size = 3
+            } else {
+                break
+            }
+            i++
+        }
+        let conv = int(c2da_mem[i])
+        i++
+        if (conv == 37) {
+            push(out, uint8(37))
+        } elif (conv == 100 || conv == 105) {
+            var v = args[k].i64
+            k++
+            if (size == 0) {
+                v = ((v & 4294967295l) ^ 2147483648l) - 2147483648l
+            } elif (size == 1) {
+                v = ((v & 255l) ^ 128l) - 128l
+            } elif (size == 2) {
+                v = ((v & 65535l) ^ 32768l) - 32768l
+            }
+            let neg = v < 0l
+            c2da_lin_fmt_int(out, neg, neg ? uint64(-v) : uint64(v), 10ul, false, flags, width, prec)
+        } elif (conv == 117 || conv == 120 || conv == 88 || conv == 111) {
+            var m = uint64(args[k].i64)
+            k++
+            if (size == 0) {
+                m &= 0xfffffffful
+            } elif (size == 1) {
+                m &= 0xfful
+            } elif (size == 2) {
+                m &= 0xfffful
+            }
+            let base = conv == 117 ? 10ul : (conv == 111 ? 8ul : 16ul)
+            c2da_lin_fmt_int(out, false, m, base, conv == 88, flags & ~6, width, prec)
+        } elif (conv == 99) {
+            let b = int(args[k].i64 & 255l)
+            k++
+            let fill = width > 1 ? width - 1 : 0
+            if ((flags & 1) == 0) {
+                c2da_lin_pad(out, 32, fill)
+            }
+            push(out, uint8(b))
+            if ((flags & 1) != 0) {
+                c2da_lin_pad(out, 32, fill)
+            }
+        } elif (conv == 115) {
+            let s = int(args[k].raw)
+            k++
+            if (s == 0) {
+                // glibc's "(null)"
+                var t : array<uint8>
+                push(t, uint8(40))
+                push(t, uint8(110))
+                push(t, uint8(117))
+                push(t, uint8(108))
+                push(t, uint8(108))
+                push(t, uint8(41))
+                let fill = width > 6 ? width - 6 : 0
+                if ((flags & 1) == 0) {
+                    c2da_lin_pad(out, 32, fill)
+                }
+                for (b in t) {
+                    push(out, b)
+                }
+                if ((flags & 1) != 0) {
+                    c2da_lin_pad(out, 32, fill)
+                }
+            } else {
+                var n = 0
+                while ((prec < 0 || n < prec) && c2da_mem[s + n] != uint8(0)) {
+                    n++
+                }
+                c2da_lin_fmt_bytes(out, s, n, flags, width)
+            }
+        } elif (conv == 112) {
+            let p = args[k].raw
+            k++
+            c2da_lin_fmt_int(out, false, p, 16ul, false, flags | 8, width, prec)
+        } else {
+            panic("c2da: printf conversion not supported under --memory-model linear")
+        }
+    }
+    return k
+}
+
+def private c2da_lin_text(out : array<uint8>) : string {
+    return build_string() $(var w) {
+        for (b in out) {
+            write_char(w, int(b))
+        }
+    }
+}
+
+// C's snprintf truncation: at most n - 1 bytes and a NUL; answers the full length.
+def private c2da_lin_place(d : int; n : uint64; out : array<uint8>) : int {
+    let len = length(out)
+    if (n != 0ul) {
+        let m = uint64(len) < n ? len : int(n) - 1
+        for (j in range(m)) {
+            c2da_mem[d + j] = out[j]
+        }
+        c2da_mem[d + m] = uint8(0)
+    }
+    return len
+}
+
+def c2da_lin_printf(h : uint64; f : int; args : array<C2daVaArg>) : int {
+    var out : array<uint8>
+    c2da_lin_vfmt(f, args, 0, out)
+    c2da_std_write(h, c2da_lin_text(out))
+    return length(out)
+}
+
+def c2da_lin_vprintf(h : uint64; f : int; var ap : C2daVaCursor; args : array<C2daVaArg>) : int {
+    var out : array<uint8>
+    ap.index = c2da_lin_vfmt(f, args, ap.index, out)
+    c2da_std_write(h, c2da_lin_text(out))
+    return length(out)
+}
+
+def c2da_lin_snprintf(d : int; n : uint64; f : int; args : array<C2daVaArg>) : int {
+    var out : array<uint8>
+    c2da_lin_vfmt(f, args, 0, out)
+    return c2da_lin_place(d, n, out)
+}
+
+def c2da_lin_vsnprintf(d : int; n : uint64; f : int; var ap : C2daVaCursor; args : array<C2daVaArg>) : int {
+    var out : array<uint8>
+    ap.index = c2da_lin_vfmt(f, args, ap.index, out)
+    return c2da_lin_place(d, n, out)
+}
+"#;
