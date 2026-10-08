@@ -541,8 +541,12 @@ impl<'c> Translation<'c> {
         // C `memcpy`/`memmove` cross to the daslang builtin copy; its result
         // (C's `dst`) is the named destination address, or nothing at all
         // when the call is an expression statement.
+        // `--libc eden`: the editor's daslang has no `memmove` builtin
+        // (`docs/eden-target.md` §1), so a C `memmove` stays the
+        // `c2da_rt_memmove` byte loop.
         let builtin_copy = runtime
             .and_then(CanonicalRuntimeFunction::builtin_copy)
+            .filter(|builtin| !(*builtin == "memmove" && self.tcfg.libc == crate::LibcMode::Eden))
             .filter(|_| das_args.len() == 3);
         let call = if let Some(builtin) = builtin_copy {
             let lowered = self.lower_builtin_copy(ctx, builtin, das_args);

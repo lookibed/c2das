@@ -363,7 +363,12 @@ pub(crate) fn collect_names(expr: &DaExpr, out: &mut Vec<String>) {
         | TypeInfo { .. } => {}
         Var(name) | FuncRef(name) => out.push(name.clone()),
         Field(e, _) | SafeField(e, _) => collect_names(e, out),
-        Index(a, b) | SafeIndex(a, b) | Assign(a, b) | Pipe(a, b) | While(a, b) => {
+        Index(a, b)
+        | SafeIndex(a, b)
+        | Assign(a, b)
+        | Pipe(a, b)
+        | While(a, b)
+        | TryRecover(a, b) => {
             collect_names(a, out);
             collect_names(b, out);
         }

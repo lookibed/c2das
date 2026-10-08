@@ -32,6 +32,7 @@ thread_local! {
     static ENTRY_DECLARATIONS: RefCell<Vec<DaDecl>> = const { RefCell::new(Vec::new()) };
     static PRELUDE_USED: Cell<bool> = const { Cell::new(false) };
     static LAYOUT: Cell<StdLayout> = const { Cell::new(StdLayout::UNKNOWN) };
+    static EDEN: Cell<bool> = const { Cell::new(false) };
 }
 
 /// The C object-layout facts the helpers need, taken from the translation
@@ -792,8 +793,10 @@ pub(crate) fn take_entry_declarations() -> Vec<DaDecl> {
 /// unit emitted no std helper at all.
 pub(crate) fn module_requires() -> Vec<String> {
     if PRELUDE_USED.with(|used| used.get()) {
+        // `--libc eden` has no `daslib/fio`: its stand-ins are emitted helpers.
         STD_MODULE_REQUIRES
             .iter()
+            .filter(|m| !(eden() && **m == "daslib/fio"))
             .map(|m| (*m).to_string())
             .collect()
     } else {
@@ -849,6 +852,9 @@ fn require_main_wrapper_with(facts: StdLayout, translated_main: &str, arity: usi
 }
 
 fn dependencies(name: &str) -> &'static [&'static str] {
+    if name.starts_with("c2da_eden_") {
+        return eden_dependencies(name);
+    }
     match name {
         STRING => &[BYTE],
         TAKE => &[BYTE],
@@ -934,6 +940,9 @@ fn dependencies(name: &str) -> &'static [&'static str] {
 }
 
 fn build(name: &str) -> DaDecl {
+    if name.starts_with("c2da_eden_") {
+        return build_eden(name);
+    }
     match name {
         BYTE => build_byte(),
         STRING => build_string(),
@@ -1060,7 +1069,7 @@ fn build(name: &str) -> DaDecl {
 impl<'c> Translation<'c> {
     /// True when `--libc std` is in force for this translation unit.
     pub(crate) fn libc_std(&self) -> bool {
-        self.tcfg.libc == crate::LibcMode::Std
+        matches!(self.tcfg.libc, crate::LibcMode::Std | crate::LibcMode::Eden)
     }
 
     /// The C layout facts the std helpers are built from, read off the
@@ -1781,6 +1790,9 @@ fn va_args_type() -> DaType {
 /// renamed away from this name in `std` mode (see `renamer.rs`), so the name is
 /// unambiguous here.
 fn das_file_type() -> DaType {
+    if eden() {
+        return DaType::uint64();
+    }
     DaType::pointer(DaType::named("FILE").const_())
 }
 
@@ -2828,7 +2840,7 @@ fn build_printf() -> DaDecl {
                 DaType::string(),
                 call(FORMAT, vec![var("f"), var("args")]),
             ),
-            DaStmt::Expr(call("print", vec![var("body")])),
+            DaStmt::Expr(call(fio("print"), vec![var("body")])),
             // C's answer is the number of bytes the conversion produced, which
             // includes the ones a daslang string cannot carry.
             ret(op2("+", call("length", vec![var("body")]), var(LOST_CELL))),
@@ -2843,7 +2855,11 @@ fn build_file_of() -> DaDecl {
         FILE_OF,
         vec![param("handle", DaType::uint64())],
         das_file_type(),
-        vec![ret(reinterpret(var("handle"), das_file_type()))],
+        vec![ret(if eden() {
+            var("handle")
+        } else {
+            reinterpret(var("handle"), das_file_type())
+        })],
     )
 }
 
@@ -2913,14 +2929,22 @@ fn build_fopen() -> DaDecl {
             "opened",
             das_file_type(),
             call(
-                "fopen",
+                fio("fopen"),
                 vec![call(STRING, vec![var("path")]), var("accepted")],
             ),
         ),
         // daslib answers a bare null. C's `fopen` also says *why*, and the
         // reason is the first thing a program's error path prints.
         if_then(
-            op2("==", var("opened"), DaExpr::ConstNull),
+            op2(
+                "==",
+                var("opened"),
+                if eden() {
+                    uint64_const(0)
+                } else {
+                    DaExpr::ConstNull
+                },
+            ),
             vec![
                 DaStmt::Expr(call(FOPEN_ERRNO, vec![var("path")])),
                 ret(uint64_const(0)),
@@ -2972,7 +2996,7 @@ fn build_fclose() -> DaDecl {
                 op2("==", var("handle"), uint64_const(0)),
                 vec![set_errno(Errno::Ebadf), ret(DaExpr::ConstInt(-1))],
             ),
-            DaStmt::Expr(call("fclose", vec![call(FILE_OF, vec![var("handle")])])),
+            DaStmt::Expr(call(fio("fclose"), vec![call(FILE_OF, vec![var("handle")])])),
             let_("slot", call(STREAM_SLOT, vec![var("handle")])),
             assign(
                 DaExpr::Index(Box::new(var(STREAM_FLAGS)), Box::new(var("slot"))),
@@ -2997,7 +3021,7 @@ fn build_fclose() -> DaDecl {
 /// translated module is the two standard ones it can name. daslib's `fflush`
 /// throws on a null handle, so the null case never reaches it.
 fn build_fflush() -> DaDecl {
-    let flush = |stream: DaExpr| DaStmt::Expr(call("fflush", vec![stream]));
+    let flush = |stream: DaExpr| DaStmt::Expr(call(fio("fflush"), vec![stream]));
     helper(
         FFLUSH,
         vec![param("handle", DaType::uint64())],
@@ -3098,7 +3122,7 @@ fn build_fread() -> DaDecl {
                 "got",
                 DaType::int64(),
                 call(
-                    "_builtin_read64",
+                    fio("_builtin_read64"),
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("buffer"),
@@ -3167,13 +3191,13 @@ fn build_fseek() -> DaDecl {
             ),
             // C's SEEK_SET/SEEK_CUR/SEEK_END are 0/1/2; daslib names its own
             // constants, and the mapping is spelled out rather than assumed.
-            local("mode", DaType::int(), var("seek_set")),
+            local("mode", DaType::int(), seek_constant("seek_set")),
             if_chain(
                 op2("==", var("whence"), DaExpr::ConstInt(1)),
-                vec![assign(var("mode"), var("seek_cur"))],
+                vec![assign(var("mode"), seek_constant("seek_cur"))],
                 vec![(
                     op2("==", var("whence"), DaExpr::ConstInt(2)),
-                    vec![assign(var("mode"), var("seek_end"))],
+                    vec![assign(var("mode"), seek_constant("seek_end"))],
                 )],
                 None,
             ),
@@ -3183,7 +3207,7 @@ fn build_fseek() -> DaDecl {
                 "moved",
                 DaType::int64(),
                 call(
-                    "fseek",
+                    fio("fseek"),
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("offset"),
@@ -3210,7 +3234,7 @@ fn build_ftell() -> DaDecl {
         DaType::int64(),
         vec![
             null_handle_guard(int64_const(-1)),
-            ret(call("ftell", vec![call(FILE_OF, vec![var("handle")])])),
+            ret(call(fio("ftell"), vec![call(FILE_OF, vec![var("handle")])])),
         ],
     )
 }
@@ -3239,7 +3263,7 @@ fn build_setvbuf() -> DaDecl {
             if_then(
                 op2("==", var("mode"), DaExpr::ConstInt(2)),
                 vec![DaStmt::Expr(call(
-                    "funbuffered",
+                    fio("funbuffered"),
                     vec![call(FILE_OF, vec![var("handle")])],
                 ))],
             ),
@@ -3360,15 +3384,617 @@ fn build_exit() -> DaDecl {
         vec![param("code", DaType::int())],
         DaType::void(),
         vec![DaStmt::Expr(DaExpr::Unsafe(Box::new(call(
-            "exit_now",
+            fio("exit_now"),
             vec![var("code")],
         ))))],
     )
 }
 
+// ── `--libc eden`: the sandbox stand-ins for `daslib/fio` ─────────────
+//
+// The EdenSpark sandbox refuses `daslib/fio` (`docs/eden-target.md` §2/§6).
+// Under `--libc eden` every `c2da_std_*` helper is built exactly as under
+// `--libc std`, except that each `fio` name it calls goes through [`fio`],
+// which answers a `c2da_eden_*` helper below instead:
+//
+// * a `FILE *` is a plain `uint64` handle: 1, 2 and 3 are stdout, stderr and
+//   stdin; an opened file is `EDEN_FIRST_HANDLE + slot`;
+// * stdout and stderr are line buffers, written with `print` and with
+//   `to_log(LOG_ERROR, …)` (master daslang's stderr; the editor's console);
+//   a whole line at a time; everything still buffered is printed by
+//   `c2da_eden_flush_all`, which the entry wrapper calls when `main` returns
+//   or `exit` unwinds;
+// * files are read-only byte arrays the host registers with
+//   `c2da_eden_add_file(name, bytes)` before the program runs; opening for
+//   writing fails with `EACCES`, a missing file with `ENOENT`;
+// * `exit(n)` records `n` and panics; the entry wrapper recovers and answers
+//   `n` (`build_main_wrapper`);
+// * `getenv` answers NULL: the sandbox has no environment.
+const EDEN_FIRST_HANDLE: u64 = 16;
+const EDEN_FILE_NAMES: &str = "c2da_eden_file_names";
+const EDEN_FILE_DATA: &str = "c2da_eden_file_data";
+const EDEN_OPEN_FILE: &str = "c2da_eden_open_file";
+const EDEN_OPEN_POS: &str = "c2da_eden_open_pos";
+const EDEN_OUT: &str = "c2da_eden_out_text";
+const EDEN_ERR: &str = "c2da_eden_err_text";
+const EDEN_EXIT_CODE: &str = "c2da_eden_exit_code";
+const EDEN_EXITING: &str = "c2da_eden_exiting";
+const EDEN_ADD_FILE: &str = "c2da_eden_add_file";
+const EDEN_FIND: &str = "c2da_eden_find_file";
+const EDEN_SLOT: &str = "c2da_eden_slot";
+const EDEN_FOPEN: &str = "c2da_eden_fopen";
+const EDEN_FCLOSE: &str = "c2da_eden_fclose";
+const EDEN_FFLUSH: &str = "c2da_eden_fflush";
+const EDEN_READ: &str = "c2da_eden_read";
+const EDEN_WRITE_BYTES: &str = "c2da_eden_write_bytes";
+const EDEN_FSEEK: &str = "c2da_eden_fseek";
+const EDEN_FTELL: &str = "c2da_eden_ftell";
+const EDEN_FEOF: &str = "c2da_eden_feof";
+const EDEN_OUTPUT: &str = "c2da_eden_output";
+const EDEN_PRINT: &str = "c2da_eden_print";
+const EDEN_FLUSH_ALL: &str = "c2da_eden_flush_all";
+const EDEN_EXIT: &str = "c2da_eden_exit";
+const EDEN_UNBUFFERED: &str = "c2da_eden_unbuffered";
+const EDEN_HAS_ENV: &str = "c2da_eden_has_env";
+const EDEN_GET_ENV: &str = "c2da_eden_get_env";
+const EDEN_FEXIST: &str = "c2da_eden_fexist";
+
+/// Switches the helper builders to the `--libc eden` stand-ins.
+pub(crate) fn set_eden(on: bool) {
+    EDEN.with(|eden| eden.set(on));
+}
+
+fn eden() -> bool {
+    EDEN.with(|eden| eden.get())
+}
+
+/// The name a helper calls for the `daslib/fio` (or builtin console) entry
+/// `name`: `name` itself under `--libc std`, its sandbox stand-in, registered
+/// on the spot, under `--libc eden`.
+fn fio(name: &'static str) -> &'static str {
+    if !eden() {
+        return name;
+    }
+    let stand_in = match name {
+        "fopen" => EDEN_FOPEN,
+        "fclose" => EDEN_FCLOSE,
+        "fflush" => EDEN_FFLUSH,
+        "_builtin_read64" => EDEN_READ,
+        "_builtin_write" => EDEN_WRITE_BYTES,
+        "fseek" => EDEN_FSEEK,
+        "ftell" => EDEN_FTELL,
+        "feof" => EDEN_FEOF,
+        "fprint" => EDEN_OUTPUT,
+        "print" => EDEN_PRINT,
+        "exit_now" => EDEN_EXIT,
+        "funbuffered" => EDEN_UNBUFFERED,
+        "has_env_variable" => EDEN_HAS_ENV,
+        "get_env_variable" => EDEN_GET_ENV,
+        "fexist" => EDEN_FEXIST,
+        other => unreachable!("no --libc eden stand-in for {other}"),
+    };
+    require(stand_in);
+    stand_in
+}
+
+/// `seek_set`/`seek_cur`/`seek_end`: daslib's constants, or C's own 0/1/2
+/// under `--libc eden`, where `c2da_eden_fseek` takes C's `whence`.
+fn seek_constant(name: &'static str) -> DaExpr {
+    if !eden() {
+        return var(name);
+    }
+    DaExpr::ConstInt(match name {
+        "seek_set" => 0,
+        "seek_cur" => 1,
+        _ => 2,
+    })
+}
+
+fn eden_dependencies(name: &str) -> &'static [&'static str] {
+    match name {
+        EDEN_ADD_FILE => &[EDEN_FILE_NAMES, EDEN_FILE_DATA],
+        EDEN_FIND | EDEN_FEXIST => &[EDEN_FILE_NAMES, EDEN_ADD_FILE],
+        EDEN_SLOT => &[EDEN_OPEN_FILE, EDEN_OPEN_POS],
+        EDEN_FOPEN => &[EDEN_FIND, EDEN_SLOT],
+        EDEN_FCLOSE => &[EDEN_SLOT, EDEN_FFLUSH],
+        EDEN_FFLUSH => &[EDEN_FLUSH_ALL],
+        EDEN_READ | EDEN_FSEEK | EDEN_FTELL | EDEN_FEOF => &[EDEN_SLOT, EDEN_FILE_DATA],
+        EDEN_WRITE_BYTES | EDEN_PRINT => &[EDEN_OUTPUT],
+        EDEN_OUTPUT | EDEN_FLUSH_ALL => &[EDEN_OUT, EDEN_ERR],
+        EDEN_EXIT => &[EDEN_FLUSH_ALL, EDEN_EXIT_CODE, EDEN_EXITING],
+        _ => &[],
+    }
+}
+
+fn global(name: &str, var_type: DaType, init: Option<DaExpr>) -> DaDecl {
+    DaDecl::Variable(DaVariable {
+        name: name.to_owned(),
+        var_type,
+        init,
+        annotations: vec![],
+        is_let: false,
+    })
+}
+
+fn at(table: &str, index: DaExpr) -> DaExpr {
+    DaExpr::Index(Box::new(var(table)), Box::new(index))
+}
+
+/// `int(handle - EDEN_FIRST_HANDLE)`, the open-file slot of a handle.
+fn eden_slot_of(handle: &str) -> DaExpr {
+    cast(
+        op2("-", var(handle), uint64_const(EDEN_FIRST_HANDLE)),
+        DaType::int(),
+    )
+}
+
+/// The guard every file stand-in opens with: a handle that is not an open
+/// file answers `fallback`.
+fn eden_open_guard(fallback: DaExpr) -> Vec<DaStmt> {
+    vec![
+        if_then(
+            op2("<", var("handle"), uint64_const(EDEN_FIRST_HANDLE)),
+            vec![ret(fallback.clone())],
+        ),
+        constant("slot", DaType::int(), eden_slot_of("handle")),
+        if_then(
+            op2(
+                "||",
+                op2(">=", var("slot"), call("length", vec![var(EDEN_OPEN_FILE)])),
+                op2("<", at(EDEN_OPEN_FILE, var("slot")), DaExpr::ConstInt(0)),
+            ),
+            vec![ret(fallback)],
+        ),
+        constant("file", DaType::int(), at(EDEN_OPEN_FILE, var("slot"))),
+        constant(
+            "size",
+            DaType::int64(),
+            cast(
+                call("length", vec![at(EDEN_FILE_DATA, var("file"))]),
+                DaType::int64(),
+            ),
+        ),
+    ]
+}
+
+/// One console write: stdout's buffer goes to `print`, stderr's to
+/// `to_log(LOG_ERROR, …)`, which master daslang writes to the process stderr
+/// and the editor to its console.
+fn eden_emit(buffer: &str, body: DaExpr) -> DaStmt {
+    if buffer == EDEN_ERR {
+        DaStmt::Expr(call("to_log", vec![var("LOG_ERROR"), body]))
+    } else {
+        DaStmt::Expr(call("print", vec![body]))
+    }
+}
+
+/// Prints every complete line of one console buffer, keeping the rest.
+fn eden_print_lines(buffer: &str) -> Vec<DaStmt> {
+    vec![
+        local("cut", DaType::int(), DaExpr::ConstInt(-1)),
+        local(
+            "i",
+            DaType::int(),
+            op2("-", call("length", vec![var(buffer)]), DaExpr::ConstInt(1)),
+        ),
+        while_(
+            op2(">=", var("i"), DaExpr::ConstInt(0)),
+            vec![
+                if_then(
+                    op2(
+                        "==",
+                        call("character_at", vec![var(buffer), var("i")]),
+                        DaExpr::ConstInt(10),
+                    ),
+                    vec![assign(var("cut"), var("i")), DaStmt::Expr(DaExpr::Break)],
+                ),
+                assign(var("i"), op2("-", var("i"), DaExpr::ConstInt(1))),
+            ],
+        ),
+        if_then(
+            op2(">=", var("cut"), DaExpr::ConstInt(0)),
+            vec![
+                eden_emit(
+                    buffer,
+                    call(
+                        "slice",
+                        vec![
+                            var(buffer),
+                            DaExpr::ConstInt(0),
+                            op2("+", var("cut"), DaExpr::ConstInt(1)),
+                        ],
+                    ),
+                ),
+                assign(
+                    var(buffer),
+                    call(
+                        "slice",
+                        vec![var(buffer), op2("+", var("cut"), DaExpr::ConstInt(1))],
+                    ),
+                ),
+            ],
+        ),
+    ]
+}
+
+fn build_eden(name: &str) -> DaDecl {
+    let handle = || u64_param("handle");
+    match name {
+        EDEN_FILE_NAMES => global(name, DaType::array(DaType::string()), None),
+        EDEN_FILE_DATA => global(
+            name,
+            DaType::array(DaType::array(DaType::uint8())),
+            None,
+        ),
+        EDEN_OPEN_FILE => global(name, DaType::array(DaType::int()), None),
+        EDEN_OPEN_POS => global(name, DaType::array(DaType::int64()), None),
+        EDEN_OUT | EDEN_ERR => global(name, DaType::string(), Some(text(""))),
+        EDEN_EXIT_CODE => global(name, DaType::int(), Some(DaExpr::ConstInt(0))),
+        EDEN_EXITING => global(name, DaType::bool(), Some(DaExpr::ConstBool(false))),
+        // `def c2da_eden_add_file(name : string; var bytes : array<uint8>)`:
+        // the host's registration API. A name registered again is replaced.
+        EDEN_ADD_FILE => helper(
+            name,
+            vec![
+                param("name", DaType::string()),
+                var_param("bytes", DaType::array(DaType::uint8())),
+            ],
+            DaType::void(),
+            vec![
+                DaStmt::Expr(call("push", vec![var(EDEN_FILE_NAMES), var("name")])),
+                DaStmt::Expr(call("emplace", vec![var(EDEN_FILE_DATA), var("bytes")])),
+            ],
+        ),
+        // The newest registration of `path`, or -1.
+        EDEN_FIND => helper(
+            name,
+            vec![param("path", DaType::string())],
+            DaType::int(),
+            vec![
+                local(
+                    "i",
+                    DaType::int(),
+                    op2(
+                        "-",
+                        call("length", vec![var(EDEN_FILE_NAMES)]),
+                        DaExpr::ConstInt(1),
+                    ),
+                ),
+                while_(
+                    op2(">=", var("i"), DaExpr::ConstInt(0)),
+                    vec![
+                        if_then(
+                            op2("==", at(EDEN_FILE_NAMES, var("i")), var("path")),
+                            vec![ret(var("i"))],
+                        ),
+                        assign(var("i"), op2("-", var("i"), DaExpr::ConstInt(1))),
+                    ],
+                ),
+                ret(DaExpr::ConstInt(-1)),
+            ],
+        ),
+        EDEN_FEXIST => helper(
+            name,
+            vec![param("path", DaType::string())],
+            DaType::bool(),
+            vec![ret(op2(
+                ">=",
+                call(EDEN_FIND, vec![var("path")]),
+                DaExpr::ConstInt(0),
+            ))],
+        ),
+        // A new open-file slot reading file `file` from its start.
+        EDEN_SLOT => helper(
+            name,
+            vec![param("file", DaType::int())],
+            DaType::uint64(),
+            vec![
+                DaStmt::Expr(call("push", vec![var(EDEN_OPEN_FILE), var("file")])),
+                DaStmt::Expr(call("push", vec![var(EDEN_OPEN_POS), int64_const(0)])),
+                ret(op2(
+                    "+",
+                    uint64_const(EDEN_FIRST_HANDLE),
+                    cast(
+                        op2(
+                            "-",
+                            call("length", vec![var(EDEN_OPEN_FILE)]),
+                            DaExpr::ConstInt(1),
+                        ),
+                        DaType::uint64(),
+                    ),
+                )),
+            ],
+        ),
+        // Read-only: any mode other than `r…` without `+` fails (the caller's
+        // `c2da_std_fopen_errno` names the reason).
+        EDEN_FOPEN => helper(
+            name,
+            vec![param("path", DaType::string()), param("mode", DaType::string())],
+            DaType::uint64(),
+            vec![
+                if_then(
+                    op2(
+                        "||",
+                        op2(
+                            "!=",
+                            call("first_character", vec![var("mode")]),
+                            DaExpr::ConstInt(114),
+                        ),
+                        op2(
+                            ">=",
+                            call("find", vec![var("mode"), text("+")]),
+                            DaExpr::ConstInt(0),
+                        ),
+                    ),
+                    vec![ret(uint64_const(0))],
+                ),
+                constant("file", DaType::int(), call(EDEN_FIND, vec![var("path")])),
+                if_then(
+                    op2("<", var("file"), DaExpr::ConstInt(0)),
+                    vec![ret(uint64_const(0))],
+                ),
+                ret(call(EDEN_SLOT, vec![var("file")])),
+            ],
+        ),
+        EDEN_FCLOSE => helper(name, vec![handle()], DaType::void(), {
+            let mut body = vec![if_then(
+                op2("<", var("handle"), uint64_const(EDEN_FIRST_HANDLE)),
+                vec![DaStmt::Expr(call(EDEN_FFLUSH, vec![var("handle")])), ret_void()],
+            )];
+            body.push(constant("slot", DaType::int(), eden_slot_of("handle")));
+            body.push(if_then(
+                op2("<", var("slot"), call("length", vec![var(EDEN_OPEN_FILE)])),
+                vec![assign(at(EDEN_OPEN_FILE, var("slot")), DaExpr::ConstInt(-1))],
+            ));
+            body
+        }),
+        // Only the console has buffered bytes; a flush of either prints both,
+        // which keeps their relative order.
+        EDEN_FFLUSH => helper(
+            name,
+            vec![handle()],
+            DaType::void(),
+            vec![DaStmt::Expr(call(EDEN_FLUSH_ALL, vec![]))],
+        ),
+        EDEN_FLUSH_ALL => helper(
+            name,
+            vec![],
+            DaType::void(),
+            vec![
+                if_then(
+                    not(call("empty", vec![var(EDEN_OUT)])),
+                    vec![
+                        DaStmt::Expr(call("print", vec![var(EDEN_OUT)])),
+                        assign(var(EDEN_OUT), text("")),
+                    ],
+                ),
+                if_then(
+                    not(call("empty", vec![var(EDEN_ERR)])),
+                    vec![
+                        eden_emit(EDEN_ERR, var(EDEN_ERR)),
+                        assign(var(EDEN_ERR), text("")),
+                    ],
+                ),
+            ],
+        ),
+        // `def c2da_eden_read(handle : uint64; buffer : uint8?; total : int64) : int64`
+        EDEN_READ => helper(
+            name,
+            vec![
+                handle(),
+                var_param("buffer", DaType::pointer(DaType::uint8())),
+                param("total", DaType::int64()),
+            ],
+            DaType::int64(),
+            {
+                let mut body = eden_open_guard(int64_const(0));
+                body.extend(vec![
+                    local("pos", DaType::int64(), at(EDEN_OPEN_POS, var("slot"))),
+                    local("n", DaType::int64(), int64_const(0)),
+                    while_(
+                        op2(
+                            "&&",
+                            op2("<", var("n"), var("total")),
+                            op2("<", var("pos"), var("size")),
+                        ),
+                        vec![
+                            assign(
+                                DaExpr::Unsafe(Box::new(DaExpr::Index(
+                                    Box::new(var("buffer")),
+                                    Box::new(var("n")),
+                                ))),
+                                DaExpr::Index(
+                                    Box::new(at(EDEN_FILE_DATA, var("file"))),
+                                    Box::new(var("pos")),
+                                ),
+                            ),
+                            assign(var("n"), op2("+", var("n"), int64_const(1))),
+                            assign(var("pos"), op2("+", var("pos"), int64_const(1))),
+                        ],
+                    ),
+                    assign(at(EDEN_OPEN_POS, var("slot")), var("pos")),
+                    ret(var("n")),
+                ]);
+                body
+            },
+        ),
+        // Console handles take the bytes; nothing else is writable.
+        EDEN_WRITE_BYTES => helper(
+            name,
+            vec![
+                handle(),
+                param("buffer", DaType::pointer(DaType::uint8())),
+                param("count", DaType::int()),
+            ],
+            DaType::int(),
+            vec![
+                if_then(
+                    op2(
+                        "&&",
+                        op2("!=", var("handle"), uint64_const(1)),
+                        op2("!=", var("handle"), uint64_const(2)),
+                    ),
+                    vec![ret(DaExpr::ConstInt(0))],
+                ),
+                constant(
+                    "body",
+                    DaType::string(),
+                    build_text(vec![
+                        local("i", DaType::int(), DaExpr::ConstInt(0)),
+                        while_(
+                            op2("<", var("i"), var("count")),
+                            vec![
+                                emit_char(cast(
+                                    DaExpr::Unsafe(Box::new(DaExpr::Index(
+                                        Box::new(var("buffer")),
+                                        Box::new(var("i")),
+                                    ))),
+                                    DaType::int(),
+                                )),
+                                advance("i"),
+                            ],
+                        ),
+                    ]),
+                ),
+                DaStmt::Expr(call(EDEN_OUTPUT, vec![var("handle"), var("body")])),
+                ret(var("count")),
+            ],
+        ),
+        EDEN_FSEEK => helper(
+            name,
+            vec![
+                handle(),
+                param("offset", DaType::int64()),
+                param("whence", DaType::int()),
+            ],
+            DaType::int64(),
+            {
+                let mut body = eden_open_guard(int64_const(-1));
+                body.extend(vec![
+                    local("base", DaType::int64(), int64_const(0)),
+                    if_chain(
+                        op2("==", var("whence"), DaExpr::ConstInt(1)),
+                        vec![assign(var("base"), at(EDEN_OPEN_POS, var("slot")))],
+                        vec![(
+                            op2("==", var("whence"), DaExpr::ConstInt(2)),
+                            vec![assign(var("base"), var("size"))],
+                        )],
+                        None,
+                    ),
+                    constant("to", DaType::int64(), op2("+", var("base"), var("offset"))),
+                    if_then(
+                        op2("<", var("to"), int64_const(0)),
+                        vec![ret(int64_const(-1))],
+                    ),
+                    assign(at(EDEN_OPEN_POS, var("slot")), var("to")),
+                    ret(int64_const(0)),
+                ]);
+                body
+            },
+        ),
+        EDEN_FTELL => helper(name, vec![handle()], DaType::int64(), {
+            let mut body = eden_open_guard(int64_const(-1));
+            body.push(ret(at(EDEN_OPEN_POS, var("slot"))));
+            body
+        }),
+        EDEN_FEOF => helper(name, vec![handle()], DaType::bool(), {
+            let mut body = eden_open_guard(DaExpr::ConstBool(true));
+            body.push(ret(op2(">=", at(EDEN_OPEN_POS, var("slot")), var("size"))));
+            body
+        }),
+        // `def c2da_eden_output(handle : uint64; body : string)`
+        EDEN_OUTPUT => helper(
+            name,
+            vec![handle(), param("body", DaType::string())],
+            DaType::void(),
+            {
+                let mut err = vec![append(EDEN_ERR, var("body"))];
+                err.extend(eden_print_lines(EDEN_ERR));
+                let mut out = vec![append(EDEN_OUT, var("body"))];
+                out.extend(eden_print_lines(EDEN_OUT));
+                vec![if_chain(
+                    op2("==", var("handle"), uint64_const(1)),
+                    out,
+                    vec![(op2("==", var("handle"), uint64_const(2)), err)],
+                    None,
+                )]
+            },
+        ),
+        EDEN_PRINT => helper(
+            name,
+            vec![param("body", DaType::string())],
+            DaType::void(),
+            vec![DaStmt::Expr(call(
+                EDEN_OUTPUT,
+                vec![uint64_const(1), var("body")],
+            ))],
+        ),
+        EDEN_EXIT => helper(
+            name,
+            vec![param("code", DaType::int())],
+            DaType::void(),
+            vec![
+                DaStmt::Expr(call(EDEN_FLUSH_ALL, vec![])),
+                assign(var(EDEN_EXIT_CODE), var("code")),
+                assign(var(EDEN_EXITING), DaExpr::ConstBool(true)),
+                DaStmt::Expr(call("panic", vec![text("c2da: exit")])),
+            ],
+        ),
+        EDEN_UNBUFFERED => helper(name, vec![handle()], DaType::void(), vec![]),
+        EDEN_HAS_ENV => helper(
+            name,
+            vec![param("key", DaType::string())],
+            DaType::bool(),
+            vec![ret(DaExpr::ConstBool(false))],
+        ),
+        EDEN_GET_ENV => helper(
+            name,
+            vec![param("key", DaType::string())],
+            DaType::string(),
+            vec![ret(text(""))],
+        ),
+        other => unreachable!("unregistered eden helper: {other}"),
+    }
+}
+
+/// The entry wrapper's body under `--libc eden`: the C `main` call runs inside
+/// `try`/`recover`; `exit` unwinds to here and its status is answered. A panic
+/// that is not `exit` is a trap and is raised again after the console flush.
+fn eden_entry_body(mut stmts: Vec<DaStmt>) -> Vec<DaStmt> {
+    require(EDEN_EXIT);
+    let Some(DaStmt::Expr(DaExpr::Return(Some(main_call)))) = stmts.pop() else {
+        unreachable!("the entry wrapper ends with `return main(...)`");
+    };
+    stmts.extend(vec![
+        local("c2da_status", DaType::int(), DaExpr::ConstInt(0)),
+        DaStmt::Expr(DaExpr::TryRecover(
+            block(vec![assign(var("c2da_status"), *main_call)]),
+            block(vec![
+                DaStmt::Expr(call(EDEN_FLUSH_ALL, vec![])),
+                if_then(
+                    not(var(EDEN_EXITING)),
+                    vec![DaStmt::Expr(call("panic", vec![text("c2da: trap")]))],
+                ),
+                assign(var("c2da_status"), var(EDEN_EXIT_CODE)),
+            ]),
+        )),
+        DaStmt::Expr(call(EDEN_FLUSH_ALL, vec![])),
+        ret(var("c2da_status")),
+    ]);
+    stmts
+}
+
 /// `def c2da_std_stdout() : uint64` and its two siblings — a standard stream's
 /// daslib handle as the address a C `FILE *` carries.
 fn build_stream(name: &str, daslib_name: &str) -> DaDecl {
+    if eden() {
+        let number = match name {
+            STDOUT => 1,
+            STDERR => 2,
+            _ => 3,
+        };
+        return helper(name, vec![], DaType::uint64(), vec![ret(uint64_const(number))]);
+    }
     helper(
         name,
         vec![],
@@ -3535,7 +4161,7 @@ fn build_feof() -> DaDecl {
                 vec![ret(DaExpr::ConstInt(0))],
             ),
             if_then(
-                call("feof", vec![call(FILE_OF, vec![var("handle")])]),
+                call(fio("feof"), vec![call(FILE_OF, vec![var("handle")])]),
                 vec![ret(DaExpr::ConstInt(1))],
             ),
             ret(DaExpr::ConstInt(0)),
@@ -3578,12 +4204,12 @@ fn build_clearerr() -> DaDecl {
             assign(slot_entry(STREAM_FLAGS), DaExpr::ConstInt(0)),
             assign(slot_entry(STREAM_PUSH), DaExpr::ConstInt(-1)),
             let_("stream", call(FILE_OF, vec![var("handle")])),
-            constant("at", DaType::int64(), call("ftell", vec![var("stream")])),
+            constant("at", DaType::int64(), call(fio("ftell"), vec![var("stream")])),
             if_then(
                 op2(">=", var("at"), int64_const(0)),
                 vec![DaStmt::Expr(call(
-                    "fseek",
-                    vec![var("stream"), var("at"), var("seek_set")],
+                    fio("fseek"),
+                    vec![var("stream"), var("at"), seek_constant("seek_set")],
                 ))],
             ),
         ],
@@ -3607,7 +4233,7 @@ fn build_rewind() -> DaDecl {
                 vec![
                     call(FILE_OF, vec![var("handle")]),
                     int64_const(0),
-                    var("seek_set"),
+                    seek_constant("seek_set"),
                 ],
             )),
         ],
@@ -3684,7 +4310,7 @@ fn build_fgetc() -> DaDecl {
                 "got",
                 DaType::int64(),
                 call(
-                    "_builtin_read64",
+                    fio("_builtin_read64"),
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("buffer"),
@@ -3733,7 +4359,7 @@ fn build_fputc() -> DaDecl {
                 "wrote",
                 DaType::int(),
                 call(
-                    "_builtin_write",
+                    fio("_builtin_write"),
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("buffer"),
@@ -4079,6 +4705,16 @@ fn build_path_errno() -> DaDecl {
         PATH_ERRNO,
         vec![param("path", DaType::string())],
         DaType::void(),
+        if eden() {
+            // A registered file exists but may not be changed; nothing else exists.
+            vec![
+                if_then(
+                    not(call(fio("fexist"), vec![var("path")])),
+                    vec![set_errno(Errno::Enoent), ret_void()],
+                ),
+                set_errno(Errno::Eacces),
+            ]
+        } else {
         vec![
             if_then(
                 not(call("fexist", vec![var("path")])),
@@ -4090,7 +4726,8 @@ fn build_path_errno() -> DaDecl {
                 vec![set_errno(Errno::Eisdir), ret_void()],
             ),
             set_errno(Errno::Eacces),
-        ],
+        ]
+        },
     )
 }
 
@@ -4125,14 +4762,14 @@ fn build_getenv() -> DaDecl {
             ),
             constant("key", DaType::string(), call(RAW_STRING, vec![var("name")])),
             if_then(
-                not(call("has_env_variable", vec![var("key")])),
+                not(call(fio("has_env_variable"), vec![var("key")])),
                 vec![ret(uint64_const(0))],
             ),
             ret(call(
                 OWN_TEXT,
                 vec![
                     DaExpr::ConstInt(TEXT_SLOT_GETENV),
-                    call("get_env_variable", vec![var("key")]),
+                    call(fio("get_env_variable"), vec![var("key")]),
                 ],
             )),
         ],
@@ -4152,7 +4789,12 @@ fn build_remove() -> DaDecl {
                 call(RAW_STRING, vec![var("path")]),
             ),
             if_then(
-                call("remove", vec![var("name")]),
+                // `--libc eden`: a read-only file system, nothing is removed.
+                if eden() {
+                    DaExpr::ConstBool(false)
+                } else {
+                    call("remove", vec![var("name")])
+                },
                 vec![ret(DaExpr::ConstInt(0))],
             ),
             DaStmt::Expr(call(PATH_ERRNO, vec![var("name")])),
@@ -4179,7 +4821,11 @@ fn build_rename() -> DaDecl {
                 call(RAW_STRING, vec![var("to")]),
             ),
             if_then(
-                call("rename", vec![var("old_name"), var("new_name")]),
+                if eden() {
+                    DaExpr::ConstBool(false)
+                } else {
+                    call("rename", vec![var("old_name"), var("new_name")])
+                },
                 vec![ret(DaExpr::ConstInt(0))],
             ),
             DaStmt::Expr(call(PATH_ERRNO, vec![var("old_name")])),
@@ -4734,6 +5380,7 @@ fn build_main_wrapper(translated_main: &str, arity: usize) -> DaDecl {
 }
 
 fn main_wrapper_decl(stmts: Vec<DaStmt>) -> DaDecl {
+    let stmts = if eden() { eden_entry_body(stmts) } else { stmts };
     DaDecl::Function(DaFunction {
         name: "main".to_owned(),
         params: vec![],
@@ -4886,7 +5533,7 @@ fn build_write() -> DaDecl {
         vec![
             if_then(op2("==", var("handle"), uint64_const(0)), vec![ret_void()]),
             DaStmt::Expr(call(
-                "fprint",
+                fio("fprint"),
                 vec![call(FILE_OF, vec![var("handle")]), var("body")],
             )),
         ],
@@ -5666,7 +6313,7 @@ fn build_abort() -> DaDecl {
         vec![
             DaStmt::Expr(call(WRITE, vec![call(STDERR, vec![]), text("abort()\n")])),
             DaStmt::Expr(DaExpr::Unsafe(Box::new(call(
-                "exit_now",
+                fio("exit_now"),
                 vec![DaExpr::ConstInt(ABORT_STATUS)],
             )))),
         ],
@@ -5861,7 +6508,7 @@ fn build_vprintf() -> DaDecl {
                 call(VFORMAT, vec![var("f"), var("args"), var("from")]),
             ),
             put_cursor(),
-            DaStmt::Expr(call("print", vec![var("body")])),
+            DaStmt::Expr(call(fio("print"), vec![var("body")])),
             ret(op2("+", call("length", vec![var("body")]), var(LOST_CELL))),
         ],
     )
@@ -5931,7 +6578,7 @@ fn build_fwrite() -> DaDecl {
                 "wrote",
                 DaType::int(),
                 call(
-                    "_builtin_write",
+                    fio("_builtin_write"),
                     vec![
                         call(FILE_OF, vec![var("handle")]),
                         var("buffer"),
@@ -6854,6 +7501,42 @@ mod tests {
         assert_eq!(module_requires(), vec!["strings", "daslib/fio"]);
         reset();
         assert!(module_requires().is_empty());
+    }
+
+    #[test]
+    fn the_eden_prelude_needs_no_fio() {
+        reset();
+        set_eden(true);
+        set_layout(StdLayout {
+            pointer_size: 8,
+            pointer_align: 8,
+            timespec_sec: (0, 8),
+            timespec_nsec: (8, 8),
+            errno: ErrnoNumbering::of_target("x86_64-unknown-linux-gnu"),
+        });
+        for name in [
+            PRINTF, PUTS, FPUTS, PUTCHAR, FPRINTF, FWRITE, FOPEN, FREAD, FSEEK, FTELL, FCLOSE,
+            FFLUSH, FGETS, FGETC, FPUTC, FEOF, REWIND, SETVBUF, EXIT, ABORT, PERROR, GETENV,
+            REMOVE, RENAME,
+        ] {
+            require(name);
+        }
+        build_main_wrapper("main_0", 2);
+        let rendered: Vec<String> = take_declarations()
+            .iter()
+            .map(|decl| decl.to_string())
+            .collect();
+        let text = rendered.join("\n");
+        assert_eq!(module_requires(), vec!["strings"]);
+        for refused in ["fopen(", "fprint(", "exit_now(", "funbuffered(", "FILE", "fstdout"] {
+            assert!(
+                !text.contains(&format!(" {refused}")) && !text.contains(&format!("({refused}")),
+                "--libc eden prelude still names `{refused}`"
+            );
+        }
+        assert!(text.contains("def c2da_eden_add_file(name : string; var bytes : array<uint8>)"));
+        set_eden(false);
+        reset();
     }
 
     #[test]

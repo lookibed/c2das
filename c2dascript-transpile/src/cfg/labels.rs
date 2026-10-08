@@ -909,7 +909,12 @@ fn for_each_child(expr: &mut DaExpr, f: &mut dyn FnMut(&mut DaExpr)) {
         | Unsafe(e)
         | IncDec { place: e, .. }
         | Cast { expr: e, .. } => f(e),
-        Index(a, b) | SafeIndex(a, b) | Assign(a, b) | Pipe(a, b) | While(a, b) => {
+        Index(a, b)
+        | SafeIndex(a, b)
+        | Assign(a, b)
+        | Pipe(a, b)
+        | While(a, b)
+        | TryRecover(a, b) => {
             f(a);
             f(b);
         }

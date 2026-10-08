@@ -152,8 +152,10 @@ pub enum LibcMode {
     Ffi,
     /// Replacement where one exists, FFI otherwise. Not implemented.
     All,
-    /// The EdenSpark sandbox's libc: no `fio`, output to `print`, files
-    /// from project assets (`docs/eden-flags.md` flag 5). Not implemented.
+    /// The EdenSpark sandbox's libc: `Std`'s table without `daslib/fio`:
+    /// console output through `print`/`to_log`, read-only files the host
+    /// registers with `c2da_eden_add_file`, `exit` unwinding to the entry
+    /// wrapper (`docs/eden-flags.md` flag 5, `translator/libc.rs`).
     Eden,
 }
 
@@ -505,7 +507,8 @@ fn write_runtime_module(tcfg: &TranspilerConfig) -> Result<Option<PathBuf>, Tran
         error,
     })?;
     let output_path = output_dir.join(name).with_extension("das");
-    let source = translator::runtime_module_source(tcfg, name);
+    let source =
+        translator::runtime_module_source(tcfg, name).map_err(TranspileError::Translation)?;
     fs::write(&output_path, source).map_err(|error| TranspileError::Output {
         path: output_path.clone(),
         error,
@@ -912,7 +915,8 @@ fn transpile_source_layout(
         &runtime_module,
         shared_types,
         libc_helpers.into_values().map(|(decl, _)| decl).collect(),
-    );
+    )
+    .map_err(TranspileError::Translation)?;
     write_output(&shared_path, &shared_source)?;
     outputs.push(shared_path);
     Ok(outputs)

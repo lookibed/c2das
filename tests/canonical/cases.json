@@ -2133,6 +2133,93 @@
         "exit_code": 0
       },
       "runtime": "required"
+    },
+    {
+      "id": "p72-eden-file-io",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p72_std_file_io.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p72_std_file_io.bin"],
+      "expected": {
+        "stdout": "bytes=320\nsum=4231379540\n[sample|Z|-1234567|9007199254740993|beef|%|     pad|42    |00007]\nclock_ok=1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p76-eden-strings",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p76_std_strings.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "std_strings_runtime", "return_type": "int" },
+      "das_entrypoint": "std_strings_runtime",
+      "expected": {
+        "stdout": "strlen=5,0,11\nstrcmp=0,-1,1,-1\nstrncmp=0,-1,0\nstrcpy=[hello] len=5\nstrcat=[hello, world] len=12\nstrncpy=abc...ZZ\nstrncpy_trunc=[abcd]\nstrchr=4,-1,19\nstrrchr=17,0,-1\nstrstr=10,0,-1,0\nstrtoll_hex=-31 end=7 errno=0\nstrtoll_tail=123 end=3 errno=0\nstrtoll_none=0 end=0 errno=0\nstrtoll_bare=0 end=1 errno=0\nstrtoll_bases=493,255,35,2024\nstrtoll_over=9223372036854775807 erange=1\nstrtoll_under=-9223372036854775808 erange=1\nstrtoull_over=18446744073709551615 erange=1\nstrtoull_max=18446744073709551615 errno=0\nstrtoll_base37=0 einval=1\nstrtol=-2147483648,4294967296,-42\nisspace=1110\nisdigit=10 isalpha=10 isalnum=10\nisupper=10 islower=10 isprint=10 isxdigit=110\ncase=qqQ7\nsnprintf=[n=42/ok] n=7\nsnprintf_trunc=[abc] n=8 tail=Z\nsnprintf_size0=4\nvsnprintf=[[v|-7|00042]] n=12\nputs-line\nfputs-no-newline|\nfprintf=out/5\nabcd\nfwrite=5\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p81-eden-printf-edge",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p81_std_printf_edge.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p72_std_file_io.bin"],
+      "expected": {
+        "stdout": "[00042][   07][][5]\n[000000ff][007][0x00001][010][010]\n[5][ff][ff][10][5]\n[   03][00042   ][-00000000000000000005][0][0]\n[0x1234][(nil)]\n[    42][42    ][42    ]\n[1.500][ab][0007][9]\n[abc][   ab][ab   ][][        ab]\n[(null)][][(null)][    (null)]\nnul_count=3\nargc=2 argv_end=1 argv0=1\nfflush_all=0\nseek_failed=1 told=0\nstrtoll=9223372036854775807 errno=34\nstrtoll_base=0 errno=22\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p82-eden-exit-status",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p82_std_exit_status.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "argc=1 argv_end=1\n",
+        "exit_code": 7
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "binjgb-cgb-acid2-eden",
+      "status": "ready",
+      "source_root": "tests/manual/binjgb",
+      "translation_entry": "src/binjgb_all.c",
+      "c_graph": "binjgb",
+      "libc": "eden",
+      "translator_flags": ["--dialect", "eden-0.6.4"],
+      "clang": {
+        "compiler": "clang-18",
+        "flags": ["-std=c11", "-DNDEBUG", "-Iinclude", "-Iupstream/binjgb/src", "-Isrc"]
+      },
+      "c_reference": { "sources": ["src/binjgb_all.c"] },
+      "das_entrypoint": "main",
+      "program_args": ["fixtures/cgb-acid2.gbc"],
+      "expected": {
+        "stdout": "rom_bytes=32768\ntitle: \"CGB-ACID2\"\ncgb flag: CGB_FLAG_REQUIRED\nsgb flag: SGB_FLAG_NONE\ncart type: CART_TYPE_ROM_ONLY\nrom size: ROM_SIZE_32K\next ram size: EXT_RAM_SIZE_NONE\nheader checksum: 0xeb [OK]\nwidth=160\nheight=144\nframe[0]=1015431621\nframe[1]=838717591\nframe[2]=838717591\nframe[3]=838717591\nframe[4]=838717591\nframe[5]=838717591\nframe[6]=838717591\nframe[7]=838717591\nframe[8]=838717591\nframe[9]=838717591\nframe[10]=838717591\nframe[11]=838717591\nframe[12]=838717591\nframe[13]=838717591\nframe[14]=838717591\nframe[15]=838717591\nframe[16]=838717591\nframe[17]=838717591\nframe[18]=838717591\nframe[19]=838717591\nframe[20]=838717591\nframe[21]=838717591\nframe[22]=838717591\nframe[23]=838717591\nframe[24]=838717591\nframe[25]=838717591\nframe[26]=838717591\nframe[27]=838717591\nframe[28]=838717591\nframe[29]=838717591\nframe[30]=838717591\nframe[31]=838717591\nframe[32]=838717591\nframe[33]=838717591\nframe[34]=838717591\nframe[35]=838717591\nframe[36]=838717591\nframe[37]=838717591\nframe[38]=838717591\nframe[39]=838717591\nframe[40]=838717591\nframe[41]=838717591\nframe[42]=838717591\nframe[43]=838717591\nframe[44]=838717591\nframe[45]=838717591\nframe[46]=838717591\nframe[47]=838717591\nframe[48]=838717591\nframe[49]=838717591\nframe[50]=838717591\nframe[51]=838717591\nframe[52]=838717591\nframe[53]=838717591\nframe[54]=838717591\nframe[55]=838717591\nframe[56]=838717591\nframe[57]=838717591\nframe[58]=838717591\nframe[59]=838717591\nframes=60\nticks=5378896\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
     }
   ]
 }

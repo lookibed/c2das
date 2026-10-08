@@ -1146,7 +1146,8 @@
       "c_graph": "binjgb",
       "canonical_case": "binjgb-cgb-acid2-std",
       "canonical_cases": [
-        "binjgb-cgb-acid2-std"
+        "binjgb-cgb-acid2-std",
+        "binjgb-cgb-acid2-eden"
       ],
       "checked_in_das": null,
       "clang": {
@@ -7565,7 +7566,8 @@
       "c_graph": "single-tu",
       "canonical_case": "p72-std-file-io",
       "canonical_cases": [
-        "p72-std-file-io"
+        "p72-std-file-io",
+        "p72-eden-file-io"
       ],
       "checked_in_das": null,
       "clang": {
@@ -7677,7 +7679,8 @@
       "c_graph": "single-tu",
       "canonical_case": "p76-std-strings",
       "canonical_cases": [
-        "p76-std-strings"
+        "p76-std-strings",
+        "p76-eden-strings"
       ],
       "checked_in_das": null,
       "clang": {
@@ -7817,7 +7820,8 @@
       "c_graph": "single-tu",
       "canonical_case": "p81-std-printf-edge",
       "canonical_cases": [
-        "p81-std-printf-edge"
+        "p81-std-printf-edge",
+        "p81-eden-printf-edge"
       ],
       "checked_in_das": null,
       "clang": {
@@ -7845,7 +7849,8 @@
       "c_graph": "single-tu",
       "canonical_case": "p82-std-exit-status",
       "canonical_cases": [
-        "p82-std-exit-status"
+        "p82-std-exit-status",
+        "p82-eden-exit-status"
       ],
       "checked_in_das": null,
       "clang": {

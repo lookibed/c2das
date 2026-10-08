@@ -8,7 +8,7 @@ must stay explicit in API names and result types.
 | `abi.rs` | raw address ↔ typed pointer/null and storage-byte ABI conversions |
 | `layout.rs` | canonical Clang-backed size, alignment, record offsets and diagnostics |
 | `runtime.rs` | the complete `c2da_rt_*` declaration registry and raw-memory calls |
-| `libc.rs` | the `--libc std` replacement table: `c2da_std_*` helpers, the standard streams, the `errno` cell and numbering, the std `FILE`'s own state, and the `main` entry wrapper |
+| `libc.rs` | the `--libc std` replacement table: `c2da_std_*` helpers, the standard streams, the `errno` cell and numbering, the std `FILE`'s own state, and the `main` entry wrapper; under `--libc eden` the `c2da_eden_*` stand-ins for `daslib/fio` |
 | `object_memory.rs` | raw object addresses, field addresses, aligned/misaligned load/store |
 | `functions.rs` | C call classification and ABI-facing argument/result lowering |
 | `operators.rs` | typed C operators, including shifts and numeric coercion |
@@ -270,7 +270,20 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
   finished `DaModule` parts (options, requires, declarations) called once from `mod.rs`, after
   every module pass; they never rewrite the module.  `das_ast` nodes have no C location, so a
   site is located at the C declaration that owns it, or named as translator-generated.  The
-  `--runtime-module`/`--module-layout source` shared module is not checked yet.
+  `--runtime-module`/`--module-layout source` shared module goes through the same checkers
+  (`check_shared_module`, called by `shared_module_source`), its sites named by declaration
+  and the module's file name.
+- `libc.rs` owns `--libc eden` as well.  It is the `--libc std` table with every helper built
+  as under `std`, except that each `daslib/fio` (or console) name a helper calls goes through
+  `fio()`, which answers an emitted `c2da_eden_*` stand-in: a `FILE *` is a `uint64` handle
+  (1/2/3 the standard streams); stdout and stderr are line buffers written with `print` and
+  `to_log(LOG_ERROR, …)`; files are read-only byte arrays the host registers with
+  `c2da_eden_add_file(name, bytes)`; `exit` records the status and panics, and the `main`
+  wrapper recovers it (`eden_entry_body`, the `DaExpr::TryRecover` node); `getenv` answers
+  NULL; `remove`/`rename` fail.  The module requires only `strings`.  A C `memmove` and an
+  overlapping object copy use the `c2da_rt_memmove` byte loop instead of the `memmove`
+  builtin (`functions.rs`, `object_memory.rs`).  A new std helper that calls a `fio` name must
+  route it through `fio()`, or `--libc eden` output requires nothing but still names it.
 
 ## Module-wide policy
 

@@ -113,6 +113,9 @@ pub enum DaExpr {
     /// `while (cond) body` — maps to [`ExprWhile`](ast_expressions.h:975)
     While(Box<DaExpr>, Box<DaExpr>),
 
+    /// `try body recover handler` — maps to `ExprTryCatch`; both are blocks.
+    TryRecover(Box<DaExpr>, Box<DaExpr>),
+
     /// `for (vars in sources) body` — maps to [`ExprFor`](ast_expressions.h:937)
     For {
         vars: Vec<String>,
@@ -418,6 +421,7 @@ fn expr_precedence(expr: &DaExpr) -> u8 {
         }
         DaExpr::IfThenElse { .. }
         | DaExpr::While(_, _)
+        | DaExpr::TryRecover(_, _)
         | DaExpr::For { .. }
         | DaExpr::Return(_)
         | DaExpr::Break
@@ -716,6 +720,13 @@ impl DaExpr {
             While(cond, body) => {
                 write!(f, "while ({}) ", cond)?;
                 body.fmt_with_indent(f, indent)
+            }
+
+            TryRecover(body, recover) => {
+                write!(f, "try ")?;
+                body.fmt_with_indent(f, indent)?;
+                write!(f, " recover ")?;
+                recover.fmt_with_indent(f, indent)
             }
 
             For {

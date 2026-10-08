@@ -19,7 +19,45 @@ ROOT = Path(__file__).resolve().parent.parent
 CASE_FILE = ROOT / "tests/canonical/cases.json"
 # `--libc` policies the translator accepts. A case that omits the key is
 # translated with the translator's own default, which is `nostd`.
-LIBC_MODES = ("nostd", "std", "ffi", "all")
+LIBC_MODES = ("nostd", "std", "ffi", "all", "eden")
+
+
+def write_eden_host(generated_das: Path, program_args: list[str], destination: Path) -> Path:
+    """The test host of a `--libc eden` case (`docs/eden-flags.md` flag 5).
+
+    A `--libc eden` module has no file system: its host registers every file
+    the program may open through `c2da_eden_add_file` before the program runs.
+    Here the host reads each `program_args` file with `daslib/fio` (allowed on
+    master; the host is not translated output and is not part of what the
+    sandbox checks) under the very path the C program receives in `argv`, then
+    calls the module's `main`. It is written next to the generated module and
+    run with `-main c2da_host_main`.
+    """
+    module = generated_das.stem
+    lines = [
+        "options gen2",
+        "require daslib/fio",
+        f"require {module}",
+        "",
+        "[export]",
+        "def c2da_host_main() : int {",
+    ]
+    for arg in program_args:
+        path = json.dumps(arg)
+        lines += [
+            f"    fopen({path}, \"rb\") $(f) {{",
+            "        if (f != null) {",
+            f"            fload(f, int64(stat({path}).size)) $(data) {{",
+            "                var bytes : array<uint8>",
+            "                bytes := data",
+            f"                c2da_eden_add_file({path}, bytes)",
+            "            }",
+            "        }",
+            "    }",
+        ]
+    lines += [f"    return {module}::main()", "}", ""]
+    destination.write_text("\n".join(lines))
+    return destination
 
 
 class CaseFailure(RuntimeError):
@@ -491,13 +529,19 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         # no arguments: without it the launcher's `-main <entry>` would reach
         # the C program as `argv[1]` and `argv[2]`, and `argc` would not match
         # the native program's.
-        separated = case.get("libc") == "std" or bool(program_args)
+        separated = case.get("libc") in ("std", "eden") or bool(program_args)
+        das_main = case["das_entrypoint"]
+        if case.get("libc") == "eden" and program_args:
+            das_entry = write_eden_host(
+                generated_das, program_args, generated_das.parent / "c2da_eden_host.das"
+            )
+            das_main = "c2da_host_main"
         da_result = subprocess.run(
             [
                 str(daslang),
                 str(das_entry),
                 "-main",
-                case["das_entrypoint"],
+                das_main,
                 *(["--", *program_args] if separated else []),
             ],
             cwd=work,

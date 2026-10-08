@@ -1057,7 +1057,8 @@ impl<'m> Folder<'m> {
             | Assign(left, right)
             | AssignOp { left, right, .. }
             | Pipe(left, right)
-            | While(left, right) => {
+            | While(left, right)
+            | TryRecover(left, right) => {
                 self.walk_expr(left);
                 self.walk_expr(right);
             }

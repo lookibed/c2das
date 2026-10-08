@@ -70,7 +70,7 @@ impl TypeConverter {
             translate_valist: tcfg.translate_valist,
             // A `--libc std` module `require`s daslib, whose type names a C
             // record must not collide with; see `DASCRIPT_STD_LIBC_TYPE_NAMESPACE`.
-            renamer: if tcfg.libc == crate::LibcMode::Std {
+            renamer: if matches!(tcfg.libc, crate::LibcMode::Std | crate::LibcMode::Eden) {
                 Renamer::std_libc_type_namespace()
             } else {
                 Renamer::type_namespace()

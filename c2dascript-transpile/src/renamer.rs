@@ -336,7 +336,14 @@ pub const DASCRIPT_STD_LIBC_VALUE_NAMESPACE: &[&str] = &[
     "push",
     "empty",
     "long_length",
+    // `--libc eden`'s console and file stand-ins
+    "emplace",
+    "to_log",
+    "LOG_ERROR",
     // strings
+    "slice",
+    "find",
+    "character_at",
     "to_char",
     "character_uat",
     "first_character",

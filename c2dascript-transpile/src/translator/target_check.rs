@@ -148,12 +148,46 @@ pub(super) fn check_module(
         return Ok(());
     }
     let c_locs = c_declaration_locations(t);
+    check_decls(
+        target,
+        &main_file.display().to_string(),
+        requires,
+        options,
+        decls,
+        &c_locs,
+    )
+}
+
+/// The same checkers over the program-wide shared module that
+/// `--runtime-module` / `--module-layout source` write (`shared_module_source`).
+/// Every declaration in it is translator-generated or a merged C type, so a
+/// site is named by its declaration and the module's file name.
+pub(super) fn check_shared_module(
+    target: &crate::target::TargetOptions,
+    module_file: &str,
+    requires: &[String],
+    options: &[String],
+    decls: &[DaDecl],
+) -> TranslationResult<()> {
+    if target.dialect == Dialect::Master && target.no_unsafe == NoUnsafe::Off {
+        return Ok(());
+    }
+    check_decls(target, module_file, requires, options, decls, &HashMap::new())
+}
+
+fn check_decls(
+    target: &crate::target::TargetOptions,
+    unit: &str,
+    requires: &[String],
+    options: &[String],
+    decls: &[DaDecl],
+    c_locs: &HashMap<String, Option<DisplaySrcSpan>>,
+) -> TranslationResult<()> {
     let locate = |owner: &str| c_locs.get(owner).cloned().flatten();
     let describe = |owner: &str| match locate(owner) {
         Some(_) => format!("`{owner}`"),
         None => format!("translator-generated `{owner}`"),
     };
-    let unit = main_file.display();
 
     if target.dialect == Dialect::Eden064 {
         for option in options {
@@ -370,6 +404,7 @@ fn walk_expr(owner: &str, expr: &DaExpr, visit: &mut dyn FnMut(&str, &DaExpr)) {
         | DaExpr::Assign(a, b)
         | DaExpr::Pipe(a, b)
         | DaExpr::While(a, b)
+        | DaExpr::TryRecover(a, b)
         | DaExpr::Op2 {
             left: a, right: b, ..
         }

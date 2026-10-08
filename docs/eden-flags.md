@@ -3,7 +3,8 @@
 **What this is.** A plan of the switches c2das needs so its output compiles and runs in the
 EdenSpark editor's daslang. Written 2026-10-09. Step 1 of the order of work is in place: the
 CLI switches (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and
-`--no-unsafe` checkers, and `scripts/eden_check.py`. The Status column says which flag is
+`--no-unsafe` checkers, and `scripts/eden_check.py`. Step 2 adds `--libc eden` and runs the
+checkers on the shared runtime module too. The Status column says which flag is
 implemented; every other flag, and so the `--target eden` preset, is refused by name.
 
 **Sources.**
@@ -55,13 +56,60 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | 2 | `--locals-in-heap` (part of 1) | A local whose address is taken lives in a C stack region of the heap, with a stack pointer global, as clang's wasm lowering does. Other locals stay daslang locals. | No `addr(local)` (§2) | Uses `addr(local)` | Not yet: no flag |
 | 3 | `--fnptr-model table` | A function pointer is an index into a per-signature global `array<function<…>>`, filled by an init function. `c2da_relink()` refills the tables after a hot reload. Calls are `invoke(table[i], …)`. | Function values whose type mentions a struct become null on hot reload (§3; wasm3das rebuilds its op tables in `m3_NewRuntime`) | `@@f` values stored as host function values | Not yet: parsed, refused by name |
 | 4 | `--float-compare nan-safe` | Every float comparison is guarded by a bit-test `isnan` from `math_bits`: `eq = !isnan(a) && !isnan(b) && a == b`, and so on. | NaN comparisons are not IEEE in the editor: `NaN == NaN` is true, `NaN < 1` is true (§3) | Plain `==`, `<` | **Implemented** (`translator/float_compare.rs`): `[inline]` `c2da_fcmp_*` helpers over binary operators, truthiness and `!x`; case `p190-float-compare-nan-safe`. Not covered: the `--libc std` helpers' own floating compares |
-| 5 | `--libc eden` | A libc prelude with:<ul><li>no `fio`; stdout and stderr go to `print` line buffers;</li><li>files read from project assets through a host callback (`request_text` plus `get_binary_asset`); no writes;</li><li>no `exit` (the program ends by returning);</li><li>`memcpy`/`memset`/`memmove`/`memcmp` as byte loops over the heap.</li></ul> | `fio`, `network` and `jobque_boost` are refused; `memmove` is missing; `memcpy` on pointers needs `unsafe` (§2, §4, §6) | `--libc std` uses `fio` and the `memcpy`/`memmove` builtins | Not yet: `--libc eden` parsed, refused by name |
+| 5 | `--libc eden` | A libc prelude with:<ul><li>no `fio`; stdout and stderr go to `print` line buffers;</li><li>files read from project assets through a host callback (`request_text` plus `get_binary_asset`); no writes;</li><li>no `exit` (the program ends by returning);</li><li>`memcpy`/`memset`/`memmove`/`memcmp` as byte loops over the heap.</li></ul> | `fio`, `network` and `jobque_boost` are refused; `memmove` is missing; `memcpy` on pointers needs `unsafe` (§2, §4, §6) | `--libc std` uses `fio` and the `memcpy`/`memmove` builtins | **Implemented** except the heap byte loops, which wait for flag 1 (`translator/libc.rs`, see "`--libc eden` as built" below); cases `p72/p76/p81/p82-eden-*`, `binjgb-cgb-acid2-eden` |
 | 6 | `--varargs-model heap` | Variadic arguments are written into the C stack region of the heap, as clang's wasm ABI does, instead of a daslang array literal per call. | Garbage is collected only between engine frames; a long call that allocates an array per `printf` grows towards the 100 MiB cap (§3) | `[C2daVaArg(…), …]`, an array per call | Not yet: parsed, refused by name |
 | 7 | `--heap-reserve <bytes>` | The heap is reserved at its final size before `resize`, and the translator refuses a program whose static data plus heap exceed a set limit (default about 80 MB). | `max_unreserved_size` panics past 64 MB; the per-context heap cap is 100 MiB (§3) | Grows on demand | Not yet: parsed, refused by name |
 | 8 | `--dialect eden-0.6.4` | Emitted syntax limited to what the editor's 0.6.4 parses, with located errors otherwise. Excluded:<ul><li>no `!` original operators;</li><li>no `@` metadata on locals;</li><li>no `memmove`;</li><li>options limited to the sandbox list: `gen2`, `indenting`, `stack`, `rtti`, `no_global_variables`, `no_aot`, `solid_context`, `strict_smart_pointers`;</li><li>no `heap_size_limit`.</li></ul> | The editor's daslang is older than master v0.6.4-481 (§1, §4) | Emits only `options gen2`, `solid_context` and case options; uses no `!` operators today, but nothing enforces it | **Implemented** as a checker (`translator/target_check.rs`): options, requires (§6 lists), `!` operators, `memmove`; case `p192-dialect-eden-refuses-option`. Local `@` metadata is not checked: `das_ast` has no node for it |
 | 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | Not yet: parsed, refused by name |
 | 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (acyclic) |
 | 11 | `--no-unsafe` (check, implied by the preset) | The translator fails closed, with a source-located diagnostic, on any construct that would need `unsafe` under the other flags. The output is then also checked locally under `sandbox.das_project`. | A sandbox refusal in the editor names only the first error | No such check | **Implemented** as a checker: `--no-unsafe` fails naming the first 10 sites by C declaration; `--no-unsafe=report` prints a census. `scripts/eden_check.py` runs the sandbox model |
+
+### `--libc eden` as built
+
+The `--libc std` table, with every `daslib/fio` name replaced by an emitted `c2da_eden_*`
+helper. The module `require`s only `strings`.
+
+- **Console.** stdout and stderr are line buffers. A complete line of stdout goes to `print`,
+  of stderr to `to_log(LOG_ERROR, …)`. Master daslang writes `to_log` to the process stderr,
+  so stdout bytes equal the C program's, as the canonical runner compares them (it compares
+  stdout only). What is left in a buffer is written by `fflush`, `exit`, or the return of
+  `main`. `setvbuf` changes nothing visible.
+- **Files.** Read-only byte arrays. The host calls
+  `c2da_eden_add_file(name : string; var bytes : array<uint8>)` before the program runs; a
+  name registered again is replaced. `fopen` with a mode other than `r…` without `+` fails
+  with `EACCES`, a name never registered with `ENOENT`. `fread`, `fseek`, `ftell`, `feof`,
+  `fgetc`, `fgets`, `rewind` work on the array. Writing to a file handle fails like a short
+  write. `remove` and `rename` fail (`EACCES`/`ENOENT`). `getenv` answers NULL.
+- **Host for tests.** `scripts/run_c2das_cases.py` writes, for a `"libc": "eden"` case with
+  `program_args`, a host `c2da_eden_host.das` next to the generated module. It reads each
+  argument file with `daslib/fio`, registers it under the path the C program gets in `argv`,
+  and calls the module's `main`. It runs with `-main c2da_host_main`. The host is not
+  translated output. In Eden the host reads assets with `request_text`/`get_binary_asset`.
+- **`exit`.** `exit(n)` flushes, stores `n` and panics. The `main` wrapper runs C `main` in
+  `try`/`recover` and returns `n`. A panic that is not `exit` (a trap) is raised again as
+  `c2da: trap` after the flush; the original message is lost.
+- **Time.** `clock_gettime` and `time` stay on the builtins `ref_time_ticks` and `get_clock`,
+  which need no module. Not yet checked in the editor.
+- **`memmove`.** A C `memmove` and an overlapping object copy call the `c2da_rt_memmove`
+  byte loop, never the `memmove` builtin. `memcpy`/`memset`/`memcmp` keep today's forms over
+  raw addresses; they become sandbox-legal with flag 1.
+- **Still `unsafe`.** The stand-ins that copy bytes to or from C memory (`c2da_eden_read`,
+  `c2da_eden_write_bytes`) index a raw pointer, as the rest of the std prelude does, until
+  flag 1.
+- **Fails closed.** A libc call outside the std table is refused by name as under `std`.
+
+**Proof on master daslang (2026-10-09).** `p72-eden-file-io` (`fopen`/`fread` of a
+registered file), `p76-eden-strings` (`puts`, `fputs`, `fprintf`, `fwrite` to stdout),
+`p81-eden-printf-edge` (`fflush`, `fseek`/`ftell` on a registered file) and
+`p82-eden-exit-status` (`exit(7)`) match the C reference. No eden case covers stderr output,
+`fgetc`/`fgets`/`rewind` or a failing write yet. `binjgb-cgb-acid2-eden`
+(`--libc eden --dialect eden-0.6.4`) passes the dialect checker and matches C: 60 frame
+hashes, `ticks=5378896`.
+
+**binjgb against the sandbox model** (`scripts/eden_check.py`): the module still fails. The
+first error is `unsafe function 'c2da_rt_malloc'`: `intptr(addr(c2da_rt_heap[0]))`, the raw
+heap. Census over the text: `unsafe` 5 153, `addr(` 405, `reinterpret<` 3 731, `intptr(` 3.
+The only remaining blocker class is `unsafe` raw memory, which is flag 1.
 
 ### Already compatible, no flag needed
 
@@ -98,6 +146,8 @@ Things the target cannot fix and has to document:
      index.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,
    `--heap-reserve`.**
+   - `--float-compare nan-safe` done in step 1; `--libc eden` done (above), with the
+     `--dialect`/`--no-unsafe` checkers now also run on the shared runtime module.
 4. **`--entry eden`,** then an Eden host for one corpus.
    - binjgb comes first: small, 5 units, acyclic for `--module-layout source`, and a
      wasm3das baseline exists to compare against.

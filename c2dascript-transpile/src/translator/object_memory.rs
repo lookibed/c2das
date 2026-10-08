@@ -91,6 +91,18 @@ impl<'c> Translation<'c> {
             .ok_or_else(|| TranslationError::generic("object copy has no daslang builtin"))?;
         let size = i64::try_from(size)
             .map_err(|_| TranslationError::generic("C object size exceeds daScript range"))?;
+        // `--libc eden`: no `memmove` builtin in the editor's daslang; an
+        // overlapping copy is the runtime's byte loop over the raw addresses.
+        if builtin == "memmove" && self.tcfg.libc == crate::LibcMode::Eden {
+            return Ok(Some(DaStmt::Expr(DaExpr::Call(
+                Box::new(DaExpr::Var(function.target_name().to_owned())),
+                vec![
+                    dst,
+                    src,
+                    self.integer_literal_for_type(DaExpr::ConstInt(size), DaType::uint64()),
+                ],
+            ))));
+        }
         let void_ptr = DaType::pointer(DaType::void());
         Ok(Some(DaStmt::Expr(DaExpr::Unsafe(Box::new(DaExpr::Call(
             Box::new(DaExpr::Var(builtin.to_owned())),

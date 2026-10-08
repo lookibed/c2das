@@ -187,9 +187,7 @@ fn main() {
     // wrong one in the generated module.
     if matches!(
         libc,
-        c2dascript_transpile::LibcMode::Ffi
-            | c2dascript_transpile::LibcMode::All
-            | c2dascript_transpile::LibcMode::Eden
+        c2dascript_transpile::LibcMode::Ffi | c2dascript_transpile::LibcMode::All
     ) {
         eprintln!("libc mode '{libc}' is not implemented yet");
         std::process::exit(2);

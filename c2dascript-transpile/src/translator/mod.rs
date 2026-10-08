@@ -426,7 +426,7 @@ impl<'c> Translation<'c> {
             // A `--libc std` module `require`s daslib, whose value names the
             // std prelude spells unqualified; see
             // `DASCRIPT_STD_LIBC_VALUE_NAMESPACE`.
-            renamer: RefCell::new(if tcfg.libc == crate::LibcMode::Std {
+            renamer: RefCell::new(if matches!(tcfg.libc, crate::LibcMode::Std | crate::LibcMode::Eden) {
                 Renamer::std_libc_global_value_namespace()
             } else {
                 Renamer::global_value_namespace()
@@ -4236,6 +4236,7 @@ fn translate_impl(
     builtins::reset_builtin_helpers();
     float_compare::reset();
     libc::reset();
+    libc::set_eden(tcfg.libc == crate::LibcMode::Eden);
 
     // Prune unreachable system declarations (removes __-prefixed noise from system headers)
     t.ast_context.prune_unwanted_decls(false);
@@ -4828,7 +4829,7 @@ fn module_options(tcfg: &TranspilerConfig) -> Vec<String> {
 /// conversion folding — so they are the declarations the single-module layout
 /// writes.  It depends on no translation unit, which is what lets the units
 /// share one heap.
-pub fn runtime_module_source(tcfg: &TranspilerConfig, name: &str) -> String {
+pub fn runtime_module_source(tcfg: &TranspilerConfig, name: &str) -> TranslationResult<String> {
     shared_module_source(tcfg, name, vec![], vec![])
 }
 
@@ -4843,7 +4844,7 @@ pub fn shared_module_source(
     name: &str,
     shared_types: Vec<DaDecl>,
     libc_helpers: Vec<DaDecl>,
-) -> String {
+) -> TranslationResult<String> {
     let mut decls = c2da_runtime_helpers();
     // The merged type section is ordered once more the way a unit's is
     // (`translate_impl`): a record completed by one unit and only named by
@@ -4863,6 +4864,7 @@ pub fn shared_module_source(
     } else {
         libc::STD_MODULE_REQUIRES
             .iter()
+            .filter(|module| !(tcfg.libc == crate::LibcMode::Eden && **module == "daslib/fio"))
             .map(|module| (*module).to_owned())
             .collect()
     };
@@ -4873,14 +4875,22 @@ pub fn shared_module_source(
     }
     apply_side_effects(&mut decls);
     das_ast::fold::fold_module_conversions(&mut decls);
-    DaModule {
+    let options = module_options(tcfg);
+    target_check::check_shared_module(
+        &tcfg.target,
+        &format!("{name}.das"),
+        &requires,
+        &options,
+        &decls,
+    )?;
+    Ok(DaModule {
         name: Some(name.to_owned()),
         public: true,
         requires,
-        options: module_options(tcfg),
+        options,
         decls,
     }
-    .to_string()
+    .to_string())
 }
 
 /// The annotation daScript reads to skip the generated null check on every
