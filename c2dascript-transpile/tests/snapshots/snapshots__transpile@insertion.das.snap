@@ -288,11 +288,9 @@ def c2da___assert_fail(expr : void?; file : void?; line : uint; func : void?) {
 }
 [export, sideeffects]
 def insertion_sort(var n : int; var p : int?) {
-    var i : int
     var tmp : int
     var j : int
-    i = 1
-    while (i < n) {
+    for (i in range(1, n)) {
         tmp = unsafe(unsafe(reinterpret<int?>(p))[i])
         j = i
         while (j > 0 && unsafe(unsafe(reinterpret<int?>(p))[j - 1]) > tmp) {
@@ -300,7 +298,6 @@ def insertion_sort(var n : int; var p : int?) {
             j -= 1
         }
         unsafe(unsafe(reinterpret<int?>(p))[j]) = tmp
-        i += 1
     }
     return
 }

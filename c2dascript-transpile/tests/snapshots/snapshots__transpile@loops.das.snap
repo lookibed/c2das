@@ -295,10 +295,8 @@ def while_loop(var x : int) : int {
 }
 [export, sideeffects]
 def for_loop(var x_0 : int) : int {
-    var i : int = 0
-    while (i < 10) {
+    for (i in range(0, 10)) {
         x_0 += 1
-        i += 1
     }
     return x_0
 }
@@ -382,16 +380,10 @@ def nested_while(var x_7 : int) {
 }
 [export, sideeffects]
 def nested_for(var x_8 : int) {
-    var i_0 : int
-    var j : int
-    i_0 = 0
-    while (i_0 < 5) {
-        j = 0
-        while (j < 5) {
+    for (i_0 in range(0, 5)) {
+        for (j in range(0, 5)) {
             x_8 += 1
-            j += 1
         }
-        i_0 += 1
     }
     return
 }
@@ -477,38 +469,31 @@ def break_and_continue_nested_loops(var x_11 : int) : int {
 }
 [export, sideeffects]
 def for_loop_single_continue(var x_12 : int) : int {
-    var i_1 : int = 0
-    while (i_1 < 10) {
+    for (i_1 in range(0, 10)) {
         if (x_12 != 0) {
             if (x_12 != 0) {
-                i_1 += 1
                 continue
             }
         }
         x_12 += 1
-        i_1 += 1
     }
     return x_12
 }
 [export, sideeffects]
 def for_loop_multi_continue(var x_13 : int) : int {
-    var i_2 : int = 0
-    while (i_2 < 10) {
+    for (i_2 in range(0, 10)) {
         if (x_13 != 0) {
             if (x_13 != 0) {
-                i_2 += 1
                 continue
             }
         }
         x_13 += 1
         if (x_13 != 0) {
             if (x_13 != 0) {
-                i_2 += 1
                 continue
             }
         }
         x_13 += 2
-        i_2 += 1
     }
     return x_13
 }

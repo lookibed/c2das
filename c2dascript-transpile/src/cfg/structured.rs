@@ -20,7 +20,12 @@
 //!   `continue` a fresh conversion of the condition followed by `continue`;
 //!   `do … while (0)` with no `break`/`continue` is its body alone, with one
 //!   it is `while true { …; break }` and its `continue` is that `break`;
-//! * `break` → `break` in a loop; `return` → `return` anywhere.
+//! * `break` → `break` in a loop; `return` → `return` anywhere;
+//! * a counted loop — `do … while (count--)` with `count` unnamed in the
+//!   body and dead after, `for (…; i < b; i++)` with `i` unwritten and `b`
+//!   invariant — → `for (v in range(…))`, one fused interpreter node
+//!   ([`Builder::counted_do_while`], [`Builder::counted_for`]; the rules
+//!   are in the translator `ARCHITECTURE.md`, "Counted loops").
 //!
 //! # `switch`
 //!
@@ -90,6 +95,7 @@
 
 use super::labels::{self as flat, DispatchTree, Tail};
 use super::*;
+use crate::c_ast::iterators::{DFExpr, SomeId};
 use das_ast::{DaBlock, DaExpr, DaStmt, DaType};
 use std::collections::{HashMap, HashSet};
 
@@ -173,6 +179,12 @@ enum Node {
     /// `while cond { body }`; `None` is `while true`.
     Loop {
         cond: Option<DaExpr>,
+        body: Vec<Node>,
+    },
+    /// `for var in source { body }`: a counted C loop (see `counted_loops`).
+    For {
+        var: String,
+        source: DaExpr,
         body: Vec<Node>,
     },
     Break,
@@ -300,17 +312,24 @@ enum LoopKind {
     For(Option<CExprId>),
     /// A `do`/`while` loop, its condition and the condition's constant value.
     DoWhile(CExprId, Option<bool>),
+    /// A counted loop over a daslang range: the range steps the counter, so
+    /// `continue` is daslang's own.
+    Range,
 }
 
 struct Builder<'a> {
     tr: &'a Translation<'a>,
     ret_ty: Option<CQualTypeId>,
+    /// The function body, the scope a counter's liveness is decided in.
+    body: &'a [CStmtId],
     store: DeclStmtStore,
     /// Declarations for the top of the function (`switch` scrutinee temporaries).
     prelude: Vec<DaStmt>,
     next_sym: Sym,
     breaks: Vec<Breakable>,
     loops: Vec<LoopKind>,
+    /// C locals a range loop's variable replaced: no hoisted `var` for them.
+    suppressed: HashSet<CDeclId>,
 }
 
 fn ctx() -> ExprContext {
@@ -423,6 +442,10 @@ impl Builder<'_> {
                 increment,
                 body,
             } => {
+                if let Some(counted) = self.counted_for(sid, *init, *condition, *increment, *body)
+                {
+                    return self.range_loop(counted, *body, out);
+                }
                 if let Some(init) = init {
                     self.stmt(*init, out)?;
                 }
@@ -450,6 +473,9 @@ impl Builder<'_> {
             }
 
             CStmtKind::DoWhile { body, condition } => {
+                if let Some(counted) = self.counted_do_while(sid, *condition, *body) {
+                    return self.range_loop(counted, *body, out);
+                }
                 let cond = tr.convert_condition(ctx().used(), true, *condition)?;
                 let constant = match (&cond.stmts[..], &cond.val) {
                     ([], DaExpr::ConstBool(value)) => Some(*value),
@@ -495,9 +521,9 @@ impl Builder<'_> {
 
             CStmtKind::Continue => {
                 match self.loops.last().copied() {
-                    Some(LoopKind::While) | Some(LoopKind::DoWhile(_, Some(true))) => {
-                        out.push(Node::Continue)
-                    }
+                    Some(LoopKind::While)
+                    | Some(LoopKind::DoWhile(_, Some(true)))
+                    | Some(LoopKind::Range) => out.push(Node::Continue),
                     Some(LoopKind::For(step)) => {
                         if let Some(step) = step {
                             let mut stmts = Vec::new();
@@ -597,6 +623,435 @@ impl Builder<'_> {
         result
     }
 
+    // ===== Counted loops (`counted_loops` in the module documentation) =====
+
+    /// `do { body } while (count--);` with `count` an `int` local the body
+    /// never names and that is dead after the loop.
+    fn counted_do_while(
+        &self,
+        sid: CStmtId,
+        condition: CExprId,
+        body: CStmtId,
+    ) -> Option<CountedLoop> {
+        let tr = self.tr;
+        let CExprKind::Unary(_, CUnOp::PostDecrement, arg, _) = tr.ast_context[peel(tr, condition)].kind
+        else {
+            return None;
+        };
+        let (count, CTypeKind::Int) = self.counter(arg)? else {
+            return None;
+        };
+        if references(tr, SomeId::Stmt(body), count) || !self.dead_after(sid, count) {
+            return None;
+        }
+        Some(CountedLoop::Count(count))
+    }
+
+    /// `for (init; i < b; i++) body` with `i` an `int`/`unsigned` local the
+    /// body never writes, `b` invariant over the body, and `i` either named
+    /// nowhere outside the loop or dead after it.
+    fn counted_for(
+        &self,
+        sid: CStmtId,
+        init: Option<CStmtId>,
+        condition: Option<CExprId>,
+        increment: Option<CExprId>,
+        body: CStmtId,
+    ) -> Option<CountedLoop> {
+        let tr = self.tr;
+        let step = peel(tr, increment?);
+        let CExprKind::Unary(_, CUnOp::PreIncrement | CUnOp::PostIncrement, arg, _) =
+            tr.ast_context[step].kind
+        else {
+            return None;
+        };
+        let (var, kind) = self.counter(arg)?;
+        let CExprKind::Binary(_, CBinOp::Less, lhs, rhs, _, _) =
+            tr.ast_context[peel(tr, condition?)].kind
+        else {
+            return None;
+        };
+        // The comparison is in `i`'s own type: nothing but the lvalue
+        // conversion stands between `i` and `<` (`peel` keeps an
+        // `IntegralCast`).
+        let lhs = peel(tr, lhs);
+        if !matches!(tr.ast_context[lhs].kind, CExprKind::DeclRef(_, d, _) if d == var) {
+            return None;
+        }
+        if references(tr, SomeId::Expr(rhs), var)
+            || !self.invariant(rhs, body)
+            || writes(tr, SomeId::Stmt(body), var)
+        {
+            return None;
+        }
+        let init = match init {
+            None => CountedInit::Current,
+            Some(init) => match &tr.ast_context[init].kind {
+                CStmtKind::Decls(decls) if decls.as_slice() == [var] => CountedInit::Decl(var),
+                CStmtKind::Expr(eid) => {
+                    let CExprKind::Binary(_, CBinOp::Assign, target, _, _, _) =
+                        tr.ast_context[peel(tr, *eid)].kind
+                    else {
+                        return None;
+                    };
+                    if !matches!(tr.ast_context[peel(tr, target)].kind, CExprKind::DeclRef(_, d, _) if d == var)
+                    {
+                        return None;
+                    }
+                    CountedInit::Assign(*eid)
+                }
+                _ => return None,
+            },
+        };
+        let in_loop = count_references(tr, SomeId::Stmt(sid), var);
+        let in_body: usize = self
+            .body
+            .iter()
+            .map(|&s| count_references(tr, SomeId::Stmt(s), var))
+            .sum();
+        let only_in_loop = in_loop == in_body;
+        if !only_in_loop && !self.dead_after(sid, var) {
+            return None;
+        }
+        Some(CountedLoop::Index {
+            var,
+            unsigned: kind == CTypeKind::UInt,
+            init,
+            end: rhs,
+            only_in_loop,
+        })
+    }
+
+    /// The `int`/`unsigned` block-scope local `place` names, when nothing
+    /// but this function's own statements can reach it.
+    fn counter(&self, place: CExprId) -> Option<(CDeclId, CTypeKind)> {
+        let tr = self.tr;
+        let CExprKind::DeclRef(_, decl, _) = tr.ast_context[peel(tr, place)].kind else {
+            return None;
+        };
+        let CDeclKind::Variable {
+            has_static_duration: false,
+            has_thread_duration: false,
+            typ,
+            ..
+        } = &tr.ast_context[decl].kind
+        else {
+            return None;
+        };
+        if typ.qualifiers.is_volatile || tr.local_address_is_taken(decl) {
+            return None;
+        }
+        match &tr.ast_context.resolve_type(typ.ctype).kind {
+            CTypeKind::Int => Some((decl, CTypeKind::Int)),
+            CTypeKind::UInt => Some((decl, CTypeKind::UInt)),
+            _ => None,
+        }
+    }
+
+    /// Whether `expr` has the same value on every test of the loop: constants,
+    /// enumeration constants, `sizeof`, and locals of this function that
+    /// `body` does not write and nothing else can reach, under conversions
+    /// and arithmetic.  A memory read, a global or a call is not shown.
+    fn invariant(&self, expr: CExprId, body: CStmtId) -> bool {
+        let tr = self.tr;
+        match &tr.ast_context[expr].kind {
+            CExprKind::Literal(..) | CExprKind::UnaryType(..) => true,
+            CExprKind::Paren(_, inner)
+            | CExprKind::ConstantExpr(_, inner, _)
+            | CExprKind::ImplicitCast(_, inner, CastKind::IntegralCast | CastKind::NoOp | CastKind::LValueToRValue, _, _)
+            | CExprKind::ExplicitCast(_, inner, CastKind::IntegralCast | CastKind::NoOp, _, _)
+            | CExprKind::Unary(_, CUnOp::Plus | CUnOp::Negate | CUnOp::Complement | CUnOp::Extension, inner, _) => {
+                self.invariant(*inner, body)
+            }
+            CExprKind::Binary(
+                _,
+                CBinOp::Multiply
+                | CBinOp::Divide
+                | CBinOp::Modulus
+                | CBinOp::Add
+                | CBinOp::Subtract
+                | CBinOp::ShiftLeft
+                | CBinOp::ShiftRight
+                | CBinOp::BitAnd
+                | CBinOp::BitXor
+                | CBinOp::BitOr,
+                lhs,
+                rhs,
+                _,
+                _,
+            ) => self.invariant(*lhs, body) && self.invariant(*rhs, body),
+            CExprKind::DeclRef(_, decl, _) => match &tr.ast_context[*decl].kind {
+                CDeclKind::EnumConstant { .. } => true,
+                CDeclKind::Variable {
+                    has_static_duration: false,
+                    has_thread_duration: false,
+                    typ,
+                    ..
+                } => {
+                    !typ.qualifiers.is_volatile
+                        && !tr.local_address_is_taken(*decl)
+                        && !writes(tr, SomeId::Stmt(body), *decl)
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// Whether `decl` is dead once the loop `target` exits: on every path
+    /// from the loop's end, `decl` is assigned before it is read.  Decided by
+    /// walking the function's statements in order with a kill rule (a plain
+    /// `decl = e` kills); an enclosing loop's condition, step and body top are
+    /// walked when the path falls off the body's end; a `break`/`continue`
+    /// after the loop, or any other read, counts as live.
+    fn dead_after(&self, target: CStmtId, decl: CDeclId) -> bool {
+        matches!(
+            self.after_list(self.body, target, decl),
+            Flow::Dead | Flow::FellOff
+        )
+    }
+
+    fn after_list(&self, stmts: &[CStmtId], target: CStmtId, decl: CDeclId) -> Flow {
+        for (k, &s) in stmts.iter().enumerate() {
+            match self.after_stmt(s, target, decl) {
+                Flow::NotFound => continue,
+                Flow::FellOff => return self.rest(&stmts[k + 1..], decl),
+                flow => return flow,
+            }
+        }
+        Flow::NotFound
+    }
+
+    fn after_stmt(&self, sid: CStmtId, target: CStmtId, decl: CDeclId) -> Flow {
+        if sid == target {
+            return Flow::FellOff;
+        }
+        let tr = self.tr;
+        match &tr.ast_context[sid].kind {
+            CStmtKind::Compound(kids) => self.after_list(kids, target, decl),
+            CStmtKind::If {
+                true_variant,
+                false_variant,
+                ..
+            } => match self.after_stmt(*true_variant, target, decl) {
+                Flow::NotFound => match false_variant {
+                    Some(fv) => self.after_stmt(*fv, target, decl),
+                    None => Flow::NotFound,
+                },
+                flow => flow,
+            },
+            CStmtKind::While { condition, body } | CStmtKind::DoWhile { condition, body } => {
+                match self.after_stmt(*body, target, decl) {
+                    Flow::FellOff => {
+                        if references(tr, SomeId::Expr(*condition), decl) {
+                            Flow::Live
+                        } else {
+                            self.loop_head(*body, decl)
+                        }
+                    }
+                    flow => flow,
+                }
+            }
+            CStmtKind::ForLoop {
+                condition,
+                increment,
+                body,
+                ..
+            } => match self.after_stmt(*body, target, decl) {
+                Flow::FellOff => {
+                    let reads = |e: &Option<CExprId>| {
+                        e.map_or(false, |e| references(tr, SomeId::Expr(e), decl))
+                    };
+                    if reads(increment) || reads(condition) {
+                        Flow::Live
+                    } else {
+                        self.loop_head(*body, decl)
+                    }
+                }
+                flow => flow,
+            },
+            CStmtKind::Switch { body, .. } => self.after_stmt(*body, target, decl),
+            CStmtKind::Label(sub) | CStmtKind::Case(_, sub, _) | CStmtKind::Default(sub) => {
+                self.after_stmt(*sub, target, decl)
+            }
+            CStmtKind::Attributed { substatement, .. } => {
+                self.after_stmt(*substatement, target, decl)
+            }
+            _ => Flow::NotFound,
+        }
+    }
+
+    /// Coming back around an enclosing loop: its body from the top.
+    fn loop_head(&self, body: CStmtId, decl: CDeclId) -> Flow {
+        match self.rest(&[body], decl) {
+            Flow::Dead => Flow::Dead,
+            _ => Flow::Live,
+        }
+    }
+
+    /// The statements a path runs after the loop, in order.
+    fn rest(&self, stmts: &[CStmtId], decl: CDeclId) -> Flow {
+        let tr = self.tr;
+        for &s in stmts {
+            match &tr.ast_context[s].kind {
+                CStmtKind::Compound(kids) => match self.rest(kids, decl) {
+                    Flow::FellOff => continue,
+                    flow => return flow,
+                },
+                CStmtKind::Expr(eid) if kills(tr, *eid, decl) => return Flow::Dead,
+                CStmtKind::Return(_) => {
+                    return if references(tr, SomeId::Stmt(s), decl) {
+                        Flow::Live
+                    } else {
+                        Flow::Dead
+                    }
+                }
+                _ => {
+                    if references(tr, SomeId::Stmt(s), decl) || escapes(tr, s) {
+                        return Flow::Live;
+                    }
+                }
+            }
+        }
+        Flow::FellOff
+    }
+
+    /// Emit a counted loop as daslang's `for` over a range.
+    fn range_loop(
+        &mut self,
+        counted: CountedLoop,
+        body: CStmtId,
+        out: &mut Vec<Node>,
+    ) -> TranslationResult<()> {
+        let tr = self.tr;
+        let (var, source, rebound) = match counted {
+            // `count + 1` passes of the body for `count >= 0`, and by the
+            // two's-complement wrap the fallback loop performs as well,
+            // `2^32 + count + 1` for `count < 0`: `uint64(uint(count)) + 1`
+            // is that number in both cases, with no overflow at `INT_MAX`.
+            CountedLoop::Count(count) => {
+                let name = tr.renamer.borrow_mut().pick_name("c2da_iter");
+                let count = DaExpr::Var(
+                    tr.renamer
+                        .borrow()
+                        .get(&count)
+                        .ok_or_else(|| internal("an unnamed loop counter"))?,
+                );
+                let u64_of = |e: DaExpr| DaExpr::Cast {
+                    kind: das_ast::CastKind::Cast,
+                    expr: Box::new(e),
+                    to: DaType::uint64(),
+                };
+                let passes = DaExpr::Op2 {
+                    op: "+",
+                    left: Box::new(u64_of(DaExpr::Cast {
+                        kind: das_ast::CastKind::Cast,
+                        expr: Box::new(count),
+                        to: DaType::uint(),
+                    })),
+                    right: Box::new(u64_of(DaExpr::ConstInt(1))),
+                };
+                let source = DaExpr::Call(
+                    Box::new(DaExpr::Var("urange64".into())),
+                    vec![u64_of(DaExpr::ConstInt(0)), passes],
+                );
+                (name, source, None)
+            }
+            CountedLoop::Index {
+                var,
+                unsigned,
+                init,
+                end,
+                only_in_loop,
+            } => {
+                // The start: the initializer's value when the C variable is
+                // replaced by the loop variable, else the variable after its
+                // initialization, as today.
+                let mut start: Option<DaExpr> = None;
+                match init {
+                    CountedInit::Current => {}
+                    CountedInit::Decl(decl) => {
+                        let info = tr.convert_decl_stmt_info(ctx(), decl)?;
+                        if only_in_loop {
+                            start = single_assignment(info.assign.as_deref());
+                        }
+                        if start.is_none() {
+                            self.store.store.insert(decl, info);
+                            out.push(Node::Decl(decl));
+                        }
+                    }
+                    CountedInit::Assign(eid) => {
+                        let mut stmts = Vec::new();
+                        convert_expr_in_stmt_position(tr, ctx(), eid, &mut stmts)?;
+                        // The variable's own declaration is dropped with
+                        // it, so it must carry no initializer to evaluate.
+                        let declared_bare = matches!(
+                            tr.ast_context[var].kind,
+                            CDeclKind::Variable {
+                                initializer: None,
+                                ..
+                            }
+                        );
+                        if only_in_loop && declared_bare {
+                            start = single_assignment(Some(&stmts));
+                        }
+                        if start.is_none() {
+                            out.extend(stmt_nodes(stmts));
+                        }
+                    }
+                }
+                let c_name = tr
+                    .renamer
+                    .borrow()
+                    .get(&var)
+                    .ok_or_else(|| internal("an unnamed loop variable"))?;
+                let (name, start, rebound) = match start {
+                    Some(start) => {
+                        self.suppressed.insert(var);
+                        (c_name, start, None)
+                    }
+                    None => {
+                        let name = tr
+                            .renamer
+                            .borrow_mut()
+                            .pick_name(&format!("c2da_{c_name}"));
+                        let former = tr.renamer.borrow_mut().rebind(var, name.clone());
+                        (name, DaExpr::Var(c_name), Some((var, former)))
+                    }
+                };
+                let end = tr.convert_expr(ctx().used(), end, None)?;
+                if !end.stmts.is_empty() {
+                    return Err(internal("a loop bound with statements was taken as invariant"));
+                }
+                let (range, args) = match (unsigned, &start) {
+                    (false, DaExpr::ConstInt(0)) => ("range", vec![end.val]),
+                    (false, _) => ("range", vec![start, end.val]),
+                    (true, _) => ("urange", vec![start, end.val]),
+                };
+                let source = DaExpr::Call(Box::new(DaExpr::Var(range.into())), args);
+                (name, source, rebound)
+            }
+        };
+        let mut nodes = Vec::new();
+        let result = self.loop_body(LoopKind::Range, body, &mut nodes);
+        if let Some((decl, former)) = rebound {
+            let mut renamer = tr.renamer.borrow_mut();
+            match former {
+                Some(former) => {
+                    renamer.rebind(decl, former);
+                }
+                None => unreachable!("a loop variable had a name before it was rebound"),
+            }
+        }
+        result?;
+        out.push(Node::For {
+            var,
+            source,
+            body: nodes,
+        });
+        Ok(())
+    }
+
     fn switch(
         &mut self,
         scrutinee: CExprId,
@@ -681,6 +1136,131 @@ impl Builder<'_> {
         }
         out.push(Node::Label(end));
         Ok(())
+    }
+}
+
+// ===== Counted loops: the C facts =====
+
+/// A C loop the structured back end writes as daslang's `for` over a range.
+enum CountedLoop {
+    /// `do { … } while (count--)`: `count + 1` passes, nothing names the
+    /// loop variable.
+    Count(CDeclId),
+    /// `for (init; i < end; i++)`: `i` is the loop variable.
+    Index {
+        var: CDeclId,
+        unsigned: bool,
+        init: CountedInit,
+        end: CExprId,
+        /// `i` is named nowhere outside the loop, so the loop variable can
+        /// replace it under its own name.
+        only_in_loop: bool,
+    },
+}
+
+enum CountedInit {
+    /// No init clause: the loop starts at `i`'s current value.
+    Current,
+    /// `for (int i = a; …)`.
+    Decl(CDeclId),
+    /// `for (i = a; …)`.
+    Assign(CExprId),
+}
+
+/// The liveness walk's answer for one statement.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Flow {
+    /// The loop is not inside this statement.
+    NotFound,
+    /// Every path from the loop's exit assigns the counter before reading it.
+    Dead,
+    /// Some path may read it.
+    Live,
+    /// The path left the statement's end without an answer.
+    FellOff,
+}
+
+/// Through parentheses, GNU `__extension__`, and the casts that change no
+/// value (`LValueToRValue`, `NoOp`).
+fn peel(tr: &Translation, mut eid: CExprId) -> CExprId {
+    loop {
+        match tr.ast_context[eid].kind {
+            CExprKind::Paren(_, inner)
+            | CExprKind::Unary(_, CUnOp::Extension, inner, _)
+            | CExprKind::ImplicitCast(_, inner, CastKind::LValueToRValue | CastKind::NoOp, _, _) => {
+                eid = inner
+            }
+            _ => return eid,
+        }
+    }
+}
+
+/// Whether `decl` is named anywhere under `root`.
+fn references(tr: &Translation, root: SomeId, decl: CDeclId) -> bool {
+    count_references(tr, root, decl) > 0
+}
+
+fn count_references(tr: &Translation, root: SomeId, decl: CDeclId) -> usize {
+    DFExpr::new(&tr.ast_context, root)
+        .filter(|node| {
+            matches!(node, SomeId::Expr(e)
+                if matches!(tr.ast_context[*e].kind, CExprKind::DeclRef(_, d, _) if d == decl))
+        })
+        .count()
+}
+
+/// Whether anything under `root` stores to `decl` or takes its address: an
+/// assignment to it, `++`/`--` on it, or `&decl`.  A local whose address is
+/// never taken is written by nothing else.
+fn writes(tr: &Translation, root: SomeId, decl: CDeclId) -> bool {
+    let names = |place: CExprId| {
+        matches!(tr.ast_context[peel(tr, place)].kind, CExprKind::DeclRef(_, d, _) if d == decl)
+    };
+    DFExpr::new(&tr.ast_context, root).any(|node| {
+        let SomeId::Expr(e) = node else { return false };
+        match tr.ast_context[e].kind {
+            CExprKind::Binary(_, op, lhs, _, _, _) if op.is_assignment() => names(lhs),
+            CExprKind::Unary(
+                _,
+                CUnOp::AddressOf
+                | CUnOp::PreIncrement
+                | CUnOp::PostIncrement
+                | CUnOp::PreDecrement
+                | CUnOp::PostDecrement,
+                arg,
+                _,
+            ) => names(arg),
+            _ => false,
+        }
+    })
+}
+
+/// `decl = e` with `e` not naming `decl`: the statement kills `decl`.
+fn kills(tr: &Translation, eid: CExprId, decl: CDeclId) -> bool {
+    let CExprKind::Binary(_, CBinOp::Assign, lhs, rhs, _, _) = tr.ast_context[peel(tr, eid)].kind
+    else {
+        return false;
+    };
+    matches!(tr.ast_context[peel(tr, lhs)].kind, CExprKind::DeclRef(_, d, _) if d == decl)
+        && !references(tr, SomeId::Expr(rhs), decl)
+}
+
+/// Whether a `break` or `continue` stands anywhere under `sid`.
+fn escapes(tr: &Translation, sid: CStmtId) -> bool {
+    DFExpr::new(&tr.ast_context, SomeId::Stmt(sid)).any(|node| {
+        matches!(node, SomeId::Stmt(s)
+            if matches!(tr.ast_context[s].kind, CStmtKind::Break | CStmtKind::Continue))
+    })
+}
+
+/// The value of `[name = value]`, the one statement an initializer lowered
+/// to.
+fn single_assignment(stmts: Option<&[DaStmt]>) -> Option<DaExpr> {
+    match stmts? {
+        [DaStmt::Expr(DaExpr::Assign(place, value))] if matches!(**place, DaExpr::Var(_)) => {
+            Some((**value).clone())
+        }
+        _ => None,
     }
 }
 
@@ -788,11 +1368,13 @@ pub(crate) fn convert(
     let mut builder = Builder {
         tr,
         ret_ty,
+        body: stmts,
         store: DeclStmtStore::new(),
         prelude: Vec::new(),
         next_sym: 0,
         breaks: Vec::new(),
         loops: Vec::new(),
+        suppressed: HashSet::new(),
     };
     let mut body = Vec::new();
     for &sid in stmts {
@@ -807,11 +1389,14 @@ pub(crate) fn convert(
         mut store,
         prelude,
         mut next_sym,
+        suppressed,
         ..
     } = builder;
 
     // Every C local is hoisted (see the module documentation), in source
-    // order, after the scrutinee temporaries.
+    // order, after the scrutinee temporaries.  A local a range loop's
+    // variable replaced has no declaration of its own.
+    strip_decls(&mut body, &suppressed);
     let mut declared: IndexSet<CDeclId> = IndexSet::new();
     collect_decls(&body, &mut declared);
     let mut hoisted: Vec<DaStmt> = prelude;
@@ -902,7 +1487,25 @@ fn collect_decls(nodes: &[Node], out: &mut IndexSet<CDeclId>) {
                 collect_decls(then, out);
                 collect_decls(else_, out);
             }
-            Node::Loop { body, .. } => collect_decls(body, out),
+            Node::Loop { body, .. } | Node::For { body, .. } => collect_decls(body, out),
+            _ => {}
+        }
+    }
+}
+
+/// Drop the declaration sites of locals a range loop's variable replaced.
+fn strip_decls(nodes: &mut Vec<Node>, suppressed: &HashSet<CDeclId>) {
+    if suppressed.is_empty() {
+        return;
+    }
+    nodes.retain(|node| !matches!(node, Node::Decl(decl) if suppressed.contains(decl)));
+    for node in nodes.iter_mut() {
+        match node {
+            Node::If { then, else_, .. } => {
+                strip_decls(then, suppressed);
+                strip_decls(else_, suppressed);
+            }
+            Node::Loop { body, .. } | Node::For { body, .. } => strip_decls(body, suppressed),
             _ => {}
         }
     }
@@ -923,7 +1526,7 @@ fn place_decls(nodes: &mut Vec<Node>, declared: &IndexSet<CDeclId>, store: &mut 
                 place_decls(then, declared, store);
                 place_decls(else_, declared, store);
             }
-            Node::Loop { body, .. } => place_decls(body, declared, store),
+            Node::Loop { body, .. } | Node::For { body, .. } => place_decls(body, declared, store),
             _ => {}
         }
         nodes.push(node);
@@ -969,7 +1572,7 @@ fn targets(nodes: &[Node], out: &mut HashSet<Sym>) {
                 targets(then, out);
                 targets(else_, out);
             }
-            Node::Loop { body, .. } => targets(body, out),
+            Node::Loop { body, .. } | Node::For { body, .. } => targets(body, out),
             _ => {}
         }
     }
@@ -1019,7 +1622,7 @@ fn drop_dead(nodes: &mut Vec<Node>) {
                 drop_dead(then);
                 drop_dead(else_);
             }
-            Node::Loop { body, .. } => drop_dead(body),
+            Node::Loop { body, .. } | Node::For { body, .. } => drop_dead(body),
             _ => {}
         }
         dead = !matches!(node, Node::Label(_)) && terminates(&node);
@@ -1037,7 +1640,9 @@ fn drop_unjumped_labels(nodes: &mut Vec<Node>, jumped: &HashSet<Sym>) -> bool {
                 changed |= drop_unjumped_labels(then, jumped);
                 changed |= drop_unjumped_labels(else_, jumped);
             }
-            Node::Loop { body, .. } => changed |= drop_unjumped_labels(body, jumped),
+            Node::Loop { body, .. } | Node::For { body, .. } => {
+                changed |= drop_unjumped_labels(body, jumped)
+            }
             _ => {}
         }
     }
@@ -1092,7 +1697,7 @@ fn resolve(nodes: &mut Vec<Node>, ctx: Ctx, next: &mut Sym) -> TranslationResult
                 // is spliced too: its labels then join the jump's target's.
                 splice = then_dangles || else_dangles || jumps_out(then) || jumps_out(else_);
             }
-            Node::Loop { body, .. } => {
+            Node::Loop { body, .. } | Node::For { body, .. } => {
                 if resolve(body, Ctx::LoopEnd, next)? {
                     return Err(internal("a dangling label in a loop body"));
                 }
@@ -1197,7 +1802,7 @@ fn retarget(nodes: &mut [Node], sym: Sym, exit: Exit) -> TranslationResult<()> {
                 retarget(then, sym, exit)?;
                 retarget(else_, sym, exit)?;
             }
-            Node::Loop { body, .. } => {
+            Node::Loop { body, .. } | Node::For { body, .. } => {
                 let mut inner = HashSet::new();
                 targets(body, &mut inner);
                 if inner.contains(&sym) {
@@ -1268,7 +1873,7 @@ fn out_of_line(nodes: &mut Vec<Node>, next: &mut Sym) {
                 out_of_line(then, next);
                 out_of_line(else_, next);
             }
-            Node::Loop { body, .. } => out_of_line(body, next),
+            Node::Loop { body, .. } | Node::For { body, .. } => out_of_line(body, next),
             _ => {}
         }
     }
@@ -1344,7 +1949,9 @@ fn check_list(
                 check_list(else_, scope, Ctx::Unknown, seen)?;
             }
             // A jump never leaves a loop body.
-            Node::Loop { body, .. } => check_list(body, &HashSet::new(), Ctx::LoopEnd, seen)?,
+            Node::Loop { body, .. } | Node::For { body, .. } => {
+                check_list(body, &HashSet::new(), Ctx::LoopEnd, seen)?
+            }
             _ => {}
         }
     }
@@ -1521,6 +2128,14 @@ impl Renderer {
                         Box::new(body),
                     )));
                 }
+                Node::For { var, source, body } => {
+                    let body = self.block(body, temps, stored_at_site);
+                    out.push(DaStmt::Expr(DaExpr::For {
+                        vars: vec![var.clone()],
+                        sources: vec![source.clone()],
+                        body: Box::new(body),
+                    }));
+                }
                 Node::Break => out.push(DaStmt::Expr(DaExpr::Break)),
                 Node::Continue => out.push(DaStmt::Expr(DaExpr::Continue)),
                 Node::Label(sym) => {
@@ -1606,7 +2221,7 @@ fn plan_dispatches(nodes: &[Node], out: &mut Vec<Tail>) -> TranslationResult<()>
                 plan_dispatches(then, out)?;
                 plan_dispatches(else_, out)?;
             }
-            Node::Loop { body, .. } => plan_dispatches(body, out)?,
+            Node::Loop { body, .. } | Node::For { body, .. } => plan_dispatches(body, out)?,
             _ => {}
         }
     }
@@ -1623,7 +2238,7 @@ fn targets_by_goto(nodes: &[Node], out: &mut HashSet<Sym>) {
                 targets_by_goto(then, out);
                 targets_by_goto(else_, out);
             }
-            Node::Loop { body, .. } => targets_by_goto(body, out),
+            Node::Loop { body, .. } | Node::For { body, .. } => targets_by_goto(body, out),
             _ => {}
         }
     }
@@ -1637,7 +2252,7 @@ fn label_order(nodes: &[Node], out: &mut Vec<Sym>) {
                 label_order(then, out);
                 label_order(else_, out);
             }
-            Node::Loop { body, .. } => label_order(body, out),
+            Node::Loop { body, .. } | Node::For { body, .. } => label_order(body, out),
             _ => {}
         }
     }

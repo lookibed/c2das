@@ -527,6 +527,13 @@ impl<T: Clone + Eq + Hash> Renamer<T> {
         }
     }
 
+    /// Make `key` name `val` (a name this renamer already reserved) in the
+    /// current scope, returning the name it mapped to before so the caller
+    /// can restore it.
+    pub fn rebind(&mut self, key: T, val: String) -> Option<String> {
+        self.current_scope_mut().name_map.insert(key, val)
+    }
+
     pub fn get(&self, key: &T) -> Option<String> {
         for scope in self.scopes.iter().rev() {
             if let Some(target) = scope.name_map.get(key) {

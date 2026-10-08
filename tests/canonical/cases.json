@@ -1586,6 +1586,23 @@
       "runtime": "required"
     },
     {
+      "id": "p175-counted-loops",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p175_counted_loops.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "down 10 2 5\nread 6 live 899 unsigned 28 continue 36 outer 18\nindex 30 0 before 12 live 4 0 break 2\nwritten 19 bound 5 pointer 5 unsigned 9 nested 25 cb 12 reused 106\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p175_counted_loops_are_range_loops",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

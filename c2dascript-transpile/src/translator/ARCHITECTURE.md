@@ -333,6 +333,34 @@ reports itself — so a body is never converted twice):
   `case` label below the top level of its `switch` (Duff's device), statements before the
   first `case`, or statements nested deeper than 64 levels (AOT's C++ nests each `elif`).
 
+**Counted loops** (`cfg/structured.rs counted_do_while` / `counted_for`, decided on the C AST;
+the flat back end keeps its CFG rendering) are daslang's `for` over a range, one fused
+`ForRange` interpreter node instead of a counter copy, a decrement and a test per pass:
+
+- `do { body } while (count--)`, `count` an `int` local (not static, not address-taken, not
+  `volatile`) the body never names and that is dead after the loop, is
+  `for (c2da_iter in urange64(0, uint64(uint(count)) + 1))`.  C runs the body `count + 1`
+  times for `count >= 0` and, by the two's-complement wrap the `while` fallback performs
+  too, `2^32 + count + 1` times for `count < 0`; that `uint64` is the number in both cases,
+  `INT_MAX` included, so no guard and no second copy of the body.  `continue` is daslang's
+  own (the range steps the counter).  An `unsigned` counter keeps the `while`.
+- `for (init; i < b; i++)` (`++i`), `i` an `int`/`unsigned` local as above that the body
+  never writes, compared in its own type, `b` invariant over the body (constants, enumeration
+  constants, `sizeof`, such locals the body does not write, under conversions and
+  arithmetic; a memory read, a global or a call is not shown), `init` absent, `i = a` or
+  `int i = a`, is `for (i in range(a, b))` / `urange`.  `i` is the loop variable under its C
+  name, with no hoisted `var`, when nothing outside the loop names it; when something before
+  the loop does and `i` is dead after it, a fresh `c2da_<i>` iterates from `i`'s value.  Live
+  after the loop (its final value would be `b`, or less with a `break`) keeps the `while`.
+- Dead after: on every path from the loop's exit `i`/`count` is assigned (`x = e`, `e` not
+  naming `x`) before it is read, walking the function's statements in order, back around an
+  enclosing loop's condition, step and body top; a `break`/`continue` after the loop or any
+  other read counts as live.
+
+`das_ast::fold` types a `range`/`urange`/`range64`/`urange64` loop variable, so `t = t + i`
+in the body is still `t += i`.  `p175-counted-loops` is the fixture (every fallback has a
+function).
+
 `-Wcontrol-flow` (off by default) reports each function's back end and, for a flat one, why.
 On the corpora (2026-10): pl_mpeg 169 structured / 0 flat, h264bsd 378 / 2, wasm3 688 / 131
 (the module loader and compiler's `_Catch`/`_Throw` gotos; the opcode handlers are

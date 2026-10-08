@@ -983,14 +983,27 @@ impl<'m> Folder<'m> {
                 sources,
                 body,
             } => {
-                for source in sources {
+                for source in sources.iter_mut() {
                     self.walk_expr(source);
                 }
                 // The iteration variables' types are the sources' element
-                // types, which the rule does not derive.
+                // types.  The rule derives them only for daslang's own
+                // integer ranges (`range`, `urange`, `range64`, `urange64`,
+                // whose element is the range's integer type); any other
+                // source leaves its variable untyped.
                 self.scopes.push(HashMap::new());
-                for var in vars.iter() {
-                    self.bind(var, None);
+                for (index, var) in vars.iter().enumerate() {
+                    let ty = sources.get(index).and_then(|source| match source {
+                        DaExpr::Call(callee, _) => match &**callee {
+                            DaExpr::Var(name) if name == "range" => Some(DaType::int()),
+                            DaExpr::Var(name) if name == "urange" => Some(DaType::uint()),
+                            DaExpr::Var(name) if name == "range64" => Some(DaType::int64()),
+                            DaExpr::Var(name) if name == "urange64" => Some(DaType::uint64()),
+                            _ => None,
+                        },
+                        _ => None,
+                    });
+                    self.bind(var, ty);
                 }
                 self.walk_expr(body);
                 self.scopes.pop();

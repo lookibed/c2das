@@ -319,12 +319,13 @@ fn p102_locals_are_declared_bare_and_initialised_in_place() {
     let d = transpile("p102_local_declarations");
     // Numbers, pointers, pointer aliases and plain structs are hoisted with no
     // initializer: daslang zero-fills them.
+    // (`i` is the range loop's variable, p175, so it has no `var`.)
     assert!(d.contains(
-        "def loop_reinit(var n : int) : int {\n    var total : int\n    var i : int\n    var acc : int\n    var pt : point\n"
+        "def loop_reinit(var n : int) : int {\n    var total : int\n    var acc : int\n    var pt : point\n"
     ));
     // The C initializer stays where C wrote it, inside the loop.
     assert!(d.contains(
-        "while (i < n) {\n        acc = 10\n        pt = point(x = i, y = i * 2, tag = null)\n"
+        "for (i in range(0, n)) {\n        acc = 10\n        pt = point(x = i, y = i * 2, tag = null)\n"
     ));
     assert!(d.contains("    var p_0 : int?\n    var pt_0 : point\n    var cur : cursor_t\n"));
     assert!(d.contains("    var wr : wrapped\n"));
@@ -720,7 +721,7 @@ fn p132_storage_objects_keep_their_storage() {
     // A loop-body declaration copies into the object the function holds:
     // no allocation per pass.
     assert!(d.contains(
-        "    while (i < 3) {\n        unsafe(memmove(unsafe(reinterpret<void?>(local.c2da_storage)), unsafe(reinterpret<void?>(unsafe(unsafe(addr(table_0[0]))[i]).c2da_storage)), 5ul))\n"
+        "    for (i in range(0, 3)) {\n        unsafe(memmove(unsafe(reinterpret<void?>(local.c2da_storage)), unsafe(reinterpret<void?>(unsafe(unsafe(addr(table_0[0]))[i]).c2da_storage)), 5ul))\n"
     ));
 }
 
@@ -1180,7 +1181,7 @@ fn p170_enum_constant_reads_are_literals() {
     assert!(wrapped.contains("    flag = 0\n"), "{wrapped}");
     assert!(wrapped.contains("    flag = 1\n"), "{wrapped}");
     let step = function_body(&d, "step");
-    assert!(step.contains("    while (j < 4) {\n"), "{step}");
+    assert!(step.contains("    for (j in range(0, 4)) {\n"), "{step}");
     assert!(step.contains("    *out = 6\n"), "{step}");
     assert!(
         step.contains("    m.state = unsafe(reinterpret<state_t>(6u))\n"),
@@ -1206,6 +1207,85 @@ fn p170_enum_constant_reads_are_literals() {
 }
 
 #[test]
+fn p175_counted_loops_are_range_loops() {
+    let d = transpile_with_libc("p175_counted_loops", c2dascript_transpile::LibcMode::Std);
+    // `do … while (count--)`, `count` unnamed in the body and dead after:
+    // `count + 1` passes, as a 64-bit unsigned count so `count < 0` and
+    // `INT_MAX` run exactly as C's wrap does.
+    let body = function_body(&d, "count_down");
+    assert!(
+        body.contains("    for (c2da_iter in urange64(0ul, uint64(uint(count)) + 1ul)) {\n        total += 2\n    }\n"),
+        "{body}"
+    );
+    // `continue` is daslang's own: the range steps the counter.
+    let body = function_body(&d, "count_continue");
+    assert!(
+        body.contains("        if ((total_4 & 1) != 0) {\n            continue\n        }\n"),
+        "{body}"
+    );
+    // A counter re-initialised by an enclosing loop is dead after the inner.
+    let body = function_body(&d, "count_in_outer_loop");
+    assert!(
+        body.contains("    for (r in range(0, rows)) {\n        count_5 = cols\n        for (c2da_iter_2 in urange64(0ul, uint64(uint(count_5)) + 1ul)) {\n"),
+        "{body}"
+    );
+    // Fallbacks keep today's loop: the body reads the counter, the counter
+    // is read after the loop, the counter is unsigned.
+    for name in ["count_read_in_body", "count_live_after", "count_unsigned"] {
+        let body = function_body(&d, name);
+        assert!(
+            body.contains("    while (true) {\n") && !body.contains("urange64"),
+            "{name}: {body}"
+        );
+    }
+    // `for (int i = 0; i < n; i++)`: the C variable is the loop variable and
+    // has no hoisted `var`; a declaration before the loop is dropped too.
+    let body = function_body(&d, "index_sum");
+    assert!(
+        body.contains("    for (i in range(0, n)) {\n        total_6 += i * i\n    }\n") && !body.contains("var i"),
+        "{body}"
+    );
+    let body = function_body(&d, "index_declared_before");
+    assert!(
+        body.contains("    for (i_0 in range(1, n_0)) {\n") && !body.contains("var i_0"),
+        "{body}"
+    );
+    // Named before the loop and dead after it: a fresh variable iterates
+    // from the C variable's value.
+    let body = function_body(&d, "index_reused_before");
+    assert!(
+        body.contains("    i_8 = 0\n    for (c2da_i_8 in range(i_8, n_8)) {\n        total_14 += c2da_i_8\n    }\n"),
+        "{body}"
+    );
+    // Unsigned, nested, `continue` and `break` in the body.
+    let body = function_body(&d, "index_unsigned");
+    assert!(body.contains("    for (i_6 in urange(2u, n_6)) {\n"), "{body}");
+    let body = function_body(&d, "nested");
+    assert!(
+        body.contains("    for (r_0 in range(0, rows_0)) {\n        for (c in range(0, cols_0)) {\n            if (c == r_0) {\n                continue\n            }\n"),
+        "{body}"
+    );
+    let body = function_body(&d, "index_continue_and_break");
+    assert!(body.contains("    for (i_7 in range(0, n_7)) {\n"), "{body}");
+    // Fallbacks: `i` live after the loop (with and without `break`), `i`
+    // written in the body, the bound written in the body or read through
+    // a pointer.
+    for name in [
+        "index_live_after",
+        "index_break_live_after",
+        "index_written_in_body",
+        "bound_changes",
+        "bound_through_pointer",
+    ] {
+        let body = function_body(&d, name);
+        assert!(
+            body.contains("    while (i_") && !body.contains(" in range("),
+            "{name}: {body}"
+        );
+    }
+}
+
+#[test]
 fn p160_loops_are_daslang_loops() {
     let d = transpile_with_libc("p160_structured_loops", c2dascript_transpile::LibcMode::Std);
     for name in [
@@ -1225,9 +1305,11 @@ fn p160_loops_are_daslang_loops() {
         );
     }
     let body = function_body(&d, "for_loops");
-    // A `for` continues through its step, written before the `continue`.
+    // A counted `for` is a range loop (p175), whose `continue` is daslang's
+    // own; a `for` with a step of its own continues through that step,
+    // written before the `continue`.
     assert!(
-        body.contains("    while (i < n) {\n        if (i % 3 == 0) {\n            i += 1\n            continue\n        }\n"),
+        body.contains("    for (i in range(0, n)) {\n        if (i % 3 == 0) {\n            continue\n        }\n"),
         "{body}"
     );
     assert!(
@@ -1260,7 +1342,7 @@ fn p160_loops_are_daslang_loops() {
     // A loop body's C declaration is re-initialised on every pass.
     let body = function_body(&d, "fresh_per_pass");
     assert!(
-        body.contains("    while (i_2 < 4) {\n        counter = 10\n        scratch = fixed_array<int>(i_2, i_2 + 1, i_2 + 2)\n"),
+        body.contains("    for (i_2 in range(0, 4)) {\n        counter = 10\n        scratch = fixed_array<int>(i_2, i_2 + 1, i_2 + 2)\n"),
         "{body}"
     );
     // A function that leaves only through a `return` in an endless loop ends
@@ -1306,11 +1388,12 @@ fn p161_switch_is_a_label_region_or_a_chain() {
     );
     // The site temporary of the region's list is hoisted for AOT.
     assert!(body.contains("    var c2da_postinc : int\n"), "{body}");
-    // A switch that ends a loop body sends its `break` and its holes to the end,
-    // which is followed by the loop's step.
+    // A switch that ends the body of a range loop (p175) sends its `break`
+    // and its holes to the end, which is the loop's own `continue`.
     let body = function_body(&d, "tally");
+    assert!(body.contains("    for (i_0 in range(0, n_0)) {\n"), "{body}");
     assert!(
-        body.contains("        label 0:\n        label 6:\n        label 7:\n        i_0 += 1\n"),
+        body.contains("        continue\n        label 5:\n        label 6:\n        continue\n        label 0:\n"),
         "{body}"
     );
     // A switch that ends a void function: `break` is `return`, and the empty
@@ -1369,7 +1452,7 @@ fn p162_bodies_with_goto_or_nested_cases_stay_flat() {
         );
     }
     let body = function_body(&d, "structured");
-    assert!(body.contains("    while (i_0 < n_1) {\n"), "{body}");
+    assert!(body.contains("    for (i_0 in range(0, n_1)) {\n"), "{body}");
     assert!(!body.contains("label"), "{body}");
 }
 
