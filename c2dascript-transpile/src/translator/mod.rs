@@ -36,6 +36,7 @@ mod global_order;
 mod inline;
 mod layout;
 mod libc;
+mod linear;
 mod literals;
 mod macros;
 mod named_references;
@@ -1186,6 +1187,13 @@ impl<'c> Translation<'c> {
         // the mirrored pointer, the step a statement of its own.
         if let Some(replacement) = self.expr_overrides.borrow().get(&expr_id) {
             return Ok(WithStmts::new_val(replacement.clone()));
+        }
+
+        // `--memory-model linear` owns every expression that touches C memory.
+        if self.is_linear() {
+            if let Some(lowered) = self.linear_expr(ctx, expr_id)? {
+                return Ok(lowered);
+            }
         }
 
         use CExprKind::*;
@@ -3047,6 +3055,10 @@ impl<'c> Translation<'c> {
     }
 
     pub fn null_for_type(&self, ty: CQualTypeId) -> TranslationResult<DaExpr> {
+        // `--memory-model linear`: a data pointer is an offset; NULL is 0.
+        if self.is_linear() && self.linear_pointee(ty.ctype).is_some() {
+            return Ok(DaExpr::ConstInt(0));
+        }
         let da_type = self.convert_type(ty)?;
         // A daScript `function<…>` does not accept `null`; its null value is
         // spelled `default<T>` (and compares equal to `null`).  The check uses
@@ -4235,6 +4247,7 @@ fn translate_impl(
     });
     builtins::reset_builtin_helpers();
     float_compare::reset();
+    linear::reset();
     libc::reset();
     libc::set_eden(tcfg.libc == crate::LibcMode::Eden);
 
@@ -4673,6 +4686,19 @@ fn translate_impl(
     // module.
     requires.extend(libc::module_requires());
     requires.extend(float_compare_requires);
+    if t.is_linear() {
+        if t.link.is_some() || t.tcfg.runtime_module.is_some() {
+            return Err(format_translation_err!(
+                None,
+                "not supported under --memory-model linear yet: a program split over several modules (--module-layout source, --runtime-module); the heap is one module global"
+            ));
+        }
+        linear::prune_raw_runtime(&mut module_decls);
+        if !requires.iter().any(|r| r == "daslib/math_bits") {
+            requires.push("daslib/math_bits".to_owned());
+        }
+        target_check::check_linear(&t, main_file, &module_decls)?;
+    }
 
     // Target checkers (`--dialect`, `--no-unsafe`) read the finished module;
     // with neither selected this is a no-op.
@@ -4743,8 +4769,19 @@ fn translate_impl(
             requires: module.requires,
         });
     }
+    // Linear memory refuses a linked layout above, so a fragment never gets
+    // here with the heap runtime.
+    let mut source = module.to_string();
+    if t.is_linear() {
+        source.push_str(&linear::runtime_source(
+            t.tcfg
+                .target
+                .heap_reserve
+                .unwrap_or(crate::target::EDEN_DEFAULT_HEAP_RESERVE),
+        ));
+    }
     Ok(UnitOutput {
-        source: module.to_string(),
+        source,
         shared_types,
         libc_helpers: libc_contribution.unwrap_or_default(),
         fragment_decls: vec![],

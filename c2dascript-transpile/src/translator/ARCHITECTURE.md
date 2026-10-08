@@ -284,6 +284,53 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
   overlapping object copy use the `c2da_rt_memmove` byte loop instead of the `memmove`
   builtin (`functions.rs`, `object_memory.rs`).  A new std helper that calls a `fio` name must
   route it through `fio()`, or `--libc eden` output requires nothing but still names it.
+- `linear.rs` owns `--memory-model linear` (core; `docs/eden-flags.md` flag 1).
+  - **Representation.** C memory is one module global `c2da_mem : array<uint8>`. A data
+    pointer's daScript type is `int`, an offset into it (`convert_type`); NULL is 0
+    (`null_for_type`) and offsets 0–15 are never handed out. A pointer to a function keeps
+    today's function value. In memory a pointer takes Clang's 8 bytes: the offset in the low
+    4, zero in the high 4.
+  - **Integers and comparisons.** A pointer cast to an integer (`uintptr_t`, `intptr_t`,
+    `long`) is the offset converted to that type, so it is small and non-negative. An integer
+    cast to a pointer is `int(x)`. Pointer comparisons compare offsets. A difference is the
+    offset difference divided by Clang's pointee size.
+  - **Hooks.** The lowering runs before the ordinary one at three points: the top of
+    `convert_expr` (`linear_expr`: loads, casts, `&`, calls), `convert_binary_expr`
+    (`linear_binary`: stores, compound assignment, pointer `+`/`-`/compare/difference) and
+    `convert_increment` (`linear_incdec`). Each answers `None` when no C memory is involved.
+    A conditional or `for` step that calls `convert_binary_expr` directly is covered by the
+    same hook. `cfg/structured.rs` adds no pointer inductions under the model.
+  - **Places.** `heap_place` gives the address of an lvalue in the heap: `*p`, `p[i]`, `i[p]`,
+    `p->f`, and `.f` of any of these. A field adds Clang's offset (`layout.rs field_offset`).
+    A subscript of a declared array is the heap only when the array itself is (a field
+    array reached through a pointer, a string literal); otherwise the ordinary
+    fixed-array index applies.
+  - **Loads and stores** are written in place, with no helper call. A byte is
+    `c2da_mem[a]`. A wider integer is assembled little-endian from bytes with shifts, or
+    stored as `uint8(bits >> 8k)`. `float`/`double` go through `math_bits`
+    (`uint_bits_to_float`, `uint64_bits_to_double` and their inverses). An address that is
+    not a variable or a constant sum is bound to a `let` first. A compound assignment reads
+    the old value, computes in Clang's computation type, and narrows back.
+  - **Static data.** A string literal whose address is taken goes into a static block from
+    offset 16, deduplicated. Its address is a constant. The block is a
+    `fixed_array<uint8>` that `[init] c2da_lin_init` copies into the heap after
+    `reserve(c2da_mem, --heap-reserve)`.
+  - **Runtime.** `runtime_source` is appended to the module text as hand-written daslang.
+    `c2da_lin_malloc`/`calloc`/`realloc`/`free` use 16-byte headers, a first-fit free list
+    and `resize` within the reservation. An allocation past it returns 0. `memcpy`,
+    `memmove`, `memset`, `memcmp` and `strlen` are byte loops over `c2da_mem`.
+    `prune_raw_runtime` drops the `c2da_rt_*` raw prelude when nothing names it.
+  - **Fails closed.** These are refused with a located "not supported under --memory-model
+    linear yet: …" error: `&` of a local or global, a declared array used as a pointer
+    (step 4), a record or array value read through a pointer, a bitfield through a pointer,
+    a wide string literal, a data↔function pointer cast, and any other library function
+    that takes or returns C memory. A string-literal argument does not count. As a net,
+    `target_check.rs check_linear` refuses any `unsafe` construct left in the finished
+    module, located at its C owner. That covers, for example, the `--libc std` formatter
+    behind `printf`, which reads C strings through raw pointers. A module split
+    (`--runtime-module`, `--module-layout source`) is refused, because the heap is one
+    module global. Layout proofs are not emitted under the model, since a daScript struct
+    only ever holds a record by value.
 
 ## Module-wide policy
 

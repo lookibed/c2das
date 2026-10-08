@@ -220,6 +220,18 @@ impl<'c> Translation<'c> {
     /// to nothing.  A record accessed by name without a proof is refused.
     pub(crate) fn take_layout_proof_declaration(&self) -> TranslationResult<Option<DaDecl>> {
         let LayoutProofs { proofs, named } = std::mem::take(&mut *self.layout_proofs.borrow_mut());
+        // `--memory-model linear`: a daScript struct is only ever a C record
+        // held by value, never memory a pointer reaches (that is the heap,
+        // read at Clang's offsets), so its daScript layout need not be
+        // Clang's: a pointer field is a 4-byte `int` offset there.
+        if self.is_linear() {
+            if !named.is_empty() {
+                return Err(TranslationError::generic(
+                    "not supported under --memory-model linear yet: a record field read through a typed daScript pointer",
+                ));
+            }
+            return Ok(None);
+        }
         for record in &named {
             if !proofs.values().any(|(proven, _)| proven == record) {
                 return Err(TranslationError::generic(

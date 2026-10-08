@@ -49,7 +49,7 @@ macro_rules! switch {
 
 switch!(
     /// `--memory-model`: raw host addresses (today) or offsets into one
-    /// `array<uint8>` heap.  `linear` is not implemented yet.
+    /// `array<uint8>` heap.  `linear` is `translator/linear.rs`.
     MemoryModel { Raw = "raw", Linear = "linear" }
 );
 switch!(
@@ -108,7 +108,8 @@ pub struct TargetOptions {
     pub fnptr_model: FnPtrModel,
     pub float_compare: FloatCompare,
     pub varargs_model: VarargsModel,
-    /// `--heap-reserve <bytes>`; not implemented yet.
+    /// `--heap-reserve <bytes>`: the `--memory-model linear` heap capacity
+    /// (default [`EDEN_DEFAULT_HEAP_RESERVE`]); refused without that model.
     pub heap_reserve: Option<u64>,
     pub dialect: Dialect,
     pub entry: EntryModel,
@@ -137,17 +138,16 @@ impl TargetOptions {
     /// not implemented yet, in flag-table order.
     pub fn unimplemented(&self) -> Vec<String> {
         let mut missing = Vec::new();
-        if self.memory_model != MemoryModel::default() {
-            missing.push(format!("--memory-model {}", self.memory_model));
-        }
         if self.fnptr_model != FnPtrModel::default() {
             missing.push(format!("--fnptr-model {}", self.fnptr_model));
         }
         if self.varargs_model != VarargsModel::default() {
             missing.push(format!("--varargs-model {}", self.varargs_model));
         }
-        if let Some(bytes) = self.heap_reserve {
-            missing.push(format!("--heap-reserve {bytes}"));
+        // `--heap-reserve` sizes the linear heap; without that model there is
+        // no heap it could size.
+        if let (Some(bytes), MemoryModel::Raw) = (self.heap_reserve, self.memory_model) {
+            missing.push(format!("--heap-reserve {bytes} (needs --memory-model linear)"));
         }
         if self.entry != EntryModel::default() {
             missing.push(format!("--entry {}", self.entry));

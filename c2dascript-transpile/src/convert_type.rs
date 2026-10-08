@@ -319,6 +319,10 @@ impl<'c> Translation<'c> {
                     let params = params.clone();
                     return self.function_value_type(ret, &params, is_variadic);
                 }
+                // `--memory-model linear`: an offset into the heap.
+                if self.is_linear() {
+                    return Ok(DaType::int());
+                }
                 if matches!(self.ast_context.resolve_type(inner.ctype).kind, Void) {
                     // C `void *` is still a pointer at the source boundary.
                     // Only the canonical runtime ABI represents exposed

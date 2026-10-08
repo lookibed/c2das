@@ -1473,6 +1473,10 @@ impl Builder<'_> {
     /// The pointer inductions of the loop `sid` (see "Pointer inductions").
     fn pointer_inductions(&self, sid: CStmtId) -> TranslationResult<Vec<PointerInduction>> {
         let tr = self.tr;
+        // Under `--memory-model linear` a pointer already is an integer offset.
+        if tr.is_linear() {
+            return Ok(vec![]);
+        }
         let (body, increment) = match &tr.ast_context[sid].kind {
             CStmtKind::While { body, .. } | CStmtKind::DoWhile { body, .. } => (*body, None),
             CStmtKind::ForLoop {

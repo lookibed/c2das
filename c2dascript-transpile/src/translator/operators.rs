@@ -16,6 +16,23 @@ impl<'c> Translation<'c> {
     ) -> TranslationResult<WithStmts<DaExpr>> {
         use CBinOp::*;
 
+        // `--memory-model linear`: stores into the heap and pointer
+        // arithmetic, comparison and difference (`linear.rs`).
+        if self.is_linear() {
+            if let Some(lowered) = self.linear_binary(
+                ctx,
+                lhs,
+                expr_type_id,
+                op,
+                lhs,
+                rhs,
+                opt_lhs_type_id,
+                opt_rhs_type_id,
+            )? {
+                return Ok(lowered);
+            }
+        }
+
         // Comma: the value of the LHS is discarded, its side effects are not.
         if matches!(op, Comma) {
             let lhs_val = self.convert_expr(ctx.unused(), lhs, None)?;
@@ -1694,6 +1711,17 @@ impl<'c> Translation<'c> {
         arg: CExprId,
         is_post: bool,
     ) -> TranslationResult<WithStmts<DaExpr>> {
+        if self.is_linear() {
+            let unop = match (op, is_post) {
+                (CBinOp::AssignAdd, false) => CUnOp::PreIncrement,
+                (CBinOp::AssignAdd, true) => CUnOp::PostIncrement,
+                (_, false) => CUnOp::PreDecrement,
+                (_, true) => CUnOp::PostDecrement,
+            };
+            if let Some(lowered) = self.linear_incdec(ctx, arg, ty, unop, arg)? {
+                return Ok(lowered);
+            }
+        }
         let das_op = match op {
             CBinOp::AssignAdd => "+",
             CBinOp::AssignSubtract => "-",

@@ -1097,7 +1097,7 @@
       "source_root": "tests/syntax",
       "translation_entry": "p191_target_flag_unimplemented.c",
       "c_graph": "single-tu",
-      "translator_flags": ["--memory-model", "linear"],
+      "translator_flags": ["--fnptr-model", "table"],
       "clang": { "compiler": "clang-18", "flags": ["-w"] },
       "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
       "das_entrypoint": "not-applicable",
@@ -1106,7 +1106,7 @@
         "exit_code": 0
       },
       "expected_error": {
-        "cause": "--memory-model linear is not implemented yet"
+        "cause": "--fnptr-model table is not implemented yet"
       },
       "runtime": "not-applicable"
     },
@@ -1127,6 +1127,61 @@
       "expected_error": {
         "cause": "--dialect eden-0.6.4 refuses `options heap_size_limit = 1`",
         "location": "p192_dialect_eden_refuses_option.c"
+      },
+      "runtime": "not-applicable"
+    },
+    {
+      "id": "p193-linear-scalars",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p193_linear_scalars.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_scalars", "return_type": "int" },
+      "das_entrypoint": "linear_scalars",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p194-linear-records",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p194_linear_records.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_records", "return_type": "int" },
+      "das_entrypoint": "linear_records",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p195-linear-refuses-local-address",
+      "status": "negative",
+      "source_root": "tests/syntax",
+      "translation_entry": "p195_linear_refuses_local_address.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
+      "das_entrypoint": "not-applicable",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "expected_error": {
+        "cause": "not supported under --memory-model linear yet: the address of a local or global object",
+        "location": "p195_linear_refuses_local_address.c:9"
       },
       "runtime": "not-applicable"
     },

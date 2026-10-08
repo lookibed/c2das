@@ -158,6 +158,48 @@ pub(super) fn check_module(
     )
 }
 
+/// `--memory-model linear` fails closed: a construct of the finished module
+/// that needs `unsafe` is a raw-pointer form the linear lowering does not
+/// cover yet, refused at its owning C declaration.
+pub(super) fn check_linear(t: &Translation, main_file: &Path, decls: &[DaDecl]) -> TranslationResult<()> {
+    let c_locs = c_declaration_locations(t);
+    let mut sites = Vec::new();
+    for decl in decls {
+        if let DaDecl::Function(function) = unwrap_private(decl) {
+            if function.is_unsafe {
+                sites.push(Site {
+                    construct: "`def unsafe`",
+                    owner: function.name.clone(),
+                });
+            }
+        }
+        walk_decl(decl, &mut |owner, expr| unsafe_sites(owner, expr, &mut sites));
+    }
+    if let Some(site) = sites.first() {
+        let loc = c_locs.get(&site.owner).cloned().flatten();
+        let owner = match loc {
+            Some(_) => format!("`{}`", site.owner),
+            None => format!("translator-generated `{}`", site.owner),
+        };
+        let mut owners: Vec<&str> = Vec::new();
+        for s in &sites {
+            if !owners.contains(&s.owner.as_str()) && owners.len() < 10 {
+                owners.push(&s.owner);
+            }
+        }
+        return Err(format_translation_err!(
+            loc,
+            "{}: not supported under --memory-model linear yet: {} in {} ({} raw-memory site(s) in the module, in {})",
+            main_file.display(),
+            site.construct,
+            owner,
+            sites.len(),
+            owners.join(", ")
+        ));
+    }
+    Ok(())
+}
+
 /// The same checkers over the program-wide shared module that
 /// `--runtime-module` / `--module-layout source` write (`shared_module_source`).
 /// Every declaration in it is translator-generated or a merged C type, so a

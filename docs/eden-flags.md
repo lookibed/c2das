@@ -4,8 +4,10 @@
 EdenSpark editor's daslang. Written 2026-10-09. Step 1 of the order of work is in place: the
 CLI switches (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and
 `--no-unsafe` checkers, and `scripts/eden_check.py`. Step 2 adds `--libc eden` and runs the
-checkers on the shared runtime module too. The Status column says which flag is
-implemented; every other flag, and so the `--target eden` preset, is refused by name.
+checkers on the shared runtime module too. Step 3 adds the core of `--memory-model linear`
+and `--heap-reserve` (see "`--memory-model linear` as built" below). The Status column says
+which flag is implemented; every other flag, and so the `--target eden` preset, is refused
+by name.
 
 **Sources.**
 
@@ -52,13 +54,13 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 
 | # | Flag | What it changes in the output | Eden rule it answers | c2das today | Status |
 |---|---|---|---|---|---|
-| 1 | `--memory-model linear` | An address is an `int`/`uint` offset into one `array<uint8>` heap; NULL is 0, with the first bytes reserved. Loads and stores are `[inline]` byte helpers (`load_u32`, `store_u32`, …), shaped like wasm3das `m3_exec_defs.das`. Floats go through `math_bits`. Pointer-backed records become an offset plus Clang's field offsets. | `unsafe`, `addr`, `reinterpret`, pointer arithmetic and `intptr` are refused in every form (§2) | Raw host addresses: `c2da_rt_heap` plus `reinterpret<T?>(address)[i]`; 16 675 `unsafe` across the generated files (§5). The biggest piece of work. | Not yet: parsed, refused by name |
+| 1 | `--memory-model linear` | An address is an `int`/`uint` offset into one `array<uint8>` heap; NULL is 0, with the first bytes reserved. Loads and stores are `[inline]` byte helpers (`load_u32`, `store_u32`, …), shaped like wasm3das `m3_exec_defs.das`. Floats go through `math_bits`. Pointer-backed records become an offset plus Clang's field offsets. | `unsafe`, `addr`, `reinterpret`, pointer arithmetic and `intptr` are refused in every form (§2) | Raw host addresses: `c2da_rt_heap` plus `reinterpret<T?>(address)[i]`; 16 675 `unsafe` across the generated files (§5). The biggest piece of work. | **Core implemented** (`translator/linear.rs`): `int` offsets, in-place byte loads and stores, records through pointers, string literals, allocator and byte functions; what it does not cover fails closed. Cases `p193`, `p194`, `p195` |
 | 2 | `--locals-in-heap` (part of 1) | A local whose address is taken lives in a C stack region of the heap, with a stack pointer global, as clang's wasm lowering does. Other locals stay daslang locals. | No `addr(local)` (§2) | Uses `addr(local)` | Not yet: no flag |
 | 3 | `--fnptr-model table` | A function pointer is an index into a per-signature global `array<function<…>>`, filled by an init function. `c2da_relink()` refills the tables after a hot reload. Calls are `invoke(table[i], …)`. | Function values whose type mentions a struct become null on hot reload (§3; wasm3das rebuilds its op tables in `m3_NewRuntime`) | `@@f` values stored as host function values | Not yet: parsed, refused by name |
 | 4 | `--float-compare nan-safe` | Every float comparison is guarded by a bit-test `isnan` from `math_bits`: `eq = !isnan(a) && !isnan(b) && a == b`, and so on. | NaN comparisons are not IEEE in the editor: `NaN == NaN` is true, `NaN < 1` is true (§3) | Plain `==`, `<` | **Implemented** (`translator/float_compare.rs`): `[inline]` `c2da_fcmp_*` helpers over binary operators, truthiness and `!x`; case `p190-float-compare-nan-safe`. Not covered: the `--libc std` helpers' own floating compares |
-| 5 | `--libc eden` | A libc prelude with:<ul><li>no `fio`; stdout and stderr go to `print` line buffers;</li><li>files read from project assets through a host callback (`request_text` plus `get_binary_asset`); no writes;</li><li>no `exit` (the program ends by returning);</li><li>`memcpy`/`memset`/`memmove`/`memcmp` as byte loops over the heap.</li></ul> | `fio`, `network` and `jobque_boost` are refused; `memmove` is missing; `memcpy` on pointers needs `unsafe` (§2, §4, §6) | `--libc std` uses `fio` and the `memcpy`/`memmove` builtins | **Implemented** except the heap byte loops, which wait for flag 1 (`translator/libc.rs`, see "`--libc eden` as built" below); cases `p72/p76/p81/p82-eden-*`, `binjgb-cgb-acid2-eden` |
+| 5 | `--libc eden` | A libc prelude with:<ul><li>no `fio`; stdout and stderr go to `print` line buffers;</li><li>files read from project assets through a host callback (`request_text` plus `get_binary_asset`); no writes;</li><li>no `exit` (the program ends by returning);</li><li>`memcpy`/`memset`/`memmove`/`memcmp` as byte loops over the heap.</li></ul> | `fio`, `network` and `jobque_boost` are refused; `memmove` is missing; `memcpy` on pointers needs `unsafe` (§2, §4, §6) | `--libc std` uses `fio` and the `memcpy`/`memmove` builtins | **Implemented** (`translator/libc.rs`; under flag 1 `memcpy`/`memmove`/`memset`/`memcmp`/`strlen` are the `c2da_lin_*` heap byte loops, and the std formatter behind `printf` is still refused there), see "`--libc eden` as built" below); cases `p72/p76/p81/p82-eden-*`, `binjgb-cgb-acid2-eden` |
 | 6 | `--varargs-model heap` | Variadic arguments are written into the C stack region of the heap, as clang's wasm ABI does, instead of a daslang array literal per call. | Garbage is collected only between engine frames; a long call that allocates an array per `printf` grows towards the 100 MiB cap (§3) | `[C2daVaArg(…), …]`, an array per call | Not yet: parsed, refused by name |
-| 7 | `--heap-reserve <bytes>` | The heap is reserved at its final size before `resize`, and the translator refuses a program whose static data plus heap exceed a set limit (default about 80 MB). | `max_unreserved_size` panics past 64 MB; the per-context heap cap is 100 MiB (§3) | Grows on demand | Not yet: parsed, refused by name |
+| 7 | `--heap-reserve <bytes>` | The heap is reserved at its final size before `resize`, and the translator refuses a program whose static data plus heap exceed a set limit (default about 80 MB). | `max_unreserved_size` panics past 64 MB; the per-context heap cap is 100 MiB (§3) | Grows on demand | **Implemented** with `--memory-model linear` (refused without it): the heap is reserved at this size (default 80 MiB) before any `resize`; an allocation past it returns NULL. No static check of the limit yet |
 | 8 | `--dialect eden-0.6.4` | Emitted syntax limited to what the editor's 0.6.4 parses, with located errors otherwise. Excluded:<ul><li>no `!` original operators;</li><li>no `@` metadata on locals;</li><li>no `memmove`;</li><li>options limited to the sandbox list: `gen2`, `indenting`, `stack`, `rtti`, `no_global_variables`, `no_aot`, `solid_context`, `strict_smart_pointers`;</li><li>no `heap_size_limit`.</li></ul> | The editor's daslang is older than master v0.6.4-481 (§1, §4) | Emits only `options gen2`, `solid_context` and case options; uses no `!` operators today, but nothing enforces it | **Implemented** as a checker (`translator/target_check.rs`): options, requires (§6 lists), `!` operators, `memmove`; case `p192-dialect-eden-refuses-option`. Local `@` metadata is not checked: `das_ast` has no node for it |
 | 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | Not yet: parsed, refused by name |
 | 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (acyclic) |
@@ -111,6 +113,69 @@ first error is `unsafe function 'c2da_rt_malloc'`: `intptr(addr(c2da_rt_heap[0])
 heap. Census over the text: `unsafe` 5 153, `addr(` 405, `reinterpret<` 3 731, `intptr(` 3.
 The only remaining blocker class is `unsafe` raw memory, which is flag 1.
 
+### `--memory-model linear` as built (core, step 3)
+
+The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). In short:
+
+- **The heap.** One module global `c2da_mem : array<uint8>`. An address is an `int` offset;
+  NULL is 0 and the first 16 bytes are reserved. The heap is reserved at `--heap-reserve`
+  (default 80 MiB) in an `[init]` function before any `resize`, so `max_unreserved_size` is
+  never reached. A `malloc` past the reservation returns NULL: with `--heap-reserve 65536`,
+  a loop of `malloc(1000)` got 63 blocks, then NULL.
+- **Pointers as integers.** In memory a pointer takes 8 bytes (offset, then 4 zero bytes),
+  as Clang lays out records. `(uintptr_t)p` is the offset: small, non-negative and
+  heap-relative, not a host address. Comparisons and differences work on offsets.
+- **Access.** Loads and stores are written in place, without helper calls: bytes for
+  8-bit values, little-endian shifts for wider ones, `math_bits` for floating values. A
+  field through a pointer is at Clang's offset. Records reached only by value stay
+  daslang structs; under the model they carry no layout proof.
+- **Static data.** String literals whose address is taken are placed in the heap by the
+  `[init]` function.
+- **Library.** `malloc`/`calloc`/`realloc`/`free`, `memcpy`/`memmove`/`memset`/`memcmp`/
+  `strlen` are `c2da_lin_*` byte loops over the heap.
+- **Fails closed** with "not supported under --memory-model linear yet: …", located at the
+  C source:
+  - `&` of a local or global, and a declared array used as a pointer (step 4,
+    `--locals-in-heap`);
+  - a record or array value read or assigned through a pointer;
+  - a bitfield through a pointer;
+  - a wide string literal;
+  - a cast between data and function pointers;
+  - any other libc function over C memory (string-literal arguments aside);
+  - a split into several modules;
+  - as a net, any construct that needs `unsafe` in the finished module. This catches, for
+    example, `printf`: the std formatter reads C strings through raw pointers. It also
+    catches a by-value struct parameter whose pointer field is indexed.
+
+**Proof on master daslang (2026-10-09).** All of these use `--memory-model linear --libc eden`.
+
+- `p193-linear-scalars` and `p194-linear-records` return C's result (0).
+  - p193 covers every scalar width through a pointer: negative values, float and double bit
+    patterns, compound assignment and `++`/`--` in the heap, pointer arithmetic, differences
+    and comparisons, `uintptr_t` and NULL.
+  - p194 covers structs through pointers, including a nested struct and `&p->in`, an array
+    of structs from `calloc`, a linked list built and freed, string literals,
+    `strlen`/`memcmp`/`memset`/`memcpy` and an overlapping `memmove`, `realloc` growth, and
+    `malloc` of an impossible size answering NULL.
+- `p195-linear-refuses-local-address` is the located refusal of `&x`.
+- With `--no-unsafe --dialect eden-0.6.4 --float-compare nan-safe` added, both fixtures
+  translate. `scripts/eden_check.py` against the wasm3das `sandbox.das_project` reports
+  `ok` for both, with 0 `unsafe`, `addr`, `reinterpret` and `intptr`.
+- Default output is unchanged (`cargo test --test snapshots`: 50 passed).
+
+**Interpreter cost, one kernel.** The kernel is Doom's `R_DrawColumn` inner loop
+(`*dest = colormap[src[(frac >> 16) & 127]]; dest += pitch;`) over a 320×200 byte screen for
+100 frames, plus one checksum pass. It ran under `--libc eden`, on master daslang in the
+interpreter, 3 runs each:
+
+| model | time |
+|---|---|
+| raw | 136–137 ms |
+| linear | 162–167 ms |
+
+Linear is about 1.2× raw here. Byte accesses are the cheap case (see the table below); u32
+and f64 accesses cost more.
+
 ### Already compatible, no flag needed
 
 - `goto label N` / `label N:`, including jumps out of loops.
@@ -144,6 +209,14 @@ Things the target cannot fix and has to document:
      further. wasm3das saw about 1.8×. The recent interpreter mappings (range loops, unit
      words, typed stores, address mirrors) carry over: an address mirror becomes an `int`
      index.
+   - Core of `--memory-model linear` done (above): fixtures p193/p194 match C, the
+     sandbox model accepts them, and the column kernel costs about 1.2× raw. Still to do:
+     - `--locals-in-heap` for `&local`/`&global` and declared arrays used as pointers;
+     - record and array values through pointers (byte copies);
+     - the std formatter (`printf %s`, `vformat`) and the other libc string functions
+       over `c2da_mem`;
+     - by-value struct parameters with pointer fields;
+     - then binjgb.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,
    `--heap-reserve`.**
    - `--float-compare nan-safe` done in step 1; `--libc eden` done (above), with the
