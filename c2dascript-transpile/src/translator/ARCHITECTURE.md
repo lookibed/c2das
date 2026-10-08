@@ -481,6 +481,45 @@ the flat back end keeps its CFG rendering) are daslang's `for` over a range, one
 in the body is still `t += i`.  `p175-counted-loops` is the fixture (every fallback has a
 function).
 
+**Pointer inductions** (`cfg/structured.rs pointer_inductions`, decided on the C AST per
+loop; the flat back end keeps its form): a pointer local a loop steps by compile-time
+constants and otherwise only reads through is mirrored in a `uint64` address for that loop —
+`var c2da_p_addr : uint64 = reinterpret<uint64>(p)` before it, every read of `p` inside
+`reinterpret<T?>(c2da_p_addr)` (a decl-level binding in the DeclRef lowering,
+`Translation::pointer_inductions`, like an inlined parameter's), each step
+`c2da_p_addr += C * sizeof(T)` (Clang's size from `layout.rs`; a negative step subtracts),
+and `p = reinterpret<T?>(c2da_p_addr)` after the loop unless `p` is dead after it
+(`dead_after`, the counted loops' walk: on every path from the exit `p` is assigned before
+it is read, an enclosing loop's next pass included — a pointer named only inside the inner
+loop is read again there by that loop's own mirror, h264bsd's
+`Intra16x16HorizontalPrediction`).  The mirror is stepped in place wherever `p` would be, so a
+`break`, a `continue` or an early `return` leave the address `p` would hold.  daslang's
+pointer `+=` is an `i_das_ptr_set_add` call node with three operand nodes; the mirror's step
+is one fused `SetAddLocConst<uint64>` (`++` for one byte), and its dereference
+`Ptr2Ref(GetLocalR2V<uint64>)` is the two nodes a dereference of the pointer itself costs
+(`materialize_place_once` counts a `reinterpret` of a variable as stable, so no temporary is
+bound).  Measured in the interpreter (2026-10-08, Doom's column loop shape, 20 M pixels,
+per-process runs): 18.3–18.7 ns per pixel for today's form, 15.9 for the mirror, 16.3–16.9
+for an `int` index over the base pointer (`base[k]`, `k += 320`, the critique's proposal),
+16.8 for an `int64` index, 18.9 for `base[iter * 320]`, 20.7 for `p = p + 320`; the span
+loop (stride 1) 25.6 → 23.8.  `p` qualifies when it is a block-scope local (not static, not
+thread, not `volatile`, address never taken), typed pointer to a complete scalar or record
+type, named before the loop (a `for`-init declaration is not), and every reference to it in
+the loop statement — init, condition, step and body — is the operand of `*`, the base of
+`[]` or `->`, or a step.  A step is an expression statement at the body's top level or an
+operand of the `for` step (through commas): `p++`, `p--`, `++p`, `--p`, `p += C`, `p -= C`
+with `C` an integer literal (negated or cast), or `*p++` / `*++p` (and `--`) anywhere in such
+a statement that references `p` nowhere else — emitted as the statement with `p++` read as
+`p` (`Translation::expr_overrides`) and the step after it (before it for the prefix forms;
+`*d++ = *s++` steps both).  A step under an `if` or inside a nested loop, a comparison of
+`p`, `p` passed to a call, assigned, read as a value or stepped by a variable keeps today's
+`unsafe { p += n }`; a nested loop stepping `p` at its own top level is that loop's induction,
+stored back for the outer body.  Doom (`doom_bench_all.c`): 121 loops, 278 mirrored steps,
+the `unsafe { p += n }` blocks 558 → 262.  `p181-pointer-inductions` is the fixture (every
+fallback has a function; `*d++ = (uint8_t)(*s++)` is there because the C AST walk reaches
+the `s++` under the cast twice and the step is taken once); `p174`'s in-loop stores are
+inductions now.
+
 `-Wcontrol-flow` (off by default) reports each function's back end and, for a flat one, why,
 and each `switch` of a structured body as an inline chain or a label region (with why).  On
 2026-10-08: doomgeneric (`doom_bench_all.c`) 70 chains / 22 regions (11 with more than eight

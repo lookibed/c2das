@@ -339,6 +339,10 @@ struct Builder<'a> {
     loops: Vec<LoopKind>,
     /// C locals a range loop's variable replaced: no hoisted `var` for them.
     suppressed: HashSet<CDeclId>,
+    /// The steps of the pointer inductions of the loops being converted,
+    /// by the expression statement (or `for` step operand) that holds each
+    /// (see "Pointer inductions" below).
+    steps: HashMap<CExprId, Vec<InductionStep>>,
 }
 
 fn ctx() -> ExprContext {
@@ -370,12 +374,7 @@ impl Builder<'_> {
         match &tr.ast_context[sid].kind {
             CStmtKind::Empty => Ok(()),
 
-            CStmtKind::Expr(eid) => {
-                let mut stmts = Vec::new();
-                convert_expr_in_stmt_position(tr, ctx(), *eid, &mut stmts)?;
-                out.extend(stmt_nodes(stmts));
-                Ok(())
-            }
+            CStmtKind::Expr(eid) => self.expr_stmt(*eid, out),
 
             CStmtKind::Return(expr) => {
                 out.extend(stmt_nodes(convert_return(tr, *expr, self.ret_ty)?));
@@ -431,90 +430,12 @@ impl Builder<'_> {
                 Ok(())
             }
 
-            CStmtKind::While { condition, body } => {
-                let cond = tr.convert_condition(ctx().used(), true, *condition)?;
-                let mut nodes = Vec::new();
-                let header = self.loop_header(cond, &mut nodes, out);
-                self.loop_body(LoopKind::While, *body, &mut nodes)?;
-                if let Some(header) = header {
-                    out.push(Node::Loop {
-                        cond: header,
-                        body: nodes,
-                    });
-                }
-                Ok(())
-            }
-
-            CStmtKind::ForLoop {
-                init,
-                condition,
-                increment,
-                body,
-            } => {
-                if let Some(counted) = self.counted_for(sid, *init, *condition, *increment, *body)
-                {
-                    return self.range_loop(counted, *body, out);
-                }
-                if let Some(init) = init {
-                    self.stmt(*init, out)?;
-                }
-                let mut nodes = Vec::new();
-                let header = match condition {
-                    Some(cid) => {
-                        let cond = tr.convert_condition(ctx().used(), true, *cid)?;
-                        self.loop_header(cond, &mut nodes, out)
-                    }
-                    None => Some(None),
-                };
-                self.loop_body(LoopKind::For(*increment), *body, &mut nodes)?;
-                if let Some(step) = increment {
-                    let mut stmts = Vec::new();
-                    convert_expr_in_stmt_position(tr, ctx(), *step, &mut stmts)?;
-                    nodes.extend(stmt_nodes(stmts));
-                }
-                if let Some(header) = header {
-                    out.push(Node::Loop {
-                        cond: header,
-                        body: nodes,
-                    });
-                }
-                Ok(())
-            }
-
-            CStmtKind::DoWhile { body, condition } => {
-                if let Some(counted) = self.counted_do_while(sid, *condition, *body) {
-                    return self.range_loop(counted, *body, out);
-                }
-                let cond = tr.convert_condition(ctx().used(), true, *condition)?;
-                let constant = match (&cond.stmts[..], &cond.val) {
-                    ([], DaExpr::ConstBool(value)) => Some(*value),
-                    _ => None,
-                };
-                let mut nodes = Vec::new();
-                self.loop_body(LoopKind::DoWhile(*condition, constant), *body, &mut nodes)?;
-                match constant {
-                    Some(false) if !leaves_loop(&nodes) => out.extend(nodes),
-                    Some(false) => {
-                        nodes.push(Node::Break);
-                        out.push(Node::Loop {
-                            cond: None,
-                            body: nodes,
-                        });
-                    }
-                    Some(true) => out.push(Node::Loop {
-                        cond: None,
-                        body: nodes,
-                    }),
-                    None => {
-                        nodes.extend(stmt_nodes(cond.stmts));
-                        nodes.push(break_unless(&cond.val));
-                        out.push(Node::Loop {
-                            cond: None,
-                            body: nodes,
-                        });
-                    }
-                }
-                Ok(())
+            CStmtKind::While { .. } | CStmtKind::ForLoop { .. } | CStmtKind::DoWhile { .. } => {
+                let inductions = self.pointer_inductions(sid)?;
+                self.enter_inductions(&inductions, out);
+                let result = self.loop_stmt(sid, out);
+                self.leave_inductions(&inductions, out);
+                result
             }
 
             CStmtKind::Switch { scrutinee, body } => self.switch(*scrutinee, *body, out),
@@ -535,9 +456,7 @@ impl Builder<'_> {
                     | Some(LoopKind::Range) => out.push(Node::Continue),
                     Some(LoopKind::For(step)) => {
                         if let Some(step) = step {
-                            let mut stmts = Vec::new();
-                            convert_expr_in_stmt_position(tr, ctx(), step, &mut stmts)?;
-                            out.extend(stmt_nodes(stmts));
+                            self.expr_stmt(step, out)?;
                         }
                         out.push(Node::Continue);
                     }
@@ -590,6 +509,129 @@ impl Builder<'_> {
             _ => Err(TranslationError::generic(
                 "unsupported statement in the structured back end",
             )),
+        }
+    }
+
+    /// An expression statement, or one operand of a statement-position
+    /// comma (`i++, p++` as a `for` step): the pointer induction steps it
+    /// holds are emitted around it (see "Pointer inductions").
+    fn expr_stmt(&mut self, eid: CExprId, out: &mut Vec<Node>) -> TranslationResult<()> {
+        let tr = self.tr;
+        if let CExprKind::Binary(_, CBinOp::Comma, lhs, rhs, _, _) = tr.ast_context[eid].kind {
+            self.expr_stmt(lhs, out)?;
+            return self.expr_stmt(rhs, out);
+        }
+        let steps = self.steps.get(&eid).cloned().unwrap_or_default();
+        let whole = steps
+            .iter()
+            .any(|step| matches!(step.place, StepPlace::Whole));
+        for step in &steps {
+            if matches!(step.place, StepPlace::Before(_)) {
+                out.push(step.node(tr));
+            }
+        }
+        if !whole {
+            let mut stmts = Vec::new();
+            convert_expr_in_stmt_position(tr, ctx(), eid, &mut stmts)?;
+            out.extend(stmt_nodes(stmts));
+        }
+        for step in &steps {
+            if matches!(step.place, StepPlace::Whole | StepPlace::After(_)) {
+                out.push(step.node(tr));
+            }
+        }
+        Ok(())
+    }
+
+    /// A C loop, its pointer inductions already entered.
+    fn loop_stmt(&mut self, sid: CStmtId, out: &mut Vec<Node>) -> TranslationResult<()> {
+        let tr = self.tr;
+        match &tr.ast_context[sid].kind {
+            CStmtKind::While { condition, body } => {
+                let cond = tr.convert_condition(ctx().used(), true, *condition)?;
+                let mut nodes = Vec::new();
+                let header = self.loop_header(cond, &mut nodes, out);
+                self.loop_body(LoopKind::While, *body, &mut nodes)?;
+                if let Some(header) = header {
+                    out.push(Node::Loop {
+                        cond: header,
+                        body: nodes,
+                    });
+                }
+                Ok(())
+            }
+
+            CStmtKind::ForLoop {
+                init,
+                condition,
+                increment,
+                body,
+            } => {
+                if let Some(counted) = self.counted_for(sid, *init, *condition, *increment, *body)
+                {
+                    return self.range_loop(counted, *body, out);
+                }
+                if let Some(init) = init {
+                    self.stmt(*init, out)?;
+                }
+                let mut nodes = Vec::new();
+                let header = match condition {
+                    Some(cid) => {
+                        let cond = tr.convert_condition(ctx().used(), true, *cid)?;
+                        self.loop_header(cond, &mut nodes, out)
+                    }
+                    None => Some(None),
+                };
+                self.loop_body(LoopKind::For(*increment), *body, &mut nodes)?;
+                if let Some(step) = increment {
+                    self.expr_stmt(*step, &mut nodes)?;
+                }
+                if let Some(header) = header {
+                    out.push(Node::Loop {
+                        cond: header,
+                        body: nodes,
+                    });
+                }
+                Ok(())
+            }
+
+            CStmtKind::DoWhile { body, condition } => {
+                if let Some(counted) = self.counted_do_while(sid, *condition, *body) {
+                    return self.range_loop(counted, *body, out);
+                }
+                let cond = tr.convert_condition(ctx().used(), true, *condition)?;
+                let constant = match (&cond.stmts[..], &cond.val) {
+                    ([], DaExpr::ConstBool(value)) => Some(*value),
+                    _ => None,
+                };
+                let mut nodes = Vec::new();
+                self.loop_body(LoopKind::DoWhile(*condition, constant), *body, &mut nodes)?;
+                match constant {
+                    Some(false) if !leaves_loop(&nodes) => out.extend(nodes),
+                    Some(false) => {
+                        nodes.push(Node::Break);
+                        out.push(Node::Loop {
+                            cond: None,
+                            body: nodes,
+                        });
+                    }
+                    Some(true) => out.push(Node::Loop {
+                        cond: None,
+                        body: nodes,
+                    }),
+                    None => {
+                        nodes.extend(stmt_nodes(cond.stmts));
+                        nodes.push(break_unless(&cond.val));
+                        out.push(Node::Loop {
+                            cond: None,
+                            body: nodes,
+                        });
+                    }
+                }
+                Ok(())
+            }
+
+            _ => Err(internal("a statement that is not a loop reached loop_stmt")),
         }
     }
 
@@ -1159,6 +1201,402 @@ impl Builder<'_> {
     }
 }
 
+// ===== Pointer inductions =====
+//
+// A pointer local a loop steps by compile-time constants (`p += C`, `p++`,
+// `*p++ = v`) and otherwise only reads through (`*p`, `p[i]`, `p->f`) is
+// mirrored in a `uint64` address for the loop: `var p_addr = reinterpret<
+// uint64>(p)` before it, every read of `p` inside `reinterpret<T?>(p_addr)`,
+// each step `p_addr += C * sizeof(T)`, and `p = reinterpret<T?>(p_addr)`
+// after the loop when `p` is read again.  The interpreter runs daslang's
+// pointer `+=` as an `i_das_ptr_set_add` call node with three operands; the
+// address form is one fused `SetAddLocConst<uint64>`, and a dereference of
+// the mirror is `Ptr2Ref(GetLocalR2V<uint64>)`, the same two nodes as of the
+// pointer itself.  Measured (2026-10-08, Doom's column loop shape, 20 M
+// pixels, per-process runs): 18.3–18.7 ns per pixel today, 15.9 with the
+// address, 16.3–16.9 with an `int` index over the base pointer
+// (`base[k]`, `k += 320`), 20.7 for `p = p + 320`; the span loop (stride 1)
+// 25.6 → 23.8.  C's pointer arithmetic on an object pointer is the byte
+// arithmetic (C11 6.5.6p8), scaled by Clang's size of the pointee from
+// `layout.rs`, and the mirror is stepped in place wherever `p` would be, so
+// a `break`, a `continue` or an early `return` see the address `p` would
+// hold; a negative step subtracts.
+//
+// Decided on the C AST: `p` a block-scope local (not static, not thread,
+// not `volatile`, address never taken) of pointer type to a complete
+// scalar or record type, named before the loop (a `for`-init declaration
+// is not); every reference to `p` in the loop statement — init, condition,
+// step and body — is one of: the operand of `*`, the base of `[]` or `->`,
+// a step.  A step is an expression statement at the body's top level or an
+// operand of the `for` step (through commas): `p++`/`p--`/`++p`/`--p`,
+// `p += C`/`p -= C` with `C` an integer literal (negated, cast); or `*p++`
+// / `*++p` (and `--`) anywhere in such a statement whose only reference to
+// `p` that is, emitted as the statement with `p++` read as `p` and the step
+// after it (before it for the prefix forms).  A step under an `if` or a
+// nested loop, a comparison of `p`, `p` passed to a call, assigned, read as
+// a value or stepped by a variable keeps today's form.  `p` is stored back
+// after the loop when it is named outside the loop and not dead after it
+// (`dead_after`).  A nested loop stepping `p` at its own top level is that
+// loop's induction, the outer loop keeping `p` as it is.
+
+/// A pointer local one loop mirrors in a `uint64` address.
+struct PointerInduction {
+    decl: CDeclId,
+    /// The C local's daslang name.
+    name: String,
+    /// The mirror's name.
+    addr: String,
+    /// The pointer's daslang type: what the mirror is read back as.
+    pointer_type: DaType,
+    /// `p` may be read after the loop: the mirror is stored back to it.
+    live_after: bool,
+    /// Each step, keyed by the expression statement (or `for` step operand)
+    /// that holds it.
+    steps: Vec<(CExprId, InductionStep)>,
+}
+
+#[derive(Clone)]
+struct InductionStep {
+    addr: String,
+    /// The byte offset, `C * sizeof(T)`.
+    bytes: i64,
+    place: StepPlace,
+}
+
+#[derive(Clone, Copy)]
+enum StepPlace {
+    /// The statement is the step (`p += C`): nothing else is emitted.
+    Whole,
+    /// `*p++ …`: the statement with this `p++` read as `p`, then the step.
+    After(CExprId),
+    /// `*++p …`: the step, then the statement with `++p` read as `p`.
+    Before(CExprId),
+}
+
+impl InductionStep {
+    fn node(&self, tr: &Translation) -> Node {
+        let (op, bytes) = if self.bytes < 0 {
+            ("-=", self.bytes.unsigned_abs())
+        } else {
+            ("+=", self.bytes as u64)
+        };
+        Node::Stmt(DaStmt::Expr(DaExpr::AssignOp {
+            op,
+            left: Box::new(DaExpr::Var(self.addr.clone())),
+            right: Box::new(
+                tr.integer_literal_for_type(DaExpr::ConstInt(bytes as i64), DaType::uint64()),
+            ),
+        }))
+    }
+}
+
+/// The operands of a statement-position comma, in order, as
+/// `convert_expr_in_stmt_position` flattens them.
+fn comma_operands(tr: &Translation, eid: CExprId, out: &mut Vec<CExprId>) {
+    if let CExprKind::Binary(_, CBinOp::Comma, lhs, rhs, _, _) = tr.ast_context[eid].kind {
+        comma_operands(tr, lhs, out);
+        comma_operands(tr, rhs, out);
+    } else {
+        out.push(eid);
+    }
+}
+
+/// An integer literal, negated or cast.
+fn integer_constant(tr: &Translation, eid: CExprId) -> Option<i64> {
+    match &tr.ast_context[peel(tr, eid)].kind {
+        CExprKind::Literal(_, CLiteral::Integer(value, _)) => i64::try_from(*value).ok(),
+        CExprKind::ConstantExpr(_, inner, _)
+        | CExprKind::ImplicitCast(_, inner, CastKind::IntegralCast, _, _)
+        | CExprKind::ExplicitCast(_, inner, CastKind::IntegralCast | CastKind::NoOp, _, _) => {
+            integer_constant(tr, *inner)
+        }
+        CExprKind::Unary(_, CUnOp::Negate, inner, _) => {
+            integer_constant(tr, *inner).and_then(i64::checked_neg)
+        }
+        _ => None,
+    }
+}
+
+fn step_sign(op: CUnOp) -> Option<i64> {
+    match op {
+        CUnOp::PreIncrement | CUnOp::PostIncrement => Some(1),
+        CUnOp::PreDecrement | CUnOp::PostDecrement => Some(-1),
+        _ => None,
+    }
+}
+
+impl Builder<'_> {
+    /// The pointer local `place` names when it can be mirrored: a
+    /// block-scope local nothing but this function's statements can reach,
+    /// of pointer type to a complete scalar or record type.  With the
+    /// pointee's Clang size.
+    fn induction_pointer(&self, place: CExprId) -> Option<(CDeclId, i64)> {
+        let tr = self.tr;
+        let CExprKind::DeclRef(_, decl, _) = tr.ast_context[peel(tr, place)].kind else {
+            return None;
+        };
+        let CDeclKind::Variable {
+            has_static_duration: false,
+            has_thread_duration: false,
+            typ,
+            ..
+        } = &tr.ast_context[decl].kind
+        else {
+            return None;
+        };
+        if typ.qualifiers.is_volatile || tr.local_address_is_taken(decl) {
+            return None;
+        }
+        let CTypeKind::Pointer(pointee) = tr.ast_context.resolve_type(typ.ctype).kind else {
+            return None;
+        };
+        let pointee_kind = &tr.ast_context.resolve_type(pointee.ctype).kind;
+        if !(pointee_kind.is_scalar()
+            || matches!(pointee_kind, CTypeKind::Struct(_) | CTypeKind::Union(_)))
+        {
+            return None;
+        }
+        let size = tr.sizeof_type(pointee.ctype).ok()?;
+        (size > 0).then_some((decl, size))
+    }
+
+    /// The steps one expression statement (or `for` step operand) holds:
+    /// the pointer, the step in elements, and where the step goes.
+    fn induction_steps(&self, eid: CExprId) -> Vec<(CDeclId, i64, i64, StepPlace)> {
+        let tr = self.tr;
+        let top = peel(tr, eid);
+        match tr.ast_context[top].kind {
+            CExprKind::Unary(_, op, arg, _) if step_sign(op).is_some() => {
+                return self
+                    .induction_pointer(arg)
+                    .map(|(decl, size)| (decl, step_sign(op).unwrap(), size, StepPlace::Whole))
+                    .into_iter()
+                    .collect();
+            }
+            CExprKind::Binary(_, op @ (CBinOp::AssignAdd | CBinOp::AssignSubtract), lhs, rhs, _, _) => {
+                let Some((decl, size)) = self.induction_pointer(lhs) else {
+                    return vec![];
+                };
+                let Some(count) = integer_constant(tr, rhs) else {
+                    return vec![];
+                };
+                let count = if op == CBinOp::AssignSubtract {
+                    match count.checked_neg() {
+                        Some(count) => count,
+                        None => return vec![],
+                    }
+                } else {
+                    count
+                };
+                return vec![(decl, count, size, StepPlace::Whole)];
+            }
+            _ => {}
+        }
+        // `*p++` inside the statement: the one reference to `p` it holds.
+        // The walk can reach one node twice (`(u8)(*p++)`), so each `p++`
+        // is taken once.
+        let mut steps = Vec::new();
+        let mut seen: HashSet<CExprId> = HashSet::new();
+        for node in DFExpr::new(&tr.ast_context, SomeId::Expr(eid)) {
+            let SomeId::Expr(x) = node else {
+                // A statement inside the expression is a statement expression.
+                return vec![];
+            };
+            let CExprKind::Unary(_, CUnOp::Deref, inner, _) = tr.ast_context[x].kind else {
+                continue;
+            };
+            let inner = peel(tr, inner);
+            if !seen.insert(inner) {
+                continue;
+            }
+            let CExprKind::Unary(_, op, arg, _) = tr.ast_context[inner].kind else {
+                continue;
+            };
+            let Some(sign) = step_sign(op) else { continue };
+            let Some((decl, size)) = self.induction_pointer(arg) else {
+                continue;
+            };
+            if count_references(tr, SomeId::Expr(eid), decl) != 1 {
+                continue;
+            }
+            let place = match op {
+                CUnOp::PostIncrement | CUnOp::PostDecrement => StepPlace::After(inner),
+                _ => StepPlace::Before(inner),
+            };
+            steps.push((decl, sign, size, place));
+        }
+        steps
+    }
+
+    /// The pointer inductions of the loop `sid` (see "Pointer inductions").
+    fn pointer_inductions(&self, sid: CStmtId) -> TranslationResult<Vec<PointerInduction>> {
+        let tr = self.tr;
+        let (body, increment) = match &tr.ast_context[sid].kind {
+            CStmtKind::While { body, .. } | CStmtKind::DoWhile { body, .. } => (*body, None),
+            CStmtKind::ForLoop {
+                body, increment, ..
+            } => (*body, *increment),
+            _ => return Ok(vec![]),
+        };
+        // The statements whose steps count: the body's top level, through
+        // commas, and the `for` step.
+        let mut top: Vec<CExprId> = Vec::new();
+        let kids: Vec<CStmtId> = match &tr.ast_context[body].kind {
+            CStmtKind::Compound(kids) => kids.clone(),
+            _ => vec![body],
+        };
+        for kid in kids {
+            if let CStmtKind::Expr(eid) = tr.ast_context[kid].kind {
+                comma_operands(tr, eid, &mut top);
+            }
+        }
+        if let Some(increment) = increment {
+            comma_operands(tr, increment, &mut top);
+        }
+        let mut candidates: IndexMap<CDeclId, (i64, Vec<(CExprId, i64, StepPlace)>)> =
+            IndexMap::new();
+        for &eid in &top {
+            for (decl, count, size, place) in self.induction_steps(eid) {
+                candidates
+                    .entry(decl)
+                    .or_insert_with(|| (size, Vec::new()))
+                    .1
+                    .push((eid, count, place));
+            }
+        }
+        let mut inductions = Vec::new();
+        for (decl, (size, steps)) in candidates {
+            // Every reference to `p` in the loop statement is a read through
+            // it or one of the steps found above.
+            let step_ids: HashSet<CExprId> = steps
+                .iter()
+                .map(|(eid, _, place)| match place {
+                    StepPlace::Whole => peel(tr, *eid),
+                    StepPlace::After(inner) | StepPlace::Before(inner) => *inner,
+                })
+                .collect();
+            let names = |place: CExprId| {
+                matches!(tr.ast_context[peel(tr, place)].kind, CExprKind::DeclRef(_, d, _) if d == decl)
+            };
+            let allowed = DFExpr::new(&tr.ast_context, SomeId::Stmt(sid))
+                .filter(|node| {
+                    let SomeId::Expr(x) = node else { return false };
+                    if step_ids.contains(x) {
+                        return true;
+                    }
+                    match tr.ast_context[*x].kind {
+                        CExprKind::Unary(_, CUnOp::Deref, inner, _) => names(inner),
+                        CExprKind::ArraySubscript(_, base, _, _) => names(base),
+                        CExprKind::Member(_, base, _, MemberKind::Arrow, _) => names(base),
+                        _ => false,
+                    }
+                })
+                .count();
+            let in_loop = count_references(tr, SomeId::Stmt(sid), decl);
+            if allowed != in_loop {
+                continue;
+            }
+            let Some(name) = tr.renamer.borrow().get(&decl) else {
+                continue;
+            };
+            let CDeclKind::Variable { typ, .. } = &tr.ast_context[decl].kind else {
+                continue;
+            };
+            let pointer_type = tr.convert_type(*typ)?;
+            let mut byte_steps = Vec::new();
+            let mut fits = true;
+            for (eid, count, place) in steps {
+                match count.checked_mul(size) {
+                    Some(bytes) => byte_steps.push((eid, bytes, place)),
+                    None => fits = false,
+                }
+            }
+            if !fits {
+                continue;
+            }
+            // Stored back unless every path from the loop's exit assigns
+            // `p` before reading it.  A pointer named nowhere else in the
+            // function is still read on an enclosing loop's next pass, by
+            // this loop's own mirror (`dead_after` walks that back edge).
+            let live_after = !self.dead_after(sid, decl);
+            let addr = tr
+                .renamer
+                .borrow_mut()
+                .pick_name(&format!("c2da_{name}_addr"));
+            inductions.push(PointerInduction {
+                decl,
+                name,
+                steps: byte_steps
+                    .into_iter()
+                    .map(|(eid, bytes, place)| {
+                        (
+                            eid,
+                            InductionStep {
+                                addr: addr.clone(),
+                                bytes,
+                                place,
+                            },
+                        )
+                    })
+                    .collect(),
+                addr,
+                pointer_type,
+                live_after,
+            });
+        }
+        Ok(inductions)
+    }
+
+    /// Declare each mirror from the pointer's value and route the loop's
+    /// reads of the pointer through it.
+    fn enter_inductions(&mut self, inductions: &[PointerInduction], out: &mut Vec<Node>) {
+        let tr = self.tr;
+        for induction in inductions {
+            out.push(Node::Stmt(DaStmt::Var {
+                name: induction.addr.clone(),
+                var_type: DaType::uint64(),
+                init: Some(tr.pointer_to_raw_address(DaExpr::Var(induction.name.clone()))),
+            }));
+            let mirrored = tr.raw_address_to_pointer(
+                DaExpr::Var(induction.addr.clone()),
+                induction.pointer_type.clone(),
+            );
+            tr.pointer_inductions
+                .borrow_mut()
+                .insert(induction.decl, mirrored.clone());
+            for (eid, step) in &induction.steps {
+                if let StepPlace::After(inner) | StepPlace::Before(inner) = step.place {
+                    tr.expr_overrides.borrow_mut().insert(inner, mirrored.clone());
+                }
+                self.steps.entry(*eid).or_default().push(step.clone());
+            }
+        }
+    }
+
+    /// Undo [`Self::enter_inductions`] and store each live pointer back.
+    fn leave_inductions(&mut self, inductions: &[PointerInduction], out: &mut Vec<Node>) {
+        let tr = self.tr;
+        for induction in inductions {
+            tr.pointer_inductions.borrow_mut().remove(&induction.decl);
+            for (eid, step) in &induction.steps {
+                if let StepPlace::After(inner) | StepPlace::Before(inner) = step.place {
+                    tr.expr_overrides.borrow_mut().remove(&inner);
+                }
+                self.steps.remove(eid);
+            }
+            if induction.live_after {
+                out.push(Node::Stmt(DaStmt::Expr(DaExpr::Assign(
+                    Box::new(DaExpr::Var(induction.name.clone())),
+                    Box::new(tr.raw_address_to_pointer(
+                        DaExpr::Var(induction.addr.clone()),
+                        induction.pointer_type.clone(),
+                    )),
+                ))));
+            }
+        }
+    }
+}
+
 // ===== Counted loops: the C facts =====
 
 /// A C loop the structured back end writes as daslang's `for` over a range.
@@ -1485,6 +1923,7 @@ pub(crate) fn convert(
         breaks: Vec::new(),
         loops: Vec::new(),
         suppressed: HashSet::new(),
+        steps: HashMap::new(),
     };
     let mut body = Vec::new();
     for &sid in stmts {

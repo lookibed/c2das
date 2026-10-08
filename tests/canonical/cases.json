@@ -1688,6 +1688,23 @@
       "runtime": "required"
     },
     {
+      "id": "p181-pointer-inductions",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p181_pointer_inductions.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "column 0 9 3 span 4 3 0\nlive 5 break 6\nbackwards 190\npairs 50 10 40\nnarrowed 44 10 40 rows 5 6 7 8\ncomma 21 passed 10 compared 15\nconditional 9 variable 61\nnested 8 2 3 4\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p181_pointer_inductions_are_mirrored_addresses",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

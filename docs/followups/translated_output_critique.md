@@ -64,6 +64,15 @@
    is the same shape.  Array fields stay on offsets; the finding waits for an unchecked
    index that computes in pointer width (a candidate issue for the `lookibed/daScript`
    fork).
+5. **Pointers stepped by constants.**  Landed (`translator/ARCHITECTURE.md`, "Pointer
+   inductions"; `p181-pointer-inductions`), as a `uint64` address mirror rather than the
+   `int` index proposed: re-measured per process on the column loop shape, today 18.3–18.7
+   ns per pixel, the index 16.3–16.9, the address 15.9 (one `SetAddLocConst<uint64>` per
+   step and `Ptr2Ref(GetLocalR2V)` per dereference — the index pays a `PtrAt` over two
+   locals).  Doom: 121 loops, 278 mirrored steps (`unsafe { p += n }` 558 → 262).  What
+   stays: steps by a variable
+   (`R_DrawMaskedColumn`'s `column->length + 4`), pointers compared in the loop (`p < end`),
+   passed to a call, stepped under an `if`, or declared in a `for` init.
 6. **`CopyRefValue` stores.**  Landed in part (`das_ast::fold`, "Value stores" and
    "Increments"; `p180-value-stores`): a scalar store whose right-hand side is a reference
    not rooted at a local is `place = T(value)`, which daslang stores with `Set_TT<T>`; a

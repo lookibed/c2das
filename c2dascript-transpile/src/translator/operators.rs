@@ -1121,6 +1121,10 @@ impl<'c> Translation<'c> {
                 DaExpr::Var(_) | DaExpr::ConstNull => true,
                 DaExpr::Field(base, _) | DaExpr::SafeField(base, _) => is_stable(base),
                 DaExpr::Unsafe(inner) => is_stable(inner),
+                // A conversion or `reinterpret` of a stable expression (a
+                // pointer induction's mirror, `reinterpret<T?>(p_addr)`,
+                // `cfg/structured.rs`) re-reads the same bits.
+                DaExpr::Cast { expr, .. } => is_stable(expr),
                 _ => false,
             }
         }

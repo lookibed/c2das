@@ -1162,13 +1162,16 @@ fn p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer
     let main = function_body(&d, "main_0");
     // A local pointer and a value that cannot reach it: the store, then the
     // step — a pure value, a read through another pointer, a global read.
+    // Inside a loop the local pointer is a pointer induction
+    // (`cfg/structured.rs`, `p181`): the store through its `uint64` mirror,
+    // then the mirror's step.
     assert!(
-        main.contains("        *dest = uint8(table_0[i_0 & 15])\n        unsafe {\n            dest += 1\n        }\n"),
+        main.contains("        *unsafe(reinterpret<uint8?>(c2da_dest_addr)) = uint8(table_0[i_0 & 15])\n        c2da_dest_addr++\n"),
         "{main}"
     );
     assert!(
         main.contains(
-            "        *dest = uint8(*c2da_postinc)\n        unsafe {\n            dest += 1\n        }\n"
+            "        *unsafe(reinterpret<uint8?>(c2da_dest_addr_0)) = uint8(*unsafe(reinterpret<uint8 const?>(c2da_src_addr)))\n        c2da_dest_addr_0++\n        c2da_src_addr++\n"
         ),
         "{main}"
     );
@@ -1193,19 +1196,19 @@ fn p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer
     // The copy stays when the value names the pointer, reads memory while
     // the pointer is a global, or calls a function.
     assert!(
-        main.contains("    var c2da_postinc_0 : uint8? = mark\n    unsafe {\n        mark += 1\n    }\n    *c2da_postinc_0 = uint8(mark != null ? 1 : 0)\n"),
+        main.contains("    var c2da_postinc : uint8? = mark\n    unsafe {\n        mark += 1\n    }\n    *c2da_postinc = uint8(mark != null ? 1 : 0)\n"),
         "{main}"
     );
     assert!(
-        main.contains("    var c2da_postinc_2 : uint8? = out\n    unsafe {\n        out += 1\n    }\n    var c2da_postinc_3 : uint8 const? = in_0\n    unsafe {\n        in_0 += 1\n    }\n    *c2da_postinc_2 = uint8(*c2da_postinc_3)\n"),
+        main.contains("    var c2da_postinc_1 : uint8? = out\n    unsafe {\n        out += 1\n    }\n    var c2da_postinc_2 : uint8 const? = in_0\n    unsafe {\n        in_0 += 1\n    }\n    *c2da_postinc_1 = uint8(*c2da_postinc_2)\n"),
         "{main}"
     );
     assert!(
-        main.contains("    *c2da_postinc_6 = next_level()\n"),
+        main.contains("    *c2da_postinc_5 = next_level()\n"),
         "{main}"
     );
     assert!(
-        main.contains("    *c2da_postinc_7 = out_is_set()\n"),
+        main.contains("    *c2da_postinc_6 = out_is_set()\n"),
         "{main}"
     );
 }
@@ -1572,6 +1575,61 @@ fn p179_small_switches_are_inline_chains() {
     assert!(body.contains("    label 0:\n    if (y_0 != 0) {\n        if (y_0 > 2) {\n            goto label 2\n        }\n"), "{body}");
     let body = function_body(&d, "duff");
     assert!(body.contains("    label 1:\n    label 2:\n    r_7++\n    label 3:\n"), "{body}");
+}
+
+#[test]
+fn p181_pointer_inductions_are_mirrored_addresses() {
+    let d = transpile_with_libc(
+        "p181_pointer_inductions",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    // A pointer local stepped by constants and only read through is a
+    // `uint64` mirror for the loop (`cfg/structured.rs`, "Pointer
+    // inductions"): the column loop's stride, the span loop's `*dest++`.
+    let body = function_body(&d, "column");
+    assert!(body.contains("    var c2da_dest_addr : uint64 = unsafe(reinterpret<uint64>(dest))\n    while (true) {\n        *unsafe(reinterpret<uint8?>(c2da_dest_addr)) = uint8(x + count)\n        c2da_dest_addr += 320ul\n"), "{body}");
+    let body = function_body(&d, "span");
+    assert!(body.contains("        *unsafe(reinterpret<uint8?>(c2da_dest_0_addr)) = uint8(count_0)\n        c2da_dest_0_addr++\n"), "{body}");
+    // Live after the loop: stored back; read in the condition; an early
+    // `break` sees the mirror's value.
+    let body = function_body(&d, "strlen_like");
+    assert!(body.contains("    while (*unsafe(reinterpret<int8 const?>(c2da_s_addr)) != 0) {\n        c2da_s_addr++\n    }\n    s = unsafe(reinterpret<int8 const?>(c2da_s_addr))\n"), "{body}");
+    let body = function_body(&d, "find_zero");
+    assert!(body.contains("        c2da_p_addr++\n        steps++\n    }\n    p = unsafe(reinterpret<uint8?>(c2da_p_addr))\n"), "{body}");
+    // A negative stride subtracts, scaled by the element size; the step
+    // after the loop is on the pointer again.
+    let body = function_body(&d, "backwards");
+    assert!(body.contains("        c2da_p_0_addr -= 8ul\n"), "{body}");
+    assert!(body.contains("    p_0 = unsafe(reinterpret<int?>(c2da_p_0_addr))\n    unsafe {\n        p_0 -= 1\n    }\n"), "{body}");
+    // Two pointers in one statement, a field through the pointer.
+    let body = function_body(&d, "copy_pairs");
+    assert!(body.contains("        *unsafe(reinterpret<int?>(c2da_d_addr)) = int(*unsafe(reinterpret<int const?>(c2da_s_0_addr)))\n        c2da_d_addr += 4ul\n        c2da_s_0_addr += 4ul\n        sum += unsafe(reinterpret<cell?>(c2da_c_addr)).v\n        c2da_c_addr += 8ul\n"), "{body}");
+    assert!(!body.contains("c2da_c_addr))\n    c = "), "{body}");
+    // `*d++ = (uint8_t)(*s++)`: the cast walks the `s++` node twice; one
+    // step each, both stored back.
+    let body = function_body(&d, "narrowed");
+    assert!(body.contains("        *unsafe(reinterpret<uint8?>(c2da_d_0_addr)) = uint8(*unsafe(reinterpret<int const?>(c2da_s_1_addr)))\n        c2da_d_0_addr++\n        c2da_s_1_addr += 4ul\n    }\n    d_0 = unsafe(reinterpret<uint8?>(c2da_d_0_addr))\n    s_1 = unsafe(reinterpret<int const?>(c2da_s_1_addr))\n"), "{body}");
+    // Named only inside the inner loop: the outer loop's next pass reads it
+    // through the mirror's initialiser, so it is stored back each pass
+    // (h264bsd's `Intra16x16HorizontalPrediction`).
+    let body = function_body(&d, "rows");
+    assert!(body.contains("        var c2da_data_addr : uint64 = unsafe(reinterpret<uint64>(data))\n        for (j in urange(0u, 4u)) {\n            *unsafe(reinterpret<uint8?>(c2da_data_addr)) = uint8(unsafe(left[int(i)]))\n            c2da_data_addr++\n        }\n        data = unsafe(reinterpret<uint8?>(c2da_data_addr))\n    }\n"), "{body}");
+    // A `for` step through a comma.
+    let body = function_body(&d, "comma_step");
+    assert!(body.contains("        i_0++\n        c2da_p_1_addr += 2ul\n"), "{body}");
+    // Fallbacks keep today's `unsafe { p += n }`: passed to a call,
+    // compared, stepped under an `if`, stepped by a variable.
+    for name in ["passed", "compared", "conditional", "variable_step"] {
+        let body = function_body(&d, name);
+        assert!(!body.contains("_addr"), "{name}: {body}");
+        assert!(body.contains("    unsafe {\n"), "{name}: {body}");
+    }
+    // Nested: the inner loop owns `p` (stored back each outer pass), the
+    // outer owns `q`, read through its mirror inside the inner body.
+    let body = function_body(&d, "nested");
+    assert!(body.contains("            *unsafe(reinterpret<uint8?>(c2da_p_7_addr)) = uint8(int(*unsafe(reinterpret<uint8 const?>(c2da_q_0_addr))) + 1)\n            c2da_p_7_addr++\n"), "{body}");
+    assert!(body.contains("        p_7 = unsafe(reinterpret<uint8?>(c2da_p_7_addr))\n        c2da_q_0_addr++\n"), "{body}");
+    assert!(body.contains("    q_0 = unsafe(reinterpret<uint8 const?>(c2da_q_0_addr))\n    return"), "{body}");
 }
 
 #[test]

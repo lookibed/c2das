@@ -335,6 +335,14 @@ pub struct Translation<'c> {
     pub emitted_structs: std::cell::RefCell<std::collections::HashSet<String>>,
     pub emitted_anon_structs: std::cell::RefCell<std::collections::HashSet<(String, Vec<String>)>>,
     pub(crate) layout_cache: RefCell<HashMap<CTypeId, self::layout::CLayout>>,
+    /// Pointer locals a structured loop mirrors in a `uint64` address
+    /// (`cfg/structured.rs`, pointer inductions): while the loop is
+    /// converted, a read of the local is this expression — the address
+    /// reinterpreted as the pointer's type — instead of its name.
+    pub(crate) pointer_inductions: RefCell<HashMap<CDeclId, DaExpr>>,
+    /// Expressions the same rewrite replaces whole: the `p++` of `*p++`
+    /// reads as the mirrored pointer, its step emitted as a statement.
+    pub(crate) expr_overrides: RefCell<HashMap<CExprId, DaExpr>>,
     /// Which C records are represented as raw storage rather than as a
     /// daScript record with the same fields. See
     /// [`Translation::is_storage_backed_record`].
@@ -400,6 +408,8 @@ impl<'c> Translation<'c> {
             emitted_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             emitted_anon_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             layout_cache: RefCell::new(HashMap::new()),
+            pointer_inductions: RefCell::new(HashMap::new()),
+            expr_overrides: RefCell::new(HashMap::new()),
             storage_backed_cache: RefCell::new(HashMap::new()),
             natural_members_cache: RefCell::new(HashMap::new()),
             layout_proofs: RefCell::default(),
@@ -1145,6 +1155,12 @@ impl<'c> Translation<'c> {
             }
         }
 
+        // A pointer induction's `p++` inside `*p++` (`cfg/structured.rs`):
+        // the mirrored pointer, the step a statement of its own.
+        if let Some(replacement) = self.expr_overrides.borrow().get(&expr_id) {
+            return Ok(WithStmts::new_val(replacement.clone()));
+        }
+
         use CExprKind::*;
         match expr_kind {
             Literal(ty, lit) => {
@@ -1193,6 +1209,12 @@ impl<'c> Translation<'c> {
                 // is the value the call site bound for it.
                 if let Some(bound) = self.inline_binding(*decl_id) {
                     return Ok(WithStmts::new_val(bound));
+                }
+                // A pointer local a structured loop mirrors in a `uint64`
+                // address reads as that address, typed back
+                // (`cfg/structured.rs`, pointer inductions).
+                if let Some(mirrored) = self.pointer_inductions.borrow().get(decl_id) {
+                    return Ok(WithStmts::new_val(mirrored.clone()));
                 }
                 // `--libc std` owns the three standard streams: they are the
                 // daslib handles, not module objects of this translation unit.
