@@ -79,6 +79,7 @@ python3 scripts/run_c2das_cases.py --all-ready      # every case: C output == tr
 python3 scripts/corpus_matrix.py converge --check   # every corpus, every mode, frame by frame == C
 python3 scripts/corpus_matrix.py bench              # docs/corpus-benchmark.md and the snapshot above
 python3 scripts/corpus_matrix.py readme             # the snapshot above from the generated docs
+python3 scripts/lint_translated.py                  # daslang lint of every latest translation -> docs/lint-translated.md
 ```
 
 ## Documentation

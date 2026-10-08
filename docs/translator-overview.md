@@ -230,6 +230,7 @@ python3 scripts/run_c2das_cases.py --all-known-red    # survey expected failures
 cargo test -p c2dascript-transpile                    # Rust suite
 python3 scripts/check_test_registry.py --check        # fixture registry is derived from cases.json
 python3 scripts/corpus_matrix.py converge --check     # every corpus case, every mode, per frame
+python3 scripts/lint_translated.py                    # daslang lint of .c2das-out/latest -> docs/lint-translated.md
 ```
 
 `daslang` is found through `DASLANG=/path/to/daslang`, `DASROOT`, the pinned toolchain under
