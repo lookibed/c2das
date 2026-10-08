@@ -52,6 +52,10 @@ thread_local! {
     /// runtime is appended only then (it writes through `c2da_std_write`,
     /// which the call site registers).
     static FORMAT_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    /// Whether `fopen`/`fread` were lowered (the `--libc eden` file section).
+    static FILE_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    /// Whether the `main` wrapper builds argv in the heap.
+    static ARGV_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
 }
 
 /// Clears the static block at the start of a translation unit.
@@ -59,6 +63,8 @@ pub fn reset() {
     STATIC.with(|s| *s.borrow_mut() = (vec![0; RESERVED], StdHashMap::new()));
     FRAME.with(|f| f.borrow_mut().clear());
     FORMAT_USED.with(|u| u.set(false));
+    FILE_USED.with(|u| u.set(false));
+    ARGV_USED.with(|u| u.set(false));
 }
 
 /// The first conversion of a printf format the linear formatter does not
@@ -1382,6 +1388,56 @@ impl<'c> Translation<'c> {
         Ok(Some(out.map(|list| DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list))))
     }
 
+    /// `<stdio.h>` files under `--libc eden`: a `FILE *` is its handle as an
+    /// `int`.  `fopen` reads the path and mode from the heap, `fread` copies
+    /// the registered file's bytes into the heap (`c2da_lin_fopen`,
+    /// `c2da_lin_fread`); `fclose`/`fflush`/`fseek`/`ftell`/`feof` take no
+    /// other pointer and are the `--libc eden` helpers on the handle.
+    fn linear_stdio_call(
+        &self,
+        ctx: ExprContext,
+        expr_id: CExprId,
+        base: &str,
+        args: &[CExprId],
+    ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        let (runtime, types): (&str, &str) = match base {
+            "fopen" => ("c2da_lin_fopen", "II"),
+            "fread" => ("c2da_lin_fread", "IUUH"),
+            "fwrite" => ("c2da_lin_fwrite", "IUUH"),
+            "fclose" | "fflush" | "fseek" | "ftell" | "feof" => match libc::std_function(base) {
+                Some(function) => (self.require_std_function(function, expr_id)?, "H**"),
+                None => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        let fixed = types.trim_end_matches('*').len();
+        if args.len() < fixed || args.len() > types.len() {
+            return Err(self.linear_refuse(expr_id, &format!("`{base}` with {} arguments", args.len())));
+        }
+        if runtime.starts_with("c2da_lin_") {
+            libc::require_eden_files();
+            libc::require_write();
+            FILE_USED.with(|u| u.set(true));
+        }
+        let mut out = WithStmts::new_val(Vec::new());
+        for (arg, t) in args.iter().zip(types.chars()) {
+            let v = self.convert_expr(ctx.used(), *arg, None)?;
+            let t = match t {
+                'I' => Some(DaType::int()),
+                'U' | 'H' => Some(DaType::uint64()),
+                _ => None,
+            };
+            out = out.zip(v).map(|(mut list, v)| {
+                list.push(match t {
+                    Some(t) if Self::infer_type(&v).as_ref() != Some(&t) => cast(t, v),
+                    _ => v,
+                });
+                list
+            });
+        }
+        Ok(Some(out.map(|list| DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list))))
+    }
+
     fn linear_call(
         &self,
         ctx: ExprContext,
@@ -1399,6 +1455,11 @@ impl<'c> Translation<'c> {
         let base = name.strip_prefix("__builtin_").unwrap_or(&name);
         if let Some(lowered) = self.linear_format_call(ctx, expr_id, base, args)? {
             return Ok(Some(lowered));
+        }
+        if self.tcfg.libc == crate::LibcMode::Eden {
+            if let Some(lowered) = self.linear_stdio_call(ctx, expr_id, base, args)? {
+                return Ok(Some(lowered));
+            }
         }
         // (runtime function, argument types: `I` int, `U` uint64)
         let sig: Option<(&str, &str)> = match base {
@@ -1542,6 +1603,8 @@ pub fn runtime_source(reserve: u64) -> String {
     let stack_top = stack_base + STACK_BYTES;
     let brk = stack_top;
     let format_section = if FORMAT_USED.with(|u| u.get()) { FORMAT_RUNTIME } else { "" };
+    let file_section = if FILE_USED.with(|u| u.get()) { FILE_RUNTIME } else { "" };
+    let argv_section = if ARGV_USED.with(|u| u.get()) { ARGV_RUNTIME } else { "" };
     format!(
         r#"
 // --memory-model linear runtime: C memory is c2da_mem, an address is an int offset.
@@ -1805,9 +1868,83 @@ def c2da_lin_strstr(h : int; n : int) : int {{
     }}
     return 0
 }}
-{format_section}"#
+{format_section}{file_section}{argv_section}"#
     )
 }
+
+/// The `main` wrapper's argv builder (appended when `main` takes argv).
+const ARGV_RUNTIME: &str = r#"
+// The main wrapper's argv: argument `index` copied into the heap as a C string.
+def c2da_lin_put_arg(argv : int; index : int; s : string) {
+    let n = length(s)
+    let p = c2da_lin_malloc(uint64(n + 1))
+    for (j in range(n)) {
+        c2da_mem[p + j] = uint8(character_at(s, j))
+    }
+    c2da_mem[p + n] = uint8(0)
+    c2da_lin_st32(argv + index * 8, p)
+}
+"#;
+
+/// Records that the `main` wrapper builds argv in the heap.
+pub(crate) fn note_argv() {
+    ARGV_USED.with(|u| u.set(true));
+}
+
+/// `fopen`/`fread` over the heap under `--libc eden` (appended when used):
+/// the `c2da_eden_*` file table the host fills with `c2da_eden_add_file`.
+const FILE_RUNTIME: &str = r#"
+// <stdio.h> files over C memory: a FILE * is the --libc eden handle as an int.
+def private c2da_lin_cstr(p : int) : string {
+    return build_string() $(var w) {
+        var i = p
+        while (c2da_mem[i] != uint8(0)) {
+            write_char(w, int(c2da_mem[i]))
+            i++
+        }
+    }
+}
+
+def c2da_lin_fopen(path : int; mode : int) : int {
+    return int(c2da_eden_fopen(c2da_lin_cstr(path), c2da_lin_cstr(mode)))
+}
+
+def c2da_lin_fread(d : int; size : uint64; count : uint64; handle : uint64) : uint64 {
+    if (size == 0ul || count == 0ul || handle < 16ul) {
+        return 0ul
+    }
+    let slot = int(handle - 16ul)
+    if (slot >= length(c2da_eden_open_file) || c2da_eden_open_file[slot] < 0) {
+        return 0ul
+    }
+    let file = c2da_eden_open_file[slot]
+    let avail = int64(length(c2da_eden_file_data[file]))
+    let total = int64(size * count)
+    var pos = c2da_eden_open_pos[slot]
+    var n = 0l
+    while (n < total && pos < avail) {
+        c2da_mem[d + int(n)] = c2da_eden_file_data[file][pos]
+        n++
+        pos++
+    }
+    c2da_eden_open_pos[slot] = pos
+    return uint64(n) / size
+}
+
+// Only stdout and stderr are writable (--libc eden): any other handle writes nothing.
+def c2da_lin_fwrite(s : int; size : uint64; count : uint64; handle : uint64) : uint64 {
+    if (size == 0ul || count == 0ul || (handle != 1ul && handle != 2ul)) {
+        return 0ul
+    }
+    let total = int(size * count)
+    c2da_std_write(handle, build_string() $(var w) {
+        for (j in range(total)) {
+            write_char(w, int(c2da_mem[s + j]))
+        }
+    })
+    return count
+}
+"#;
 
 /// The printf family over the heap (appended when a call uses it).  Flags in
 /// `c2da_lin_vfmt`: 1 `-`, 2 `+`, 4 space, 8 `#`, 16 `0`.  Length modifiers

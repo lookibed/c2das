@@ -1220,6 +1220,24 @@
       "runtime": "required"
     },
     {
+      "id": "p201-linear-stdio",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p201_linear_stdio.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p72_std_file_io.bin"],
+      "expected": {
+        "stdout": "size=320 sum=4231379540\nc2das std-mode \n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p200-linear-printf",
       "status": "ready",
       "source_root": "tests/syntax",

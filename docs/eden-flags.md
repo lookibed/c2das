@@ -178,6 +178,15 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   variadic cursor, never a C stack slot. A byte 0 produced by `%c` cannot cross a
   daslang string on the stream path. Case `p200-linear-printf` (C == daslang;
   `--no-unsafe --dialect eden-0.6.4` and `eden_check.py` ok).
+- **Files, argv, errno (step 5, `--libc eden`).** A `FILE *` is the `--libc eden` handle
+  as an `int`. `fopen` reads its path and mode from the heap (`c2da_lin_fopen`); `fread`
+  copies the registered file's bytes into the heap (`c2da_lin_fread`); `fwrite` sends
+  heap bytes to stdout/stderr and writes nothing elsewhere (`c2da_lin_fwrite`);
+  `fclose`/`fflush`/`fseek`/`ftell`/`feof` are the `--libc eden` helpers on the handle.
+  The `main` wrapper builds `argv` and its strings in the heap (`c2da_lin_put_arg`,
+  `argv[argc]` NULL). `errno` is 4 bytes at heap offset 8, inside the reserved first 16.
+  `fopen` does not set `errno` under the model. Case `p201-linear-stdio` (C == daslang;
+  `--no-unsafe --dialect eden-0.6.4` and `eden_check.py` ok).
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
   - `&` of a global or a parameter, and a global array (or an array in a parameter or a
@@ -263,8 +272,9 @@ Things the target cannot fix and has to document:
      - `<string.h>` string functions: done in step 4 (p196); the printf family over
        `c2da_mem`: done in step 5 (p200). binjgb under `--libc eden --memory-model linear
        --dialect eden-0.6.4 --no-unsafe` (case `binjgb-cgb-acid2-eden-linear`, known-red)
-       then stops at `fopen` (`file_read_aligned`, `common.c:43`): the `<stdio.h>` file
-       functions over C memory;
+       then stopped at `fopen`; the `<stdio.h>` file functions, argv and errno over the
+       heap: done in step 5 (p201). binjgb next stops at `e->cart_info->cgb_flag`
+       (`emulator.c:4776`): an enumeration read through a pointer;
      - by-value struct parameters with pointer fields;
      - then binjgb.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,

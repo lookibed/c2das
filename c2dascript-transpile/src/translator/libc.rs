@@ -33,7 +33,22 @@ thread_local! {
     static PRELUDE_USED: Cell<bool> = const { Cell::new(false) };
     static LAYOUT: Cell<StdLayout> = const { Cell::new(StdLayout::UNKNOWN) };
     static EDEN: Cell<bool> = const { Cell::new(false) };
+    static LINEAR: Cell<bool> = const { Cell::new(false) };
 }
+
+/// Switches the helpers that own C memory (`errno`, the `main` wrapper's
+/// `argv`) to the `--memory-model linear` heap (`linear.rs`).
+pub(crate) fn set_linear(on: bool) {
+    LINEAR.with(|linear| linear.set(on));
+}
+
+fn linear() -> bool {
+    LINEAR.with(|linear| linear.get())
+}
+
+/// `errno` under `--memory-model linear`: 4 bytes inside the heap's
+/// reserved first 16, which no object occupies.
+const LINEAR_ERRNO_AT: u64 = 8;
 
 /// The C object-layout facts the helpers need, taken from the translation
 /// unit's own Clang-exported types rather than assumed (see `layout.rs`).
@@ -844,6 +859,14 @@ pub(crate) fn require_write() -> &'static str {
     WRITE
 }
 
+/// Registers the `--libc eden` file table (open files, positions, data)
+/// and `c2da_eden_fopen`, which the linear `fopen`/`fread` read directly.
+pub(crate) fn require_eden_files() {
+    for name in [EDEN_FILE_DATA, EDEN_OPEN_FILE, EDEN_OPEN_POS, EDEN_FOPEN, EDEN_FCLOSE] {
+        require(name);
+    }
+}
+
 /// Records the exported zero-argument `main` wrapper for a C `main`.
 ///
 /// C's `main` keeps the name the renamer gave it (`main_0`); the wrapper is the
@@ -851,7 +874,7 @@ pub(crate) fn require_write() -> &'static str {
 /// daslang command line becomes a C `argv`.
 fn require_main_wrapper_with(facts: StdLayout, translated_main: &str, arity: usize) {
     set_layout(facts);
-    if arity >= 2 {
+    if arity >= 2 && !linear() {
         require(STORE);
     }
     let entry = build_main_wrapper(translated_main, arity);
@@ -925,6 +948,7 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         STRTOLL | STRTOULL | ATOI => &[STRTO],
         ERRNO_CELL | IO_BYTE => &[CELL_ALLOC],
         CELL_ALLOC => &[RAW_PUT],
+        ERRNO_LOCATION if linear() => &[],
         ERRNO_LOCATION => &[ERRNO_CELL],
         SET_ERRNO | GET_ERRNO => &[ERRNO_LOCATION],
         ABORT => &[WRITE, STDERR],
@@ -4500,6 +4524,14 @@ fn build_fgets() -> DaDecl {
 /// `def c2da_std_get_errno() : int` — the cell's value, for the helpers that
 /// report it rather than set it.
 fn build_get_errno() -> DaDecl {
+    if linear() {
+        return helper(
+            GET_ERRNO,
+            vec![],
+            DaType::int(),
+            vec![ret(call("c2da_lin_ld32", vec![DaExpr::ConstInt(LINEAR_ERRNO_AT as i64)]))],
+        );
+    }
     helper(
         GET_ERRNO,
         vec![],
@@ -5272,7 +5304,10 @@ fn build_main_wrapper(translated_main: &str, arity: usize) -> DaDecl {
             } else {
                 ret(call(
                     translated_main,
-                    vec![DaExpr::ConstInt(0), DaExpr::ConstNull],
+                    vec![
+                        DaExpr::ConstInt(0),
+                        if linear() { DaExpr::ConstInt(0) } else { DaExpr::ConstNull },
+                    ],
                 ))
             }],
         ),
@@ -5335,6 +5370,43 @@ fn build_main_wrapper(translated_main: &str, arity: usize) -> DaDecl {
     ];
     if arity == 1 {
         stmts.push(call_main);
+        return main_wrapper_decl(stmts);
+    }
+    if linear() {
+        // `--memory-model linear`: argv and its strings live in the heap
+        // (`c2da_lin_put_arg`); `argv[argc]` is NULL, 8 bytes of zero.
+        super::linear::note_argv();
+        let put = |index: DaExpr, arg: DaExpr| {
+            DaStmt::Expr(call("c2da_lin_put_arg", vec![var("argv_at"), index, arg]))
+        };
+        stmts.extend(vec![
+            local(
+                "argv_at",
+                DaType::int(),
+                call(
+                    "c2da_lin_calloc",
+                    vec![
+                        cast(op2("+", var("argc"), DaExpr::ConstInt(1)), DaType::uint64()),
+                        uint64_const(8),
+                    ],
+                ),
+            ),
+            put(
+                DaExpr::ConstInt(0),
+                DaExpr::Index(Box::new(var("raw")), Box::new(var("script"))),
+            ),
+            local("at", DaType::int(), DaExpr::ConstInt(1)),
+            assign(var("i"), var("first")),
+            while_(
+                op2("<", var("i"), call("length", vec![var("raw")])),
+                vec![
+                    put(var("at"), DaExpr::Index(Box::new(var("raw")), Box::new(var("i")))),
+                    advance("at"),
+                    advance("i"),
+                ],
+            ),
+            ret(call(translated_main, vec![var("argc"), var("argv_at")])),
+        ]);
         return main_wrapper_decl(stmts);
     }
     stmts.extend(vec![
@@ -6293,12 +6365,23 @@ fn build_errno_location() -> DaDecl {
         ERRNO_LOCATION,
         vec![],
         DaType::uint64(),
-        vec![ret(var(ERRNO_CELL))],
+        vec![ret(if linear() { uint64_const(LINEAR_ERRNO_AT) } else { var(ERRNO_CELL) })],
     )
 }
 
 /// `def c2da_std_set_errno(code : int)`
 fn build_set_errno() -> DaDecl {
+    if linear() {
+        return helper(
+            SET_ERRNO,
+            vec![param("code", DaType::int())],
+            DaType::void(),
+            vec![DaStmt::Expr(call(
+                "c2da_lin_st32",
+                vec![DaExpr::ConstInt(LINEAR_ERRNO_AT as i64), var("code")],
+            ))],
+        );
+    }
     helper(
         SET_ERRNO,
         vec![param("code", DaType::int())],

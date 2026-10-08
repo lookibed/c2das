@@ -4261,6 +4261,7 @@ fn translate_impl(
     linear::reset();
     libc::reset();
     libc::set_eden(tcfg.libc == crate::LibcMode::Eden);
+    libc::set_linear(tcfg.target.memory_model == crate::target::MemoryModel::Linear);
 
     // Prune unreachable system declarations (removes __-prefixed noise from system headers)
     t.ast_context.prune_unwanted_decls(false);
