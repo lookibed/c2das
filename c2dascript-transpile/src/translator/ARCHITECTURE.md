@@ -192,10 +192,52 @@ makes a field read through `S const?` const, and `T? const` does not copy into `
 reinterpret compiles to its operand.  A null base raises daslang's located exception in the
 interpreter (the indexed load faulted) and is unchanged elsewhere; `unsafe_deref` drops the
 check as it drops the index check.  What stays on byte offsets: addresses of fields (`&p->f`),
-fixed-array fields (`p->arr[i]` — daslang bounds-checks a fixed-array index and C indexes past
-field arrays; a separate decision), whole-record and whole-array copies, bitfields, union
-members of a type other than the union field's storage, and every storage-backed record.  `p104-field-by-name`, `p105-field-by-offset-kept` and the source
-invariant `named_field_access_requires_a_layout_proof` are the fixtures.
+whole-record and whole-array copies, bitfields, union members of a type other than the union
+field's storage, and every storage-backed record.  `p104-field-by-name`,
+`p105-field-by-offset-kept` and the source invariant
+`named_field_access_requires_a_layout_proof` are the fixtures.
+
+## Subscripts of declared arrays
+
+A subscript of a declared array *variable* — a global, a static, a local, a row of an array
+of arrays — is daslang's fixed-array index of that object (`mod.rs convert_subscript`,
+`object_memory.rs direct_array_object`, `direct_array_lvalue`): `ceilingclip[x]`,
+`grid[i][j]`, `players[i].health`.  The former form, the decayed address indexed as a pointer
+(`addr(a[0])[x]`), was a bounds-checked element load plus an address plus a pointer index per
+access; the direct index measured −21% in the interpreter
+(`docs/followups/translated_output_critique.md`, finding 2).  C forms and reads an element
+only inside the array (C11 6.5.6p8), so the index check daslang keeps is a check on undefined
+behaviour: an index past a declared array raises daslang's located exception in the
+interpreter, and `--unsafe-deref` drops it as it drops the null checks — `apply_unsafe_deref`
+adds `hint(unsafe_range_check)` beside `unsafe_deref` (`ast_bound_check_elision.cpp`), so that
+build reads the neighbouring bytes exactly as C does.
+
+An array *field* of a natural record (`p->arr[i]`, `s.arr[i]`) is the separate decision the
+previous section deferred, and the corpus decided it against the by-name index in both builds.
+C programs index past a field array into the fields declared beside it on purpose: Doom's
+`pl->top[pl->maxx + 1] = 0xffff` and `pl->top[pl->minx - 1] = 0xffff` write the `pad2` and
+`pad1` that bracket `top` (`r_plane.c`).  The checked build threw `index out of range, 320 of
+320` there, and the `--unsafe-deref` build with `hint(unsafe_range_check)` segfaulted on the
+`-1`: daslang's unchecked fixed-array index scales the index in `uint32`
+(`SimNode_AtT::compute`, `pValue + uint32_t(idx)*stride`), so the element before the array is
+four gigabytes away instead of two bytes back.  A field array therefore keeps its bytes at the
+Clang offset — a fresh typed pointer at the offset, then a pointer index, whose arithmetic is
+C's — until daslang's unchecked index computes in pointer width (finding 4 stays open).  Three
+more shapes keep the pointer form because C's own rules let them leave the array:
+
+- **The address of an element.**  `&a[i]` is the decayed pointer stepped by the index
+  (`operators.rs`, `AddressOf`): `&a[N]` is the legal one-past-the-end pointer
+  (`end = &table[5]`, Doom's `&vissprites[MAXVISSPRITES]`), which a fixed-array index refuses.
+- **The struct hack.**  A trailing array field of one element (or none) is memory allocated
+  past the record (wasm3's `code[1]`): a field array, bytes at the Clang offset.
+- **Not an object.**  A decayed pointer (`int a[]` parameter, a pointer variable), an array
+  member of a union (bytes of the union field's storage), an array of storage-backed records
+  (`wrapper_array_base`) and an array of arrays whose row is one of these.
+
+What the hint changes for a declared variable is undefined behaviour only: an index past the
+array reads the neighbouring bytes as C does, and a negative index — undefined in C for a
+variable array — faults on the same `uint32` scaling instead of reading before the array.
+`p178-direct-array-subscripts` is the fixture, in both builds.
 
 ## Bitfield storage units
 

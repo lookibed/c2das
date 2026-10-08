@@ -312,6 +312,68 @@ impl<'c> Translation<'c> {
         }
     }
 
+    /// The declared array variable behind a subscript's decayed left
+    /// operand, when the subscript may index it as daslang's own fixed array.
+    ///
+    /// C subscripts a declared array only inside it (C11 6.5.6p8), and
+    /// daslang's fixed-array index is exactly that object: `a[i]` on the
+    /// array itself, not `addr(a[0])` indexed as a pointer (a bounds-checked
+    /// element load, an address and a pointer index per access).  The object
+    /// is a variable of constant array type (a global, a static, a local)
+    /// or an element of such an array (an array of arrays).  An element of
+    /// storage-backed record type is a wrapper (`wrapper_array_base`) and a
+    /// decayed *pointer* (a parameter `int a[]`) names no array at all:
+    /// `None`, the pointer form.
+    ///
+    /// An array *field* (`p->arr[i]`, `s.arr[i]`) is never direct, in
+    /// either build: C programs index past a field array into the fields
+    /// declared beside it on purpose — Doom's `pl->top[pl->maxx + 1]` and
+    /// `pl->top[pl->minx - 1]` write the `pad2` and `pad1` that bracket
+    /// `top` — and daslang's unchecked index (`hint(unsafe_range_check)`,
+    /// `SimNode_AtT::compute`) scales the index in `uint32`, so the `-1`
+    /// that C resolves to the field before lands four gigabytes away.  The
+    /// field's bytes at its Clang offset, indexed as a pointer, are the one
+    /// spelling with C's arithmetic.  Returns the C expression of the array
+    /// object.
+    pub(crate) fn direct_array_object(&self, arr: CExprId) -> Option<CExprId> {
+        let (CExprKind::ImplicitCast(_, array, CastKind::ArrayToPointerDecay, _, _)
+        | CExprKind::ExplicitCast(_, array, CastKind::ArrayToPointerDecay, _, _)) =
+            self.ast_context[self.strip_lvalue_wrappers(arr)].kind
+        else {
+            return None;
+        };
+        let array = self.strip_lvalue_wrappers(array);
+        let ctype = self.ast_context[array].kind.get_qual_type()?;
+        let CTypeKind::ConstantArray(element, _) = self.ast_context.resolve_type(ctype.ctype).kind
+        else {
+            return None;
+        };
+        if self.storage_backed_record_of(element).is_some()
+            || !matches!(
+                self.convert_type(ctype).ok()?.kind,
+                DaTypeKind::FixedArray(..)
+            )
+        {
+            return None;
+        }
+        let is_object = match self.ast_context[array].kind {
+            CExprKind::DeclRef(..) => true,
+            CExprKind::ArraySubscript(_, inner, _, _) => self.direct_array_object(inner).is_some(),
+            _ => false,
+        };
+        is_object.then_some(array)
+    }
+
+    /// The daslang fixed array a direct subscript indexes, as an lvalue:
+    /// the array variable or the element of the enclosing direct array.
+    pub(crate) fn direct_array_lvalue(
+        &self,
+        ctx: ExprContext,
+        array: CExprId,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        self.convert_expr(ctx.used(), array, None)
+    }
+
     /// `(uint64)p + i * sizeof(record)` — the address of `p[i]` for a C pointer
     /// to a storage-backed record, computed in C's own element size.
     fn record_element_raw_address(

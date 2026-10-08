@@ -1637,6 +1637,23 @@
       "runtime": "required"
     },
     {
+      "id": "p178-direct-array-subscripts",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p178_direct_array_subscripts.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "clip 2 6 counter 4 local 8 103 55 10\ngrid 35 21 3 rows 6 69 87\npoints 2 7 9 0\nplane 37 1 17 top 10 bottom 18 corner 9 9\ndecayed 183 150 steps 5 word 197632 hack 30\n",
+        "exit_code": 0
+      },
+      "rust_assertion": "ptr_tests::p178_declared_array_subscripts_are_fixed_array_indexes",
+      "runtime": "required"
+    },
+    {
       "id": "p160-structured-loops",
       "status": "ready",
       "source_root": "tests/syntax",

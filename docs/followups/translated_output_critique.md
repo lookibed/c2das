@@ -38,14 +38,26 @@
      never frees them.
 2. **Global array subscripts.** Applies only to the declared array object, never to a decayed
    pointer. An out-of-range index throws a located exception; `--unsafe-deref` keeps C
-   semantics.
+   semantics.  Landed (`translator/ARCHITECTURE.md`, "Subscripts of declared arrays";
+   `p178-direct-array-subscripts`): `&a[i]` keeps the pointer form (`&a[N]` is one past
+   the end), `--unsafe-deref` adds `hint(unsafe_range_check)`.  What Doom still indexes
+   through `addr(a[0])`: element addresses (`&players[i]`, `&vissprites[128]`) and arrays
+   of storage-backed records (`states`, `mobjinfo`, `playerstarts`), see note 1.
 3. **Why the labelled switch is slow.** `SimNode_BlockWithLabels::eval`
    (`src/simulate/simulate.cpp:611`) tests `stopFlags` after every statement. A label directly
    before a void function's final `return` fails at run time (`jump to label 0 failed`). This
    is why the translator emits the double `return`; it is a candidate issue for the
    `lookibed/daScript` fork.
 4. **Array fields through a pointer.** C may index past a field array. The bounds check fails
-   closed; `--unsafe-deref` keeps C semantics.
+   closed; `--unsafe-deref` keeps C semantics.  **Open; refuted by the corpus.**  "Fails
+   closed" fails Doom itself: `pl->top[pl->maxx + 1]` and `pl->top[pl->minx - 1]` write the
+   `pad2`/`pad1` fields declared around `top` for exactly that (`index out of range, 320 of
+   320` in `R_DrawPlanes`), and `--unsafe-deref` with `hint(unsafe_range_check)` does not
+   keep C semantics either: daslang's unchecked index scales in `uint32`
+   (`SimNode_AtT::compute`), so `top[-1]` segfaults.  wasm3's `code[1]` (the struct hack)
+   is the same shape.  Array fields stay on offsets; the finding waits for an unchecked
+   index that computes in pointer width (a candidate issue for the `lookibed/daScript`
+   fork).
 8. **`[sideeffects]`** was added for daScript#10, where a call was wrongly treated as pure and
    dropped. Removing it needs proof that a store through a `uint64`-reinterpreted address is
    seen as a side effect.

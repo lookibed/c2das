@@ -280,24 +280,27 @@ fn unsafe_deref_annotates_every_definition_and_is_opt_in() {
     // daScript's grammar allows one annotation block per declaration, so an
     // exported function must gain the annotation inside the block it already
     // has rather than on a second line.
+    // `unsafe_deref` drops the null checks; `hint(unsafe_range_check)` drops
+    // the range check of a direct fixed-array subscript (p178), so an access
+    // past a C array reaches the neighbouring bytes as C's does.
     assert!(
-        unchecked.contains("[export, unsafe_deref, sideeffects]"),
+        unchecked.contains("[export, unsafe_deref, hint(unsafe_range_check), sideeffects]"),
         "an exported definition must keep `export` in the same block:\n{unchecked}"
     );
     assert!(
-        !unchecked.contains("[export]\n[unsafe_deref]"),
+        !unchecked.contains("[export]\n[unsafe_deref"),
         "two annotation blocks in a row are a daScript syntax error:\n{unchecked}"
     );
 
     // Only the annotations differ: the bodies are the same text either way.
     let stripped: String = unchecked
         .lines()
-        .filter(|line| *line != "[unsafe_deref]")
+        .filter(|line| *line != "[unsafe_deref, hint(unsafe_range_check)]")
         .map(|line| {
             format!(
                 "{}\n",
-                line.replace("unsafe_deref, ", "")
-                    .replace(", unsafe_deref", "")
+                line.replace("unsafe_deref, hint(unsafe_range_check), ", "")
+                    .replace(", unsafe_deref, hint(unsafe_range_check)", "")
             )
         })
         .collect();

@@ -1424,6 +1424,22 @@ impl<'c> Translation<'c> {
                 {
                     return self.address_of_storage_object(cqual_type, address);
                 }
+                // `&a[i]` on a declared array is the decayed pointer stepped
+                // by the index, never the address of a fixed-array element:
+                // `&a[N]` is C's legal one-past-the-end pointer, which the
+                // fixed-array index of `a[i]` refuses
+                // (`mod.rs convert_subscript`).
+                let stripped = self.strip_lvalue_wrappers(arg);
+                if let CExprKind::ArraySubscript(ty, arr, idx, _) = self.ast_context[stripped].kind
+                {
+                    if self.direct_array_object(arr).is_some() {
+                        let inner = self.convert_subscript(ctx, stripped, ty, arr, idx, false)?;
+                        return Ok(WithStmts::new_val(DaExpr::Unsafe(Box::new(DaExpr::Addr(
+                            Box::new(inner.val),
+                        ))))
+                        .prepend_stmts(inner.stmts));
+                    }
+                }
                 // `&x` has pointer type, but `x` does not: passing the result
                 // type down would make the operand cast itself to `T?`.
                 let inner = self.convert_expr(ctx, arg, None)?;

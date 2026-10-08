@@ -10,8 +10,18 @@ the bitfield is a shift and a mask on it by name (`s.c2da_bits_0`, `p.c2da_bits_
 layout (`layout.rs record_has_proven_layout`) is spelled `p.field` / `p.inner.field`
 (`named_field_lvalue`, the only such lowering), and module assembly refuses a record named
 without its `static_assert` layout proof; a `const S *` base is converted through
-`abi.rs named_field_base`.  Addresses of fields, fixed-array fields, aggregate copies, bitfields
-and storage-backed records stay on Clang byte offsets.  A storage-backed record field (union,
+`abi.rs named_field_base`.  A subscript of a declared array variable — a global, a static, a
+local, a row of an array of arrays — is daslang's fixed-array index of the object itself
+(`mod.rs convert_subscript`, `object_memory.rs direct_array_object`), never the decayed
+address indexed as a pointer; the index past the array that C forbids raises daslang's located
+exception and `--unsafe-deref` (`hint(unsafe_range_check)`) drops the check.  An array *field*
+keeps its bytes at the Clang offset in both builds, because C indexes past a field array into
+the neighbouring fields on purpose (Doom's visplane pads, `top[minx - 1]` included) and
+daslang's unchecked index scales in `uint32`, so only the pointer index has C's arithmetic.  The
+address of an element (`&a[N]` is one past the end) and every subscript of a pointer keep the
+pointer form too; `p178` is the fixture.
+Addresses of fields, aggregate copies, bitfields and storage-backed records stay on Clang byte
+offsets.  A storage-backed record field (union,
 packed or bitfield struct) of a natural record is inline integer storage (`layout.rs
 inline_record_storage`): its members are read through their own types at the field's address
 (`inline_record_place_address`), a member of the storage's own type is the field itself, and the

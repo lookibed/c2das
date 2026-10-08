@@ -29,6 +29,30 @@ fn transpile_with_libc(name: &str, libc: c2dascript_transpile::LibcMode) -> Stri
     s
 }
 
+/// The `--unsafe-deref` translation under `--libc std`: no null checks and
+/// no fixed-array range checks (`hint(unsafe_range_check)`).
+fn transpile_unsafe_deref(name: &str) -> String {
+    let c_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join(format!("tests/syntax/{}.c", name));
+    assert!(c_path.exists(), "C file not found: {:?}", c_path);
+    let (_td, cc_path) = c2dascript_transpile::create_temp_compile_commands(&[c_path.clone()]);
+    let temp = tempfile::tempdir().expect("temporary AST/render output directory");
+    let config = c2dascript_transpile::TranspilerConfig {
+        output_dir: Some(temp.path().join("das")),
+        libc: c2dascript_transpile::LibcMode::Std,
+        unsafe_deref: true,
+        ..Default::default()
+    };
+    let outputs = c2dascript_transpile::transpile_checked(config, &cc_path, &["-w"])
+        .unwrap_or_else(|error| panic!("{name}: strict AST/render translation failed: {error}"));
+    assert_eq!(outputs.len(), 1, "{name}: one input must produce one output");
+    let s = std::fs::read_to_string(&outputs[0]).expect("fresh temporary daScript output");
+    eprintln!("=== {} (unsafe_deref) ===\n{}", name, s);
+    s
+}
+
 fn transpile_error(name: &str) -> String {
     let c_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -292,13 +316,13 @@ fn p100_conversions_of_values_already_of_the_target_type_are_dropped() {
     // An `int` index, a `u32` call with `u32` arguments, arithmetic of two
     // `int64`s and a load through a `const` pointer are already the type
     // the conversion names.
-    assert!(d.contains("total += unsafe(unsafe(addr(table_0[0]))[i_0])"));
+    assert!(d.contains("total += table_0[i_0]"));
     assert!(d.contains("bits = get_bits(word_0, 8u)\n"));
     assert!(d.contains("more = 16u * get_bits(word_0, 4u)\n"));
     assert!(d.contains("return ns / 1000000000l\n"));
     // Indexing a pointer already of the element pointer type needs no reinterpret.
     assert!(d.contains("return unsafe(in_0[i])\n"));
-    assert!(d.contains("from_const = unsafe(unsafe(addr(table_0[0]))[ci])\n"));
+    assert!(d.contains("from_const = table_0[ci]\n"));
     // `uint8(c ? int(t1) : int(t2))` of two `uint8`s is the conditional.
     assert!(d.contains("return int(t2) == 255 ? t1 : t2\n"));
     // Conversions that change the type stay.
@@ -562,7 +586,8 @@ fn p105_unproven_and_address_places_keep_byte_offsets() {
         "{body}"
     );
     // In the proven `Buf`, the scalar fields go by name while the address of
-    // a field and an element of a fixed-array field stay on offsets.
+    // a field and an element of a fixed-array field stay on offsets (p178
+    // says why the field array is not indexed by name).
     assert!(d.contains("    s_0 = b_0.len + b_0.tail\n"));
     assert!(d.contains("unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(b_0)) + 12ul))"));
     assert!(d.contains("unsafe(reinterpret<uint8?>(unsafe(reinterpret<uint64>(b_0)) + 4ul))"));
@@ -727,7 +752,7 @@ fn p132_storage_objects_keep_their_storage() {
     assert!(d.contains("struct st_t {\n    id : int\n    a : uint64\n    mine : int?\n}\n"));
     assert!(d.contains("        states = c2da_ginit_states()\n"));
     assert!(d.contains(
-        "invoke(unsafe(unsafe(reinterpret<function<():void>?>(unsafe(reinterpret<uint64>(unsafe(addr(unsafe(unsafe(addr(states[0]))[0]).a))))))[0]))"
+        "invoke(unsafe(unsafe(reinterpret<function<():void>?>(unsafe(reinterpret<uint64>(unsafe(addr(states[0].a))))))[0]))"
     ));
     // An initialised (acyclic) array is built the same way.
     assert!(
@@ -940,7 +965,7 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
     // `while (n--)`.
     assert!(
         body.contains(
-            "var c2da_postinc_2 : int = i\n    i += 1\n    unsafe(unsafe(addr(a[0]))[c2da_postinc_2]) = 7"
+            "var c2da_postinc_2 : int = i\n    i += 1\n    a[c2da_postinc_2] = 7"
         ),
         "{body}"
     );
@@ -980,8 +1005,8 @@ fn p153_self_updates_are_compound_assignments() {
         "ull <<= 40ul",
         "f += 0.25",
         "d -= 0.5lf",
-        "unsafe(unsafe(addr(arr[0]))[i]) *= 3",
-        "unsafe(unsafe(addr(arr[0]))[i - 1]) += unsafe(unsafe(addr(arr[0]))[i])",
+        "arr[i] *= 3",
+        "arr[i - 1] += arr[i]",
         "*p -= 1",
         "a.count += 1",
         "pa.mean += 0.5lf",
@@ -1137,7 +1162,7 @@ fn p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer
     // A local pointer and a value that cannot reach it: the store, then the
     // step — a pure value, a read through another pointer, a global read.
     assert!(
-        main.contains("        *dest = unsafe(unsafe(addr(table_0[0]))[i_0 & 15])\n        unsafe {\n            dest += 1\n        }\n"),
+        main.contains("        *dest = table_0[i_0 & 15]\n        unsafe {\n            dest += 1\n        }\n"),
         "{main}"
     );
     assert!(
@@ -2055,7 +2080,7 @@ fn p176_union_fields_lie_inline_in_natural_records() {
     );
     assert!(body.contains("    var fnp : actionf_t?\n"), "{body}");
     assert!(
-        body.contains("var c2da_fresh3 : actionf_p1? = unsafe(reinterpret<actionf_p1?>(unsafe(reinterpret<uint64>(unsafe(addr(unsafe(unsafe(addr(pool[0]))[1]).thinker.function_0))))))"),
+        body.contains("var c2da_fresh3 : actionf_p1? = unsafe(reinterpret<actionf_p1?>(unsafe(reinterpret<uint64>(unsafe(addr(pool[1].thinker.function_0))))))"),
         "{body}"
     );
     // The braced initializer of a union field reads the storage out of the
@@ -2125,10 +2150,10 @@ fn p177_bitfield_records_are_natural_with_unit_fields() {
     // A copy is a value copy; stores go directly to the object, an array
     // element, an embedded record, a malloc'd record.
     assert!(body.contains("    d = c_0\n"), "{body}");
-    assert!(body.contains("    unsafe(unsafe(addr(pks[0]))[1]) = pk\n"), "{body}");
+    assert!(body.contains("    pks[1] = pk\n"), "{body}");
     assert!(body.contains("    d.c2da_bits_0 = d.c2da_bits_0 & 0xff00ffffu | (99u & 0xffu) << 16u\n"), "{body}");
     assert!(
-        body.contains("    unsafe(unsafe(addr(palette[0]))[1]).c2da_bits_0 = unsafe(unsafe(addr(palette[0]))[1]).c2da_bits_0 & 0xffffff00u | 100u & 0xffu\n"),
+        body.contains("    palette[1].c2da_bits_0 = palette[1].c2da_bits_0 & 0xffffff00u | 100u & 0xffu\n"),
         "{body}"
     );
     assert!(body.contains("    px.c.c2da_bits_0 = px.c.c2da_bits_0 & 0xff00ffffu | (77u & 0xffu) << 16u\n"), "{body}");
@@ -2141,4 +2166,94 @@ fn p177_bitfield_records_are_natural_with_unit_fields() {
     assert!(body.contains("    word = *unsafe(addr<uint?>(c_0))\n"), "{body}");
     // The packed fallback keeps the byte path.
     assert!(body.contains("t.c2da_storage + 3ul)), 4ul))"), "{body}");
+}
+
+#[test]
+fn p178_declared_array_subscripts_are_fixed_array_indexes() {
+    let d = transpile_with_libc(
+        "p178_direct_array_subscripts",
+        c2dascript_transpile::LibcMode::Std,
+    );
+    let main = function_body(&d, "main_0");
+    // A global, a static, a local: the array indexed itself, read, written,
+    // compound-assigned and stepped in place.
+    assert!(main.contains("    ceilingclip[rw_x] = int16(mid)\n"), "{main}");
+    assert!(
+        main.contains("    floorclip[rw_x] = int16(int(ceilingclip[rw_x]) + 1)\n"),
+        "{main}"
+    );
+    assert!(main.contains("    main__counter[1] += 1\n    main__counter[1] += local[2]\n"), "{main}");
+    assert!(main.contains("    local[rw_x] = local[rw_x - 1] * 2\n    local[0] <<= 3\n"), "{main}");
+    // An array of arrays is indexed twice; an array of natural records
+    // reaches the element's field by name.
+    assert!(main.contains("            grid[i_3][j_0] = i_3 * 10 + j_0\n"), "{main}");
+    assert!(main.contains("    grid[1][2] += grid[2][3]\n    grid[2][0] += 1\n"), "{main}");
+    assert!(main.contains("        points[i_4].x = i_4\n        points[i_4].y = i_4 * i_4\n"), "{main}");
+    assert!(main.contains("    points[2].y += points[3].x\n    points[1].x += 1\n"), "{main}");
+    assert!(main.contains("    v_0 = by_value(planes[1], 2)\n"), "{main}");
+    // The address of an element is the decayed pointer stepped by the index:
+    // `&table[5]` is the one-past-the-end pointer a fixed-array index would
+    // refuse.
+    assert!(main.contains("    p = unsafe(addr<int?>(unsafe(unsafe(addr(local[0]))[2])))\n"), "{main}");
+    assert!(
+        main.contains("    end = unsafe(addr<int const?>(unsafe(unsafe(addr(table_0[0]))[5])))\n"),
+        "{main}"
+    );
+    // A subscript of a decayed pointer stays a pointer index.
+    let body = function_body(&d, "sum_decayed");
+    assert!(body.contains("        s += unsafe(a[i])\n"), "{body}");
+    assert!(main.contains("    unsafe(p[1]) = 55\n"), "{main}");
+    let body = function_body(&d, "row_sum");
+    assert!(body.contains("        s_0 += grid[row][j]\n"), "{body}");
+    // Nothing indexes a declared array variable through its decayed address.
+    assert!(!main.contains("addr(ceilingclip[0])") && !main.contains("addr(grid[0])"), "{main}");
+    // An array *field* keeps its bytes at the Clang offset: C indexes past a
+    // field array into the fields beside it (Doom's visplane pads, with
+    // `-1` among the indexes), which a fixed-array index refuses and
+    // daslang's unchecked index scales in `uint32`.
+    let body = function_body(&d, "fill_plane");
+    assert!(
+        body.contains("    var c2da_fresh0 : uint16? = unsafe(reinterpret<uint16?>(unsafe(reinterpret<uint64>(plane)) + 4ul))\n    unsafe(unsafe(reinterpret<uint16?>(c2da_fresh0))[x]) = uint16(v)\n"),
+        "{body}"
+    );
+    assert!(!body.contains("plane.top["), "{body}");
+    let body = function_body(&d, "by_value");
+    assert!(body.contains("    unsafe(unsafe(addr(plane_1.top[0]))[x_1]) = uint16(7)\n"), "{body}");
+    // An array member of a union is bytes at its Clang offset.
+    let body = function_body(&d, "tagged_bytes");
+    assert!(
+        body.contains("unsafe(reinterpret<uint8?>(unsafe(reinterpret<uint64>(t)) + 4ul))"),
+        "{body}"
+    );
+    assert!(!body.contains("t.w.bytes["), "{body}");
+
+    // The struct hack, a trailing one-element array field indexed past the
+    // record, is one more field array at its offset.
+    let body = function_body(&d, "fill_page");
+    assert!(
+        body.contains("unsafe(reinterpret<int?>(unsafe(reinterpret<uint64>(pg)) + 4ul))"),
+        "{body}"
+    );
+    assert!(!body.contains("pg.code["), "{body}");
+
+    // `--unsafe-deref` drops the range check of the direct index with the
+    // null checks (`hint(unsafe_range_check)`); the spelling is the same in
+    // both builds — the field arrays stay on offsets there too.
+    let u = transpile_unsafe_deref("p178_direct_array_subscripts");
+    assert!(
+        u.contains("[export, unsafe_deref, hint(unsafe_range_check), sideeffects]\ndef fill_plane("),
+        "{u}"
+    );
+    let body = function_body(&u, "fill_plane");
+    assert!(
+        body.contains("    unsafe(unsafe(reinterpret<uint16?>(c2da_fresh0))[x]) = uint16(v)\n"),
+        "{body}"
+    );
+    assert!(!body.contains("plane.top["), "{body}");
+    let umain = function_body(&u, "main_0");
+    assert!(umain.contains("    ceilingclip[rw_x] = int16(mid)\n"), "{umain}");
+    assert!(
+        umain.contains("    end = unsafe(addr<int const?>(unsafe(unsafe(addr(table_0[0]))[5])))\n"),
+        "{umain}"
+    );
 }

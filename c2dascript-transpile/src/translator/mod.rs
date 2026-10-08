@@ -1175,63 +1175,7 @@ impl<'c> Translation<'c> {
             }
 
             ArraySubscript(ty, arr, idx, _lrvalue) => {
-                // `p[i]` on a pointer to a storage-backed record names raw
-                // bytes, not a wrapper: read as a value it is a C by-value copy
-                // of the object at that address.  A decayed fixed array really
-                // is a daScript array of wrappers and keeps its own lowering.
-                if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
-                    if !self.is_wrapper_array_decay(*arr) {
-                        if let Some(address) = self.storage_object_address(ctx, expr_id)? {
-                            let raw = self.raw_address_of_place(&address);
-                            return self.load_storage_object(record_id, raw);
-                        }
-                    }
-                }
-                let arr_val = match self.wrapper_array_base(ctx, *arr)? {
-                    Some(base) => base,
-                    None => self.convert_expr(ctx, *arr, None)?,
-                };
-                let idx_val = self.convert_expr(ctx, *idx, None)?;
-                // ArraySubscript — daScript requires Index on pointer/array to be
-                // inside `unsafe()`. The C AST type check (is_pointer_type) sometimes
-                // fails for nullable arrays; always wrapping is safe since
-                // redundant unsafe(unsafe(...)) is harmless in daScript.
-                let needs_unsafe = true;
-                // A C subscript index is signed: `p[-1]` is a legal read of
-                // the element before `p`.  Coercing it to `uint` would turn
-                // that into a four-billion-element offset.
-                let idx_expr = self.subscript_index_operand(idx_val.val);
-                let arr_expr = if let Some(arr_ty) = self.ast_context[*arr].kind.get_qual_type() {
-                    let target_type = self.convert_type(arr_ty)?;
-                    if matches!(target_type.kind, DaTypeKind::Pointer(_))
-                        && !matches!(arr_val.val, DaExpr::Unsafe(_))
-                        && Self::infer_type(&arr_val.val)
-                            .map_or(true, |inferred| writable_type(inferred) != target_type)
-                    {
-                        // A pointer whose own C type converts to the
-                        // subscript's pointer type is indexed as it is:
-                        // `dc_colormap[dc_source[i]]` with both declared
-                        // `lighttable_t *` is `dc_colormap[int(dc_source[i])]`,
-                        // not two `reinterpret<uint8?>` of `uint8?` values
-                        // (`abi.rs abi_pointer_cast_from`).
-                        self.abi_pointer_cast_from(arr_val.val, *arr, target_type)?
-                    } else {
-                        arr_val.val
-                    }
-                } else {
-                    arr_val.val
-                };
-                let expr = DaExpr::Index(Box::new(arr_expr), Box::new(idx_expr));
-                let expr = if needs_unsafe {
-                    DaExpr::Unsafe(Box::new(expr))
-                } else {
-                    expr
-                };
-                let mut stmts = arr_val.stmts;
-                stmts.extend(idx_val.stmts);
-                Ok(WithStmts::new_val(expr)
-                    .prepend_stmts(stmts)
-                    .merge_unsafe(arr_val.is_unsafe || idx_val.is_unsafe))
+                self.convert_subscript(ctx, expr_id, *ty, *arr, *idx, true)
             }
 
             Member(ty, expr, field_id, member_kind, _lrvalue) => self.convert_member_expr(
@@ -2038,6 +1982,104 @@ impl<'c> Translation<'c> {
                 "expr kind not yet implemented in daScript translator (catch-all)",
             )),
         }
+    }
+
+    /// `a[i]`: a C subscript.
+    ///
+    /// A subscript of a declared array variable — the array itself, not a
+    /// pointer it decayed to — is daslang's fixed-array index of that
+    /// object: `ceilingclip[x]`, `grid[i][j]`, `players[i].health`
+    /// (`object_memory.rs direct_array_object`, `direct_array_lvalue`; an
+    /// array *field* is never direct, see there).
+    /// C may form or read an element only inside the array (C11 6.5.6p8),
+    /// so an index past it raises daslang's located exception in the
+    /// interpreter; `--unsafe-deref` drops that check too
+    /// (`hint(unsafe_range_check)`, `apply_unsafe_deref`) and the access
+    /// reaches the neighbouring bytes as C's does.  `direct` is `false`
+    /// where the element's *address* is wanted: `&a[N]` is C's legal
+    /// one-past-the-end pointer, which a fixed-array index refuses, so the
+    /// address is the decayed pointer stepped by the index as before.
+    ///
+    /// Every other subscript — a pointer, an array field of a storage-backed
+    /// record (bytes at a Clang offset), an array of storage-backed records
+    /// (`wrapper_array_base`) — is the decayed pointer indexed.
+    pub(crate) fn convert_subscript(
+        &self,
+        ctx: ExprContext,
+        expr_id: CExprId,
+        ty: CQualTypeId,
+        arr: CExprId,
+        idx: CExprId,
+        direct: bool,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        // `p[i]` on a pointer to a storage-backed record names raw
+        // bytes, not a wrapper: read as a value it is a C by-value copy
+        // of the object at that address.  A decayed fixed array really
+        // is a daScript array of wrappers and keeps its own lowering.
+        if let Some(record_id) = self.storage_backed_record_of(ty.ctype) {
+            if !self.is_wrapper_array_decay(arr) {
+                if let Some(address) = self.storage_object_address(ctx, expr_id)? {
+                    let raw = self.raw_address_of_place(&address);
+                    return self.load_storage_object(record_id, raw);
+                }
+            }
+        }
+        if direct {
+            if let Some(array) = self.direct_array_object(arr) {
+                let array_val = self.direct_array_lvalue(ctx, array)?;
+                let idx_val = self.convert_expr(ctx, idx, None)?;
+                let idx_expr = self.subscript_index_operand(idx_val.val);
+                let expr = DaExpr::Index(Box::new(array_val.val), Box::new(idx_expr));
+                let mut stmts = array_val.stmts;
+                stmts.extend(idx_val.stmts);
+                return Ok(WithStmts::new_val(expr)
+                    .prepend_stmts(stmts)
+                    .merge_unsafe(array_val.is_unsafe || idx_val.is_unsafe));
+            }
+        }
+        let arr_val = match self.wrapper_array_base(ctx, arr)? {
+            Some(base) => base,
+            None => self.convert_expr(ctx, arr, None)?,
+        };
+        let idx_val = self.convert_expr(ctx, idx, None)?;
+        // A pointer index is an `unsafe` node of its own ("One `unsafe` per
+        // node", `ARCHITECTURE.md`).
+        let needs_unsafe = true;
+        // A C subscript index is signed: `p[-1]` is a legal read of
+        // the element before `p`.  Coercing it to `uint` would turn
+        // that into a four-billion-element offset.
+        let idx_expr = self.subscript_index_operand(idx_val.val);
+        let arr_expr = if let Some(arr_ty) = self.ast_context[arr].kind.get_qual_type() {
+            let target_type = self.convert_type(arr_ty)?;
+            if matches!(target_type.kind, DaTypeKind::Pointer(_))
+                && !matches!(arr_val.val, DaExpr::Unsafe(_))
+                && Self::infer_type(&arr_val.val)
+                    .map_or(true, |inferred| writable_type(inferred) != target_type)
+            {
+                // A pointer whose own C type converts to the
+                // subscript's pointer type is indexed as it is:
+                // `dc_colormap[dc_source[i]]` with both declared
+                // `lighttable_t *` is `dc_colormap[int(dc_source[i])]`,
+                // not two `reinterpret<uint8?>` of `uint8?` values
+                // (`abi.rs abi_pointer_cast_from`).
+                self.abi_pointer_cast_from(arr_val.val, arr, target_type)?
+            } else {
+                arr_val.val
+            }
+        } else {
+            arr_val.val
+        };
+        let expr = DaExpr::Index(Box::new(arr_expr), Box::new(idx_expr));
+        let expr = if needs_unsafe {
+            DaExpr::Unsafe(Box::new(expr))
+        } else {
+            expr
+        };
+        let mut stmts = arr_val.stmts;
+        stmts.extend(idx_val.stmts);
+        Ok(WithStmts::new_val(expr)
+            .prepend_stmts(stmts)
+            .merge_unsafe(arr_val.is_unsafe || idx_val.is_unsafe))
     }
 
     /// A C subscript index is a signed integer, and daScript indexes pointers
@@ -4693,5 +4735,15 @@ fn apply_unsafe_deref(decls: &mut [DaDecl]) {
         function
             .annotations
             .push(UNSAFE_DEREF_ANNOTATION.to_owned());
+        function
+            .annotations
+            .push(UNSAFE_RANGE_CHECK_ANNOTATION.to_owned());
     }
 }
+
+/// The hint daslang reads to drop the range check on every fixed-array index
+/// inside a function body (`ast_bound_check_elision.cpp`), the counterpart
+/// of `unsafe_deref` for a direct subscript of a declared C array
+/// (`convert_subscript`): with both, an access past the array reaches
+/// the neighbouring bytes exactly as C's does.
+const UNSAFE_RANGE_CHECK_ANNOTATION: &str = "hint(unsafe_range_check)";
