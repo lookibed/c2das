@@ -4782,18 +4782,20 @@ fn translate_impl(
         });
     }
     // Linear memory refuses a linked layout above, so a fragment never gets
-    // here with the heap runtime.
-    let mut source = module.to_string();
-    if t.is_linear() {
-        source.push_str(&linear::runtime_source(
+    // here with the heap runtime.  The runtime is its own hand-written
+    // section after the rendered module, never an edit of it.
+    let linear_runtime = if t.is_linear() {
+        linear::runtime_source(
             t.tcfg
                 .target
                 .heap_reserve
                 .unwrap_or(crate::target::EDEN_DEFAULT_HEAP_RESERVE),
-        ));
-    }
+        )
+    } else {
+        String::new()
+    };
     Ok(UnitOutput {
-        source,
+        source: [module.to_string(), linear_runtime].concat(),
         shared_types,
         libc_helpers: libc_contribution.unwrap_or_default(),
         fragment_decls: vec![],
