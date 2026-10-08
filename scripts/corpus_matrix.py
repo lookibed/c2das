@@ -729,7 +729,12 @@ def measure(command: list[str], cwd: Path, env: dict[str, str], runs: int,
             reference_frames: list[tuple[int, int]] | None,
             require_log: re.Pattern[str] | None = None) -> dict[str, Any]:
     """`require_log`: a pattern some `[I]` log line of every measured run must
-    match (the `-jit` rows require the split-codegen report, see JIT_SPLIT_LOG)."""
+    match (the `-jit` rows require the split-codegen report, see JIT_SPLIT_LOG).
+    daslang prints `[I]` lines only at `DAS_LOG_LEVEL=info` or lower (the default
+    is `warning` in daslang `c4e4906eb`, `module_builtin_runtime.cpp` `logMinLevel`),
+    so a run that requires one gets that level."""
+    if require_log is not None:
+        env = {**env, "DAS_LOG_LEVEL": "info"}
     run_once(command, cwd, env)  # warm-up: page cache, JIT DLL cache, module cache
     samples: list[Run] = []
     for _ in range(runs):

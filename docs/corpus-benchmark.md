@@ -8,7 +8,7 @@ Each program below is a C code base translated whole by c2das and run in each da
 
 Platform information:
 
-- Captured by `python3 scripts/corpus_matrix.py bench --runs 5` on 2026-10-05 at commit `f761d899e`
+- Captured by `python3 scripts/corpus_matrix.py bench --runs 5` on 2026-10-08 at commit `712474e26`
 - OS: Ubuntu 22.04.5 LTS, kernel 6.6.87.2-microsoft-standard-WSL2
 - Toolchain: Ubuntu clang version 18.1.8 (++20240731024944+3b5b5c1ec4a3-1~exp1~20240731145000.144); daslang 0.6.4
 - Programs: each one a C code base translated whole by c2das (`c2dascript-transpile --strict --libc std`, the C `main` included) and run unchanged in every daslang mode
@@ -19,11 +19,11 @@ A cell is the median of 5 runs, each its own process after one warm-up run, of t
 
 | Program | C -O3 native | C -O2 | DAS interpreter | DAS JIT | DAS exe | DAS AOT\* |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| pl_mpeg (MPEG-1 video), 320×240, 59 frames | **34.48ms** ±1% | 37.95ms ±1% | 1270.72ms ±1% | 37.58ms ±11% | 38.26ms ±1% | 40.28ms ±1% |
-| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | **74.24ms** ±0% | 77.97ms ±13% | 4098.23ms ±3% | 77.82ms ±1% | 77.58ms ±1% | 85.55ms ±1% |
-| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | 1.80ms ±2% | **1.78ms** ±4% | 110.48ms ±18% | 4.56ms ±0% | 4.47ms ±3% | 2.69ms ±3% |
-| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | **58.05ms** ±17% | 58.69ms ±2% | 4746.39ms ±5% | 60.36ms ±1% | 67.16ms ±0% | 68.11ms ±1% |
-| doomgeneric (Doom engine), 320×200, 1000 frames | **118.48ms** ±0% | 121.24ms ±1% | 6497.58ms ±3% | 135.43ms ±10% | 124.37ms ±0% | 559.14ms ±0% |
+| pl_mpeg (MPEG-1 video), 320×240, 59 frames | **33.25ms** ±1% | 36.88ms ±1% | 1143.81ms ±1% | 36.14ms ±1% | 38.77ms ±1% | 40.10ms ±1% |
+| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | 74.71ms ±1% | **72.93ms** ±1% | 3786.62ms ±1% | 77.14ms ±2% | 79.68ms ±1% | 87.71ms ±12% |
+| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | **1.77ms** ±3% | 1.79ms ±3% | 111.33ms ±1% | 4.63ms ±3% | 4.26ms ±1% | 2.80ms ±4% |
+| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | 58.15ms ±1% | **57.42ms** ±1% | 4044.06ms ±2% | 59.93ms ±1% | 60.52ms ±1% | 63.69ms ±1% |
+| doomgeneric (Doom engine), 320×200, 1000 frames | **110.34ms** ±0% | 111.53ms ±1% | 3868.26ms ±1% | 128.21ms ±0% | 121.74ms ±1% | 393.28ms ±1% |
 
 #### Ratio to C -O3 native
 
@@ -31,11 +31,11 @@ The same measurements as the slowdown against `clang-18 -O3 -march=native` (1.00
 
 | Program | C -O2 | DAS interpreter | DAS JIT | DAS exe | DAS AOT\* |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| pl_mpeg (MPEG-1 video), 320×240, 59 frames | 1.10× ±1% | 36.85× ±1% | **1.09×** ±11% | 1.11× ±1% | 1.17× ±1% |
-| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | 1.05× ±13% | 55.20× ±3% | 1.05× ±1% | **1.05×** ±1% | 1.15× ±1% |
-| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | **0.99×** ±4% | 61.48× ±18% | 2.54× ±0% | 2.49× ±3% | 1.50× ±3% |
-| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | **1.01×** ±2% | 81.76× ±5% | 1.04× ±1% | 1.16× ±0% | 1.17× ±1% |
-| doomgeneric (Doom engine), 320×200, 1000 frames | **1.02×** ±1% | 54.84× ±3% | 1.14× ±10% | 1.05× ±0% | 4.72× ±0% |
+| pl_mpeg (MPEG-1 video), 320×240, 59 frames | 1.11× ±1% | 34.40× ±1% | **1.09×** ±1% | 1.17× ±1% | 1.21× ±1% |
+| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | **0.98×** ±1% | 50.68× ±1% | 1.03× ±2% | 1.07× ±1% | 1.17× ±12% |
+| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | **1.01×** ±3% | 62.97× ±1% | 2.62× ±3% | 2.41× ±1% | 1.58× ±4% |
+| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | **0.99×** ±1% | 69.55× ±2% | 1.03× ±1% | 1.04× ±1% | 1.10× ±1% |
+| doomgeneric (Doom engine), 320×200, 1000 frames | **1.01×** ±1% | 35.06× ±1% | 1.16× ±0% | 1.10× ±1% | 3.56× ±1% |
 
 #### Option: `--unsafe-deref`
 
@@ -43,11 +43,11 @@ The tables above are the translator's default output. These rows come from a sec
 
 | Program | DAS JIT + unsafe_deref | DAS exe + unsafe_deref | DAS AOT\* + unsafe_deref |
 | --- | ---: | ---: | ---: |
-| pl_mpeg (MPEG-1 video), 320×240, 59 frames | **1.05×** ±0% (−3 %) | 1.11× ±1% (−0 %) | 1.17× ±2% (+0 %) |
-| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | 1.00× ±1% (−4 %) | **1.00×** ±0% (−4 %) | 1.12× ±0% (−2 %) |
-| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | 2.55× ±1% (+0 %) | 2.63× ±10% (+6 %) | **1.42×** ±32% (−5 %) |
-| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | 1.13× ±1% (+8 %) | **1.12×** ±1% (−3 %) | 1.19× ±0% (+2 %) |
-| doomgeneric (Doom engine), 320×200, 1000 frames | **0.96×** ±9% (−16 %) | 0.96× ±1% (−9 %) | 4.69× ±0% (−1 %) |
+| pl_mpeg (MPEG-1 video), 320×240, 59 frames | **1.09×** ±1% (+0 %) | 1.13× ±2% (−3 %) | 1.20× ±1% (−0 %) |
+| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | **0.99×** ±0% (−5 %) | 1.05× ±5% (−2 %) | 1.11× ±1% (−6 %) |
+| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | 2.56× ±1% (−2 %) | 2.48× ±4% (+3 %) | **1.40×** ±3% (−11 %) |
+| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | 1.05× ±1% (+2 %) | **1.03×** ±1% (−1 %) | 1.11× ±1% (+1 %) |
+| doomgeneric (Doom engine), 320×200, 1000 frames | **1.03×** ±3% (−11 %) | 1.04× ±1% (−6 %) | 3.62× ±1% (+1 %) |
 
 #### Startup
 
@@ -55,11 +55,11 @@ Wall time of the whole process minus the timed work and the timed setup: process
 
 | Program | C -O3 native | C -O2 | DAS interpreter | DAS JIT | DAS exe | DAS AOT\* |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| pl_mpeg (MPEG-1 video), 320×240, 59 frames | **1.4ms** ±4% | 1.5ms ±9% | 69.8ms ±1% | 257.0ms ±9% | 18.5ms ±1% | - |
-| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | **1.6ms** ±6% | 1.7ms ±6% | 210.1ms ±12% | 426.9ms ±1% | 18.7ms ±2% | - |
-| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | **1.0ms** ±20% | 1.0ms ±12% | 419.2ms ±3% | 558.8ms ±1% | 19.4ms ±2% | - |
-| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | 1.4ms ±6% | **1.4ms** ±2% | 188.9ms ±1% | 377.3ms ±1% | 20.6ms ±3% | - |
-| doomgeneric (Doom engine), 320×200, 1000 frames | **2.4ms** ±3% | 2.4ms ±6% | 649.2ms ±4% | 928.2ms ±7% | 21.6ms ±1% | - |
+| pl_mpeg (MPEG-1 video), 320×240, 59 frames | 1.7ms ±8% | **1.6ms** ±10% | 75.7ms ±2% | 231.4ms ±1% | 20.6ms ±3% | - |
+| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | **1.8ms** ±8% | 1.8ms ±6% | 205.3ms ±3% | 425.7ms ±2% | 21.4ms ±3% | - |
+| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | 1.0ms ±5% | **1.0ms** ±15% | 401.6ms ±4% | 554.0ms ±3% | 21.1ms ±2% | - |
+| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | 1.6ms ±1% | **1.5ms** ±5% | 183.6ms ±1% | 370.8ms ±2% | 21.1ms ±3% | - |
+| doomgeneric (Doom engine), 320×200, 1000 frames | **2.6ms** ±6% | 2.6ms ±5% | 507.0ms ±1% | 798.3ms ±2% | 24.6ms ±3% | - |
 
 \* AOT is built from a second translation without `solid_context` and without daslang's auto-inliner (`--no-solid-context --das-option disable_auto_inline`), because daslang's AOT refuses the h264bsd program with `solid_context` on and its inliner produces C++ that does not compile; every other mode runs the default translation (`options solid_context = true`, daslang's null checks on every pointer dereference). The JIT runs daslang's default split codegen with auto threads (`--jit-split-modules=-1`, not passed — see the appendix). wasm3: the `-jit`/`-exe` path makes no tail calls — daslang's LLVM backend never emits sibling calls, so every executed wasm opcode costs a native frame — while the AOT C++ gets them from `clang++ -O3`; hence aot ahead of jit/exe here ([lookibed/daScript#4](https://github.com/lookibed/daScript/issues/4), `docs/followups/translator_gaps_wasm3.md`).
 
@@ -67,7 +67,7 @@ Wall time of the whole process minus the timed work and the timed setup: process
 
 ## Appendix: full measurements
 
-Reference data behind the snapshot above. Generated by `python3 scripts/corpus_matrix.py bench` on 2026-10-05 at commit `f761d899e` (daslang 0.6.4 (/root/daScript/bin/daslang); Ubuntu clang version 18.1.8 (++20240731024944+3b5b5c1ec4a3-1~exp1~20240731145000.144); AMD Ryzen 7 7435HS; Ubuntu 22.04.5 LTS, kernel 6.6.87.2-microsoft-standard-WSL2). Every build and run command is written out in `docs/corpus-build-recipe.md`.
+Reference data behind the snapshot above. Generated by `python3 scripts/corpus_matrix.py bench` on 2026-10-08 at commit `712474e26` (daslang 0.6.4 (/root/daScript/bin/daslang); Ubuntu clang version 18.1.8 (++20240731024944+3b5b5c1ec4a3-1~exp1~20240731145000.144); AMD Ryzen 7 7435HS; Ubuntu 22.04.5 LTS, kernel 6.6.87.2-microsoft-standard-WSL2). Every build and run command is written out in `docs/corpus-build-recipe.md`.
 
 Columns: **ms (median / min)** is the program's own timer around its work loop (`decode_us`; C `clock_gettime(CLOCK_MONOTONIC)`, daslang `ref_time_ticks`), excluding process start, script compilation, JIT codegen and setup. **setup** is the timed `frames_begin_bytes()` call (runtime reset, working copy of the input, decoder creation). **wall** is the whole process as the driver sees it and **startup** = wall − work − setup (loading the runtime, compiling the script, JIT codegen, teardown); the aot host compiles the script again on every launch, so its startup is not shown. **× C native** is the ratio to `clang-18 -O3 -march=native`, the headline; **× C -O2** to the portable `clang-18 -O2` build (generic x86-64, SSE2), shown for reference because daslang's LLVM backend compiles `-jit` for the host CPU. The translated modules are the translator's defaults: `options solid_context = true` in the header and daslang's null checks on every pointer dereference (no `--unsafe-deref`). A row named `daslang <mode> + unsafe_deref` is the option: a separate translation of the same case with `--unsafe-deref`, `[unsafe_deref]` on every function, measured the same way; see `docs/followups/hot_path_levers.md`, which also names the next lever, vectorization of the loops the JIT leaves scalar. The aot rows are the exception named in each case's build list. Cases that repeat a headline program through a hand-written daslang entry (no `--libc std`) and the embedded micro fixtures are here only.
 
@@ -75,16 +75,16 @@ Columns: **ms (median / min)** is the program's own timer around its work loop (
 
 | variant | × C native | × C -O2 | decode loop ms (median) | decode loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 0.88× | 1.009 | 0.988 | 0.017 | 1.8 | 0.8 |
-| C clang-18 -O2 | 1.13× | 1.00× | 1.141 | 1.133 | 0.017 | 1.9 | 0.8 |
-| C clang-18 -O0 | 4.73× | 4.18× | 4.770 | 4.707 | 0.046 | 5.8 | 1.0 |
-| daslang interp | 45.06× | 39.85× | 45.469 | 44.944 | 0.058 | 234.4 | 189.2 |
-| daslang jit | 1.00× | 0.88× | 1.006 | 0.998 | 0.008 | 246.1 | 245.1 |
-| daslang jit + unsafe_deref | 1.01× | 0.89× | 1.018 | 1.011 | 0.007 | 249.0 | 248.0 |
-| daslang exe | 1.13× | 1.00× | 1.141 | 1.131 | 0.016 | 17.0 | 15.8 |
-| daslang exe + unsafe_deref | 1.12× | 0.99× | 1.131 | 1.122 | 0.012 | 16.7 | 15.6 |
-| daslang aot | 1.26× | 1.12× | 1.273 | 1.228 | 0.189 | 355.4 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 1.24× | 1.10× | 1.254 | 1.235 | 0.170 | 351.0 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 0.88× | 0.991 | 0.985 | 0.019 | 2.0 | 1.0 |
+| C clang-18 -O2 | 1.14× | 1.00× | 1.129 | 1.106 | 0.019 | 2.2 | 1.0 |
+| C clang-18 -O0 | 4.87× | 4.27× | 4.822 | 4.759 | 0.048 | 5.9 | 1.1 |
+| daslang interp | 43.27× | 37.98× | 42.880 | 42.351 | 0.052 | 232.8 | 188.3 |
+| daslang jit | 1.04× | 0.91× | 1.027 | 1.015 | 0.007 | 264.4 | 263.4 |
+| daslang jit + unsafe_deref | 1.05× | 0.92× | 1.041 | 1.024 | 0.007 | 257.3 | 256.3 |
+| daslang exe | 1.24× | 1.09× | 1.225 | 1.211 | 0.011 | 18.6 | 17.3 |
+| daslang exe + unsafe_deref | 1.15× | 1.01× | 1.135 | 1.123 | 0.013 | 18.1 | 17.0 |
+| daslang aot | 1.29× | 1.13× | 1.280 | 1.231 | 0.191 | 320.5 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 1.30× | 1.14× | 1.290 | 1.234 | 0.229 | 326.6 | n/a (recompiles per run) |
 
 Builds:
 
@@ -103,16 +103,16 @@ Builds:
 
 | variant | × C native | × C -O2 | decode loop ms (median) | decode loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 1.07× | 0.717 | 0.699 | 0.020 | 1.5 | 0.8 |
-| C clang-18 -O2 | 0.93× | 1.00× | 0.670 | 0.639 | 0.015 | 1.4 | 0.7 |
-| C clang-18 -O0 | 3.90× | 4.17× | 2.795 | 2.792 | 0.025 | 3.7 | 0.9 |
-| daslang interp | 51.56× | 55.18× | 36.970 | 36.741 | 0.229 | 254.9 | 217.7 |
-| daslang jit | 1.09× | 1.17× | 0.785 | 0.734 | 0.027 | 434.7 | 433.9 |
-| daslang jit + unsafe_deref | 1.09× | 1.17× | 0.783 | 0.725 | 0.024 | 425.8 | 425.0 |
-| daslang exe | 0.98× | 1.05× | 0.704 | 0.699 | 0.038 | 16.8 | 16.0 |
-| daslang exe + unsafe_deref | 0.97× | 1.04× | 0.699 | 0.688 | 0.039 | 17.0 | 16.3 |
-| daslang aot | 1.15× | 1.23× | 0.823 | 0.803 | 0.186 | 1077.9 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 1.14× | 1.22× | 0.816 | 0.807 | 0.182 | 1080.6 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 1.07× | 0.738 | 0.687 | 0.024 | 1.6 | 0.9 |
+| C clang-18 -O2 | 0.93× | 1.00× | 0.689 | 0.661 | 0.016 | 1.7 | 0.9 |
+| C clang-18 -O0 | 3.81× | 4.08× | 2.809 | 2.787 | 0.026 | 3.9 | 1.1 |
+| daslang interp | 46.80× | 50.13× | 34.541 | 34.476 | 0.191 | 259.8 | 225.0 |
+| daslang jit | 1.01× | 1.08× | 0.743 | 0.709 | 0.028 | 427.8 | 427.0 |
+| daslang jit + unsafe_deref | 1.04× | 1.12× | 0.769 | 0.739 | 0.029 | 441.2 | 440.4 |
+| daslang exe | 0.98× | 1.05× | 0.723 | 0.708 | 0.036 | 19.4 | 18.6 |
+| daslang exe + unsafe_deref | 0.95× | 1.02× | 0.700 | 0.683 | 0.034 | 18.5 | 17.7 |
+| daslang aot | 1.14× | 1.22× | 0.840 | 0.828 | 0.180 | 920.8 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 1.13× | 1.21× | 0.836 | 0.812 | 0.178 | 939.4 | n/a (recompiles per run) |
 
 Builds:
 
@@ -131,16 +131,16 @@ Builds:
 
 | variant | × C native | × C -O2 | decode loop ms (median) | decode loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 0.88× | 33.855 | 33.523 | 0.137 | 35.5 | 1.4 |
-| C clang-18 -O2 | 1.13× | 1.00× | 38.259 | 38.156 | 0.132 | 39.8 | 1.5 |
-| C clang-18 -O0 | 4.79× | 4.24× | 162.180 | 161.182 | 0.448 | 164.3 | 1.5 |
-| daslang interp | 37.33× | 33.03× | 1263.862 | 1253.773 | 0.049 | 1351.9 | 87.4 |
-| daslang jit | 1.08× | 0.96× | 36.618 | 36.392 | 0.018 | 281.6 | 245.0 |
-| daslang jit + unsafe_deref | 1.09× | 0.96× | 36.817 | 36.534 | 0.018 | 282.9 | 245.8 |
-| daslang exe | 1.12× | 0.99× | 37.995 | 37.670 | 0.022 | 56.2 | 18.2 |
-| daslang exe + unsafe_deref | 1.14× | 1.01× | 38.477 | 37.982 | 0.022 | 56.9 | 18.7 |
-| daslang aot | 1.18× | 1.05× | 40.094 | 39.953 | 0.200 | 302.4 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 1.18× | 1.05× | 40.022 | 39.848 | 0.222 | 301.6 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 0.90× | 33.984 | 33.714 | 0.141 | 35.8 | 1.6 |
+| C clang-18 -O2 | 1.11× | 1.00× | 37.639 | 37.261 | 0.150 | 39.3 | 1.6 |
+| C clang-18 -O0 | 4.68× | 4.23× | 159.060 | 157.851 | 0.468 | 161.2 | 1.7 |
+| daslang interp | 34.27× | 30.94× | 1164.685 | 1152.591 | 0.050 | 1259.6 | 94.8 |
+| daslang jit | 1.08× | 0.98× | 36.767 | 36.452 | 0.017 | 287.5 | 250.5 |
+| daslang jit + unsafe_deref | 1.09× | 0.98× | 36.964 | 36.572 | 0.019 | 296.0 | 258.9 |
+| daslang exe | 1.13× | 1.02× | 38.540 | 38.284 | 0.028 | 59.3 | 21.0 |
+| daslang exe + unsafe_deref | 1.14× | 1.03× | 38.668 | 38.281 | 0.025 | 59.2 | 20.6 |
+| daslang aot | 1.19× | 1.08× | 40.521 | 40.013 | 0.178 | 299.8 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 1.19× | 1.08× | 40.583 | 40.430 | 0.184 | 287.9 | n/a (recompiles per run) |
 
 Builds:
 
@@ -159,16 +159,16 @@ Builds:
 
 | variant | × C native | × C -O2 | decode loop ms (median) | decode loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 1.03× | 74.692 | 73.827 | 0.026 | 76.4 | 1.6 |
-| C clang-18 -O2 | 0.97× | 1.00× | 72.492 | 72.355 | 0.020 | 74.1 | 1.6 |
-| C clang-18 -O0 | 5.30× | 5.46× | 395.838 | 394.002 | 0.033 | 397.3 | 1.6 |
-| daslang interp | 55.07× | 56.74× | 4113.029 | 4072.600 | 0.281 | 4311.7 | 201.0 |
-| daslang jit | 1.02× | 1.05× | 76.436 | 76.205 | 0.023 | 483.1 | 406.5 |
-| daslang jit + unsafe_deref | 1.00× | 1.03× | 74.983 | 74.210 | 0.023 | 487.3 | 411.6 |
-| daslang exe | 1.05× | 1.08× | 78.200 | 77.362 | 0.039 | 96.8 | 18.5 |
-| daslang exe + unsafe_deref | 0.99× | 1.02× | 73.725 | 73.335 | 0.037 | 92.1 | 18.3 |
-| daslang aot | 1.12× | 1.15× | 83.409 | 83.174 | 0.188 | 1124.8 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 1.10× | 1.13× | 82.220 | 81.508 | 0.153 | 1137.1 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 1.02× | 75.881 | 75.069 | 0.025 | 77.8 | 1.8 |
+| C clang-18 -O2 | 0.98× | 1.00× | 74.243 | 73.430 | 0.019 | 76.0 | 1.8 |
+| C clang-18 -O0 | 5.31× | 5.42× | 402.628 | 400.009 | 0.036 | 404.6 | 1.9 |
+| daslang interp | 50.50× | 51.62× | 3832.246 | 3812.501 | 0.299 | 4048.8 | 221.1 |
+| daslang jit | 1.02× | 1.04× | 77.437 | 76.846 | 0.020 | 516.0 | 439.1 |
+| daslang jit + unsafe_deref | 0.98× | 1.00× | 74.454 | 74.037 | 0.031 | 514.2 | 439.3 |
+| daslang exe | 1.04× | 1.07× | 79.272 | 78.618 | 0.042 | 101.1 | 21.8 |
+| daslang exe + unsafe_deref | 0.98× | 1.00× | 74.342 | 73.922 | 0.035 | 94.9 | 20.6 |
+| daslang aot | 1.14× | 1.16× | 86.264 | 85.234 | 0.168 | 1025.2 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 1.07× | 1.10× | 81.524 | 81.393 | 0.183 | 1017.9 | n/a (recompiles per run) |
 
 Builds:
 
@@ -187,16 +187,16 @@ Builds:
 
 | variant | × C native | × C -O2 | decode loop ms (median) | decode loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 0.91× | 34.481 | 34.029 | 0.137 | 36.0 | 1.4 |
-| C clang-18 -O2 | 1.10× | 1.00× | 37.952 | 37.824 | 0.135 | 39.6 | 1.5 |
-| C clang-18 -O0 | 4.67× | 4.24× | 160.961 | 160.314 | 0.448 | 162.8 | 1.4 |
-| daslang interp | 36.85× | 33.48× | 1270.724 | 1248.641 | 0.043 | 1339.6 | 69.8 |
-| daslang jit | 1.09× | 0.99× | 37.575 | 37.113 | 0.048 | 302.5 | 257.0 |
-| daslang jit + unsafe_deref | 1.05× | 0.96× | 36.348 | 36.293 | 0.050 | 260.9 | 224.6 |
-| daslang exe | 1.11× | 1.01× | 38.255 | 38.188 | 0.015 | 56.7 | 18.5 |
-| daslang exe + unsafe_deref | 1.11× | 1.00× | 38.113 | 38.099 | 0.015 | 56.7 | 18.5 |
-| daslang aot | 1.17× | 1.06× | 40.277 | 40.131 | 0.019 | 313.2 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 1.17× | 1.06× | 40.363 | 40.129 | 0.049 | 319.6 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 0.90× | 33.248 | 33.039 | 0.139 | 35.2 | 1.7 |
+| C clang-18 -O2 | 1.11× | 1.00× | 36.877 | 36.616 | 0.152 | 38.7 | 1.6 |
+| C clang-18 -O0 | 4.69× | 4.23× | 155.844 | 155.520 | 0.456 | 157.9 | 1.6 |
+| daslang interp | 34.40× | 31.02× | 1143.808 | 1142.620 | 0.048 | 1219.6 | 75.7 |
+| daslang jit | 1.09× | 0.98× | 36.143 | 36.016 | 0.045 | 267.5 | 231.4 |
+| daslang jit + unsafe_deref | 1.09× | 0.98× | 36.265 | 36.068 | 0.048 | 269.7 | 233.0 |
+| daslang exe | 1.17× | 1.05× | 38.766 | 38.333 | 0.016 | 59.3 | 20.6 |
+| daslang exe + unsafe_deref | 1.13× | 1.02× | 37.652 | 37.374 | 0.016 | 58.2 | 20.5 |
+| daslang aot | 1.21× | 1.09× | 40.101 | 39.983 | 0.018 | 291.6 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 1.20× | 1.08× | 39.909 | 39.808 | 0.023 | 292.7 | n/a (recompiles per run) |
 
 Builds:
 
@@ -215,16 +215,16 @@ Builds:
 
 | variant | × C native | × C -O2 | decode loop ms (median) | decode loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 0.95× | 74.239 | 74.004 | 0.023 | 75.8 | 1.6 |
-| C clang-18 -O2 | 1.05× | 1.00× | 77.969 | 75.119 | 0.018 | 79.6 | 1.7 |
-| C clang-18 -O0 | 5.48× | 5.22× | 406.801 | 399.341 | 0.033 | 408.5 | 1.6 |
-| daslang interp | 55.20× | 52.56× | 4098.230 | 4073.915 | 0.279 | 4311.4 | 210.1 |
-| daslang jit | 1.05× | 1.00× | 77.817 | 77.457 | 0.020 | 504.9 | 426.9 |
-| daslang jit + unsafe_deref | 1.00× | 0.95× | 74.319 | 74.037 | 0.023 | 504.0 | 429.6 |
-| daslang exe | 1.05× | 1.00× | 77.585 | 77.392 | 0.023 | 96.4 | 18.7 |
-| daslang exe + unsafe_deref | 1.00× | 0.95× | 74.126 | 73.974 | 0.018 | 92.9 | 18.7 |
-| daslang aot | 1.15× | 1.10× | 85.548 | 84.786 | 0.018 | 1189.9 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 1.12× | 1.07× | 83.447 | 82.895 | 0.020 | 1189.2 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 1.02× | 74.712 | 74.432 | 0.023 | 76.4 | 1.8 |
+| C clang-18 -O2 | 0.98× | 1.00× | 72.934 | 72.723 | 0.021 | 74.8 | 1.8 |
+| C clang-18 -O0 | 5.25× | 5.38× | 392.458 | 391.686 | 0.035 | 394.4 | 1.9 |
+| daslang interp | 50.68× | 51.92× | 3786.625 | 3769.297 | 0.250 | 3992.2 | 205.3 |
+| daslang jit | 1.03× | 1.06× | 77.140 | 76.319 | 0.015 | 504.2 | 425.7 |
+| daslang jit + unsafe_deref | 0.99× | 1.01× | 73.652 | 73.343 | 0.027 | 496.7 | 423.0 |
+| daslang exe | 1.07× | 1.09× | 79.680 | 78.861 | 0.021 | 101.1 | 21.4 |
+| daslang exe + unsafe_deref | 1.05× | 1.07× | 78.270 | 74.801 | 0.020 | 101.3 | 23.0 |
+| daslang aot | 1.17× | 1.20× | 87.708 | 85.711 | 0.015 | 1065.4 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 1.11× | 1.13× | 82.738 | 82.226 | 0.019 | 1029.7 | n/a (recompiles per run) |
 
 Builds:
 
@@ -243,16 +243,16 @@ Builds:
 
 | variant | × C native | × C -O2 | fib call loop ms (median) | fib call loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 1.01× | 1.797 | 1.742 | 0.064 | 2.8 | 1.0 |
-| C clang-18 -O2 | 0.99× | 1.00× | 1.780 | 1.746 | 0.060 | 2.8 | 1.0 |
-| C clang-18 -O0 | 2.53× | 2.55× | 4.541 | 4.495 | 0.076 | 5.6 | 1.0 |
-| daslang interp | 61.48× | 62.07× | 110.482 | 110.327 | 0.320 | 530.1 | 419.2 |
-| daslang jit | 2.54× | 2.56× | 4.562 | 4.557 | 0.069 | 563.4 | 558.8 |
-| daslang jit + unsafe_deref | 2.55× | 2.58× | 4.584 | 4.482 | 0.052 | 561.9 | 557.3 |
-| daslang exe | 2.49× | 2.51× | 4.470 | 4.317 | 0.043 | 23.9 | 19.4 |
-| daslang exe + unsafe_deref | 2.63× | 2.65× | 4.719 | 4.547 | 0.041 | 24.1 | 19.5 |
-| daslang aot | 1.50× | 1.51× | 2.694 | 2.658 | 0.063 | 1402.7 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 1.42× | 1.44× | 2.558 | 2.526 | 0.051 | 1583.7 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 0.99× | 1.768 | 1.702 | 0.068 | 2.9 | 1.0 |
+| C clang-18 -O2 | 1.01× | 1.00× | 1.789 | 1.710 | 0.070 | 2.9 | 1.0 |
+| C clang-18 -O0 | 2.34× | 2.31× | 4.139 | 4.041 | 0.102 | 5.5 | 1.3 |
+| daslang interp | 62.97× | 62.23× | 111.329 | 110.583 | 0.251 | 513.9 | 401.6 |
+| daslang jit | 2.62× | 2.59× | 4.631 | 4.472 | 0.060 | 558.7 | 554.0 |
+| daslang jit + unsafe_deref | 2.56× | 2.53× | 4.522 | 4.501 | 0.060 | 550.0 | 545.5 |
+| daslang exe | 2.41× | 2.38× | 4.263 | 4.258 | 0.043 | 25.4 | 21.1 |
+| daslang exe + unsafe_deref | 2.48× | 2.45× | 4.378 | 4.326 | 0.035 | 26.5 | 21.9 |
+| daslang aot | 1.58× | 1.57× | 2.801 | 2.693 | 0.056 | 1288.0 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 1.40× | 1.39× | 2.484 | 2.428 | 0.054 | 1294.0 | n/a (recompiles per run) |
 
 wasm3: the `-jit`/`-exe` path makes no tail calls — daslang's LLVM backend never emits sibling calls, so every executed wasm opcode costs a native frame — while the AOT C++ gets them from `clang++ -O3`; hence aot ahead of jit/exe here ([lookibed/daScript#4](https://github.com/lookibed/daScript/issues/4), `docs/followups/translator_gaps_wasm3.md`).
 
@@ -273,16 +273,16 @@ Builds:
 
 | variant | × C native | × C -O2 | frame loop ms (median) | frame loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 0.99× | 58.050 | 57.699 | 0.178 | 59.6 | 1.4 |
-| C clang-18 -O2 | 1.01× | 1.00× | 58.688 | 58.060 | 0.178 | 60.3 | 1.4 |
-| C clang-18 -O0 | 3.48× | 3.44× | 201.873 | 200.986 | 0.361 | 203.6 | 1.4 |
-| daslang interp | 81.76× | 80.87× | 4746.390 | 4714.183 | 2.104 | 4937.2 | 188.9 |
-| daslang jit | 1.04× | 1.03× | 60.357 | 60.218 | 0.134 | 438.3 | 377.3 |
-| daslang jit + unsafe_deref | 1.13× | 1.12× | 65.448 | 65.279 | 0.144 | 468.4 | 401.8 |
-| daslang exe | 1.16× | 1.14× | 67.158 | 67.096 | 0.103 | 87.8 | 20.6 |
-| daslang exe + unsafe_deref | 1.12× | 1.11× | 64.870 | 64.601 | 0.093 | 85.4 | 20.3 |
-| daslang aot | 1.17× | 1.16× | 68.112 | 67.791 | 0.095 | 772.0 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 1.19× | 1.18× | 69.148 | 68.803 | 0.088 | 795.0 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 1.01× | 58.148 | 57.664 | 0.190 | 59.9 | 1.6 |
+| C clang-18 -O2 | 0.99× | 1.00× | 57.423 | 57.129 | 0.185 | 59.2 | 1.5 |
+| C clang-18 -O0 | 3.43× | 3.48× | 199.658 | 197.829 | 0.380 | 201.6 | 1.6 |
+| daslang interp | 69.55× | 70.43× | 4044.061 | 3981.702 | 1.990 | 4230.6 | 183.6 |
+| daslang jit | 1.03× | 1.04× | 59.932 | 59.813 | 0.143 | 431.5 | 370.8 |
+| daslang jit + unsafe_deref | 1.05× | 1.07× | 61.278 | 60.949 | 0.132 | 430.9 | 369.8 |
+| daslang exe | 1.04× | 1.05× | 60.515 | 59.924 | 0.091 | 81.7 | 21.1 |
+| daslang exe + unsafe_deref | 1.03× | 1.04× | 59.915 | 59.595 | 0.086 | 80.7 | 20.7 |
+| daslang aot | 1.10× | 1.11× | 63.692 | 62.785 | 0.088 | 668.4 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 1.11× | 1.13× | 64.647 | 64.235 | 0.087 | 684.2 | n/a (recompiles per run) |
 
 Builds:
 
@@ -301,16 +301,16 @@ Builds:
 
 | variant | × C native | × C -O2 | demo tick loop ms (median) | demo tick loop ms (min) | setup ms | wall ms | startup ms |
 |---|---|---|---|---|---|---|---|
-| C clang-18 -O3 -march=native | 1.00× | 0.98× | 118.478 | 118.412 | 6.782 | 127.7 | 2.4 |
-| C clang-18 -O2 | 1.02× | 1.00× | 121.237 | 119.847 | 6.808 | 130.4 | 2.4 |
-| C clang-18 -O0 | 2.75× | 2.68× | 325.491 | 324.711 | 12.530 | 340.7 | 2.4 |
-| daslang interp | 54.84× | 53.59× | 6497.578 | 6209.690 | 169.060 | 7323.7 | 649.2 |
-| daslang jit | 1.14× | 1.12× | 135.426 | 125.453 | 7.593 | 1079.9 | 928.2 |
-| daslang jit + unsafe_deref | 0.96× | 0.94× | 113.655 | 113.279 | 5.508 | 952.3 | 824.8 |
-| daslang exe | 1.05× | 1.03× | 124.366 | 124.121 | 5.852 | 152.1 | 21.6 |
-| daslang exe + unsafe_deref | 0.96× | 0.94× | 113.668 | 113.483 | 5.783 | 141.3 | 21.6 |
-| daslang aot | 4.72× | 4.61× | 559.140 | 556.303 | 13.801 | 3217.1 | n/a (recompiles per run) |
-| daslang aot + unsafe_deref | 4.69× | 4.58× | 555.859 | 553.924 | 13.570 | 3216.1 | n/a (recompiles per run) |
+| C clang-18 -O3 -march=native | 1.00× | 0.99× | 110.341 | 110.205 | 6.706 | 119.7 | 2.6 |
+| C clang-18 -O2 | 1.01× | 1.00× | 111.535 | 111.379 | 6.839 | 121.1 | 2.6 |
+| C clang-18 -O0 | 2.74× | 2.71× | 302.696 | 301.928 | 12.048 | 317.3 | 2.6 |
+| daslang interp | 35.06× | 34.68× | 3868.264 | 3851.155 | 98.414 | 4476.5 | 507.0 |
+| daslang jit | 1.16× | 1.15× | 128.205 | 127.927 | 6.310 | 932.7 | 798.3 |
+| daslang jit + unsafe_deref | 1.03× | 1.02× | 114.136 | 113.559 | 5.680 | 850.3 | 727.3 |
+| daslang exe | 1.10× | 1.09× | 121.740 | 120.956 | 6.011 | 152.6 | 24.6 |
+| daslang exe + unsafe_deref | 1.04× | 1.03× | 114.791 | 113.992 | 5.831 | 145.4 | 25.3 |
+| daslang aot | 3.56× | 3.53× | 393.282 | 391.308 | 6.588 | 2679.3 | n/a (recompiles per run) |
+| daslang aot + unsafe_deref | 3.62× | 3.58× | 399.031 | 394.478 | 6.923 | 2763.8 | n/a (recompiles per run) |
 
 Builds:
 

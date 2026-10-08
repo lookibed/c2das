@@ -11,7 +11,7 @@ Medians of 5 runs, `±` is half the sample range; the best value in each row is 
 
 ### Linux — AMD Ryzen 7 7435HS
 
-- Captured by `python3 scripts/corpus_matrix.py bench --runs 5` on 2026-10-05 at commit `f761d899e`
+- Captured by `python3 scripts/corpus_matrix.py bench --runs 5` on 2026-10-08 at commit `712474e26`
 - OS: Ubuntu 22.04.5 LTS, kernel 6.6.87.2-microsoft-standard-WSL2
 - Toolchain: Ubuntu clang version 18.1.8 (++20240731024944+3b5b5c1ec4a3-1~exp1~20240731145000.144); daslang 0.6.4
 
@@ -19,21 +19,21 @@ Medians of 5 runs, `±` is half the sample range; the best value in each row is 
 
 | Program | C -O3 native | C -O2 | DAS interpreter | DAS JIT | DAS exe | DAS AOT\* |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| pl_mpeg (MPEG-1 video), 320×240, 59 frames | **34.48ms** ±1% | 37.95ms ±1% | 1270.72ms ±1% | 37.58ms ±11% | 38.26ms ±1% | 40.28ms ±1% |
-| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | **74.24ms** ±0% | 77.97ms ±13% | 4098.23ms ±3% | 77.82ms ±1% | 77.58ms ±1% | 85.55ms ±1% |
-| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | 1.80ms ±2% | **1.78ms** ±4% | 110.48ms ±18% | 4.56ms ±0% | 4.47ms ±3% | 2.69ms ±3% |
-| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | **58.05ms** ±17% | 58.69ms ±2% | 4746.39ms ±5% | 60.36ms ±1% | 67.16ms ±0% | 68.11ms ±1% |
-| doomgeneric (Doom engine), 320×200, 1000 frames | **118.48ms** ±0% | 121.24ms ±1% | 6497.58ms ±3% | 135.43ms ±10% | 124.37ms ±0% | 559.14ms ±0% |
+| pl_mpeg (MPEG-1 video), 320×240, 59 frames | **33.25ms** ±1% | 36.88ms ±1% | 1143.81ms ±1% | 36.14ms ±1% | 38.77ms ±1% | 40.10ms ±1% |
+| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | 74.71ms ±1% | **72.93ms** ±1% | 3786.62ms ±1% | 77.14ms ±2% | 79.68ms ±1% | 87.71ms ±12% |
+| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | **1.77ms** ±3% | 1.79ms ±3% | 111.33ms ±1% | 4.63ms ±3% | 4.26ms ±1% | 2.80ms ±4% |
+| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | 58.15ms ±1% | **57.42ms** ±1% | 4044.06ms ±2% | 59.93ms ±1% | 60.52ms ±1% | 63.69ms ±1% |
+| doomgeneric (Doom engine), 320×200, 1000 frames | **110.34ms** ±0% | 111.53ms ±1% | 3868.26ms ±1% | 128.21ms ±0% | 121.74ms ±1% | 393.28ms ±1% |
 
 #### Ratio to C -O3 native
 
 | Program | C -O2 | DAS interpreter | DAS JIT | DAS exe | DAS AOT\* |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| pl_mpeg (MPEG-1 video), 320×240, 59 frames | 1.10× ±1% | 36.85× ±1% | **1.09×** ±11% | 1.11× ±1% | 1.17× ±1% |
-| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | 1.05× ±13% | 55.20× ±3% | 1.05× ±1% | **1.05×** ±1% | 1.15× ±1% |
-| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | **0.99×** ±4% | 61.48× ±18% | 2.54× ±0% | 2.49× ±3% | 1.50× ±3% |
-| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | **1.01×** ±2% | 81.76× ±5% | 1.04× ±1% | 1.16× ±0% | 1.17× ±1% |
-| doomgeneric (Doom engine), 320×200, 1000 frames | **1.02×** ±1% | 54.84× ±3% | 1.14× ±10% | 1.05× ±0% | 4.72× ±0% |
+| pl_mpeg (MPEG-1 video), 320×240, 59 frames | 1.11× ±1% | 34.40× ±1% | **1.09×** ±1% | 1.17× ±1% | 1.21× ±1% |
+| h264bsd + minimp4 (H.264 video), 640×360, 73 frames | **0.98×** ±1% | 50.68× ±1% | 1.03× ±2% | 1.07× ±1% | 1.17× ±12% |
+| wasm3 (WebAssembly interpreter), fib32, 7 checked values (micro) | **1.01×** ±3% | 62.97× ±1% | 2.62× ±3% | 2.41× ±1% | 1.58× ±4% |
+| binjgb (Game Boy Color emulator), cgb-acid2, 300 frames | **0.99×** ±1% | 69.55× ±2% | 1.03× ±1% | 1.04× ±1% | 1.10× ±1% |
+| doomgeneric (Doom engine), 320×200, 1000 frames | **1.01×** ±1% | 35.06× ±1% | 1.16× ±0% | 1.10× ±1% | 3.56× ±1% |
 
 ### Windows — AMD Ryzen 7 7435HS
 
