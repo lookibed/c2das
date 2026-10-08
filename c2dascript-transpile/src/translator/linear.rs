@@ -895,6 +895,14 @@ impl<'c> Translation<'c> {
             "memset" => Some(("c2da_lin_memset", "IIU")),
             "memcmp" => Some(("c2da_lin_memcmp", "IIU")),
             "strlen" => Some(("c2da_lin_strlen", "I")),
+            "strchr" => Some(("c2da_lin_strchr", "II")),
+            "strrchr" => Some(("c2da_lin_strrchr", "II")),
+            "strcmp" => Some(("c2da_lin_strcmp", "II")),
+            "strncmp" => Some(("c2da_lin_strncmp", "IIU")),
+            "strcpy" => Some(("c2da_lin_strcpy", "II")),
+            "strncpy" => Some(("c2da_lin_strncpy", "IIU")),
+            "strcat" => Some(("c2da_lin_strcat", "II")),
+            "strstr" => Some(("c2da_lin_strstr", "II")),
             _ => None,
         };
         if let Some((runtime, types)) = sig {
@@ -1164,6 +1172,105 @@ def c2da_lin_strlen(s : int) : uint64 {{
         i++
     }}
     return uint64(i - s)
+}}
+
+// The C string functions over the heap; a character compares as unsigned char.
+def c2da_lin_strchr(s : int; c : int) : int {{
+    let b = uint8(c & 0xff)
+    var i = s
+    while (c2da_mem[i] != b) {{
+        if (c2da_mem[i] == uint8(0)) {{
+            return 0
+        }}
+        i++
+    }}
+    return i
+}}
+
+def c2da_lin_strrchr(s : int; c : int) : int {{
+    let b = uint8(c & 0xff)
+    var found = 0
+    var i = s
+    while (c2da_mem[i] != uint8(0)) {{
+        if (c2da_mem[i] == b) {{
+            found = i
+        }}
+        i++
+    }}
+    if (b == uint8(0)) {{
+        return i
+    }}
+    return found
+}}
+
+def c2da_lin_strncmp(a : int; b : int; n : uint64) : int {{
+    for (i in range(int(n))) {{
+        let x = int(c2da_mem[a + i])
+        let y = int(c2da_mem[b + i])
+        if (x != y || x == 0) {{
+            return x - y
+        }}
+    }}
+    return 0
+}}
+
+def c2da_lin_strcmp(a : int; b : int) : int {{
+    var i = 0
+    var x = int(c2da_mem[a])
+    var y = int(c2da_mem[b])
+    while (x == y && x != 0) {{
+        i++
+        x = int(c2da_mem[a + i])
+        y = int(c2da_mem[b + i])
+    }}
+    return x - y
+}}
+
+def c2da_lin_strcpy(d : int; s : int) : int {{
+    var i = 0
+    while (c2da_mem[s + i] != uint8(0)) {{
+        c2da_mem[d + i] = c2da_mem[s + i]
+        i++
+    }}
+    c2da_mem[d + i] = uint8(0)
+    return d
+}}
+
+def c2da_lin_strncpy(d : int; s : int; n : uint64) : int {{
+    let len = int(n)
+    var i = 0
+    while (i < len && c2da_mem[s + i] != uint8(0)) {{
+        c2da_mem[d + i] = c2da_mem[s + i]
+        i++
+    }}
+    while (i < len) {{
+        c2da_mem[d + i] = uint8(0)
+        i++
+    }}
+    return d
+}}
+
+def c2da_lin_strcat(d : int; s : int) : int {{
+    c2da_lin_strcpy(d + int(c2da_lin_strlen(d)), s)
+    return d
+}}
+
+def c2da_lin_strstr(h : int; n : int) : int {{
+    var i = h
+    while (true) {{
+        var k = 0
+        while (c2da_mem[n + k] != uint8(0) && c2da_mem[i + k] == c2da_mem[n + k]) {{
+            k++
+        }}
+        if (c2da_mem[n + k] == uint8(0)) {{
+            return i
+        }}
+        if (c2da_mem[i] == uint8(0)) {{
+            return 0
+        }}
+        i++
+    }}
+    return 0
 }}
 "#
     )

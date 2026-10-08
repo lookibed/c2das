@@ -1186,6 +1186,23 @@
       "runtime": "not-applicable"
     },
     {
+      "id": "p196-linear-strings",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p196_linear_strings.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_strings", "return_type": "int" },
+      "das_entrypoint": "linear_strings",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p96-memcpy-builtin",
       "status": "ready",
       "source_root": "tests/syntax",

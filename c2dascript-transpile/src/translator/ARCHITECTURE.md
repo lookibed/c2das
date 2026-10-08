@@ -318,7 +318,9 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
   - **Runtime.** `runtime_source` is appended to the module text as hand-written daslang.
     `c2da_lin_malloc`/`calloc`/`realloc`/`free` use 16-byte headers, a first-fit free list
     and `resize` within the reservation. An allocation past it returns 0. `memcpy`,
-    `memmove`, `memset`, `memcmp` and `strlen` are byte loops over `c2da_mem`.
+    `memmove`, `memset`, `memcmp`, `strlen` and the `<string.h>` string functions
+    (`strchr`, `strrchr`, `strcmp`, `strncmp`, `strcpy`, `strncpy`, `strcat`, `strstr`)
+    are byte loops over `c2da_mem`, called from `linear_call`'s one table.
     `prune_raw_runtime` drops the `c2da_rt_*` raw prelude when nothing names it.
   - **Fails closed.** These are refused with a located "not supported under --memory-model
     linear yet: …" error: `&` of a local or global, a declared array used as a pointer

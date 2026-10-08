@@ -132,7 +132,9 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
 - **Static data.** String literals whose address is taken are placed in the heap by the
   `[init]` function.
 - **Library.** `malloc`/`calloc`/`realloc`/`free`, `memcpy`/`memmove`/`memset`/`memcmp`/
-  `strlen` are `c2da_lin_*` byte loops over the heap.
+  `strlen` are `c2da_lin_*` byte loops over the heap. Step 4 added `strchr`/`strrchr`/
+  `strcmp`/`strncmp`/`strcpy`/`strncpy`/`strcat`/`strstr` the same way (case
+  `p196-linear-strings`; `--no-unsafe` and `eden_check.py` ok).
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
   - `&` of a local or global, and a declared array used as a pointer (step 4,
