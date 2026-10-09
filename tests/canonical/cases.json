@@ -1248,7 +1248,7 @@
       "c_reference": { "entrypoint": "main", "return_type": "int" },
       "das_entrypoint": "main",
       "expected": {
-        "stdout": "101003 8009\n55\n",
+        "stdout": "101003 8009\n55\n3 31 15 -42\n-123 0 0 Hello\n275\n",
         "exit_code": 0
       },
       "runtime": "required"

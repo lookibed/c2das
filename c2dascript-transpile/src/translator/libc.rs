@@ -122,7 +122,7 @@ fn eden_start_decl(stmts: Vec<DaStmt>) -> DaDecl {
 
 /// `errno` under `--memory-model linear`: 4 bytes inside the heap's
 /// reserved first 16, which no object occupies.
-const LINEAR_ERRNO_AT: u64 = 8;
+pub(crate) const LINEAR_ERRNO_AT: u64 = 8;
 
 /// The C object-layout facts the helpers need, taken from the translation
 /// unit's own Clang-exported types rather than assumed (see `layout.rs`).

@@ -2217,6 +2217,58 @@ impl<'c> Translation<'c> {
                 return Ok(Some(lowered));
             }
         }
+        // `errno` is the heap cell the helpers write (`libc.rs`).
+        if base == "__errno_location" && args.is_empty() {
+            return Ok(Some(WithStmts::new_val(DaExpr::ConstInt(libc::LINEAR_ERRNO_AT as i64))));
+        }
+        // `sscanf` with a literal format of up to four `%d %u %x %X %o`
+        // conversions (no width, no length modifier) into `int`s.
+        if base == "sscanf" {
+            let bytes = self
+                .decayed_array(args.get(1).copied().unwrap_or(expr_id))
+                .and_then(|lit| match &self.ast_context[lit].kind {
+                    CExprKind::Literal(_, CLiteral::String(bytes, 1)) => Some(bytes.clone()),
+                    _ => None,
+                })
+                .ok_or_else(|| self.linear_refuse(expr_id, "`sscanf` without a string literal format"))?;
+            let mut convs = 0;
+            let mut k = 0;
+            while k < bytes.len() {
+                if bytes[k] == b'%' {
+                    match bytes.get(k + 1) {
+                        Some(b'd' | b'u' | b'x' | b'X' | b'o') => convs += 1,
+                        other => {
+                            return Err(self.linear_refuse(
+                                expr_id,
+                                &format!(
+                                    "sscanf conversion `%{}` over C memory",
+                                    other.map_or(String::new(), |c| (*c as char).to_string())
+                                ),
+                            ))
+                        }
+                    }
+                    k += 1;
+                }
+                k += 1;
+            }
+            if convs + 2 != args.len() || convs > 4 {
+                return Err(self.linear_refuse(expr_id, "`sscanf` with more than four conversions or a mismatched argument count"));
+            }
+            let mut out = WithStmts::new_val(Vec::new());
+            for arg in args {
+                let v = self.convert_expr(ctx.used(), *arg, None)?;
+                out = out.zip(v).map(|(mut list, v)| {
+                    list.push(if Self::infer_type(&v) == Some(DaType::int()) { v } else { cast(DaType::int(), v) });
+                    list
+                });
+            }
+            return Ok(Some(out.map(|mut list| {
+                while list.len() < 6 {
+                    list.push(DaExpr::ConstInt(0));
+                }
+                DaExpr::Call(Box::new(DaExpr::Var("c2da_lin_sscanf".into())), list)
+            })));
+        }
         // (runtime function, argument types: `I` int, `U` uint64)
         let sig: Option<(&str, &str)> = match base {
             "malloc" => Some(("c2da_lin_malloc", "U")),
@@ -2861,6 +2913,78 @@ def c2da_lin_rename(from : int; to : int) : int {{
 
 def c2da_lin_mkdir(path : int; mode : uint64) : int {{
     return -1
+}}
+
+def c2da_lin_digit(c : int; base : int) : int {{
+    var d = 99
+    if (c >= 48 && c <= 57) {{
+        d = c - 48
+    }} elif (c >= 97 && c <= 102) {{
+        d = c - 87
+    }} elif (c >= 65 && c <= 70) {{
+        d = c - 55
+    }}
+    return d < base ? d : -1
+}}
+
+// sscanf with `%d %u %x %X %o` into ints (the translator checks the format):
+// blanks in the format skip blanks, other characters must match, and the
+// result is the number of conversions stored (-1 when the input is empty
+// before the first one).
+def c2da_lin_sscanf(s : int; f : int; p0 : int; p1 : int; p2 : int; p3 : int) : int {{
+    var i = s
+    var k = f
+    var n = 0
+    while (int(c2da_mem[k]) != 0) {{
+        let c = int(c2da_mem[k])
+        if (c2da_lin_isspace(c)) {{
+            while (c2da_lin_isspace(int(c2da_mem[i]))) {{
+                i++
+            }}
+            k++
+        }} elif (c != 37) {{
+            if (int(c2da_mem[i]) != c) {{
+                return n == 0 && int(c2da_mem[i]) == 0 ? -1 : n
+            }}
+            i++
+            k++
+        }} else {{
+            let conv = int(c2da_mem[k + 1])
+            k += 2
+            while (c2da_lin_isspace(int(c2da_mem[i]))) {{
+                i++
+            }}
+            if (n == 0 && int(c2da_mem[i]) == 0) {{
+                return -1
+            }}
+            var neg = false
+            if (int(c2da_mem[i]) == 45 || int(c2da_mem[i]) == 43) {{
+                neg = int(c2da_mem[i]) == 45
+                i++
+            }}
+            let base = conv == 120 || conv == 88 ? 16 : (conv == 111 ? 8 : 10)
+            var v = 0
+            var digits = 0
+            while (c2da_lin_digit(int(c2da_mem[i]), base) >= 0) {{
+                v = v * base + c2da_lin_digit(int(c2da_mem[i]), base)
+                i++
+                digits++
+            }}
+            if (digits == 0) {{
+                return n
+            }}
+            if (neg) {{
+                v = -v
+            }}
+            let p = n == 0 ? p0 : (n == 1 ? p1 : (n == 2 ? p2 : p3))
+            c2da_mem[p] = uint8(v & 255)
+            c2da_mem[p + 1] = uint8((v >> 8) & 255)
+            c2da_mem[p + 2] = uint8((v >> 16) & 255)
+            c2da_mem[p + 3] = uint8((v >> 24) & 255)
+            n++
+        }}
+    }}
+    return n
 }}
 
 // atoi: optional blanks and sign, then decimal digits (wrapping like the
