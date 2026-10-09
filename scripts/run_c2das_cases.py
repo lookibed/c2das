@@ -22,7 +22,9 @@ CASE_FILE = ROOT / "tests/canonical/cases.json"
 LIBC_MODES = ("nostd", "std", "ffi", "all", "eden")
 
 
-def write_eden_host(generated_das: Path, program_args: list[str], destination: Path) -> Path:
+def write_eden_host(
+    generated_das: Path, program_args: list[str], destination: Path, das_options: list[str] = ()
+) -> Path:
     """The test host of a `--libc eden` case (`docs/eden-flags.md` flag 5).
 
     A `--libc eden` module has no file system: its host registers every file
@@ -32,10 +34,15 @@ def write_eden_host(generated_das: Path, program_args: list[str], destination: P
     sandbox checks) under the very path the C program receives in `argv`, then
     calls the module's `main`. It is written next to the generated module and
     run with `-main c2da_host_main`.
+
+    The host is the program file, so a context option of the case
+    (`das_options`, e.g. `stack`) is repeated here: daslang takes the
+    context's stack size from the program, not from a required module.
     """
     module = generated_das.stem
     lines = [
         "options gen2",
+        *[f"options {option}" for option in das_options],
         "require daslib/fio",
         f"require {module}",
         "",
@@ -533,7 +540,10 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         das_main = case["das_entrypoint"]
         if case.get("libc") == "eden" and program_args:
             das_entry = write_eden_host(
-                generated_das, program_args, generated_das.parent / "c2da_eden_host.das"
+                generated_das,
+                program_args,
+                generated_das.parent / "c2da_eden_host.das",
+                case.get("das_options", []),
             )
             das_main = "c2da_host_main"
         da_result = subprocess.run(

@@ -617,6 +617,13 @@ impl<'c> Translation<'c> {
 
     /// A zeroed allocation the size Clang gives the record object.
     pub(crate) fn record_zero_storage(&self, record_id: CRecordId) -> TranslationResult<DaExpr> {
+        // `--memory-model linear`: such a record lives in the heap, read
+        // field by field at Clang's offsets; the daslang wrapper type is only
+        // declared, and any value of it that reaches raw storage operations
+        // is refused by the module's `unsafe` net.
+        if self.is_linear() {
+            return Ok(self.integer_literal_for_type(DaExpr::ConstInt(0), DaType::uint64()));
+        }
         let size = self.record_object_size(record_id)?;
         Ok(DaExpr::Call(
             Box::new(DaExpr::Var("c2da_rt_calloc".into())),

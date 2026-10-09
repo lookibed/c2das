@@ -2453,12 +2453,13 @@
     },
     {
       "id": "binjgb-cgb-acid2-eden-linear",
-      "status": "known-red",
+      "status": "ready",
       "source_root": "tests/manual/binjgb",
       "translation_entry": "src/binjgb_all.c",
       "c_graph": "binjgb",
       "libc": "eden",
       "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "das_options": ["stack = 1048576"],
       "clang": {
         "compiler": "clang-18",
         "flags": ["-std=c11", "-DNDEBUG", "-Iinclude", "-Iupstream/binjgb/src", "-Isrc"]

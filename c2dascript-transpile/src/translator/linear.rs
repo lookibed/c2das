@@ -652,14 +652,22 @@ impl<'c> Translation<'c> {
         for decl in order {
             // The definition carries the initializer; `extern` redeclarations
             // share the object.
-            let def = self.ast_context.iter_decls().find_map(|(&id, d)| match &d.kind {
-                CDeclKind::Variable { is_defn: true, ident, .. }
-                    if id == decl || Some(ident) == self.ast_context[decl].kind.get_name() =>
-                {
-                    Some(id)
-                }
-                _ => None,
-            });
+            let is_defn = matches!(self.ast_context[decl].kind, CDeclKind::Variable { is_defn: true, .. });
+            let def = if is_defn {
+                Some(decl)
+            } else {
+                // An `extern` declaration: the file-scope definition of that
+                // name (function-scope statics are always definitions).
+                self.ast_context.iter_decls().find_map(|(&id, d)| match &d.kind {
+                    CDeclKind::Variable { is_defn: true, has_static_duration: true, ident, .. }
+                        if Some(ident) == self.ast_context[decl].kind.get_name()
+                            && self.ast_context.parents.get(&id).is_none() =>
+                    {
+                        Some(id)
+                    }
+                    _ => None,
+                })
+            };
             let src = def.unwrap_or(decl);
             let CDeclKind::Variable { typ, initializer, .. } = self.ast_context[src].kind else {
                 continue;
