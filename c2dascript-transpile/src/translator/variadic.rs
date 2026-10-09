@@ -355,7 +355,16 @@ impl<'c> Translation<'c> {
             }),
         );
         let raw = DaExpr::Field(Box::new(DaExpr::Var(item_name.clone())), field.into());
-        let value = if kind.is_pointer() {
+        // `--memory-model linear`: the packed pointer is the heap offset (a
+        // function pointer under `--fnptr-model table` its index), so the
+        // value is that integer, as `pack_variadic_argument` widened it.
+        let value = if kind.is_pointer() && self.is_linear() {
+            DaExpr::Cast {
+                kind: das_ast::CastKind::Cast,
+                expr: Box::new(raw),
+                to: output,
+            }
+        } else if kind.is_pointer() {
             self.raw_address_to_pointer(raw, output)
         } else {
             DaExpr::Cast {

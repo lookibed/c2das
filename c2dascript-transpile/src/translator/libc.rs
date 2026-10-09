@@ -6998,6 +6998,23 @@ fn build_abs() -> DaDecl {
 /// keeps its payload with its sign cleared, which `x < 0 ? -x : x` gets wrong
 /// on both counts.
 fn build_fabs() -> DaDecl {
+    // `--memory-model linear` (no `reinterpret`): the same bits through
+    // `daslib/math_bits`, which the linear module requires.
+    if linear() {
+        return helper(
+            FABS,
+            vec![param("x", DaType::double())],
+            DaType::double(),
+            vec![ret(call(
+                "uint64_bits_to_double",
+                vec![op2(
+                    "&",
+                    call("double_bits_to_uint64", vec![var("x")]),
+                    uint64_const(0x7fff_ffff_ffff_ffff),
+                )],
+            ))],
+        );
+    }
     helper(
         FABS,
         vec![param("x", DaType::double())],
