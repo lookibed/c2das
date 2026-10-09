@@ -2477,6 +2477,72 @@ pub fn prune_raw_runtime(decls: &mut Vec<DaDecl>) {
     });
 }
 
+/// The static block `bytes` placed at heap offset `base`, as daslang text:
+/// the global declarations and the statements an `[init]` runs to copy it
+/// in (indented one level).  The heap is zero-filled by `resize`, so only the
+/// nonzero runs are stored: `c2da_lin_static{suffix}_seg` holds an (offset,
+/// length) pair per run, and `c2da_lin_static{suffix}` the runs' bytes packed
+/// eight to a little-endian `uint64`.  Doom's 366 KiB block is 81% zeros; one
+/// constant per byte made a 375 000-element `fixed_array` literal whose
+/// compilation alone peaked near 1 GB.  An empty block emits nothing.
+fn static_block_source(bytes: &[u8], base: usize, suffix: &str) -> (String, String) {
+    // Runs of nonzero bytes; a zero gap shorter than 16 bytes stays inside the
+    // run (it costs at most two packed words, a new run costs two offsets).
+    let mut runs: Vec<(usize, usize)> = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == 0 {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        let mut end = i + 1;
+        let mut j = end;
+        while j < bytes.len() && j - end < 16 {
+            if bytes[j] != 0 {
+                end = j + 1;
+            }
+            j += 1;
+        }
+        runs.push((start, end));
+        i = end;
+    }
+    if runs.is_empty() {
+        return (String::new(), String::new());
+    }
+    let mut stream: Vec<u8> = Vec::new();
+    let mut seg: Vec<String> = Vec::new();
+    for &(s, e) in &runs {
+        seg.push((base + s).to_string());
+        seg.push((e - s).to_string());
+        stream.extend_from_slice(&bytes[s..e]);
+    }
+    let words: Vec<String> = stream
+        .chunks(8)
+        .map(|c| {
+            let mut w = [0u8; 8];
+            w[..c.len()].copy_from_slice(c);
+            format!("0x{:x}ul", u64::from_le_bytes(w))
+        })
+        .collect();
+    let decls = format!(
+        "let private c2da_lin_static{suffix}_seg = fixed_array<int>({})\n\
+         let private c2da_lin_static{suffix} = fixed_array<uint64>({})\n",
+        seg.join(", "),
+        words.join(", ")
+    );
+    let copy = format!(
+        "    var c2da_lin_p = 0\n    \
+         for (s in range({})) {{\n        \
+         let at = c2da_lin_static{suffix}_seg[s * 2]\n        \
+         for (k in range(c2da_lin_static{suffix}_seg[s * 2 + 1])) {{\n            \
+         c2da_mem[at + k] = uint8(c2da_lin_static{suffix}[c2da_lin_p >> 3] >> uint64((c2da_lin_p & 7) * 8))\n            \
+         c2da_lin_p++\n        }}\n    }}\n",
+        runs.len()
+    );
+    (decls, copy)
+}
+
 /// The `c2da_lin_*` runtime and the static block, appended to a linear
 /// module's text.  `reserve` is the heap capacity in bytes: the heap is
 /// reserved at that size before any `resize`, so daslang's
@@ -2484,23 +2550,8 @@ pub fn prune_raw_runtime(decls: &mut Vec<DaDecl>) {
 /// answers C NULL.
 pub fn runtime_source(reserve: u64) -> String {
     let bytes = STATIC.with(|s| s.borrow().0.clone());
-    let mut init = String::new();
     let n = bytes.len();
-    if n > RESERVED {
-        let list: Vec<String> = bytes[RESERVED..].iter().map(|b| format!("0x{b:x}")).collect();
-        init.push_str(&format!(
-            "let private c2da_lin_static = fixed_array<uint8>({})\n",
-            list.join(", ")
-        ));
-    }
-    let copy = if n > RESERVED {
-        format!(
-            "    for (i in range({})) {{\n        c2da_mem[{RESERVED} + i] = c2da_lin_static[i]\n    }}\n",
-            n - RESERVED
-        )
-    } else {
-        String::new()
-    };
+    let (init, copy) = static_block_source(bytes.get(RESERVED..).unwrap_or(&[]), RESERVED, "");
     // The C stack: a fixed region above the static block, growing down
     // from its top; `c2da_lin_enter` pushes a frame, the function wrapper
     // pops it.
@@ -2609,14 +2660,11 @@ pub fn unit_runtime_source(module: &str) -> String {
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
     let mut text = String::new();
-    if bytes.len() > base {
-        let list: Vec<String> = bytes[base..].iter().map(|b| format!("0x{b:x}")).collect();
+    let (decls, copy) = static_block_source(bytes.get(base..).unwrap_or(&[]), base, &format!("_{stem}"));
+    if !decls.is_empty() {
         text.push_str(&format!(
-            "\n// This unit's static data, at heap offset {base}.\nlet private c2da_lin_static_{stem} = fixed_array<uint8>({})\n\n\
-             [init]\ndef private c2da_lin_init_static_{stem}() {{\n    c2da_lin_setup()\n    \
-             for (i in range({})) {{\n        c2da_mem[{base} + i] = c2da_lin_static_{stem}[i]\n    }}\n}}\n",
-            list.join(", "),
-            bytes.len() - base
+            "\n// This unit's static data, at heap offset {base}.\n{decls}\n\
+             [init]\ndef private c2da_lin_init_static_{stem}() {{\n    c2da_lin_setup()\n{copy}}}\n"
         ));
     }
     let funcs = FUNCS.with(|f| f.borrow().clone());

@@ -312,9 +312,12 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     not a variable or a constant sum is bound to a `let` first. A compound assignment reads
     the old value, computes in Clang's computation type, and narrows back.
   - **Static data.** A string literal whose address is taken goes into a static block from
-    offset 16, deduplicated. Its address is a constant. The block is a
-    `fixed_array<uint8>` that `[init] c2da_lin_init` copies into the heap after
-    `reserve(c2da_mem, --heap-reserve)`.
+    offset 16, deduplicated. Its address is a constant. Only the block's nonzero runs
+    are emitted (`static_block_source`): an (offset, length) table
+    `c2da_lin_static_seg` and the runs' bytes packed eight to a little-endian `uint64`
+    in `c2da_lin_static`. `[init] c2da_lin_init` unpacks them into the heap, which
+    `resize` has zero-filled, after `reserve(c2da_mem, --heap-reserve)`. One constant
+    per byte made Doom's 366 KiB block cost about 1 GB of compile memory.
   - **Runtime.** `runtime_source` is appended to the module text as hand-written daslang.
     `c2da_lin_malloc`/`calloc`/`realloc`/`free` use 16-byte headers, a first-fit free list
     and `resize` within the reservation. An allocation past it returns 0. `memcpy`,

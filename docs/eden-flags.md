@@ -16,7 +16,7 @@ The editor itself has not been run.
 | `binjgb-cgb-acid2-eden` | `--libc eden --dialect eden-0.6.4` | unity | 60 frames equal to C |
 | `binjgb-cgb-acid2-eden-linear` | + `--memory-model linear --no-unsafe` | unity | 60 frames equal to C; `eden_check` ok |
 | `binjgb-cgb-acid2-eden-linear-source` | + `--fnptr-model table --entry eden` | 5 unit modules + `c2da_runtime` | 60 frames equal to C; `eden_check` ok on all 6 modules |
-| `doomgeneric-demo1-eden-linear` | `--libc eden --memory-model linear --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe` | unity | 70 frames equal to C; `eden_check` ok |
+| `doomgeneric-demo1-eden-linear` | `--libc eden --memory-model linear --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe --heap-reserve 16777216` | unity | 70 frames equal to C; `eden_check` ok |
 
 Each flag also has its own fixtures: p190–p216, plus `m02`/`m03` under the eden flags.
 
@@ -25,11 +25,33 @@ Each flag also has its own fixtures: p190–p216, plus `m02`/`m03` under the ede
 | program | linear model vs raw model | memory |
 |---|---|---|
 | binjgb | about 3.2× slower | — |
-| Doom | about 3.1× slower | peak 1.28 GB vs 365 MB, not yet explained |
+| Doom | about 3.1× slower | process peak 485 MB vs 365 MB, all of it compiler; context heap 21 MB |
 
-The peak memory is far above the editor's 100 MiB heap cap. Because it is measured on the whole
-process, it may be compile-time memory, but this must be found before Doom goes into the
-editor.
+**Doom's memory, split** (master daslang, `/usr/bin/time -v` max RSS of the whole process;
+context heap from `heap_bytes_allocated()` after the run):
+
+| | before | after |
+|---|---:|---:|
+| `-compile-only` | 664 MB | 394 MB |
+| `-dry-run` (compile + simulate + `[init]`) | 1 248 MB | 485 MB |
+| full run | 1 248 MB | 485 MB |
+| context heap after the run | 88.3 MB | 21.2 MB |
+| `c2da_mem` reserved / high water | 80 MiB / 8.02 MB | 16 MiB / 8.02 MB |
+| generated `doom_all.das` | 4.34 MB | 2.71 MB |
+
+- The process peak was compile time, not the program. The static block was one
+  375 000-element `fixed_array<uint8>` literal (one AST constant per byte). It is now
+  stored as its nonzero runs only (Doom's block is 81% zeros): an (offset, length) table
+  and the runs' bytes packed eight to a `uint64`, which `[init]` unpacks into the zeroed
+  heap. That is about 16 000 constants instead of 375 000.
+- Running Doom adds nothing measurable to the process peak. The 80 MiB default
+  `--heap-reserve` was not resident memory, but it counts towards the editor's
+  100 MiB cap. Doom's C heap peaks at 8.02 MB (its zone is a fixed 6 MiB), so the case
+  now passes `--heap-reserve 16777216`. The context heap is then the 16 MiB heap,
+  the 4.2 MB WAD that the host hands over, and about 0.4 MB of other data: 21 MB in all,
+  well under the cap.
+- The 485 MB that is left is daslang compiling 46 600 lines; how much of it the editor
+  counts towards a script is not known.
 
 **Lint** (`scripts/lint_translated.py`, full report in [`lint-translated.md`](lint-translated.md)):
 
@@ -53,8 +75,7 @@ editor.
 **Not done:**
 - the editor run itself;
 - Doom under `--module-layout source` with the eden flags (each half works alone);
-- `--records typed` across units, which is refused under `--module-layout source`;
-- an explanation of Doom's memory peak.
+- `--records typed` across units, which is refused under `--module-layout source`.
 
 Earlier status notes, kept for history: step 1 of the order of work is the CLI switches
 (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and `--no-unsafe`

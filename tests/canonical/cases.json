@@ -2368,7 +2368,7 @@
       "translation_entry": "src/doom_all.c",
       "c_graph": "doomgeneric",
       "libc": "eden",
-      "translator_flags": ["--memory-model", "linear", "--fnptr-model", "table", "--entry", "eden", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "translator_flags": ["--memory-model", "linear", "--fnptr-model", "table", "--entry", "eden", "--dialect", "eden-0.6.4", "--no-unsafe", "--heap-reserve", "16777216"],
       "das_options": ["stack = 4194304"],
       "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-Iinclude", "-Iupstream/doomgeneric/doomgeneric", "-Isrc"] },
       "c_reference": { "sources": ["src/doom_all.c"] },
