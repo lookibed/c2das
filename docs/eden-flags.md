@@ -67,6 +67,34 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | **Implemented** with `--memory-model linear --libc eden` (refused without them): the host API `c2da_eden_start(args : array<string>) : int`, see "`--entry eden` as built"; cases `p206-linear-entry-eden`, `binjgb-cgb-acid2-eden-linear-source`. Splitting a frame-driven program into `init`/`tick` is per-program host code |
 | 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (clusters too), also with `--memory-model linear` (one shared heap module; cases `binjgb-cgb-acid2-eden-linear-source`, `m02`/`m03-…-eden-linear`) |
 | 11 | `--no-unsafe` (check, implied by the preset) | The translator fails closed, with a source-located diagnostic, on any construct that would need `unsafe` under the other flags. The output is then also checked locally under `sandbox.das_project`. | A sandbox refusal in the editor names only the first error | No such check | **Implemented** as a checker: `--no-unsafe` fails naming the first 10 sites by C declaration; `--no-unsafe=report` prints a census. `scripts/eden_check.py` runs the sandbox model |
+| 12 | `--records typed` (needs 1) | A heap allocation of a struct type whose interior addresses never escape as byte pointers is a `new T` daslang object with typed fields; `T*` is `T?`. | Byte-heap fields cost 5–6× raw in the interpreter; a typed object 0.96× (measured below) | Every record through a pointer is an offset plus Clang's field offsets | Not yet: parsed, refused by name (case `p191`). See "`--records typed`: what is missing" below |
+
+### `--records typed`: what is missing
+
+Not built. A sound first version needs all of the following; none exists yet.
+
+- **A whole-program escape analysis** (the link pass under `--module-layout source`, the
+  unit otherwise) that marks a struct type `T` typed only when no `T*` is cast to or from
+  another pointer type or an integer, no `&p->field` or decay of an array field is taken, no
+  `T` value or `T*` is stored into byte memory (a `T*` field of a heap record, an array of
+  `T*`, a `T*` local whose address is taken, a `T` by value in another heap record), no
+  byte function (`memcpy`, `memset`, `memcmp`, `realloc`) touches it, and its only
+  allocations are `malloc(sizeof(T))`/`calloc(1, sizeof(T))` assigned to a `T*`. It is a
+  fixpoint: a `T*` field of a record `U` keeps `T` typed only if `U` is typed too.
+- **A second pointer representation in `linear.rs`.** Every path that assumes a data
+  pointer is an `int` (`convert_type`, `Scalar::Ptr`, `heap_place`, NULL as 0, truthiness,
+  `==`/`!=`, the conditional operator, parameters, returns, globals, the `--varargs-model
+  heap` slot store) needs a `T?` branch: `p->f` becomes `p.f`, NULL `null`, `free(p)`
+  drops the reference. `delete p` of a pointer needs `unsafe` in the sandbox
+  (`eden-target.md` §2, and `--no-unsafe` refuses `delete`), so `free` cannot release the
+  object; it is collected between engine frames.
+- **binjgb would not qualify** under this rule. Its `Emulator` (`xcalloc` is `calloc`) has
+  20 `&e->…` interior addresses in `emulator.c` (`&e->state`, `&e->audio_buffer`,
+  `&e->pal[i]`, `&e->frame_buffer`, …), and its `state` member is `memcpy`'d for save states
+  (`emulator_read_state`/`emulator_write_state`). Getting the measured 0.96× there needs
+  more than flag 12 as specified: interior pointers to typed sub-records as daslang
+  references, typed arrays inside a typed record, and a field-wise copy for `memcpy` of a
+  typed record. No binjgb measurement was taken.
 
 ### `--libc eden` as built
 
