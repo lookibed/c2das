@@ -4292,6 +4292,7 @@ fn translate_impl(
     t.ast_context.prune_unwanted_decls(false);
     t.ast_context.set_prenamed_decls();
     if t.is_linear() {
+        t.typed_plan()?;
         t.linear_plan_globals()?;
     }
 

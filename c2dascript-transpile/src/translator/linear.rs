@@ -24,6 +24,7 @@ use crate::target::MemoryModel;
 use crate::translator::layout::NaturalMember;
 use std::collections::HashMap as StdHashMap;
 
+mod typed_records;
 mod va_heap;
 
 /// The heap: one module global.
@@ -73,6 +74,7 @@ pub fn reset() {
     ARGV_USED.with(|u| u.set(false));
     IN_LINK.with(|l| *l.borrow_mut() = None);
     va_heap::reset();
+    typed_records::reset();
 }
 
 /// The first conversion of a printf format the linear formatter does not
@@ -418,8 +420,12 @@ impl<'c> Translation<'c> {
     }
 
     /// The pointee of a data pointer type; `None` for anything else,
-    /// including a pointer to a function.
+    /// including a pointer to a function and a `--records typed` pointer
+    /// (a daslang `T?`, `linear/typed_records.rs`).
     pub(crate) fn linear_pointee(&self, ty: CTypeId) -> Option<CQualTypeId> {
+        if self.typed_pointee(ty).is_some() {
+            return None;
+        }
         match self.ast_context.resolve_type(ty).kind {
             CTypeKind::Pointer(inner) => {
                 if matches!(
@@ -1228,6 +1234,10 @@ impl<'c> Translation<'c> {
             }
             Member(_, base, field, kind, _) => {
                 let base_address = match kind {
+                    // `p->f` of a typed record is daslang `p.f`.
+                    MemberKind::Arrow if self.typed_pointee(self.qual_of(*base)?.ctype).is_some() => {
+                        return Ok(None)
+                    }
                     MemberKind::Arrow => self.convert_expr(ctx.used(), *base, None)?,
                     MemberKind::Dot => match self.heap_place(ctx, *base)? {
                         Some(address) => address,
@@ -1327,6 +1337,9 @@ impl<'c> Translation<'c> {
         let kind = self.ast_context[expr_id].kind.clone();
         match kind {
             Unary(ty, CUnOp::Deref, ..) | ArraySubscript(ty, ..) | Member(ty, ..) => {
+                if let Some(field) = self.typed_member(ctx, expr_id)? {
+                    return Ok(Some(field));
+                }
                 let Some(address) = self.heap_place(ctx, expr_id)? else {
                     return self.linear_daslang_index(ctx, expr_id);
                 };
@@ -1389,6 +1402,9 @@ impl<'c> Translation<'c> {
         inner: CExprId,
         ck: CastKind,
     ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        if let Some(lowered) = self.typed_cast(ctx, expr_id, ty, inner, ck)? {
+            return Ok(lowered);
+        }
         let to_ptr = self.is_data_pointer(ty.ctype);
         let inner_ty = self.qual_of(inner)?;
         let from_ptr = self.is_data_pointer(inner_ty.ctype);
@@ -2000,6 +2016,11 @@ impl<'c> Translation<'c> {
             return Ok(None);
         }
         let base = name.strip_prefix("__builtin_").unwrap_or(&name);
+        if base == "free" {
+            if let Some(lowered) = self.typed_free(ctx, args)? {
+                return Ok(Some(lowered));
+            }
+        }
         if let Some(lowered) = self.linear_format_call(ctx, expr_id, base, args)? {
             return Ok(Some(lowered));
         }
@@ -2052,12 +2073,14 @@ impl<'c> Translation<'c> {
         // as a format or a text stays the libc lowering's own business.
         let ret_ptr = self
             .qual_of(expr_id)
-            .map(|t| self.is_data_pointer(t.ctype))
+            .map(|t| self.is_data_pointer(t.ctype) || self.is_typed_record_pointer(t.ctype))
             .unwrap_or(false);
         let ptr_arg = args.iter().any(|a| {
             self.qual_of(*a)
                 .map(|t| {
-                    self.is_data_pointer(t.ctype) || (fn_table() && self.is_fn_pointer(t.ctype))
+                    self.is_data_pointer(t.ctype)
+                        || self.is_typed_record_pointer(t.ctype)
+                        || (fn_table() && self.is_fn_pointer(t.ctype))
                 })
                 .unwrap_or(false)
                 && !self.is_string_literal_arg(*a)

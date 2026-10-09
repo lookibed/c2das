@@ -390,6 +390,20 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     call's stores from clobbering an enclosing call's; a recursive call has its own frame.
     Refused: a variadic `--libc std`/runtime helper (`open`, `sscanf`, …), a variadic call
     outside a function body, an argument of record type.
+  - **`--records typed`.** `linear/typed_records.rs` (a child of `linear.rs`).
+    `typed_plan`, run by `mod.rs` before `linear_plan_globals`, decides once per unit
+    which structs qualify, by a whitelist over every declaration and expression of the
+    unit (the module comment lists it); a `T *` field of a record that does not qualify
+    disqualifies `T` (fixpoint); `--module-layout source` is refused with the flag. A
+    qualifying `T *` is `T?` (`convert_type.rs`, pointee qualifiers dropped) and is not
+    a data pointer to `linear_pointee`, so every byte-heap path skips it;
+    `typed_member` lowers `p->f` to `p.f` (from `linear_expr`, so stores and `++` reach
+    it through the ordinary lvalue paths), `typed_cast` lowers NULL to `null`, truth to
+    `!= null` and the `malloc(sizeof(T))`/`calloc(1, sizeof(T))` cast to `new T()`, and
+    refuses any other cast; `typed_free` drops `free(p)` to an evaluation of `p`.
+    `abi.rs abi_pointer_cast` and `cfg/mod.rs convert_return` emit no `reinterpret` to
+    a typed `T?` (`is_typed_da_pointer`); `layout.rs` accepts named-field access only
+    for typed records.
   - **`--entry eden`.** `libc.rs build_eden_start` replaces the `[export] def main`
     wrapper by `c2da_eden_start(args : array<string>) : int`: `args` is C's argv, put
     in the heap with `c2da_lin_put_arg`, and C `main` runs inside `eden_entry_body`'s

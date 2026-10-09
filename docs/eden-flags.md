@@ -67,34 +67,64 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | **Implemented** with `--memory-model linear --libc eden` (refused without them): the host API `c2da_eden_start(args : array<string>) : int`, see "`--entry eden` as built"; cases `p206-linear-entry-eden`, `binjgb-cgb-acid2-eden-linear-source`. Splitting a frame-driven program into `init`/`tick` is per-program host code |
 | 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (clusters too), also with `--memory-model linear` (one shared heap module; cases `binjgb-cgb-acid2-eden-linear-source`, `m02`/`m03-…-eden-linear`) |
 | 11 | `--no-unsafe` (check, implied by the preset) | The translator fails closed, with a source-located diagnostic, on any construct that would need `unsafe` under the other flags. The output is then also checked locally under `sandbox.das_project`. | A sandbox refusal in the editor names only the first error | No such check | **Implemented** as a checker: `--no-unsafe` fails naming the first 10 sites by C declaration; `--no-unsafe=report` prints a census. `scripts/eden_check.py` runs the sandbox model |
-| 12 | `--records typed` (needs 1) | A heap allocation of a struct type whose interior addresses never escape as byte pointers is a `new T` daslang object with typed fields; `T*` is `T?`. | Byte-heap fields cost 5–6× raw in the interpreter; a typed object 0.96× (measured below) | Every record through a pointer is an offset plus Clang's field offsets | Not yet: parsed, refused by name (case `p191`). See "`--records typed`: what is missing" below |
+| 12 | `--records typed` (needs 1) | A heap allocation of a struct type whose interior addresses never escape as byte pointers is a `new T` daslang object with typed fields; `T*` is `T?`. | Byte-heap fields cost 5–6× raw in the interpreter; a typed object 0.96× (measured below) | Every record through a pointer is an offset plus Clang's field offsets | **Implemented, minimal rule** with `--memory-model linear` (refused by name without it, and with `--module-layout source`; `translator/linear/typed_records.rs`): a struct qualifies per translation unit by a whitelist (below); its `T *` is `T?`, `malloc(sizeof(T))`/`calloc(1, sizeof(T))` is `new T()`, `p->f` is `p.f`, NULL is `null`, `free(p)` releases nothing. Everything else keeps the byte heap. Case `p209-linear-records-typed`. See "`--records typed` as built" below |
 
-### `--records typed`: what is missing
+### `--records typed` as built
 
-Not built. A sound first version needs all of the following; none exists yet.
+A minimal, sound first version (`translator/linear/typed_records.rs`). What it does not
+cover keeps the byte-heap form; nothing is accepted outside the rule.
 
-- **A whole-program escape analysis** (the link pass under `--module-layout source`, the
-  unit otherwise) that marks a struct type `T` typed only when no `T*` is cast to or from
-  another pointer type or an integer, no `&p->field` or decay of an array field is taken, no
-  `T` value or `T*` is stored into byte memory (a `T*` field of a heap record, an array of
-  `T*`, a `T*` local whose address is taken, a `T` by value in another heap record), no
-  byte function (`memcpy`, `memset`, `memcmp`, `realloc`) touches it, and its only
-  allocations are `malloc(sizeof(T))`/`calloc(1, sizeof(T))` assigned to a `T*`. It is a
-  fixpoint: a `T*` field of a record `U` keeps `T` typed only if `U` is typed too.
-- **A second pointer representation in `linear.rs`.** Every path that assumes a data
-  pointer is an `int` (`convert_type`, `Scalar::Ptr`, `heap_place`, NULL as 0, truthiness,
-  `==`/`!=`, the conditional operator, parameters, returns, globals, the `--varargs-model
-  heap` slot store) needs a `T?` branch: `p->f` becomes `p.f`, NULL `null`, `free(p)`
-  drops the reference. `delete p` of a pointer needs `unsafe` in the sandbox
-  (`eden-target.md` §2, and `--no-unsafe` refuses `delete`), so `free` cannot release the
-  object; it is collected between engine frames.
+- **Scope: one translation unit.** `typed_plan` decides before translation. With
+  `--module-layout source` the flag is refused by name ("the rule needs every unit of the
+  program"); a whole-program version would run the same rule in the link pass.
+- **The rule is a whitelist.** A struct `T` qualifies only when, across every
+  declaration and expression of the unit:
+  - a `T *` value is only read, assigned, compared with `==`/`!=`, tested for truth
+    (`if (p)`, `!p`, `p ? a : b`), passed to or returned from a function the unit defines
+    (fixed parameters only), or used as the base of `p->f`;
+  - every conversion to `T *` is NULL (`0` or `(void *)0`), a qualifier change, or
+    `malloc(sizeof(T))` / `calloc(1, sizeof(T))` (the type form of `sizeof`); the only
+    conversion from `T *` is the argument of `free`;
+  - nothing puts a `T` or a `T *` into byte memory: no `T **`, no array of `T` or `T *`,
+    no `T` by value inside another record, no `T *` field of a record or union that does
+    not qualify (a fixpoint), no `T *` variadic argument or `va_arg`;
+  - no address inside a `T` object is taken: no `&x` of a `T`, no `&p->f` / `&s.f` /
+    `&s.a.b` of a field of `T`, no decayed array field of `T`;
+  - no `*p`, `p[i]`, `p + n`, `++p` or `<` on a `T *` (so `sizeof *p` disqualifies too);
+  - no library function other than `free` takes or returns a `T *` (`memset`, `memcpy`,
+    `realloc`, `printf("%p")`, … all disqualify);
+  - `T` has no bitfield and no aggregate field (record, union or array by value).
+- **Lowering.** A qualifying `T *` is `T?` everywhere (locals, parameters, returns,
+  globals, fields of typed records), pointee qualifiers dropped. The allocation patterns
+  are `new T()`: daslang zero-initialises every field, which is `calloc`'s contract and
+  one valid value of `malloc`'s indeterminate bytes. NULL is `null`, truth `!= null`,
+  `p->f` `p.f`. `free(p)` evaluates `p` and releases nothing: `delete` needs `unsafe`,
+  which the sandbox refuses (`eden-target.md` §2), so the object is reclaimed by
+  daslang's garbage collector between engine frames. A use-after-free that C leaves
+  undefined reads the still-live object instead of failing.
+- **Fail closed.** A cast the rule did not whitelist still reaching a typed pointer is
+  refused by name; a library call with a typed pointer argument or result is refused; the
+  module-wide `unsafe` net (`target_check.rs check_linear`) still applies.
+- **Verified.** `p209-linear-records-typed`: a list (`malloc`, global head, traversal,
+  `free`), a binary search tree (`calloc`, recursion through `const` parameters, `free`)
+  and a list record disqualified by `&c->value` that stays in the byte heap in the same
+  program; C == daslang on master, `--no-unsafe`, `scripts/eden_check.py` ok (0
+  `unsafe`/`addr`/`reinterpret`/`intptr`).
+- **Measured** (master daslang interpreter, this machine, 3 runs each, no editor run):
+  building a 1 000-node list and walking it 2 000 times (2 M `p->value` / `p->next`
+  reads) takes 15.4–15.6 ms typed, 125–127 ms with the byte heap (`--records natural`),
+  15.6–16.1 ms under today's raw-pointer model. Typed is 8.1× faster than the byte heap
+  and on par with raw pointers (0.98×), in line with the 0.96× kernel measured below.
 - **binjgb would not qualify** under this rule. Its `Emulator` (`xcalloc` is `calloc`) has
   20 `&e->…` interior addresses in `emulator.c` (`&e->state`, `&e->audio_buffer`,
   `&e->pal[i]`, `&e->frame_buffer`, …), and its `state` member is `memcpy`'d for save states
   (`emulator_read_state`/`emulator_write_state`). Getting the measured 0.96× there needs
-  more than flag 12 as specified: interior pointers to typed sub-records as daslang
-  references, typed arrays inside a typed record, and a field-wise copy for `memcpy` of a
-  typed record. No binjgb measurement was taken.
+  more than flag 12 as built: interior pointers to typed sub-records as daslang
+  references, typed arrays and records inside a typed record, and a field-wise copy for
+  `memcpy` of a typed record. No binjgb measurement was taken.
+- **Still missing:** the whole-program (source layout) version; aggregate fields; `T`
+  by value meeting a typed object (`*p`, `s = *p`, `*p = s`); arrays of typed objects;
+  `sizeof *p` in the allocation pattern; typed pointers in variadic calls.
 
 ### `--libc eden` as built
 

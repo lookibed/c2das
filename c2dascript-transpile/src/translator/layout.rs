@@ -224,8 +224,10 @@ impl<'c> Translation<'c> {
         // held by value, never memory a pointer reaches (that is the heap,
         // read at Clang's offsets), so its daScript layout need not be
         // Clang's: a pointer field is a 4-byte `int` offset there.
+        // A `--records typed` record is a daslang object whose fields are
+        // only ever read by name (`linear/typed_records.rs`).
         if self.is_linear() {
-            if !named.is_empty() {
+            if named.iter().any(|r| !self.is_typed_record(*r)) {
                 return Err(TranslationError::generic(
                     "not supported under --memory-model linear yet: a record field read through a typed daScript pointer",
                 ));

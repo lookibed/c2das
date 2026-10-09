@@ -105,14 +105,18 @@ fn no_unsafe_fails_closed_and_report_mode_writes() {
 
 #[test]
 fn eden_preset_lists_every_unimplemented_switch() {
-    let missing = TargetOptions::eden().unimplemented();
-    assert_eq!(
-        missing,
-        [
-            "--records typed",
-        ]
-    );
+    // Every switch of the preset is implemented.
+    assert!(TargetOptions::eden().unimplemented().is_empty());
     assert!(TargetOptions::default().unimplemented().is_empty());
+    // `--records typed` chooses against the linear heap's byte form.
+    let typed_alone = TargetOptions {
+        records: c2dascript_transpile::target::RecordsModel::Typed,
+        ..Default::default()
+    };
+    assert_eq!(
+        typed_alone.unimplemented(),
+        ["--records typed (needs --memory-model linear)"]
+    );
     // `--varargs-model heap` writes into the linear heap's C stack.
     let alone = TargetOptions {
         varargs_model: c2dascript_transpile::target::VarargsModel::Heap,

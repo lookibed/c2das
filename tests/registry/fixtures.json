@@ -6014,7 +6014,7 @@
       "expected": {
         "kind": "translation-error",
         "value": {
-          "cause": "--records typed is not implemented yet"
+          "cause": "--heap-reserve 4096 (needs --memory-model linear) is not implemented yet"
         }
       },
       "family": "syntax-pointer-legacy",
@@ -6526,6 +6526,34 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p208_linear_varargs_heap.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p209-linear-records-typed",
+      "canonical_cases": [
+        "p209-linear-records-typed"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_records_typed",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "list count=10 sum=285 same=1\ntree walk=674206\ncells=410\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p209_linear_records_typed",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p209_linear_records_typed.c",
       "status": "supported"
     },
     {

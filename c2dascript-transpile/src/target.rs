@@ -83,8 +83,8 @@ switch!(
 );
 switch!(
     /// `--records`: C records in the memory model's natural form (today) or
-    /// non-escaping records as typed `new T` objects.  `typed` is not
-    /// implemented yet.
+    /// non-escaping records as typed `new T` objects (`typed` needs
+    /// `--memory-model linear`; `translator/linear/typed_records.rs`).
     RecordsModel { Natural = "natural", Typed = "typed" }
 );
 
@@ -157,8 +157,10 @@ impl TargetOptions {
         if let (EntryModel::Eden, MemoryModel::Raw) = (self.entry, self.memory_model) {
             missing.push(format!("--entry {} (needs --memory-model linear)", self.entry));
         }
-        if self.records != RecordsModel::default() {
-            missing.push(format!("--records {}", self.records));
+        // `--records typed` chooses between the linear heap's byte form and
+        // a typed object; without that model there is no byte form.
+        if let (RecordsModel::Typed, MemoryModel::Raw) = (self.records, self.memory_model) {
+            missing.push(format!("--records {} (needs --memory-model linear)", self.records));
         }
         missing
     }
