@@ -885,6 +885,24 @@ the C AST import (`c_ast/conversion.rs`) puts the canonical declaration in the t
 list in that redeclaration's place, so the function is emitted once, at module scope.
 `p113-block-scope-function-decl` is the fixture.
 
+A block-scope *object* declaration `extern T x;` likewise produces no statement when the unit
+declares `x` at file scope: it names that object (C11 6.2.2p2, p4).  The exporter keeps it as a
+variable node of its own, and when it precedes the file-scope definition it is Clang's canonical
+declaration, so every `x` reference in the unit names it.
+`TypedAstContext::alias_block_scope_externs` (run first in `translate_impl`) maps each such
+declaration to the file-scope declaration of its name and points every reference there;
+`convert_decl_stmt_info` then emits nothing for it, after checking the two C types are
+compatible (`object_types_compatible`: typedefs looked through, `T[]` matches `T[n]`) and
+failing with a located error when they are not.  A block-scope `extern` whose name no
+file-scope declaration of the unit carries emits nothing when nothing uses the name (no
+definition is required, C11 6.9p5; Doom's `I_BindSoundVariables` declares
+`use_libsamplerate` for a sound backend the build leaves out), and when used fails closed like
+the file-scope `extern` of p172 instead of becoming a fresh zero-filled object
+(`--module-layout source` resolves another unit's object through `link_owner` first).  Doom's `forwardmove`/`sidemove` (`d_main.c`'s
+`extern int forwardmove[2];` before `g_game.c`'s `fixed_t forwardmove[2]` in the unity build)
+were a second, zeroed object before this.  `p217-block-scope-extern-same-tu` (and its `-linear`
+variant) is the fixture.
+
 ## Arguments, function designators and self-referencing globals
 
 - A call argument is always lowered as a used value (`functions.rs convert_function_call`),

@@ -127,6 +127,12 @@ pub struct TypedAstContext {
     /// and the value is the decl id to the corresponding structure
     pub prenamed_decls: IndexMap<CDeclId, CDeclId>,
 
+    /// A block-scope `extern` object declaration mapped to the file-scope
+    /// declaration of the same name in this unit, the object it denotes
+    /// (C11 6.2.2p4).  Set by [`Self::alias_block_scope_externs`], which also
+    /// points every reference at the file-scope declaration.
+    pub block_extern_aliases: HashMap<CDeclId, CDeclId>,
+
     pub va_list_kind: BuiltinVaListKind,
     pub target: String,
 }
@@ -1082,6 +1088,107 @@ impl TypedAstContext {
             Label(_stmt) => false,
             Goto(_label) => false,
             BadStmt => false,
+        }
+    }
+
+    /// A block-scope `extern T x;` names the object the visible file-scope
+    /// declaration of `x` names (C11 6.2.2p4), and every external-linkage
+    /// declaration of `x` in one unit denotes one object (6.2.2p2).  The
+    /// exporter keeps such a block-scope declaration as a variable node of its
+    /// own, and when it is the first declaration of `x` in the unit (it comes
+    /// before the file-scope definition) it is Clang's canonical declaration, so
+    /// every `x` reference — the file-scope ones included — names it.  Each such
+    /// declaration is mapped here to the file-scope declaration of that name
+    /// (the definition, when there are several), and every reference to it is
+    /// pointed at the file-scope declaration: the program has one object, and
+    /// the block-scope declaration emits nothing.  Whether the two C types are
+    /// compatible is checked where the declaration is lowered.  A block-scope
+    /// `extern` with no file-scope declaration of its name stays unmapped.
+    pub fn alias_block_scope_externs(&mut self) {
+        let mut file_scope: HashMap<&str, CDeclId> = HashMap::new();
+        for &top in &self.c_decls_top {
+            if let Some(Located {
+                kind:
+                    CDeclKind::Variable {
+                        ref ident, is_defn, ..
+                    },
+                ..
+            }) = self.c_decls.get(&top)
+            {
+                match file_scope.get(ident.as_str()) {
+                    Some(&known)
+                        if matches!(
+                            self.c_decls[&known].kind,
+                            CDeclKind::Variable { is_defn: true, .. }
+                        ) || !is_defn => {}
+                    _ => {
+                        file_scope.insert(ident.as_str(), top);
+                    }
+                }
+            }
+        }
+        let top: HashSet<CDeclId> = self.c_decls_top.iter().copied().collect();
+        let aliases: HashMap<CDeclId, CDeclId> = self
+            .c_decls
+            .iter()
+            .filter(|(id, _)| !top.contains(id))
+            .filter_map(|(&id, decl)| match decl.kind {
+                CDeclKind::Variable {
+                    has_static_duration: true,
+                    is_defn: false,
+                    ref ident,
+                    ..
+                } => file_scope.get(ident.as_str()).map(|&target| (id, target)),
+                _ => None,
+            })
+            .collect();
+        if aliases.is_empty() {
+            return;
+        }
+        for expr in self.c_exprs.values_mut() {
+            if let CExprKind::DeclRef(_, ref mut decl, _) = expr.kind {
+                if let Some(&target) = aliases.get(decl) {
+                    *decl = target;
+                }
+            }
+        }
+        self.block_extern_aliases = aliases;
+    }
+
+    /// Whether any expression of the unit refers to an object declaration
+    /// named `ident` (the exporter points a reference at the name's canonical
+    /// declaration, which may be another block's `extern` of it).
+    pub fn object_name_is_referenced(&self, ident: &str) -> bool {
+        self.c_exprs.values().any(|expr| match expr.kind {
+            CExprKind::DeclRef(_, decl, _) => matches!(
+                self.c_decls.get(&decl),
+                Some(Located { kind: CDeclKind::Variable { ident: ref name, .. }, .. })
+                    if name == ident
+            ),
+            _ => false,
+        })
+    }
+
+    /// Whether two C object types are compatible (C11 6.2.7) for the purpose
+    /// of two declarations naming one object: equal after typedefs and sugar
+    /// are looked through, an array of unknown size matching an array of the
+    /// same element type, element and pointee types compared recursively.
+    pub fn object_types_compatible(&self, a: CTypeId, b: CTypeId) -> bool {
+        use CTypeKind::*;
+        let (a, b) = (self.resolve_type_id(a), self.resolve_type_id(b));
+        if a == b {
+            return true;
+        }
+        match (&self.index(a).kind, &self.index(b).kind) {
+            (ConstantArray(x, n), ConstantArray(y, m)) => {
+                n == m && self.object_types_compatible(*x, *y)
+            }
+            (ConstantArray(x, _) | IncompleteArray(x), IncompleteArray(y))
+            | (IncompleteArray(x), ConstantArray(y, _)) => self.object_types_compatible(*x, *y),
+            (Pointer(x), Pointer(y)) => {
+                x.qualifiers == y.qualifiers && self.object_types_compatible(x.ctype, y.ctype)
+            }
+            (x, y) => x == y,
         }
     }
 

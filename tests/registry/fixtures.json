@@ -6833,6 +6833,35 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p217-block-scope-extern-same-tu",
+      "canonical_cases": [
+        "p217-block-scope-extern-same-tu",
+        "p217-block-scope-extern-same-tu-linear"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "25 50 25050\n78\n26052 26052\n10 10\n43 43\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p217_block_scope_extern_same_tu",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p217_block_scope_extern_same_tu.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p21-byte-numeric",
       "canonical_cases": [
         "p21-byte-numeric"

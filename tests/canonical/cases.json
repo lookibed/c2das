@@ -1254,6 +1254,39 @@
       "runtime": "required"
     },
     {
+      "id": "p217-block-scope-extern-same-tu",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p217_block_scope_extern_same_tu.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "25 50 25050\n78\n26052 26052\n10 10\n43 43\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p217-block-scope-extern-same-tu-linear",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p217_block_scope_extern_same_tu.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "25 50 25050\n78\n26052 26052\n10 10\n43 43\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p208-linear-varargs-heap",
       "status": "ready",
       "source_root": "tests/syntax",

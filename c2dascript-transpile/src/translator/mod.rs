@@ -3131,6 +3131,59 @@ impl<'c> Translation<'c> {
                 ref ident,
                 ..
             } if self.link_owner(ident).is_some() => Ok(crate::cfg::DeclStmtInfo::empty()),
+            // A block-scope `extern T x;` naming an object this unit declares
+            // at file scope is that object (C11 6.2.2p4): every reference was
+            // pointed at the file-scope declaration
+            // (`alias_block_scope_externs`), so the declaration emits nothing.
+            // Two declarations of one object need compatible types (6.2.7p2).
+            CDeclKind::Variable {
+                is_defn: false,
+                ref ident,
+                typ,
+                ..
+            } if self.ast_context.block_extern_aliases.contains_key(&decl_id) => {
+                let target = self.ast_context.block_extern_aliases[&decl_id];
+                let target_typ = match self.ast_context[target].kind {
+                    CDeclKind::Variable { typ, .. } => typ,
+                    _ => unreachable!("block-scope extern aliased to a non-variable"),
+                };
+                if !self
+                    .ast_context
+                    .object_types_compatible(typ.ctype, target_typ.ctype)
+                {
+                    return Err(format_translation_err!(
+                        self.ast_context.display_loc(&self.ast_context[decl_id].loc),
+                        "block-scope extern declaration of {} has a type incompatible with its \
+                         file-scope declaration",
+                        ident
+                    ));
+                }
+                Ok(crate::cfg::DeclStmtInfo::empty())
+            }
+            // A block-scope `extern T x;` of an object no part of this unit
+            // declares at file scope names an object another unit owns.  Never
+            // used, it requires no definition (C11 6.9p5) and emits nothing
+            // (Doom's `I_BindSoundVariables` declares `use_libsamplerate` for
+            // a sound backend this build leaves out).  Used, with no
+            // program-wide symbol table it fails closed, as the file-scope
+            // `extern` does (`translate_impl`), instead of becoming a fresh
+            // zero-filled object.
+            CDeclKind::Variable {
+                has_static_duration: true,
+                is_defn: false,
+                ref ident,
+                ..
+            } => {
+                if !self.ast_context.object_name_is_referenced(ident) {
+                    return Ok(crate::cfg::DeclStmtInfo::empty());
+                }
+                Err(format_translation_err!(
+                    self.ast_context.display_loc(&self.ast_context[decl_id].loc),
+                    "unsupported external object: {} is declared extern and defined nowhere in \
+                     this translation unit",
+                    ident
+                ))
+            }
             // `--memory-model linear`: a function-scope `static` whose address
             // is taken is in the heap's static block, initialised there.
             CDeclKind::Variable { .. } if linear::is_heap_global(decl_id) => {
@@ -4207,12 +4260,15 @@ impl Translation<'_> {
 }
 
 fn translate_impl(
-    ast_context: TypedAstContext,
+    mut ast_context: TypedAstContext,
     tcfg: &TranspilerConfig,
     main_file: &Path,
     link: Option<UnitLink>,
     strict_top_level: bool,
 ) -> TranslationResult<UnitOutput> {
+    // Block-scope `extern` declarations of a file-scope object of this unit
+    // name that object; references are resolved before anything reads them.
+    ast_context.alias_block_scope_externs();
     let mut t = Translation::new(ast_context, tcfg, main_file);
     t.link = link;
 
