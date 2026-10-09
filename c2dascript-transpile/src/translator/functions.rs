@@ -364,7 +364,9 @@ impl<'c> Translation<'c> {
             // member is read as the unqualified rvalue C copies
             // (`abi.rs unqualified_record_value`).
             let incoming_value = DaExpr::Var(incoming.clone());
-            let init = if self.natural_record_holds_pointer(ctype.ctype) {
+            // `--memory-model linear`: a pointer member is an `int`, so the
+            // record copies like any scalar record.
+            let init = if !self.is_linear() && self.natural_record_holds_pointer(ctype.ctype) {
                 self.unqualified_record_value(incoming_value, das_ty)
             } else {
                 incoming_value

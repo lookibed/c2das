@@ -1349,6 +1349,8 @@ impl<'c> Translation<'c> {
                 self.convert_expr(ctx.used(), inner, None)?
                     .map(|v| op2("!=", v, DaExpr::ConstInt(0))),
             )),
+            // `(void)p` discards an `int` offset like any other value.
+            CastKind::ToVoid => Ok(None),
             _ if to_ptr || from_ptr => {
                 if matches!(ck, CastKind::FunctionToPointerDecay | CastKind::BuiltinFnToFnPtr) {
                     return Ok(None);
@@ -1617,7 +1619,17 @@ impl<'c> Translation<'c> {
                 // A pointer variable: integer arithmetic on its offset.
                 let place = self.convert_expr(ctx.used(), arg, None)?;
                 let (mut stmts, p) = place.into_stmts_and_val();
-                if !matches!(p, DaExpr::Var(_)) {
+                // A variable or a field path of a daslang record value
+                // (`++iter.state` on a by-value parameter): side-effect free,
+                // so it may be read and written again.
+                fn plain_place(e: &DaExpr) -> bool {
+                    match e {
+                        DaExpr::Var(_) => true,
+                        DaExpr::Field(base, _) => plain_place(base),
+                        _ => false,
+                    }
+                }
+                if !plain_place(&p) {
                     return Err(self.linear_refuse(expr_id, "`++`/`--` on this pointer lvalue"));
                 }
                 if pre {
@@ -1760,6 +1772,12 @@ impl<'c> Translation<'c> {
             "fwrite" => ("c2da_lin_fwrite", "IUUH"),
             "fclose" | "fflush" | "fseek" | "ftell" | "feof" => match libc::std_function(base) {
                 Some(function) => (self.require_std_function(function, expr_id)?, "H**"),
+                None => return Ok(None),
+            },
+            // The buffer is only tested against NULL: `--libc eden` streams
+            // are line buffers whatever the program supplies.
+            "setvbuf" => match libc::std_function(base) {
+                Some(function) => (self.require_std_function(function, expr_id)?, "HU*U"),
                 None => return Ok(None),
             },
             _ => return Ok(None),

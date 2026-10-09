@@ -1220,6 +1220,23 @@
       "runtime": "required"
     },
     {
+      "id": "p205-linear-record-iterators",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p205_linear_record_iterators.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_record_iterators", "return_type": "int" },
+      "das_entrypoint": "linear_record_iterators",
+      "expected": {
+        "stdout": "steps=3 sum=101120\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p204-linear-function-pointers",
       "status": "ready",
       "source_root": "tests/syntax",

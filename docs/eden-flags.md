@@ -223,6 +223,13 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   function table`. Case `p204-linear-function-pointers` (a record of callbacks in
   malloc'd memory, NULL, compare, copy, call; C == daslang; `--no-unsafe --dialect
   eden-0.6.4` and `eden_check.py` ok).
+- **Smaller step 5 pieces.** `memchr` is `c2da_lin_memchr` (in `p196`). A by-value record
+  parameter with pointer fields is a plain record copy under the model (its pointer
+  fields are `int`s), `++`/`--` works on a pointer field of a daslang record value
+  (`++iter.state`), `(void)p` discards an offset, and `setvbuf` is the `--libc eden`
+  helper with its buffer tested against NULL only (case `p205-linear-record-iterators`;
+  C == daslang; `--no-unsafe --dialect eden-0.6.4` and `eden_check.py` ok). Under
+  `--libc eden` (either memory model) `exit` no longer wraps the stand-in in `unsafe`.
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
   - `&` of a parameter, an array in a parameter or a call result used as a pointer, and
@@ -312,8 +319,12 @@ Things the target cannot fix and has to document:
        then stopped at `fopen`; the `<stdio.h>` file functions, argv and errno over the
        heap: done in step 5 (p201); enumerations through pointers: done in step 5
        (p202); globals in the heap: done in step 5 (p203); function pointers in the
-       heap: done in step 5 (p204). binjgb next stops at `memchr` over C memory
-       (`log_cart_info`, `emulator.c:4705`);
+       heap: done in step 5 (p204); `memchr`, by-value iterator records, `(void)p`,
+       `setvbuf`: done in step 5 (p196, p205). binjgb now translates through every
+       declaration and stops at the module-wide `unsafe` net: storage-backed records
+       (records the default model keeps as raw byte storage, e.g. with unions) are still
+       allocated by `c2da_rt_calloc`, which pulls in `c2da_rt_malloc`/`c2da_rt_memset`;
+       they need a linear form (heap storage for such record values);
      - by-value struct parameters with pointer fields;
      - then binjgb.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,

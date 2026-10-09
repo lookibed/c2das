@@ -3423,10 +3423,16 @@ fn build_exit() -> DaDecl {
         EXIT,
         vec![param("code", DaType::int())],
         DaType::void(),
-        vec![DaStmt::Expr(DaExpr::Unsafe(Box::new(call(
-            fio("exit_now"),
-            vec![var("code")],
-        ))))],
+        vec![DaStmt::Expr({
+            let exit = call(fio("exit_now"), vec![var("code")]);
+            // daslib's `exit` is unsafe; the `--libc eden` stand-in is not
+            // (and the sandbox refuses `unsafe`).
+            if eden() {
+                exit
+            } else {
+                DaExpr::Unsafe(Box::new(exit))
+            }
+        })],
     )
 }
 
