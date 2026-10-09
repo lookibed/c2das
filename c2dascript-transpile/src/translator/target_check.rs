@@ -15,6 +15,9 @@ use crate::target::{Dialect, NoUnsafe};
 use std::collections::{BTreeMap, HashMap};
 
 /// The `options` the EdenSpark sandbox admits (`docs/eden-target.md` §2).
+/// `solid_context` is not among them: the editor refuses it ("option
+/// solid_context is not allowed here", EdenSpark 1.0, measured 2026-10-09),
+/// although the wasm3das local sandbox model lists it.
 const EDEN_OPTIONS: &[&str] = &[
     "gen2",
     "indenting",
@@ -22,7 +25,6 @@ const EDEN_OPTIONS: &[&str] = &[
     "rtti",
     "no_global_variables",
     "no_aot",
-    "solid_context",
     "strict_smart_pointers",
 ];
 

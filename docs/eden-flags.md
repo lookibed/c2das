@@ -81,7 +81,64 @@ context heap from `heap_bytes_allocated()` after the run):
   whose address any unit takes, and assigns table indices for such functions, program-wide.
 - **Fixture:** `m04`.
 
-**Not done:** the editor run itself.
+## In the editor (2026-10-09)
+
+Measured in the EdenSpark 1.0 editor through its MCP server, using a throwaway 2D sample
+project, with `scripts/eden_editor/run.sh`.
+
+### How the runs were set up
+
+`run.sh` (needs `EDEN_PROJECT` and `EDENMCP`, the wasm3das `scripts/eden/edenmcp` client) does
+the following:
+
+1. translates the cases;
+2. writes them into `modules/c2das/` of the project;
+3. regenerates `main.das` with one `[cheat]` per case;
+4. forces a file rescan and restarts the game;
+5. runs the cheat and compares stdout with `cases.json`.
+
+### Results: every case run there equals its C reference
+
+| what | cases | result in the editor |
+|---|---|---|
+| linear-memory fixtures (`--dialect eden-0.6.4 --no-unsafe`) | p193, p194, p196, p197, p199, p200, p202–p205, p207–p209, p215, p216 | 15/15 PASS |
+| NaN-safe float compares (the editor's NaN is not IEEE) | p190 under `--libc eden --memory-model linear` | PASS |
+| binjgb, one module (`--entry eden`, ROM as an asset) | `binjgb-cgb-acid2-eden-linear` | PASS, 60 frames, 4.25 s for the whole run |
+| binjgb, 5 unit modules + `c2da_runtime` | `binjgb-cgb-acid2-eden-linear-source` | PASS, 4.26 s |
+| Doom, one module (`--records typed`, WAD as an asset) | `doomgeneric-demo1-eden-linear` | PASS, 70 frames, 0.62 s |
+| Doom, 30 modules, 2 cluster modules with 54 `.das.inc` fragments | `doomgeneric-demo1-eden-linear-source` | PASS, 70 frames, 0.63 s; `include` of `.das.inc` works in the editor |
+
+For comparison, binjgb under wasm3das in the same editor runs about 1 250 ms/frame
+(`docs/eden-abi/PLAN.md`). The translated build runs about 71 ms/frame, start-up included.
+
+### Editor facts this found
+
+1. **`options solid_context` is refused** ("option solid_context is not allowed here"), although
+   the wasm3das local sandbox model allows it.
+   - `--dialect eden-0.6.4` now leaves it out, and the checker refuses it.
+   - The output still passes in the editor without it.
+2. **The editor keeps every `.das` of the project in one context.**
+   - Fifteen modules of 4 MiB `--heap-reserve` each, plus binjgb and Doom, ran past the
+     100 MiB context heap: "out of heap memory … limit 104857600" in an `[init]`.
+   - Installs must be cleaned between runs, and `--heap-reserve` sized per program.
+   - Doom needs 16 MiB, small fixtures 2 MiB. The default of 80 MiB is too large for a
+     project holding more than one translated program.
+3. **New files are missed until a rescan.**
+   - Symptoms: "missing prerequisite …; file not found", or a bare "internal error" on the
+     first compile after many new files.
+   - Fix: create and delete a throwaway `.das`, then restart, as wasm3das `eden_gate.sh`
+     does. One retry was enough.
+4. **The editor holds the project's files open.** A rename in the project fails with
+   "Permission denied"; files are rewritten in place.
+5. **What the editor prints:** stderr written with `to_log` shows as `[E]` lines.
+   - Doom's stdio-redirected start-up messages appear as plain console lines.
+   - stdout is exactly C's.
+6. **`options stack` is accepted** in the project's `main.das`. Doom and binjgb ran with
+   `options stack = 8388608`.
+
+**Not done:** an exported (published) build, which is stricter than the editor
+(`eden-target.md` §3), and a frame-driven host. Doom and binjgb run to completion inside one
+cheat; nothing is drawn yet.
 
 Earlier status notes, kept for history: step 1 of the order of work is the CLI switches
 (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and `--no-unsafe`

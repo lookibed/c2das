@@ -4929,10 +4929,12 @@ pub fn cluster_module_source(
 /// output declares all of its globals itself and never has another module
 /// splice more in, so baking their offsets is always correct here.  The order
 /// is fixed — `gen2`, `solid_context`, then the caller's `--das-option` lines
-/// — so the header is reproducible for a given command line.
+/// — so the header is reproducible for a given command line.  Under
+/// `--dialect eden-0.6.4` it is left out: the EdenSpark editor refuses the
+/// option (see `target_check::EDEN_OPTIONS`).
 fn module_options(tcfg: &TranspilerConfig) -> Vec<String> {
     let mut options: Vec<String> = vec!["gen2".into()];
-    if tcfg.solid_context {
+    if tcfg.solid_context && tcfg.target.dialect != crate::target::Dialect::Eden064 {
         options.push("solid_context = true".into());
     }
     options.extend(tcfg.das_options.iter().cloned());
