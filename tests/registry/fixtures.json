@@ -6474,6 +6474,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p207-linear-fnptr-table",
+      "canonical_cases": [
+        "p207-linear-fnptr-table"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_fnptr_table",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "null=1 same=1 differ=1\ncopy(9,4)=5\ntotal=81\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p207_linear_fnptr_table",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p207_linear_fnptr_table.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p20-pointer-abi-edges",
       "canonical_cases": [
         "p20-pointer-abi-edges"

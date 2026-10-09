@@ -56,6 +56,7 @@ use self::value_lowering::ValueSite;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
 pub use linear::LinearLink;
+pub(crate) use linear::fn_table as linear_fn_table;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct Import {
@@ -4274,6 +4275,7 @@ fn translate_impl(
     if let Some(link) = &t.link {
         linear::start_linked_unit(&link.linear);
     }
+    linear::set_fn_table(tcfg.target.fnptr_model == crate::target::FnPtrModel::Table);
     libc::reset();
     libc::set_eden(tcfg.libc == crate::LibcMode::Eden);
     libc::set_linear(tcfg.target.memory_model == crate::target::MemoryModel::Linear);

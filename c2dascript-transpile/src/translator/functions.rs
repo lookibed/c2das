@@ -584,7 +584,14 @@ impl<'c> Translation<'c> {
             mk().call_expr(DaExpr::Var(helper.to_owned()), das_args)
         } else if indirect_callee.is_some() {
             // `invoke` is daScript's call-through-a-function-value operator.
-            let mut invoke_args = vec![func_expr.val];
+            // `--fnptr-model table`: the value is an index into the table of
+            // its signature.
+            let callee_value = if self.is_linear() && super::linear::fn_table() {
+                self.linear_fn_callee(callee_expr_id, func_expr.val)?
+            } else {
+                func_expr.val
+            };
+            let mut invoke_args = vec![callee_value];
             invoke_args.extend(das_args);
             mk().call_expr(DaExpr::Var("invoke".to_owned()), invoke_args)
         } else {

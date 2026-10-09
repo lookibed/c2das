@@ -138,8 +138,9 @@ impl TargetOptions {
     /// not implemented yet, in flag-table order.
     pub fn unimplemented(&self) -> Vec<String> {
         let mut missing = Vec::new();
-        if self.fnptr_model != FnPtrModel::default() {
-            missing.push(format!("--fnptr-model {}", self.fnptr_model));
+        // `--fnptr-model table` indexes the tables of the linear heap model.
+        if let (FnPtrModel::Table, MemoryModel::Raw) = (self.fnptr_model, self.memory_model) {
+            missing.push(format!("--fnptr-model {} (needs --memory-model linear)", self.fnptr_model));
         }
         if self.varargs_model != VarargsModel::default() {
             missing.push(format!("--varargs-model {}", self.varargs_model));

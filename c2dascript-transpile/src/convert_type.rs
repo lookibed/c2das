@@ -321,6 +321,11 @@ impl<'c> Translation<'c> {
                 if let Function(ret, ref params, is_variadic, _, _) =
                     self.ast_context.resolve_type(inner.ctype).kind
                 {
+                    // `--fnptr-model table`: an index into the table of its
+                    // signature (`linear.rs`).
+                    if self.is_linear() && crate::translator::linear_fn_table() {
+                        return Ok(DaType::int());
+                    }
                     let params = params.clone();
                     return self.function_value_type(ret, &params, is_variadic);
                 }

@@ -369,6 +369,13 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     same unit part back in `UnitOutput::source`, which `lib.rs` appends to its
     `.das.inc`; every name in it carries the unit's stem, so module mates never clash.
     Not covered, refused by name: `--runtime-module` without the source layout.
+  - **`--fnptr-model table`.** `linear::fn_table()` (set per unit in `mod.rs`) makes
+    `convert_type` answer `int` for a pointer to a function; a table's element type is
+    the pointee converted (`fn_sig`). `linear_cast` turns a decay (and `linear_expr` an
+    `&f`) into the pre-pass index (`FN_DECLS`), NULL into 0 and truthiness into `!= 0`,
+    and refuses the casts an index cannot follow; `functions.rs` wraps an indirect
+    callee as `c2da_fn_table<n>[i]` (`linear_fn_callee`); the heap load/store of
+    `Scalar::Fn` is the plain 4-byte index.
   - **`--entry eden`.** `libc.rs build_eden_start` replaces the `[export] def main`
     wrapper by `c2da_eden_start(args : array<string>) : int`: `args` is C's argv, put
     in the heap with `c2da_lin_put_arg`, and C `main` runs inside `eden_entry_body`'s

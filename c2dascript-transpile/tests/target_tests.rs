@@ -109,7 +109,6 @@ fn eden_preset_lists_every_unimplemented_switch() {
     assert_eq!(
         missing,
         [
-            "--fnptr-model table",
             "--varargs-model heap",
             "--records typed",
         ]

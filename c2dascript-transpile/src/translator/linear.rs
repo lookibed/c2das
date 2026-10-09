@@ -65,6 +65,7 @@ pub fn reset() {
     GLOBALS.with(|g| g.borrow_mut().clear());
     SIGS.with(|s| s.borrow_mut().clear());
     FUNCS.with(|f| f.borrow_mut().clear());
+    FN_DECLS.with(|f| f.borrow_mut().clear());
     FORMAT_USED.with(|u| u.set(false));
     FILE_USED.with(|u| u.set(false));
     ARGV_USED.with(|u| u.set(false));
@@ -172,6 +173,23 @@ thread_local! {
     static FUNCS: RefCell<Vec<(String, DaType)>> = RefCell::new(Vec::new());
 }
 
+thread_local! {
+    /// `--fnptr-model table`: every function pointer, not only one in the
+    /// heap, is its `int` index into the table of its signature.
+    static FN_TABLE: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    /// The numbered functions (`FUNCS` position) by declaration.
+    static FN_DECLS: RefCell<StdHashMap<CDeclId, usize>> = RefCell::new(StdHashMap::new());
+}
+
+/// Selects `--fnptr-model table` for the unit being translated.
+pub fn set_fn_table(on: bool) {
+    FN_TABLE.with(|t| t.set(on));
+}
+
+pub(crate) fn fn_table() -> bool {
+    FN_TABLE.with(|t| t.get())
+}
+
 fn sig_id(t: &DaType) -> usize {
     SIGS.with(|s| {
         let mut s = s.borrow_mut();
@@ -199,6 +217,7 @@ impl Scalar {
             Scalar::U64 => DaType::uint64(),
             Scalar::F32 => DaType::float(),
             Scalar::F64 => DaType::double(),
+            Scalar::Fn(_) if fn_table() => DaType::int(),
             Scalar::Fn(n) => SIGS.with(|s| s.borrow()[n].clone()),
         }
     }
@@ -263,6 +282,7 @@ fn load(s: Scalar, a: &DaExpr) -> DaExpr {
         Scalar::I16 => cast(DaType::int16(), assemble32(a, 0, 2)),
         Scalar::U32 => assemble32(a, 0, 4),
         Scalar::I32 | Scalar::Ptr => cast(DaType::int(), assemble32(a, 0, 4)),
+        Scalar::Fn(_) if fn_table() => cast(DaType::int(), assemble32(a, 0, 4)),
         Scalar::Fn(n) => DaExpr::Index(
             Box::new(DaExpr::Var(format!("c2da_fn_table{n}"))),
             Box::new(cast(DaType::int(), assemble32(a, 0, 4))),
@@ -301,6 +321,7 @@ fn store(s: Scalar, a: &DaExpr, v: &DaExpr, fresh: &mut dyn FnMut() -> String) -
     };
     let u8_of = |e: DaExpr| cast(DaType::uint8(), e);
     match s {
+        Scalar::Fn(_) if fn_table() => store(Scalar::Ptr, a, v, fresh),
         Scalar::Fn(n) => {
             let index = DaExpr::Call(Box::new(DaExpr::Var(format!("c2da_fn_index{n}"))), vec![v.clone()]);
             let name = fresh();
@@ -423,6 +444,53 @@ impl<'c> Translation<'c> {
         self.sizeof_type(pointee.ctype)
     }
 
+    /// The `function<…>` type of the table a function pointer of C type
+    /// `ptr` indexes: its pointee converted (parameters that are themselves
+    /// function pointers follow the model, as the functions' own do).
+    fn fn_sig(&self, ptr: CTypeId) -> TranslationResult<DaType> {
+        match self.ast_context.resolve_type(ptr).kind {
+            CTypeKind::Pointer(inner) => self.convert_type_inner(self.ast_context.resolve_type_id(inner.ctype)),
+            _ => self.convert_type_inner(self.ast_context.resolve_type_id(ptr)),
+        }
+    }
+
+    /// `--fnptr-model table`: the index of function designator `f` (a
+    /// `DeclRef`, parentheses allowed), or a located refusal for a function
+    /// with no table slot (a library function).
+    fn fn_index_of(&self, expr_id: CExprId, f: CExprId) -> TranslationResult<DaExpr> {
+        let mut f = f;
+        while let CExprKind::Paren(_, i) = self.ast_context[f].kind {
+            f = i;
+        }
+        let slot = match self.ast_context[f].kind {
+            CExprKind::DeclRef(_, decl, _) => FN_DECLS.with(|d| d.borrow().get(&decl).copied()),
+            _ => None,
+        };
+        match slot {
+            Some(k) => Ok(DaExpr::ConstInt((linked_fn_base() + k + 1) as i64)),
+            None => Err(self.linear_refuse(
+                expr_id,
+                "the address of a function with no table slot (a library function) under --fnptr-model table",
+            )),
+        }
+    }
+
+    /// `--fnptr-model table`: the callee of an indirect call, `value` being
+    /// the converted pointer (an index), as the table element `invoke` takes.
+    pub(crate) fn linear_fn_callee(&self, callee: CExprId, value: DaExpr) -> TranslationResult<DaExpr> {
+        let ty = self.qual_of(callee)?;
+        let n = sig_id(&self.fn_sig(ty.ctype)?);
+        Ok(DaExpr::Index(
+            Box::new(DaExpr::Var(format!("c2da_fn_table{n}"))),
+            Box::new(value),
+        ))
+    }
+
+    fn is_fn_pointer(&self, ty: CTypeId) -> bool {
+        matches!(self.ast_context.resolve_type(ty).kind,
+            CTypeKind::Pointer(p) if matches!(self.ast_context.resolve_type(p.ctype).kind, CTypeKind::Function(..)))
+    }
+
     fn scalar_of(&self, ty: CTypeId) -> Option<Scalar> {
         use CTypeKind::*;
         if self.is_data_pointer(ty) {
@@ -430,8 +498,7 @@ impl<'c> Translation<'c> {
         }
         if let CTypeKind::Pointer(inner) = self.ast_context.resolve_type(ty).kind {
             if matches!(self.ast_context.resolve_type(inner.ctype).kind, CTypeKind::Function(..)) {
-                let canonical = self.ast_context.resolve_type_id(ty);
-                return self.convert_type_inner(canonical).ok().map(|t| Scalar::Fn(sig_id(&t)));
+                return self.fn_sig(ty).ok().map(|t| Scalar::Fn(sig_id(&t)));
             }
         }
         Some(match self.ast_context.resolve_type(ty).kind {
@@ -582,8 +649,18 @@ impl<'c> Translation<'c> {
             if callees.contains(&e) {
                 continue;
             }
-            let CExprKind::ImplicitCast(ty, inner, CastKind::FunctionToPointerDecay, _, _) = self.ast_context[e].kind else {
-                continue;
+            // `f` decayed, or `&f` (no decay; its type is the pointer too).
+            let (ty, inner) = match self.ast_context[e].kind {
+                CExprKind::ImplicitCast(ty, inner, CastKind::FunctionToPointerDecay, _, _) => (ty, inner),
+                CExprKind::Unary(ty, CUnOp::AddressOf, inner, _)
+                    if matches!(
+                        self.ast_context.resolve_type(ty.ctype).kind,
+                        CTypeKind::Pointer(p) if matches!(self.ast_context.resolve_type(p.ctype).kind, CTypeKind::Function(..))
+                    ) =>
+                {
+                    (ty, inner)
+                }
+                _ => continue,
             };
             let mut f = inner;
             while let CExprKind::Paren(_, i) = self.ast_context[f].kind {
@@ -604,10 +681,14 @@ impl<'c> Translation<'c> {
                 continue;
             }
             seen.push(decl);
-            let sig = self.convert_type_inner(self.ast_context.resolve_type_id(ty.ctype))?;
+            let sig = self.fn_sig(ty.ctype)?;
             sig_id(&sig);
             let da_name = self.declare_value_name(decl, name);
-            FUNCS.with(|fs| fs.borrow_mut().push((da_name, sig)));
+            FUNCS.with(|fs| {
+                let mut fs = fs.borrow_mut();
+                FN_DECLS.with(|d| d.borrow_mut().insert(decl, fs.len()));
+                fs.push((da_name, sig));
+            });
         }
         let mut order: Vec<CDeclId> = Vec::new();
         let bodies: Vec<CStmtId> = self
@@ -1265,6 +1346,9 @@ impl<'c> Translation<'c> {
                     self.ast_context.resolve_type(arg_ty.ctype).kind,
                     CTypeKind::Function(..)
                 ) {
+                    if fn_table() {
+                        return Ok(Some(WithStmts::new_val(self.fn_index_of(expr_id, arg)?)));
+                    }
                     return Ok(None);
                 }
                 match self.heap_place(ctx, arg)? {
@@ -1304,6 +1388,50 @@ impl<'c> Translation<'c> {
         let to_ptr = self.is_data_pointer(ty.ctype);
         let inner_ty = self.qual_of(inner)?;
         let from_ptr = self.is_data_pointer(inner_ty.ctype);
+        // `--fnptr-model table`: a function pointer is an `int` index.
+        if fn_table() {
+            let to_fn = self.is_fn_pointer(ty.ctype);
+            let from_fn = self.is_fn_pointer(inner_ty.ctype);
+            match ck {
+                CastKind::FunctionToPointerDecay | CastKind::BuiltinFnToFnPtr => {
+                    return Ok(Some(WithStmts::new_val(self.fn_index_of(expr_id, inner)?)));
+                }
+                CastKind::NullToPointer if to_fn => {
+                    return Ok(Some(WithStmts::new_val(DaExpr::ConstInt(0))));
+                }
+                CastKind::PointerToBoolean if from_fn => {
+                    return Ok(Some(
+                        self.convert_expr(ctx.used(), inner, None)?
+                            .map(|v| op2("!=", v, DaExpr::ConstInt(0))),
+                    ));
+                }
+                CastKind::BitCast | CastKind::NoOp | CastKind::ConstCast if to_fn && from_fn => {
+                    // Each signature has its own table, so an index means
+                    // nothing under another signature.
+                    if self.fn_sig(ty.ctype)? != self.fn_sig(inner_ty.ctype)? {
+                        return Err(self.linear_refuse(
+                            expr_id,
+                            "a cast between function pointer types of different signatures under --fnptr-model table",
+                        ));
+                    }
+                    return Ok(Some(self.convert_expr(ctx.used(), inner, None)?));
+                }
+                CastKind::BitCast if to_fn && from_ptr && self.ast_context.is_null_expr(inner) => {
+                    return Ok(Some(WithStmts::new_val(DaExpr::ConstInt(0))));
+                }
+                _ if to_fn || from_fn => {
+                    if matches!(ck, CastKind::LValueToRValue) {
+                        // Falls through to the heap load below.
+                    } else {
+                        return Err(self.linear_refuse(
+                            expr_id,
+                            &format!("function pointer cast {ck:?} under --fnptr-model table"),
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
         match ck {
             CastKind::NullToPointer if to_ptr => {
                 // Side effects of a null pointer constant are impossible.
@@ -1902,7 +2030,9 @@ impl<'c> Translation<'c> {
             .unwrap_or(false);
         let ptr_arg = args.iter().any(|a| {
             self.qual_of(*a)
-                .map(|t| self.is_data_pointer(t.ctype))
+                .map(|t| {
+                    self.is_data_pointer(t.ctype) || (fn_table() && self.is_fn_pointer(t.ctype))
+                })
                 .unwrap_or(false)
                 && !self.is_string_literal_arg(*a)
         });

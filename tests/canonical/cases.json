@@ -1220,6 +1220,23 @@
       "runtime": "required"
     },
     {
+      "id": "p207-linear-fnptr-table",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p207_linear_fnptr_table.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--fnptr-model", "table", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_fnptr_table", "return_type": "int" },
+      "das_entrypoint": "linear_fnptr_table",
+      "expected": {
+        "stdout": "null=1 same=1 differ=1\ncopy(9,4)=5\ntotal=81\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p206-linear-entry-eden",
       "status": "ready",
       "source_root": "tests/syntax",
@@ -2535,7 +2552,7 @@
       "translation_units": ["upstream/binjgb/src/common.c", "upstream/binjgb/src/emulator.c", "upstream/binjgb/src/joypad.c", "src/platform.c", "src/entry.c"],
       "c_graph": "binjgb",
       "libc": "eden",
-      "translator_flags": ["--memory-model", "linear", "--entry", "eden", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "translator_flags": ["--memory-model", "linear", "--fnptr-model", "table", "--entry", "eden", "--dialect", "eden-0.6.4", "--no-unsafe"],
       "das_options": ["stack = 1048576"],
       "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-DNDEBUG", "-Iinclude", "-Iupstream/binjgb/src", "-Isrc"] },
       "c_reference": { "entrypoint": "main", "return_type": "int" },
