@@ -3955,6 +3955,76 @@
       "status": "quarantined"
     },
     {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m05_module_layout_typed_records--build",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m05_module_layout_typed_records/build.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "canonical_case": "m05-module-layout-typed-records",
+      "canonical_cases": [
+        "m05-module-layout-typed-records"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "list count=10 sum=285 first=81\nlist empty=1\ntree walk=72477\ncells=546\n"
+        }
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m05_module_layout_typed_records--main",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "required",
+      "source": "tests/syntax/m05_module_layout_typed_records/main.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m05_module_layout_typed_records--walk",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m05_module_layout_typed_records/walk.c",
+      "status": "quarantined"
+    },
+    {
       "c_graph": "single-tu",
       "checked_in_das": null,
       "clang": {

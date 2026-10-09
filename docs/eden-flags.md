@@ -16,7 +16,8 @@ The editor itself has not been run.
 | `binjgb-cgb-acid2-eden` | `--libc eden --dialect eden-0.6.4` | unity | 60 frames equal to C |
 | `binjgb-cgb-acid2-eden-linear` | + `--memory-model linear --no-unsafe` | unity | 60 frames equal to C; `eden_check` ok |
 | `binjgb-cgb-acid2-eden-linear-source` | + `--fnptr-model table --entry eden` | 5 unit modules + `c2da_runtime` | 60 frames equal to C; `eden_check` ok on all 6 modules |
-| `doomgeneric-demo1-eden-linear` | `--libc eden --memory-model linear --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe` | unity | 70 frames equal to C; `eden_check` ok |
+| `doomgeneric-demo1-eden-linear` | `--libc eden --memory-model linear --records typed --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe --heap-reserve 16777216` | unity | 70 frames equal to C; `eden_check` ok |
+| `m05-module-layout-typed-records` | `--libc eden --memory-model linear --records typed --dialect eden-0.6.4 --no-unsafe` | 3 unit modules + `c2da_runtime` | equal to C; `eden_check` ok on all 4 modules |
 
 Each flag also has its own fixtures: p190–p216, plus `m02`/`m03` under the eden flags.
 
@@ -25,11 +26,33 @@ Each flag also has its own fixtures: p190–p216, plus `m02`/`m03` under the ede
 | program | linear model vs raw model | memory |
 |---|---|---|
 | binjgb | about 3.2× slower | — |
-| Doom | about 3.1× slower | peak 1.28 GB vs 365 MB, not yet explained |
+| Doom | about 3.1× slower | process peak 485 MB vs 365 MB, all of it compiler; context heap 21 MB |
 
-The peak memory is far above the editor's 100 MiB heap cap. Because it is measured on the whole
-process, it may be compile-time memory, but this must be found before Doom goes into the
-editor.
+**Doom's memory, split** (master daslang, `/usr/bin/time -v` max RSS of the whole process;
+context heap from `heap_bytes_allocated()` after the run):
+
+| | before | after |
+|---|---:|---:|
+| `-compile-only` | 664 MB | 394 MB |
+| `-dry-run` (compile + simulate + `[init]`) | 1 248 MB | 485 MB |
+| full run | 1 248 MB | 485 MB |
+| context heap after the run | 88.3 MB | 21.2 MB |
+| `c2da_mem` reserved / high water | 80 MiB / 8.02 MB | 16 MiB / 8.02 MB |
+| generated `doom_all.das` | 4.34 MB | 2.71 MB |
+
+- The process peak was compile time, not the program. The static block was one
+  375 000-element `fixed_array<uint8>` literal (one AST constant per byte). It is now
+  stored as its nonzero runs only (Doom's block is 81% zeros): an (offset, length) table
+  and the runs' bytes packed eight to a `uint64`, which `[init]` unpacks into the zeroed
+  heap. That is about 16 000 constants instead of 375 000.
+- Running Doom adds nothing measurable to the process peak. The 80 MiB default
+  `--heap-reserve` was not resident memory, but it counts towards the editor's
+  100 MiB cap. Doom's C heap peaks at 8.02 MB (its zone is a fixed 6 MiB), so the case
+  now passes `--heap-reserve 16777216`. The context heap is then the 16 MiB heap,
+  the 4.2 MB WAD that the host hands over, and about 0.4 MB of other data: 21 MB in all,
+  well under the cap.
+- The 485 MB that is left is daslang compiling 46 600 lines; how much of it the editor
+  counts towards a script is not known.
 
 **Lint** (`scripts/lint_translated.py`, full report in [`lint-translated.md`](lint-translated.md)):
 
@@ -50,11 +73,15 @@ editor.
   same-type declarations, LINT003 `var`→`let` and PERF020 same-type casts in the generated
   load/store code. None of them is a sandbox or correctness issue.
 
-**Not done:**
-- the editor run itself;
-- Doom under `--module-layout source` with the eden flags (each half works alone);
-- `--records typed` across units, which is refused under `--module-layout source`;
-- an explanation of Doom's memory peak.
+**Doom in source layout with the eden flags** (`doomgeneric-demo1-eden-linear-source`):
+- **Layout:** 83 units become 30 modules, 2 cluster modules with 54 fragments, and the
+  shared `c2da_runtime`.
+- **Result:** the 70 frame hashes equal C, and `eden_check` reports ok on all 31 modules.
+- **How:** a link pre-pass (`plan_shared_externs`) fixes heap offsets for external globals
+  whose address any unit takes, and assigns table indices for such functions, program-wide.
+- **Fixture:** `m04`.
+
+**Not done:** the editor run itself.
 
 Earlier status notes, kept for history: step 1 of the order of work is the CLI switches
 (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and `--no-unsafe`
@@ -120,16 +147,27 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | **Implemented** with `--memory-model linear --libc eden` (refused without them): the host API `c2da_eden_start(args : array<string>) : int`, see "`--entry eden` as built"; cases `p206-linear-entry-eden`, `binjgb-cgb-acid2-eden-linear-source`. Splitting a frame-driven program into `init`/`tick` is per-program host code |
 | 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (clusters too), also with `--memory-model linear` (one shared heap module; cases `binjgb-cgb-acid2-eden-linear-source`, `m02`/`m03-…-eden-linear`) |
 | 11 | `--no-unsafe` (check, implied by the preset) | The translator fails closed, with a source-located diagnostic, on any construct that would need `unsafe` under the other flags. The output is then also checked locally under `sandbox.das_project`. | A sandbox refusal in the editor names only the first error | No such check | **Implemented** as a checker: `--no-unsafe` fails naming the first 10 sites by C declaration; `--no-unsafe=report` prints a census. `scripts/eden_check.py` runs the sandbox model |
-| 12 | `--records typed` (needs 1) | A heap allocation of a struct type whose interior addresses never escape as byte pointers is a `new T` daslang object with typed fields; `T*` is `T?`. | Byte-heap fields cost 5–6× raw in the interpreter; a typed object 0.96× (measured below) | Every record through a pointer is an offset plus Clang's field offsets | **Implemented, minimal rule** with `--memory-model linear` (refused by name without it, and with `--module-layout source`; `translator/linear/typed_records.rs`): a struct qualifies per translation unit by a whitelist (below); its `T *` is `T?`, `malloc(sizeof(T))`/`calloc(1, sizeof(T))` is `new T()`, `p->f` is `p.f`, NULL is `null`, `free(p)` releases nothing. Everything else keeps the byte heap. Case `p209-linear-records-typed`. See "`--records typed` as built" below |
+| 12 | `--records typed` (needs 1) | A heap allocation of a struct type whose interior addresses never escape as byte pointers is a `new T` daslang object with typed fields; `T*` is `T?`. | Byte-heap fields cost 5–6× raw in the interpreter; a typed object 0.96× (measured below) | Every record through a pointer is an offset plus Clang's field offsets | **Implemented, minimal rule** with `--memory-model linear` (refused by name without it; `translator/linear/typed_records.rs`): a struct qualifies by a whitelist (below), per translation unit in one module and in every unit under `--module-layout source`; its `T *` is `T?`, `malloc(sizeof(T))`/`calloc(1, sizeof(T))` is `new T()`, `p->f` is `p.f`, NULL is `null`, `free(p)` releases nothing. Everything else keeps the byte heap. Cases `p209-linear-records-typed`, `m05-module-layout-typed-records`. See "`--records typed` as built" below |
 
 ### `--records typed` as built
 
 A minimal, sound first version (`translator/linear/typed_records.rs`). What it does not
 cover keeps the byte-heap form; nothing is accepted outside the rule.
 
-- **Scope: one translation unit.** `typed_plan` decides before translation. With
-  `--module-layout source` the flag is refused by name ("the rule needs every unit of the
-  program"); a whole-program version would run the same rule in the link pass.
+- **Scope: the whole program.** In one module `typed_plan` decides before translation.
+  Under `--module-layout source` the decision is made once, before any unit is translated
+  (`lib.rs transpile_source_layout`, after `link_units`): each unit runs the same rule
+  (`typed_verdict`), and `typed_records_program` combines them. A struct qualifies only
+  when no unit's rule disqualifies it, and when no unit sees it only as an incomplete
+  `struct S;`. It must also have one definition place in the program: the key is the
+  record's name and definition place, the identity `link_units` uses for C types. The
+  `T *` field fixpoint then runs over every unit's fields. Each unit receives the set
+  (`UnitLink::typed_records`) and types a struct only when its own rule also holds. A
+  prototyped function that another unit defines counts as a function of the program, so
+  a `T *` passes to it and returns from it. A K&R declaration, or a function that no unit
+  defines, still disqualifies. A typed record's daslang struct goes to the shared
+  `c2da_runtime` module with the other C types, so its `T?` is one type in every module.
+  A `T?` global (`extern struct node *list_head`) is shared like any other external.
 - **The rule is a whitelist.** A struct `T` qualifies only when, across every
   declaration and expression of the unit:
   - a `T *` value is only read, assigned, compared with `==`/`!=`, tested for truth
@@ -175,7 +213,24 @@ cover keeps the byte-heap form; nothing is accepted outside the rule.
   more than flag 12 as built: interior pointers to typed sub-records as daslang
   references, typed arrays and records inside a typed record, and a field-wise copy for
   `memcpy` of a typed record. No binjgb measurement was taken.
-- **Still missing:** the whole-program (source layout) version; aggregate fields; `T`
+- **Source layout verified.** `m05-module-layout-typed-records` has three units
+  sharing `records.h`. `build.c` allocates a list (`malloc`, an `extern` head) and a
+  tree (`calloc`, recursion). `walk.c` traverses both, and `main.c` frees them. A `cell`
+  list is disqualified in `walk.c` alone (`&c->value`) and stays in the byte heap in
+  all three units. C == daslang on master with `--no-unsafe`, and `scripts/eden_check.py`
+  is ok on all 4 modules (0 `unsafe`/`addr`/`reinterpret`/`intptr`).
+  `p209-linear-records-typed`, `m03-module-layout-cycle-statics-eden-linear` and
+  `binjgb-cgb-acid2-eden-linear-source` still pass.
+- **Doom (unity) gains nothing.** With the flag, `doomgeneric-demo1-eden-linear` still
+  matches C, so the case now carries `--records typed`. Two structs qualify, and neither
+  is ever allocated. `music_module_t` is a global pointer that stays NULL in this build,
+  so its four method calls become `music_module.PlaySong` instead of byte loads.
+  `islope_t` appears only as the parameter of `AM_getIslope`. Every Doom object comes
+  from the zone allocator (`Z_Malloc` returns `void *` from a byte zone), which is not
+  the `malloc(sizeof(T))` pattern. `mobj_t`, thinkers and the rest therefore stay in the
+  byte heap. One run each (master interpreter, whole daslang process including compile):
+  6.24 s without the flag, 6.37 s with it, which is noise.
+- **Still missing:** a typed form of a custom allocator (Doom's `Z_Malloc`); aggregate fields; `T`
   by value meeting a typed object (`*p`, `s = *p`, `*p = s`); arrays of typed objects;
   `sizeof *p` in the allocation pattern; typed pointers in variadic calls.
 

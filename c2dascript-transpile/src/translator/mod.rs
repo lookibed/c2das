@@ -56,6 +56,7 @@ use self::value_lowering::ValueSite;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
 pub use linear::{plan_shared_externs, LinearLink};
+pub use linear::{typed_records_program, TypedVerdict};
 pub(crate) use linear::fn_table as linear_fn_table;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -337,6 +338,9 @@ pub struct UnitLink {
     /// `--memory-model linear`: the program-wide heap layout the units
     /// translated before this one left (`linear::LinearLink`).
     pub linear: linear::LinearLink,
+    /// `--records typed`: the structs the whole program types, by
+    /// `record_key` (`linear/typed_records.rs typed_records_program`).
+    pub typed_records: std::collections::BTreeSet<String>,
 }
 
 /// A translated unit under `--module-layout source`: its own module text plus
@@ -4150,6 +4154,20 @@ pub fn translate_unit(
     link: UnitLink,
 ) -> TranslationResult<UnitOutput> {
     translate_impl(ast_context, tcfg, main_file, Some(link), true)
+}
+
+/// `--records typed` under `--module-layout source`: this unit's part of the
+/// whole-program decision, before any unit is translated.
+pub fn typed_records_verdict(
+    ast_context: TypedAstContext,
+    tcfg: &TranspilerConfig,
+    main_file: &Path,
+    link: UnitLink,
+) -> TranslationResult<TypedVerdict> {
+    let mut t = Translation::new(ast_context, tcfg, main_file);
+    t.link = Some(link);
+    t.ast_context.prune_unwanted_decls(false);
+    t.typed_verdict()
 }
 
 impl Translation<'_> {
