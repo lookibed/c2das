@@ -2472,6 +2472,26 @@
         "exit_code": 0
       },
       "runtime": "required"
+    },
+    {
+      "id": "binjgb-cgb-acid2-eden-linear-source",
+      "status": "ready",
+      "source_root": "tests/manual/binjgb",
+      "translation_entry": "src/entry.c",
+      "translation_units": ["upstream/binjgb/src/common.c", "upstream/binjgb/src/emulator.c", "upstream/binjgb/src/joypad.c", "src/platform.c", "src/entry.c"],
+      "c_graph": "binjgb",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "das_options": ["stack = 1048576"],
+      "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-DNDEBUG", "-Iinclude", "-Iupstream/binjgb/src", "-Isrc"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["fixtures/cgb-acid2.gbc"],
+      "expected": {
+        "stdout": "rom_bytes=32768\ntitle: \"CGB-ACID2\"\ncgb flag: CGB_FLAG_REQUIRED\nsgb flag: SGB_FLAG_NONE\ncart type: CART_TYPE_ROM_ONLY\nrom size: ROM_SIZE_32K\next ram size: EXT_RAM_SIZE_NONE\nheader checksum: 0xeb [OK]\nwidth=160\nheight=144\nframe[0]=1015431621\nframe[1]=838717591\nframe[2]=838717591\nframe[3]=838717591\nframe[4]=838717591\nframe[5]=838717591\nframe[6]=838717591\nframe[7]=838717591\nframe[8]=838717591\nframe[9]=838717591\nframe[10]=838717591\nframe[11]=838717591\nframe[12]=838717591\nframe[13]=838717591\nframe[14]=838717591\nframe[15]=838717591\nframe[16]=838717591\nframe[17]=838717591\nframe[18]=838717591\nframe[19]=838717591\nframe[20]=838717591\nframe[21]=838717591\nframe[22]=838717591\nframe[23]=838717591\nframe[24]=838717591\nframe[25]=838717591\nframe[26]=838717591\nframe[27]=838717591\nframe[28]=838717591\nframe[29]=838717591\nframe[30]=838717591\nframe[31]=838717591\nframe[32]=838717591\nframe[33]=838717591\nframe[34]=838717591\nframe[35]=838717591\nframe[36]=838717591\nframe[37]=838717591\nframe[38]=838717591\nframe[39]=838717591\nframe[40]=838717591\nframe[41]=838717591\nframe[42]=838717591\nframe[43]=838717591\nframe[44]=838717591\nframe[45]=838717591\nframe[46]=838717591\nframe[47]=838717591\nframe[48]=838717591\nframe[49]=838717591\nframe[50]=838717591\nframe[51]=838717591\nframe[52]=838717591\nframe[53]=838717591\nframe[54]=838717591\nframe[55]=838717591\nframe[56]=838717591\nframe[57]=838717591\nframe[58]=838717591\nframe[59]=838717591\nframes=60\nticks=5378896\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
     }
   ]
 }

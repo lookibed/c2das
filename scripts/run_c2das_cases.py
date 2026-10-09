@@ -40,10 +40,14 @@ def write_eden_host(
     context's stack size from the program, not from a required module.
     """
     module = generated_das.stem
+    # Under `--module-layout source` the `--libc eden` state (and
+    # `c2da_eden_add_file`) lives in the shared runtime module.
+    shared = generated_das.parent / "c2da_runtime.das"
     lines = [
         "options gen2",
         *[f"options {option}" for option in das_options],
         "require daslib/fio",
+        *(["require c2da_runtime"] if shared.is_file() else []),
         f"require {module}",
         "",
         "[export]",

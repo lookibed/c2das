@@ -55,6 +55,7 @@ pub(crate) use self::global_order::collect_names;
 use self::value_lowering::ValueSite;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
+pub use linear::LinearLink;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct Import {
@@ -332,6 +333,9 @@ pub struct UnitLink {
     /// initialization-order pass sees the whole module
     /// (`global_order::order_value_declarations`).
     pub foreign_refs: HashMap<String, Vec<String>>,
+    /// `--memory-model linear`: the program-wide heap layout the units
+    /// translated before this one left (`linear::LinearLink`).
+    pub linear: linear::LinearLink,
 }
 
 /// A translated unit under `--module-layout source`: its own module text plus
@@ -351,6 +355,9 @@ pub struct UnitOutput {
     /// is empty for a fragment.
     pub fragment_decls: Vec<DaDecl>,
     pub requires: Vec<String>,
+    /// `--memory-model linear`: the program-wide heap layout after this unit,
+    /// which the next unit starts from and the shared module is written with.
+    pub linear: Option<linear::LinearLink>,
 }
 
 pub struct Translation<'c> {
@@ -4264,6 +4271,9 @@ fn translate_impl(
     builtins::reset_builtin_helpers();
     float_compare::reset();
     linear::reset();
+    if let Some(link) = &t.link {
+        linear::start_linked_unit(&link.linear);
+    }
     libc::reset();
     libc::set_eden(tcfg.libc == crate::LibcMode::Eden);
     libc::set_linear(tcfg.target.memory_model == crate::target::MemoryModel::Linear);
@@ -4712,10 +4722,20 @@ fn translate_impl(
     requires.extend(libc::module_requires());
     requires.extend(float_compare_requires);
     if t.is_linear() {
-        if t.link.is_some() || t.tcfg.runtime_module.is_some() {
+        // Under the source layout the heap, the allocator and the function
+        // tables live in the shared module (`linear::shared_runtime_source`).
+        // A cluster fragment and `--runtime-module` without the source layout
+        // are not covered yet.
+        if t.link.as_ref().map_or(false, |link| link.fragment) {
             return Err(format_translation_err!(
                 None,
-                "not supported under --memory-model linear yet: a program split over several modules (--module-layout source, --runtime-module); the heap is one module global"
+                "not supported under --memory-model linear yet: units that reference each other in a cycle (one --module-layout source cluster)"
+            ));
+        }
+        if t.link.is_none() && t.tcfg.runtime_module.is_some() {
+            return Err(format_translation_err!(
+                None,
+                "not supported under --memory-model linear yet: --runtime-module without --module-layout source"
             ));
         }
         linear::prune_raw_runtime(&mut module_decls);
@@ -4792,12 +4812,15 @@ fn translate_impl(
             libc_helpers: libc_contribution.unwrap_or_default(),
             fragment_decls: module.decls,
             requires: module.requires,
+            linear: None,
         });
     }
     // Linear memory refuses a linked layout above, so a fragment never gets
     // here with the heap runtime.  The runtime is its own hand-written
     // section after the rendered module, never an edit of it.
-    let linear_runtime = if t.is_linear() {
+    let linear_runtime = if t.is_linear() && t.link.is_some() {
+        linear::unit_runtime_source(&t.link.as_ref().expect("checked").module)
+    } else if t.is_linear() {
         linear::runtime_source(
             t.tcfg
                 .target
@@ -4813,6 +4836,7 @@ fn translate_impl(
         libc_helpers: libc_contribution.unwrap_or_default(),
         fragment_decls: vec![],
         requires: vec![],
+        linear: (t.is_linear() && t.link.is_some()).then(linear::linked_state),
     })
 }
 
@@ -4894,7 +4918,7 @@ fn module_options(tcfg: &TranspilerConfig) -> Vec<String> {
 /// writes.  It depends on no translation unit, which is what lets the units
 /// share one heap.
 pub fn runtime_module_source(tcfg: &TranspilerConfig, name: &str) -> TranslationResult<String> {
-    shared_module_source(tcfg, name, vec![], vec![])
+    shared_module_source(tcfg, name, vec![], vec![], None)
 }
 
 /// `runtime_module_source` for `--module-layout source`: the shared module
@@ -4908,6 +4932,7 @@ pub fn shared_module_source(
     name: &str,
     shared_types: Vec<DaDecl>,
     libc_helpers: Vec<DaDecl>,
+    linear: Option<&linear::LinearLink>,
 ) -> TranslationResult<String> {
     let mut decls = c2da_runtime_helpers();
     // The merged type section is ordered once more the way a unit's is
@@ -4923,7 +4948,7 @@ pub fn shared_module_source(
     let (objects, functions): (Vec<DaDecl>, Vec<DaDecl>) = libc_helpers
         .into_iter()
         .partition(|decl| matches!(decl, DaDecl::Variable(_)));
-    let requires = if objects.is_empty() && functions.is_empty() {
+    let mut requires: Vec<String> = if objects.is_empty() && functions.is_empty() {
         vec![]
     } else {
         libc::STD_MODULE_REQUIRES
@@ -4934,6 +4959,15 @@ pub fn shared_module_source(
     };
     decls.extend(objects);
     decls.extend(functions);
+    // `--memory-model linear`: the raw `c2da_rt_*` prelude goes unless a
+    // shared helper names it (the `unsafe` net then refuses it), and the heap
+    // runtime is appended to the text below.
+    if linear.is_some() {
+        linear::prune_raw_runtime(&mut decls);
+        if !requires.iter().any(|r| r == "daslib/math_bits") {
+            requires.push("daslib/math_bits".to_owned());
+        }
+    }
     if tcfg.unsafe_deref {
         apply_unsafe_deref(&mut decls);
     }
@@ -4948,14 +4982,23 @@ pub fn shared_module_source(
         &options,
         &decls,
     )?;
-    Ok(DaModule {
+    let module = DaModule {
         name: Some(name.to_owned()),
         public: true,
         requires,
         options,
         decls,
     }
-    .to_string())
+    .to_string();
+    let linear_runtime = linear.map_or(String::new(), |link| {
+        linear::shared_runtime_source(
+            tcfg.target
+                .heap_reserve
+                .unwrap_or(crate::target::EDEN_DEFAULT_HEAP_RESERVE),
+            link,
+        )
+    });
+    Ok([module, linear_runtime].concat())
 }
 
 /// The annotation daScript reads to skip the generated null check on every

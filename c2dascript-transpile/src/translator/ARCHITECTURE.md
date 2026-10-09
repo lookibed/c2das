@@ -343,10 +343,30 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     that takes or returns C memory. A string-literal argument does not count. As a net,
     `target_check.rs check_linear` refuses any `unsafe` construct left in the finished
     module, located at its C owner. That covers, for example, the `--libc std` formatter
-    behind `printf`, which reads C strings through raw pointers. A module split
-    (`--runtime-module`, `--module-layout source`) is refused, because the heap is one
-    module global. Layout proofs are not emitted under the model, since a daScript struct
+    behind `printf`, which reads C strings through raw pointers. Layout proofs are not emitted under the model, since a daScript struct
     only ever holds a record by value.
+  - **Source layout.** Under `--module-layout source` the heap is program state and
+    lives once in the shared runtime module: `linear::shared_runtime_source` appends
+    `c2da_mem`, the allocator, `c2da_lin_sp`/`c2da_lin_enter`, the byte functions, the
+    printf/file/argv sections some unit needs and every function table with its
+    `c2da_fn_index<n>`, all public, to `shared_module_source` (which also prunes the raw
+    prelude there). The layout is decided program-wide in the link pass, not at run
+    time: `lib.rs` translates the units in compilation-database order and hands each one
+    the state the earlier ones left (`UnitLink::linear` in, `UnitOutput::linear` out,
+    `linear::LinearLink`): its static block starts at the next 16-byte boundary past
+    theirs, so every static address is still a translation-time constant; signatures
+    keep the numbers earlier units gave them and its functions take the next indices. The
+    C stack sits above the last block. Each unit appends `unit_runtime_source`: its block
+    as `c2da_lin_static`, copied in by `[init] c2da_lin_init_static`, and
+    `c2da_relink_<stem>`, which grows the shared tables and fills its own slots (from its
+    `[init]`; a host calls each again after a hot reload). daslang runs `[init]`
+    functions entry module first, so every one of them calls the idempotent
+    `c2da_lin_setup` (reserve, size to the C stack top) before touching the heap;
+    the shared module's global initialisers (`c2da_lin_ready`) have run by then. A
+    function another unit defines is a translated call (`UnitLink::owners`), never a
+    library function, and a unit taking the address of another unit's function numbers it
+    as its own (two slots may then hold one function). Not covered, refused by name: a cluster fragment (units on a
+    reference cycle) and `--runtime-module` without the source layout.
 
 ## Module-wide policy
 

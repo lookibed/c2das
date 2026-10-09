@@ -761,6 +761,7 @@ fn transpile_source_layout(
     let mut shared_types: Vec<DaDecl> = Vec::new();
     let mut shared_type_text: HashMap<String, (String, PathBuf)> = HashMap::new();
     let mut libc_helpers: BTreeMap<String, (DaDecl, PathBuf)> = BTreeMap::new();
+    let mut program_linear = translator::LinearLink::default();
     for (unit, ((input_path, context), mut link)) in
         inputs.iter().zip(contexts).zip(links).enumerate()
     {
@@ -773,8 +774,15 @@ fn transpile_source_layout(
             link.reserved_values
                 .extend(cluster_decls[cluster].keys().cloned());
         }
+        // `--memory-model linear`: units are laid out in the one heap in this
+        // order, each continuing the static block and the function tables of
+        // the ones before it.
+        link.linear = program_linear.clone();
         let output = translator::translate_unit(context, &shared_tcfg, input_path, link)
             .map_err(TranspileError::Translation)?;
+        if let Some(state) = output.linear {
+            program_linear = state;
+        }
         for decl in output.shared_types {
             let key = shared_decl_key(&decl);
             let text = decl.to_string();
@@ -915,6 +923,7 @@ fn transpile_source_layout(
         &runtime_module,
         shared_types,
         libc_helpers.into_values().map(|(decl, _)| decl).collect(),
+        (tcfg.target.memory_model == crate::target::MemoryModel::Linear).then_some(&program_linear),
     )
     .map_err(TranspileError::Translation)?;
     write_output(&shared_path, &shared_source)?;
@@ -1312,6 +1321,7 @@ fn link_units(
             reserved_values,
             reserved_types: std::mem::take(&mut reserved_types[unit]),
             foreign_refs: HashMap::new(),
+            linear: Default::default(),
         });
     }
     Ok((links, clusters))

@@ -1205,7 +1205,8 @@
       "c_graph": "binjgb",
       "canonical_case": "binjgb-cgb-acid2-std-source",
       "canonical_cases": [
-        "binjgb-cgb-acid2-std-source"
+        "binjgb-cgb-acid2-std-source",
+        "binjgb-cgb-acid2-eden-linear-source"
       ],
       "checked_in_das": null,
       "clang": {

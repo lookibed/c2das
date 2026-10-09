@@ -68,6 +68,7 @@ pub fn reset() {
     FORMAT_USED.with(|u| u.set(false));
     FILE_USED.with(|u| u.set(false));
     ARGV_USED.with(|u| u.set(false));
+    IN_LINK.with(|l| *l.borrow_mut() = None);
 }
 
 /// The first conversion of a printf format the linear formatter does not
@@ -591,7 +592,14 @@ impl<'c> Translation<'c> {
             let CExprKind::DeclRef(_, decl, _) = self.ast_context[f].kind else { continue };
             // A library function has no daslang function to point at; storing
             // its address in the heap panics at `c2da_fn_index`.
-            let CDeclKind::Function { ref name, body: Some(_), .. } = self.ast_context[decl].kind else { continue };
+            // A function another unit of a source-layout program defines is
+            // numbered here too (this module requires its owner); one
+            // numbered by both units has two slots holding the same value.
+            let CDeclKind::Function { ref name, ref body, .. } = self.ast_context[decl].kind else { continue };
+            let foreign = self.link.as_ref().map_or(false, |link| link.owners.contains_key(name));
+            if body.is_none() && !foreign {
+                continue;
+            }
             if seen.contains(&decl) {
                 continue;
             }
@@ -1832,6 +1840,11 @@ impl<'c> Translation<'c> {
         if has_body || self.match_vapart(func, args).is_some() {
             return Ok(None);
         }
+        // A function another unit of a source-layout program defines is
+        // translated C like this unit's own, not a library function.
+        if self.link.as_ref().map_or(false, |link| link.owners.contains_key(&name)) {
+            return Ok(None);
+        }
         let base = name.strip_prefix("__builtin_").unwrap_or(&name);
         if let Some(lowered) = self.linear_format_call(ctx, expr_id, base, args)? {
             return Ok(Some(lowered));
@@ -2002,7 +2015,178 @@ def private c2da_lin_init() {{
     resize(c2da_mem, {brk})
 {copy}    c2da_lin_brk = {brk}
 }}
+{body}{format_section}{file_section}{argv_section}{fn_section}"#,
+        body = heap_runtime_body(stack_base)
+    )
+}
 
+/// The program-wide program state of `--memory-model linear` under
+/// `--module-layout source`, handed from one unit to the next in link order
+/// (`UnitLink::linear`, `UnitOutput::linear`): the end of the static blocks
+/// placed so far (the next unit's block starts at the following 16-byte
+/// boundary), the function-pointer signatures numbered so far (one table each,
+/// program-wide), the functions numbered so far, and which optional runtime
+/// sections some unit needs.
+#[derive(Clone, Debug, Default)]
+pub struct LinearLink {
+    pub static_end: usize,
+    pub sigs: Vec<DaType>,
+    pub fn_count: usize,
+    pub format: bool,
+    pub file: bool,
+    pub argv: bool,
+}
+
+thread_local! {
+    /// The state the unit being translated started from (source layout).
+    static IN_LINK: RefCell<Option<LinearLink>> = RefCell::new(None);
+}
+
+/// Starts a unit of a source-layout program at the program-wide state
+/// `link`: its static block begins past every earlier unit's, and its
+/// function-pointer signatures and indices continue theirs.
+pub fn start_linked_unit(link: &LinearLink) {
+    let base = (link.static_end.max(RESERVED) + 15) & !15;
+    STATIC.with(|s| *s.borrow_mut() = (vec![0; base], StdHashMap::new()));
+    SIGS.with(|s| *s.borrow_mut() = link.sigs.clone());
+    IN_LINK.with(|l| *l.borrow_mut() = Some(link.clone()));
+}
+
+fn linked_base() -> usize {
+    IN_LINK.with(|l| {
+        l.borrow()
+            .as_ref()
+            .map_or(RESERVED, |link| (link.static_end.max(RESERVED) + 15) & !15)
+    })
+}
+
+fn linked_fn_base() -> usize {
+    IN_LINK.with(|l| l.borrow().as_ref().map_or(0, |link| link.fn_count))
+}
+
+/// The program-wide state after this unit (source layout).
+pub fn linked_state() -> LinearLink {
+    let input = IN_LINK.with(|l| l.borrow().clone()).unwrap_or_default();
+    LinearLink {
+        static_end: STATIC.with(|s| s.borrow().0.len()),
+        sigs: SIGS.with(|s| s.borrow().clone()),
+        fn_count: input.fn_count + FUNCS.with(|f| f.borrow().len()),
+        format: input.format || FORMAT_USED.with(|u| u.get()),
+        file: input.file || FILE_USED.with(|u| u.get()),
+        argv: input.argv || ARGV_USED.with(|u| u.get()),
+    }
+}
+
+/// A unit's own part of the linear runtime under the source layout: its
+/// static block, copied into the shared heap at the unit's program-wide
+/// offset by its `[init]`, and the filling of its slots in the shared
+/// function tables (`c2da_relink_<module>`, which a host calls again after a
+/// hot reload).  `c2da_lin_setup` sizes the heap first; daslang runs
+/// `[init]` functions entry module first, so the unit cannot rely on the
+/// shared module's own `[init]` having run.
+pub fn unit_runtime_source(module: &str) -> String {
+    let bytes = STATIC.with(|s| s.borrow().0.clone());
+    let base = linked_base();
+    let mut text = String::new();
+    if bytes.len() > base {
+        let list: Vec<String> = bytes[base..].iter().map(|b| format!("0x{b:x}")).collect();
+        text.push_str(&format!(
+            "\n// This module's static data, at heap offset {base}.\nlet private c2da_lin_static = fixed_array<uint8>({})\n\n\
+             [init]\ndef private c2da_lin_init_static() {{\n    c2da_lin_setup()\n    \
+             for (i in range({})) {{\n        c2da_mem[{base} + i] = c2da_lin_static[i]\n    }}\n}}\n",
+            list.join(", "),
+            bytes.len() - base
+        ));
+    }
+    let funcs = FUNCS.with(|f| f.borrow().clone());
+    if !funcs.is_empty() {
+        let sigs = SIGS.with(|s| s.borrow().clone());
+        let fn_base = linked_fn_base();
+        let count = fn_base + funcs.len() + 1;
+        let stem: String = module
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        text.push_str(&format!(
+            "\n// Fills this module's slots of the shared function tables (at start, and after a hot reload).\ndef c2da_relink_{stem}() {{\n"
+        ));
+        for (n, t) in sigs.iter().enumerate() {
+            if !funcs.iter().any(|(_, sig)| sig == t) {
+                continue;
+            }
+            text.push_str(&format!(
+                "    if (length(c2da_fn_table{n}) < {count}) {{\n        resize(c2da_fn_table{n}, {count})\n    }}\n"
+            ));
+            for (k, (name, sig)) in funcs.iter().enumerate() {
+                if sig == t {
+                    text.push_str(&format!(
+                        "    c2da_fn_table{n}[{}] = @@{name}\n",
+                        fn_base + k + 1
+                    ));
+                }
+            }
+        }
+        text.push_str(&format!(
+            "}}\n\n[init]\ndef private c2da_lin_relink_init() {{\n    c2da_relink_{stem}()\n}}\n"
+        ));
+    }
+    text
+}
+
+/// The shared module's part of the linear runtime under the source layout:
+/// the heap, the allocator, the C stack (above every unit's static block),
+/// the byte functions, the optional sections some unit needs and the
+/// program-wide function tables, all public so every unit module reaches
+/// them through its `require`.
+pub fn shared_runtime_source(reserve: u64, link: &LinearLink) -> String {
+    let stack_base = (link.static_end.max(RESERVED) + 15) & !15;
+    let stack_top = stack_base + STACK_BYTES;
+    let brk = stack_top;
+    let format_section = if link.format { FORMAT_RUNTIME } else { "" };
+    let file_section = if link.file { FILE_RUNTIME } else { "" };
+    let argv_section = if link.argv { ARGV_RUNTIME } else { "" };
+    let mut tables = String::new();
+    if !link.sigs.is_empty() {
+        tables.push_str("\n// Function pointers in the heap are indices into these tables (0 is NULL).\n");
+        for (n, t) in link.sigs.iter().enumerate() {
+            tables.push_str(&function_table_decl(n, t));
+        }
+    }
+    format!(
+        r#"
+// --memory-model linear runtime: C memory is c2da_mem, an address is an int offset.
+var c2da_mem : array<uint8>
+var private c2da_lin_brk : int = 0
+var private c2da_lin_free_list : int = 0
+var c2da_lin_sp : int = {stack_top}
+let private c2da_lin_limit : int64 = {reserve}l
+var private c2da_lin_ready : bool = false
+
+// Reserves and sizes the heap once; every module's [init] calls it before
+// copying its static block in.
+def c2da_lin_setup() {{
+    if (c2da_lin_ready) {{
+        return
+    }}
+    c2da_lin_ready = true
+    reserve(c2da_mem, c2da_lin_limit)
+    resize(c2da_mem, {brk})
+    c2da_lin_brk = {brk}
+}}
+
+[init]
+def private c2da_lin_init() {{
+    c2da_lin_setup()
+}}
+{body}{format_section}{file_section}{argv_section}{tables}"#,
+        body = heap_runtime_body(stack_base)
+    )
+}
+
+/// The C stack push, the allocator and the byte functions over `c2da_mem`.
+fn heap_runtime_body(stack_base: usize) -> String {
+    format!(
+        r#"
 // Pushes a C stack frame of `size` bytes and answers its address.
 def c2da_lin_enter(size : int) : int {{
     let fp = c2da_lin_sp - size
@@ -2260,7 +2444,7 @@ def c2da_lin_strstr(h : int; n : int) : int {{
     }}
     return 0
 }}
-{format_section}{file_section}{argv_section}{fn_section}"#
+"#
     )
 }
 
@@ -2277,14 +2461,7 @@ fn function_tables_source() -> String {
     let count = funcs.len() + 1;
     let mut text = String::from("\n// Function pointers in the heap are indices into these tables (0 is NULL).\n");
     for (n, t) in sigs.iter().enumerate() {
-        text.push_str(&format!(
-            "var c2da_fn_table{n} : array<{t}>\n\n\
-             def c2da_fn_index{n}(f : {t}) : int {{\n    \
-             for (k in range(length(c2da_fn_table{n}))) {{\n        \
-             if (c2da_fn_table{n}[k] == f) {{\n            return k\n        }}\n    }}\n    \
-             panic(\"c2da: a function pointer outside the function table\")\n    \
-             return 0\n}}\n\n"
-        ));
+        text.push_str(&function_table_decl(n, t));
     }
     text.push_str("// Refills the function tables (at start, and after a hot reload).\ndef c2da_relink() {\n");
     for (n, t) in sigs.iter().enumerate() {
@@ -2297,6 +2474,18 @@ fn function_tables_source() -> String {
     }
     text.push_str("}\n\n[init]\ndef private c2da_lin_relink_init() {\n    c2da_relink()\n}\n");
     text
+}
+
+/// The table of function-pointer signature `n` and its index search.
+fn function_table_decl(n: usize, t: &DaType) -> String {
+    format!(
+        "var c2da_fn_table{n} : array<{t}>\n\n\
+         def c2da_fn_index{n}(f : {t}) : int {{\n    \
+         for (k in range(length(c2da_fn_table{n}))) {{\n        \
+         if (c2da_fn_table{n}[k] == f) {{\n            return k\n        }}\n    }}\n    \
+         panic(\"c2da: a function pointer outside the function table\")\n    \
+         return 0\n}}\n\n"
+    )
 }
 
 /// The `main` wrapper's argv builder (appended when `main` takes argv).
