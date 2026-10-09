@@ -6014,7 +6014,7 @@
       "expected": {
         "kind": "translation-error",
         "value": {
-          "cause": "--fnptr-model table is not implemented yet"
+          "cause": "--varargs-model heap is not implemented yet"
         }
       },
       "family": "syntax-pointer-legacy",

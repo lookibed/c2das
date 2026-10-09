@@ -1097,7 +1097,7 @@
       "source_root": "tests/syntax",
       "translation_entry": "p191_target_flag_unimplemented.c",
       "c_graph": "single-tu",
-      "translator_flags": ["--fnptr-model", "table"],
+      "translator_flags": ["--varargs-model", "heap"],
       "clang": { "compiler": "clang-18", "flags": ["-w"] },
       "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
       "das_entrypoint": "not-applicable",
@@ -1106,7 +1106,7 @@
         "exit_code": 0
       },
       "expected_error": {
-        "cause": "--fnptr-model table is not implemented yet"
+        "cause": "--varargs-model heap is not implemented yet"
       },
       "runtime": "not-applicable"
     },
