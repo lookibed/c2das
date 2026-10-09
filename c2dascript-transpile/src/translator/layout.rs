@@ -223,13 +223,11 @@ impl<'c> Translation<'c> {
         // `--memory-model linear`: a daScript struct is only ever a C record
         // held by value, never memory a pointer reaches (that is the heap,
         // read at Clang's offsets), so its daScript layout need not be
-        // Clang's: a pointer field is a 4-byte `int` offset there.
+        // Clang's: a pointer field is a 4-byte `int` offset there.  A field
+        // named on such a value (a bitfield unit of a local or global record)
+        // needs no proof; a typed daScript pointer to one could only come
+        // from `addr`/`reinterpret`, which `check_linear` refuses.
         if self.is_linear() {
-            if !named.is_empty() {
-                return Err(TranslationError::generic(
-                    "not supported under --memory-model linear yet: a record field read through a typed daScript pointer",
-                ));
-            }
             return Ok(None);
         }
         for record in &named {

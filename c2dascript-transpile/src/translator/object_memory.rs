@@ -1378,8 +1378,7 @@ impl<'c> Translation<'c> {
         }
         let named = address.named.as_ref()?;
         for &record in &named.records {
-            self.note_named_field_record(record);
-        }
+            self.note_named_field_record(record);        }
         Some(address.raw.clone().map(|raw| {
             let base = if named.base_converts {
                 self.named_field_base(raw, &named.base_type)

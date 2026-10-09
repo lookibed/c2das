@@ -1150,6 +1150,29 @@ impl<'c> Translation<'c> {
             return Ok(Some(crate::cfg::DeclStmtInfo::new(vec![], vec![], vec![])));
         };
         let a = plus(&DaExpr::Var(FP.into()), off);
+        // A constant aggregate initializer (of any layout, packed records
+        // and unions included) is written byte by byte.
+        if self.is_aggregate(typ.ctype) {
+            if let Ok(size) = self.sizeof_type(typ.ctype) {
+                let mut bytes = vec![0u8; size as usize];
+                if size <= 1024 && self.static_init_bytes(init, typ.ctype, &mut bytes, 0).is_ok() {
+                    let stmts: Vec<DaStmt> = bytes
+                        .iter()
+                        .enumerate()
+                        .map(|(k, b)| {
+                            DaStmt::Expr(DaExpr::Assign(
+                                Box::new(DaExpr::Index(
+                                    Box::new(DaExpr::Var("c2da_mem".into())),
+                                    Box::new(plus(&a, k as i64)),
+                                )),
+                                Box::new(cast(DaType::uint8(), DaExpr::ConstInt(*b as i64))),
+                            ))
+                        })
+                        .collect();
+                    return Ok(Some(crate::cfg::DeclStmtInfo::new(vec![], stmts.clone(), stmts)));
+                }
+            }
+        }
         let value = self.convert_expr(ctx.used(), init, Some(typ))?;
         let stored = if self.is_aggregate(typ.ctype) {
             self.store_aggregate(init, typ, &a, value)?
@@ -2160,11 +2183,7 @@ impl<'c> Translation<'c> {
                 Some(function) => (self.require_std_function(function, expr_id)?, "H**"),
                 None => return Ok(None),
             },
-            // A character and a handle: no C memory beyond the handle.
-            "fputc" | "putc" => match libc::std_function(base) {
-                Some(function) => (self.require_std_function(function, expr_id)?, "IH"),
-                None => return Ok(None),
-            },
+            "fputc" | "putc" => ("c2da_lin_fputc", "IH"),
             // The buffer is only tested against NULL: `--libc eden` streams
             // are line buffers whatever the program supplies.
             "setvbuf" => match libc::std_function(base) {
@@ -3165,6 +3184,16 @@ def c2da_lin_fread(d : int; size : uint64; count : uint64; handle : uint64) : ui
 }
 
 // Only stdout and stderr are writable (--libc eden): any other handle writes nothing.
+def c2da_lin_fputc(c : int; handle : uint64) : int {
+    if (handle != 1ul && handle != 2ul) {
+        return -1
+    }
+    c2da_std_write(handle, build_string() $(var w) {
+        write_char(w, c & 255)
+    })
+    return c & 255
+}
+
 def c2da_lin_fwrite(s : int; size : uint64; count : uint64; handle : uint64) : uint64 {
     if (size == 0ul || count == 0ul || (handle != 1ul && handle != 2ul)) {
         return 0ul
