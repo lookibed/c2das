@@ -83,5 +83,9 @@ int main(void) {
             st->action.acp1(&amount);
     }
     printf("hits=%d\n", hits);
+    void *routine = (void *)bump;
+    act_p1 back = (act_p1)routine;
+    back(&amount);
+    printf("hits=%d\n", hits);
     return 0;
 }

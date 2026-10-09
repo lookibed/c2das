@@ -1654,6 +1654,13 @@ impl<'c> Translation<'c> {
                 CastKind::BitCast if to_fn && from_ptr && self.ast_context.is_null_expr(inner) => {
                     return Ok(Some(WithStmts::new_val(DaExpr::ConstInt(0))));
                 }
+                // A function pointer through `void *` and back (a callback
+                // passed as `void *routine`): both are `int`, the index
+                // travels unchanged, and only a call through the restored
+                // function type uses it.
+                CastKind::BitCast if (to_fn && from_ptr) || (from_fn && to_ptr) => {
+                    return Ok(Some(self.convert_expr(ctx.used(), inner, None)?));
+                }
                 _ if to_fn || from_fn => {
                     if matches!(ck, CastKind::LValueToRValue) {
                         // Falls through to the heap load below.
@@ -2153,6 +2160,11 @@ impl<'c> Translation<'c> {
                 Some(function) => (self.require_std_function(function, expr_id)?, "H**"),
                 None => return Ok(None),
             },
+            // A character and a handle: no C memory beyond the handle.
+            "fputc" | "putc" => match libc::std_function(base) {
+                Some(function) => (self.require_std_function(function, expr_id)?, "IH"),
+                None => return Ok(None),
+            },
             // The buffer is only tested against NULL: `--libc eden` streams
             // are line buffers whatever the program supplies.
             "setvbuf" => match libc::std_function(base) {
@@ -2236,7 +2248,7 @@ impl<'c> Translation<'c> {
             while k < bytes.len() {
                 if bytes[k] == b'%' {
                     match bytes.get(k + 1) {
-                        Some(b'd' | b'u' | b'x' | b'X' | b'o') => convs += 1,
+                        Some(b'd' | b'i' | b'u' | b'x' | b'X' | b'o') => convs += 1,
                         other => {
                             return Err(self.linear_refuse(
                                 expr_id,
@@ -2962,7 +2974,17 @@ def c2da_lin_sscanf(s : int; f : int; p0 : int; p1 : int; p2 : int; p3 : int) : 
                 neg = int(c2da_mem[i]) == 45
                 i++
             }}
-            let base = conv == 120 || conv == 88 ? 16 : (conv == 111 ? 8 : 10)
+            var base = conv == 120 || conv == 88 ? 16 : (conv == 111 ? 8 : 10)
+            if (conv == 105 && int(c2da_mem[i]) == 48) {{
+                // %i: a leading 0x is hexadecimal, a leading 0 octal.
+                let x = int(c2da_mem[i + 1])
+                if ((x == 120 || x == 88) && c2da_lin_digit(int(c2da_mem[i + 2]), 16) >= 0) {{
+                    base = 16
+                    i += 2
+                }} else {{
+                    base = 8
+                }}
+            }}
             var v = 0
             var digits = 0
             while (c2da_lin_digit(int(c2da_mem[i]), base) >= 0) {{

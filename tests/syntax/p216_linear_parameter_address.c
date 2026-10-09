@@ -35,6 +35,8 @@ int main(void) {
     int a = 0, b = 0, c = 0;
     int ok = to_int("0x1F", &a) + to_int(" 017", &b) + to_int("-42", &c);
     printf("%d %d %d %d\n", ok, a, b, c);
+    ok = sscanf("0x10", "%i", &a) + sscanf("010", "%i", &b) + sscanf("-9", "%i", &c);
+    printf("%d %d %d %d\n", ok, a, b, c);
     char *d = strdup("Hello");
     printf("%d %d %d %s\n", atoi("  -123x"), strcasecmp(d, "HELLO"), strncasecmp("abcX", "ABCy", 3), d);
     free(d);

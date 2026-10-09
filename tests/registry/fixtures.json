@@ -6462,7 +6462,7 @@
         "kind": "stdout-and-exit-code",
         "value": {
           "exit_code": 0,
-          "stdout": "101003 8009\n55\n3 31 15 -42\n-123 0 0 Hello\n275\n"
+          "stdout": "101003 8009\n55\n3 31 15 -42\n3 16 8 -9\n-123 0 0 Hello\n275\n"
         }
       },
       "family": "syntax-pointer-legacy",
@@ -6490,7 +6490,7 @@
         "kind": "stdout-and-exit-code",
         "value": {
           "exit_code": 0,
-          "stdout": "idmus 520\niddqd 500 idclip 640\n12 4 -6\n- 0 - -1\none 1 - -1\ntwo 2 one 4\n4 one\n-32768 45875 65536 -56819\n150 -75 10\nhits=5\n"
+          "stdout": "idmus 520\niddqd 500 idclip 640\n12 4 -6\n- 0 - -1\none 1 - -1\ntwo 2 one 4\n4 one\n-32768 45875 65536 -56819\n150 -75 10\nhits=5\nhits=10\n"
         }
       },
       "family": "syntax-pointer-legacy",
