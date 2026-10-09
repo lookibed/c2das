@@ -1834,6 +1834,7 @@ impl<'c> Translation<'c> {
             "strncpy" => Some(("c2da_lin_strncpy", "IIU")),
             "strcat" => Some(("c2da_lin_strcat", "II")),
             "strstr" => Some(("c2da_lin_strstr", "II")),
+            "memchr" => Some(("c2da_lin_memchr", "IIU")),
             _ => None,
         };
         if let Some((runtime, types)) = sig {
@@ -2123,6 +2124,16 @@ def c2da_lin_strlen(s : int) : uint64 {{
         i++
     }}
     return uint64(i - s)
+}}
+
+def c2da_lin_memchr(s : int; c : int; n : uint64) : int {{
+    let b = uint8(c & 0xff)
+    for (i in range(int(n))) {{
+        if (c2da_mem[s + i] == b) {{
+            return s + i
+        }}
+    }}
+    return 0
 }}
 
 // The C string functions over the heap; a character compares as unsigned char.

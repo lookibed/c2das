@@ -56,6 +56,11 @@ int linear_strings(void)
 	char *ext = strrchr(buf, '.');
 	strcpy(ext, ".sav");
 	if (strcmp(buf, "dir/sub/name.sav") != 0) return 40;
+
+	/* memchr, as binjgb's log_cart_info finds the title's end */
+	if ((char *)memchr(buf, '/', 16) - buf != 3) return 41;
+	if (memchr(buf, '/', 3) != NULL) return 42;
+	if ((char *)memchr(buf, '\0', 32) - buf != 16) return 43;
 	free(buf);
 	return 0;
 }
