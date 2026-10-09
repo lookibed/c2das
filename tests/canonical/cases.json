@@ -1220,6 +1220,23 @@
       "runtime": "required"
     },
     {
+      "id": "p204-linear-function-pointers",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p204_linear_function_pointers.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_function_pointers", "return_type": "int" },
+      "das_entrypoint": "linear_function_pointers",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p203-linear-globals",
       "status": "ready",
       "source_root": "tests/syntax",

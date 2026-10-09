@@ -63,6 +63,8 @@ pub fn reset() {
     STATIC.with(|s| *s.borrow_mut() = (vec![0; RESERVED], StdHashMap::new()));
     FRAME.with(|f| f.borrow_mut().clear());
     GLOBALS.with(|g| g.borrow_mut().clear());
+    SIGS.with(|s| s.borrow_mut().clear());
+    FUNCS.with(|f| f.borrow_mut().clear());
     FORMAT_USED.with(|u| u.set(false));
     FILE_USED.with(|u| u.set(false));
     ARGV_USED.with(|u| u.set(false));
@@ -155,6 +157,31 @@ enum Scalar {
     F64,
     /// A data pointer: `int` offset, 8 bytes in memory.
     Ptr,
+    /// A function pointer in the heap: its index (8 bytes, like `Ptr`) into
+    /// the table of signature `n` (`SIGS`); as a daslang value it stays the
+    /// `function<…>` the default model uses.
+    Fn(usize),
+}
+
+thread_local! {
+    /// The `function<…>` types of function pointers held in the heap.
+    static SIGS: RefCell<Vec<DaType>> = RefCell::new(Vec::new());
+    /// Every function whose address is taken: its daslang name and the
+    /// signature of the pointer it decays to; its index is position + 1.
+    static FUNCS: RefCell<Vec<(String, DaType)>> = RefCell::new(Vec::new());
+}
+
+fn sig_id(t: &DaType) -> usize {
+    SIGS.with(|s| {
+        let mut s = s.borrow_mut();
+        match s.iter().position(|x| x == t) {
+            Some(i) => i,
+            None => {
+                s.push(t.clone());
+                s.len() - 1
+            }
+        }
+    })
 }
 
 impl Scalar {
@@ -171,6 +198,7 @@ impl Scalar {
             Scalar::U64 => DaType::uint64(),
             Scalar::F32 => DaType::float(),
             Scalar::F64 => DaType::double(),
+            Scalar::Fn(n) => SIGS.with(|s| s.borrow()[n].clone()),
         }
     }
 }
@@ -234,6 +262,10 @@ fn load(s: Scalar, a: &DaExpr) -> DaExpr {
         Scalar::I16 => cast(DaType::int16(), assemble32(a, 0, 2)),
         Scalar::U32 => assemble32(a, 0, 4),
         Scalar::I32 | Scalar::Ptr => cast(DaType::int(), assemble32(a, 0, 4)),
+        Scalar::Fn(n) => DaExpr::Index(
+            Box::new(DaExpr::Var(format!("c2da_fn_table{n}"))),
+            Box::new(cast(DaType::int(), assemble32(a, 0, 4))),
+        ),
         Scalar::F32 => DaExpr::Call(
             Box::new(DaExpr::Var("uint_bits_to_float".into())),
             vec![assemble32(a, 0, 4)],
@@ -268,6 +300,13 @@ fn store(s: Scalar, a: &DaExpr, v: &DaExpr, fresh: &mut dyn FnMut() -> String) -
     };
     let u8_of = |e: DaExpr| cast(DaType::uint8(), e);
     match s {
+        Scalar::Fn(n) => {
+            let index = DaExpr::Call(Box::new(DaExpr::Var(format!("c2da_fn_index{n}"))), vec![v.clone()]);
+            let name = fresh();
+            let mut out = vec![DaStmt::Let { name: name.clone(), var_type: Some(DaType::int()), init: Some(index) }];
+            out.extend(store(Scalar::Ptr, a, &DaExpr::Var(name), fresh));
+            out
+        }
         Scalar::U8 => vec![set(0, v.clone())],
         Scalar::I8 => vec![set(0, u8_of(v.clone()))],
         Scalar::Bool => vec![set(
@@ -388,6 +427,12 @@ impl<'c> Translation<'c> {
         if self.is_data_pointer(ty) {
             return Some(Scalar::Ptr);
         }
+        if let CTypeKind::Pointer(inner) = self.ast_context.resolve_type(ty).kind {
+            if matches!(self.ast_context.resolve_type(inner.ctype).kind, CTypeKind::Function(..)) {
+                let canonical = self.ast_context.resolve_type_id(ty);
+                return self.convert_type_inner(canonical).ok().map(|t| Scalar::Fn(sig_id(&t)));
+            }
+        }
         Some(match self.ast_context.resolve_type(ty).kind {
             Bool => Scalar::Bool,
             Int | Int32 => Scalar::I32,
@@ -503,6 +548,59 @@ impl<'c> Translation<'c> {
     /// Every use of such an object is then a heap access (`heap_place`) and
     /// its daslang declaration is not emitted.
     pub(crate) fn linear_plan_globals(&self) -> TranslationResult<()> {
+        // Every function whose address is taken anywhere gets an index into
+        // the table of its pointer's signature (a function pointer in the
+        // heap is that index; `c2da_relink` fills the tables).
+        let roots: Vec<CExprId> = self
+            .ast_context
+            .iter_decls()
+            .filter_map(|(_, d)| match d.kind {
+                CDeclKind::Function { body: Some(b), .. } => Some(SomeId::Stmt(b)),
+                CDeclKind::Variable { initializer: Some(i), .. } => Some(SomeId::Expr(i)),
+                _ => None,
+            })
+            .flat_map(|root| {
+                DFExpr::new(&self.ast_context, root)
+                    .filter_map(|n| match n {
+                        SomeId::Expr(e) => Some(e),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        // A direct call's callee decays too; it is not an address taken.
+        let callees: std::collections::HashSet<CExprId> = roots
+            .iter()
+            .filter_map(|&e| match self.ast_context[e].kind {
+                CExprKind::Call(_, func, _) => Some(func),
+                _ => None,
+            })
+            .collect();
+        let mut seen: Vec<CDeclId> = Vec::new();
+        for e in roots {
+            if callees.contains(&e) {
+                continue;
+            }
+            let CExprKind::ImplicitCast(ty, inner, CastKind::FunctionToPointerDecay, _, _) = self.ast_context[e].kind else {
+                continue;
+            };
+            let mut f = inner;
+            while let CExprKind::Paren(_, i) = self.ast_context[f].kind {
+                f = i;
+            }
+            let CExprKind::DeclRef(_, decl, _) = self.ast_context[f].kind else { continue };
+            // A library function has no daslang function to point at; storing
+            // its address in the heap panics at `c2da_fn_index`.
+            let CDeclKind::Function { ref name, body: Some(_), .. } = self.ast_context[decl].kind else { continue };
+            if seen.contains(&decl) {
+                continue;
+            }
+            seen.push(decl);
+            let sig = self.convert_type_inner(self.ast_context.resolve_type_id(ty.ctype))?;
+            sig_id(&sig);
+            let da_name = self.declare_value_name(decl, name);
+            FUNCS.with(|fs| fs.borrow_mut().push((da_name, sig)));
+        }
         let mut order: Vec<CDeclId> = Vec::new();
         let bodies: Vec<CStmtId> = self
             .ast_context
@@ -1195,6 +1293,9 @@ impl<'c> Translation<'c> {
                 // Side effects of a null pointer constant are impossible.
                 Ok(Some(WithStmts::new_val(DaExpr::ConstInt(0))))
             }
+            CastKind::NullToPointer if matches!(self.scalar_of(ty.ctype), Some(Scalar::Fn(_))) => {
+                Ok(Some(WithStmts::new_val(DaExpr::DefaultValue(self.convert_type(ty)?))))
+            }
             CastKind::LValueToRValue => {
                 let Some(address) = self.heap_place(ctx, inner)? else {
                     return Ok(None);
@@ -1223,6 +1324,12 @@ impl<'c> Translation<'c> {
                 }
             }
             CastKind::BitCast | CastKind::NoOp | CastKind::ConstCast if to_ptr || from_ptr => {
+                // `(ReadFn)NULL` (`NULL` is `(void *)0`): the null function value.
+                if from_ptr && !to_ptr && self.ast_context.is_null_expr(inner) {
+                    if let Some(Scalar::Fn(_)) = self.scalar_of(ty.ctype) {
+                        return Ok(Some(WithStmts::new_val(DaExpr::DefaultValue(self.convert_type(ty)?))));
+                    }
+                }
                 if to_ptr && from_ptr {
                     Ok(Some(self.convert_expr(ctx.used(), inner, None)?))
                 } else if matches!(ck, CastKind::NoOp | CastKind::ConstCast) {
@@ -1852,6 +1959,7 @@ pub fn runtime_source(reserve: u64) -> String {
     let format_section = if FORMAT_USED.with(|u| u.get()) { FORMAT_RUNTIME } else { "" };
     let file_section = if FILE_USED.with(|u| u.get()) { FILE_RUNTIME } else { "" };
     let argv_section = if ARGV_USED.with(|u| u.get()) { ARGV_RUNTIME } else { "" };
+    let fn_section = function_tables_source();
     format!(
         r#"
 // --memory-model linear runtime: C memory is c2da_mem, an address is an int offset.
@@ -2115,8 +2223,43 @@ def c2da_lin_strstr(h : int; n : int) : int {{
     }}
     return 0
 }}
-{format_section}{file_section}{argv_section}"#
+{format_section}{file_section}{argv_section}{fn_section}"#
     )
+}
+
+/// The per-signature function tables for function pointers held in the heap:
+/// `c2da_fn_table<n>[i]` is the function of index `i` (0 is NULL), filled by
+/// `c2da_relink`, which a host calls again after a hot reload (daslang
+/// function values do not survive one; the indices in the heap do).
+fn function_tables_source() -> String {
+    let sigs = SIGS.with(|s| s.borrow().clone());
+    if sigs.is_empty() {
+        return String::new();
+    }
+    let funcs = FUNCS.with(|f| f.borrow().clone());
+    let count = funcs.len() + 1;
+    let mut text = String::from("\n// Function pointers in the heap are indices into these tables (0 is NULL).\n");
+    for (n, t) in sigs.iter().enumerate() {
+        text.push_str(&format!(
+            "var c2da_fn_table{n} : array<{t}>\n\n\
+             def c2da_fn_index{n}(f : {t}) : int {{\n    \
+             for (k in range(length(c2da_fn_table{n}))) {{\n        \
+             if (c2da_fn_table{n}[k] == f) {{\n            return k\n        }}\n    }}\n    \
+             panic(\"c2da: a function pointer outside the function table\")\n    \
+             return 0\n}}\n\n"
+        ));
+    }
+    text.push_str("// Refills the function tables (at start, and after a hot reload).\ndef c2da_relink() {\n");
+    for (n, t) in sigs.iter().enumerate() {
+        text.push_str(&format!("    resize(c2da_fn_table{n}, {count})\n"));
+        for (k, (name, sig)) in funcs.iter().enumerate() {
+            if sig == t {
+                text.push_str(&format!("    c2da_fn_table{n}[{}] = @@{name}\n", k + 1));
+            }
+        }
+    }
+    text.push_str("}\n\n[init]\ndef private c2da_lin_relink_init() {\n    c2da_relink()\n}\n");
+    text
 }
 
 /// The `main` wrapper's argv builder (appended when `main` takes argv).

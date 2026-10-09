@@ -207,6 +207,22 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   address taken only in a file-scope initializer is not seen by the pass. Case
   `p203-linear-globals` (C == daslang; `--no-unsafe --dialect eden-0.6.4` and
   `eden_check.py` ok). `p195` now refuses `&` of a parameter, which is still not in the heap.
+- **Function pointers in the heap (step 5; the heap half of `--fnptr-model table`).**
+  The same pre-pass numbers every function with a body whose address is taken (a
+  decay that is not a direct call's callee), from 1. A function pointer stored in the
+  heap is that index (8 bytes, like a data pointer; NULL is 0) into the table of its
+  pointer's signature (typedefs resolved): `c2da_fn_table<n> : array<function<…>>`,
+  read as `c2da_fn_table<n>[index]` and written through `c2da_fn_index<n>(f)`, a
+  linear search (stores are rare; loads are one index). `c2da_relink()` resizes and fills
+  every table and runs from `[init]`; a host calls it again after a hot reload, since the
+  indices in the heap survive one and daslang function values do not. Function pointers
+  held in daslang locals, parameters and record values stay `function<…>` values as in
+  the default model, so the `--fnptr-model table` switch itself is still refused by name.
+  Storing a function that is in no table of that signature (a library function, a
+  pointer cast to another signature) panics with `c2da: a function pointer outside the
+  function table`. Case `p204-linear-function-pointers` (a record of callbacks in
+  malloc'd memory, NULL, compare, copy, call; C == daslang; `--no-unsafe --dialect
+  eden-0.6.4` and `eden_check.py` ok).
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
   - `&` of a parameter, an array in a parameter or a call result used as a pointer, and
@@ -295,9 +311,9 @@ Things the target cannot fix and has to document:
        --dialect eden-0.6.4 --no-unsafe` (case `binjgb-cgb-acid2-eden-linear`, known-red)
        then stopped at `fopen`; the `<stdio.h>` file functions, argv and errno over the
        heap: done in step 5 (p201); enumerations through pointers: done in step 5
-       (p202); globals in the heap: done in step 5 (p203). binjgb next stops at a
-       function pointer stored in the heap (`e->memory_map.read_ext_ram(e, …)`,
-       `emulator.c:1963`): `--fnptr-model table`;
+       (p202); globals in the heap: done in step 5 (p203); function pointers in the
+       heap: done in step 5 (p204). binjgb next stops at `memchr` over C memory
+       (`log_cart_info`, `emulator.c:4705`);
      - by-value struct parameters with pointer fields;
      - then binjgb.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,
