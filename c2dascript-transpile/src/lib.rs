@@ -706,6 +706,17 @@ fn transpile_source_layout(
     // which exist only once those are translated: a cluster is translated a
     // first time, with the same name reservations, to learn them.
     let mut links = links;
+    // `--memory-model linear`: the external objects whose address some unit
+    // takes get their program-wide heap offsets first, so every unit (also a
+    // cluster's first pass) agrees on which objects live in the heap.
+    let mut program_linear = translator::LinearLink::default();
+    if tcfg.target.memory_model == crate::target::MemoryModel::Linear {
+        program_linear =
+            translator::plan_shared_externs(&contexts).map_err(TranspileError::Translation)?;
+        for link in &mut links {
+            link.linear = program_linear.clone();
+        }
+    }
     let mut clusters = clusters;
     for cluster in &mut clusters {
         let mut declared: BTreeSet<String> = BTreeSet::new();
@@ -761,7 +772,6 @@ fn transpile_source_layout(
     let mut shared_types: Vec<DaDecl> = Vec::new();
     let mut shared_type_text: HashMap<String, (String, PathBuf)> = HashMap::new();
     let mut libc_helpers: BTreeMap<String, (DaDecl, PathBuf)> = BTreeMap::new();
-    let mut program_linear = translator::LinearLink::default();
     for (unit, ((input_path, context), mut link)) in
         inputs.iter().zip(contexts).zip(links).enumerate()
     {

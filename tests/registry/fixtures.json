@@ -1463,7 +1463,8 @@
       "c_graph": "doomgeneric",
       "canonical_case": "doomgeneric-demo1-std-source",
       "canonical_cases": [
-        "doomgeneric-demo1-std-source"
+        "doomgeneric-demo1-std-source",
+        "doomgeneric-demo1-eden-linear-source"
       ],
       "checked_in_das": null,
       "clang": {
@@ -3880,6 +3881,77 @@
       "owner": "lib.rs link_units / translator module layout",
       "runtime": "unverified",
       "source": "tests/syntax/m03_module_layout_cycle_statics/right.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m04_module_layout_shared_externs--data",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m04_module_layout_shared_externs/data.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "canonical_case": "m04-module-layout-shared-externs",
+      "canonical_cases": [
+        "m04-module-layout-shared-externs",
+        "m04-module-layout-shared-externs-eden-linear"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "counter=8 values=10,22,30,8 cursor=22 run=-34\n"
+        }
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m04_module_layout_shared_externs--main",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "required",
+      "source": "tests/syntax/m04_module_layout_shared_externs/main.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m04_module_layout_shared_externs--ops",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m04_module_layout_shared_externs/ops.c",
       "status": "quarantined"
     },
     {

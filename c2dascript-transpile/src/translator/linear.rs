@@ -22,6 +22,7 @@
 use super::*;
 use crate::target::MemoryModel;
 use crate::translator::layout::NaturalMember;
+use std::collections::BTreeMap;
 use std::collections::HashMap as StdHashMap;
 
 mod typed_records;
@@ -73,8 +74,256 @@ pub fn reset() {
     FILE_USED.with(|u| u.set(false));
     ARGV_USED.with(|u| u.set(false));
     IN_LINK.with(|l| *l.borrow_mut() = None);
+    EXTERN_STATIC.with(|s| s.borrow_mut().clear());
+    OWN_EXTERN_FUNCS.with(|o| o.borrow_mut().clear());
     va_heap::reset();
     typed_records::reset();
+}
+
+thread_local! {
+    /// Source layout: the initial bytes of the shared external objects this
+    /// unit defines, each at its program-wide offset (`plan_shared_externs`).
+    static EXTERN_STATIC: RefCell<Vec<(i64, Vec<u8>)>> = RefCell::new(Vec::new());
+}
+
+/// The local object an lvalue names: a variable, a field of one, an element
+/// of a declared array.  `None` for anything reached through a pointer.
+fn object_root_in(ctx: &TypedAstContext, e: CExprId) -> Option<CDeclId> {
+    match &ctx[e].kind {
+        CExprKind::Paren(_, inner) => object_root_in(ctx, *inner),
+        CExprKind::DeclRef(_, decl, _) => Some(*decl),
+        CExprKind::Member(_, base, _, MemberKind::Dot, _) => object_root_in(ctx, *base),
+        CExprKind::ArraySubscript(_, lhs, rhs, _) => {
+            let array = decayed_array_in(ctx, *lhs).or_else(|| decayed_array_in(ctx, *rhs))?;
+            object_root_in(ctx, array)
+        }
+        _ => None,
+    }
+}
+
+/// The array operand of an array-to-pointer decay (parentheses skipped).
+fn decayed_array_in(ctx: &TypedAstContext, expr_id: CExprId) -> Option<CExprId> {
+    let mut e = expr_id;
+    loop {
+        match &ctx[e].kind {
+            CExprKind::Paren(_, inner) => e = *inner,
+            CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _) => {
+                let mut a = *inner;
+                while let CExprKind::Paren(_, i) = &ctx[a].kind {
+                    a = *i;
+                }
+                return Some(a);
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// Every object of static duration whose address is taken or whose array
+/// decays to a pointer (other than as the base of `a[i]`) in a function body
+/// or a static-duration initializer (`&g[k]` in a global's initializer puts
+/// `g` in the heap too), in order of first appearance.
+fn address_taken_statics(ctx: &TypedAstContext) -> Vec<CDeclId> {
+    let mut order: Vec<CDeclId> = Vec::new();
+    let bodies: Vec<SomeId> = ctx
+        .iter_decls()
+        .filter_map(|(_, d)| match d.kind {
+            CDeclKind::Function { body: Some(b), .. } => Some(SomeId::Stmt(b)),
+            CDeclKind::Variable { has_static_duration: true, initializer: Some(i), .. } => Some(SomeId::Expr(i)),
+            _ => None,
+        })
+        .collect();
+    for body in bodies {
+        let nodes: Vec<CExprId> = DFExpr::new(ctx, body)
+            .filter_map(|n| match n {
+                SomeId::Expr(e) => Some(e),
+                _ => None,
+            })
+            .collect();
+        let mut subscript_bases = std::collections::HashSet::new();
+        for &e in &nodes {
+            if let CExprKind::ArraySubscript(_, lhs, rhs, _) = ctx[e].kind {
+                for side in [lhs, rhs] {
+                    let mut s = side;
+                    while let CExprKind::Paren(_, i) = ctx[s].kind {
+                        s = i;
+                    }
+                    subscript_bases.insert(s);
+                }
+            }
+        }
+        for &e in &nodes {
+            let root = match &ctx[e].kind {
+                CExprKind::Unary(_, CUnOp::AddressOf, arg, _) => object_root_in(ctx, *arg),
+                CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _)
+                    if !subscript_bases.contains(&e) =>
+                {
+                    object_root_in(ctx, *inner)
+                }
+                _ => None,
+            };
+            let Some(decl) = root else { continue };
+            if matches!(
+                ctx[decl].kind,
+                CDeclKind::Variable { has_static_duration: true, has_thread_duration: false, .. }
+            ) && !order.contains(&decl)
+            {
+                order.push(decl);
+            }
+        }
+    }
+    order
+}
+
+/// Every function whose address is taken (`f` decayed other than as a direct
+/// call's callee, or `&f`) in a function body or a variable's initializer,
+/// each declaration once, in order of first appearance.
+fn address_taken_functions(ctx: &TypedAstContext) -> Vec<CDeclId> {
+    let roots: Vec<CExprId> = ctx
+        .iter_decls()
+        .filter_map(|(_, d)| match d.kind {
+            CDeclKind::Function { body: Some(b), .. } => Some(SomeId::Stmt(b)),
+            CDeclKind::Variable { initializer: Some(i), .. } => Some(SomeId::Expr(i)),
+            _ => None,
+        })
+        .flat_map(|root| {
+            DFExpr::new(ctx, root)
+                .filter_map(|n| match n {
+                    SomeId::Expr(e) => Some(e),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    // A direct call's callee decays too; it is not an address taken.
+    let callees: std::collections::HashSet<CExprId> = roots
+        .iter()
+        .filter_map(|&e| match ctx[e].kind {
+            CExprKind::Call(_, func, _) => Some(func),
+            _ => None,
+        })
+        .collect();
+    let mut seen: Vec<CDeclId> = Vec::new();
+    for e in roots {
+        if callees.contains(&e) {
+            continue;
+        }
+        // `f` decayed, or `&f` (no decay; its type is the pointer too).
+        let inner = match ctx[e].kind {
+            CExprKind::ImplicitCast(_, inner, CastKind::FunctionToPointerDecay, _, _) => inner,
+            CExprKind::Unary(ty, CUnOp::AddressOf, inner, _)
+                if matches!(
+                    ctx.resolve_type(ty.ctype).kind,
+                    CTypeKind::Pointer(p) if matches!(ctx.resolve_type(p.ctype).kind, CTypeKind::Function(..))
+                ) =>
+            {
+                inner
+            }
+            _ => continue,
+        };
+        let mut f = inner;
+        while let CExprKind::Paren(_, i) = ctx[f].kind {
+            f = i;
+        }
+        let CExprKind::DeclRef(_, decl, _) = ctx[f].kind else { continue };
+        if matches!(ctx[decl].kind, CDeclKind::Function { .. }) && !seen.contains(&decl) {
+            seen.push(decl);
+        }
+    }
+    seen
+}
+
+/// The name of a file-scope object with external linkage (a definition or an
+/// `extern` declaration): the objects units of one program can share.
+fn shared_extern_name(ctx: &TypedAstContext, decl: CDeclId) -> Option<&str> {
+    match &ctx[decl].kind {
+        CDeclKind::Variable {
+            has_static_duration: true,
+            has_thread_duration: false,
+            is_externally_visible: true,
+            ident,
+            ..
+        } if ctx.parents.get(&decl).is_none() => Some(ident.as_str()),
+        _ => None,
+    }
+}
+
+/// `--module-layout source`: the program-wide place of every external object
+/// whose address some unit takes.  Each unit decides on its own which of its
+/// objects live in the heap, so an object one unit takes the address of and
+/// another defines (or only reads) would otherwise be a heap object in one
+/// module and a daslang global in the other.  Such objects get one offset
+/// each, below every unit's static block, before any unit is translated, so
+/// an address of one is a translation-time constant in every unit (also in
+/// another object's initializer); the defining unit writes its initial bytes
+/// from its `[init]` (`unit_runtime_source`).  An object no unit defines is
+/// left alone.  Answers the state the first unit starts from.
+pub fn plan_shared_externs(contexts: &[TypedAstContext]) -> TranslationResult<LinearLink> {
+    let mut names: Vec<String> = Vec::new();
+    for ctx in contexts {
+        for decl in address_taken_statics(ctx) {
+            if let Some(name) = shared_extern_name(ctx, decl) {
+                if !names.iter().any(|n| n == name) {
+                    names.push(name.to_owned());
+                }
+            }
+        }
+    }
+    let mut externs = BTreeMap::new();
+    let mut end = RESERVED;
+    for name in names {
+        let def = contexts.iter().find_map(|ctx| {
+            ctx.iter_decls().find_map(|(&id, d)| match d.kind {
+                CDeclKind::Variable { is_defn: true, typ, .. } if shared_extern_name(ctx, id) == Some(name.as_str()) => {
+                    Some((ctx, id, typ))
+                }
+                _ => None,
+            })
+        });
+        let Some((ctx, id, typ)) = def else { continue };
+        let layout = ctx
+            .type_layout(typ.ctype)
+            .or_else(|| ctx.type_layout(ctx.resolve_type_id(typ.ctype)))
+            .ok_or_else(|| {
+                format_translation_err!(
+                    ctx.display_loc(&ctx[id].loc),
+                    "not supported under --memory-model linear yet: a global of this type in the heap"
+                )
+            })?;
+        let size = (layout.size_bits / 8) as usize;
+        let at = (end + 15) & !15;
+        externs.insert(name, (at as i64, size));
+        end = at + size;
+    }
+    // External functions some unit takes the address of, numbered 1.. in
+    // first-seen order; a unit's own static functions continue after them.
+    let defined: std::collections::HashSet<&str> = contexts
+        .iter()
+        .flat_map(|ctx| {
+            ctx.iter_decls().filter_map(|(_, d)| match &d.kind {
+                CDeclKind::Function { is_global: true, name, body: Some(_), .. } => Some(name.as_str()),
+                _ => None,
+            })
+        })
+        .collect();
+    let mut fn_externs = BTreeMap::new();
+    for ctx in contexts {
+        for decl in address_taken_functions(ctx) {
+            if let CDeclKind::Function { is_global: true, name, .. } = &ctx[decl].kind {
+                if defined.contains(name.as_str()) && !fn_externs.contains_key(name) {
+                    let index = fn_externs.len() + 1;
+                    fn_externs.insert(name.clone(), index);
+                }
+            }
+        }
+    }
+    Ok(LinearLink {
+        static_end: end,
+        externs,
+        fn_count: fn_externs.len(),
+        fn_externs,
+        ..LinearLink::default()
+    })
 }
 
 /// The first conversion of a printf format the linear formatter does not
@@ -182,8 +431,11 @@ thread_local! {
     /// `--fnptr-model table`: every function pointer, not only one in the
     /// heap, is its `int` index into the table of its signature.
     static FN_TABLE: std::cell::Cell<bool> = std::cell::Cell::new(false);
-    /// The numbered functions (`FUNCS` position) by declaration.
+    /// The numbered functions (their table index) by declaration.
     static FN_DECLS: RefCell<StdHashMap<CDeclId, usize>> = RefCell::new(StdHashMap::new());
+    /// Source layout: the external functions with a program-wide index that
+    /// this unit defines — daslang name, definition signature, index.
+    static OWN_EXTERN_FUNCS: RefCell<Vec<(String, DaType, usize)>> = RefCell::new(Vec::new());
 }
 
 /// Selects `--fnptr-model table` for the unit being translated.
@@ -476,7 +728,7 @@ impl<'c> Translation<'c> {
             _ => None,
         };
         match slot {
-            Some(k) => Ok(DaExpr::ConstInt((linked_fn_base() + k + 1) as i64)),
+            Some(index) => Ok(DaExpr::ConstInt(index as i64)),
             None => Err(self.linear_refuse(
                 expr_id,
                 "the address of a function with no table slot (a library function) under --fnptr-model table",
@@ -541,16 +793,7 @@ impl<'c> Translation<'c> {
     /// element of a declared array.  `None` for anything reached through a
     /// pointer.
     fn object_root(&self, e: CExprId) -> Option<CDeclId> {
-        match &self.ast_context[e].kind {
-            CExprKind::Paren(_, inner) => self.object_root(*inner),
-            CExprKind::DeclRef(_, decl, _) => Some(*decl),
-            CExprKind::Member(_, base, _, MemberKind::Dot, _) => self.object_root(*base),
-            CExprKind::ArraySubscript(_, lhs, rhs, _) => {
-                let array = self.decayed_array(*lhs).or_else(|| self.decayed_array(*rhs))?;
-                self.object_root(array)
-            }
-            _ => None,
-        }
+        object_root_in(&self.ast_context, e)
     }
 
     /// The C stack frame of a function body: every local (not a parameter,
@@ -641,54 +884,31 @@ impl<'c> Translation<'c> {
         // Every function whose address is taken anywhere gets an index into
         // the table of its pointer's signature (a function pointer in the
         // heap is that index; `c2da_relink` fills the tables).
-        let roots: Vec<CExprId> = self
-            .ast_context
-            .iter_decls()
-            .filter_map(|(_, d)| match d.kind {
-                CDeclKind::Function { body: Some(b), .. } => Some(SomeId::Stmt(b)),
-                CDeclKind::Variable { initializer: Some(i), .. } => Some(SomeId::Expr(i)),
-                _ => None,
-            })
-            .flat_map(|root| {
-                DFExpr::new(&self.ast_context, root)
-                    .filter_map(|n| match n {
-                        SomeId::Expr(e) => Some(e),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-        // A direct call's callee decays too; it is not an address taken.
-        let callees: std::collections::HashSet<CExprId> = roots
-            .iter()
-            .filter_map(|&e| match self.ast_context[e].kind {
-                CExprKind::Call(_, func, _) => Some(func),
-                _ => None,
-            })
-            .collect();
-        let mut seen: Vec<CDeclId> = Vec::new();
-        for e in roots {
-            if callees.contains(&e) {
+        //
+        // Source layout: an external function whose address some unit takes
+        // has its program-wide index (`plan_shared_externs`) in every unit;
+        // the unit defining it fills its slot, in the table of its
+        // definition's signature (a unit that only declares it, perhaps
+        // unprototyped, cannot know that signature).
+        let fn_externs = IN_LINK.with(|l| l.borrow().as_ref().map(|link| link.fn_externs.clone()));
+        let fn_externs = fn_externs.unwrap_or_default();
+        if !fn_externs.is_empty() {
+            for (&decl, d) in self.ast_context.iter_decls() {
+                let CDeclKind::Function { is_global: true, ref name, ref body, typ: fn_typ, .. } = d.kind else { continue };
+                let Some(&index) = fn_externs.get(name) else { continue };
+                FN_DECLS.with(|f| f.borrow_mut().insert(decl, index));
+                if body.is_some() {
+                    let sig = self.fn_sig(fn_typ)?;
+                    sig_id(&sig);
+                    let da_name = self.declare_value_name(decl, name);
+                    OWN_EXTERN_FUNCS.with(|o| o.borrow_mut().push((da_name, sig, index)));
+                }
+            }
+        }
+        for decl in address_taken_functions(&self.ast_context) {
+            if FN_DECLS.with(|f| f.borrow().contains_key(&decl)) {
                 continue;
             }
-            // `f` decayed, or `&f` (no decay; its type is the pointer too).
-            let (ty, inner) = match self.ast_context[e].kind {
-                CExprKind::ImplicitCast(ty, inner, CastKind::FunctionToPointerDecay, _, _) => (ty, inner),
-                CExprKind::Unary(ty, CUnOp::AddressOf, inner, _)
-                    if matches!(
-                        self.ast_context.resolve_type(ty.ctype).kind,
-                        CTypeKind::Pointer(p) if matches!(self.ast_context.resolve_type(p.ctype).kind, CTypeKind::Function(..))
-                    ) =>
-                {
-                    (ty, inner)
-                }
-                _ => continue,
-            };
-            let mut f = inner;
-            while let CExprKind::Paren(_, i) = self.ast_context[f].kind {
-                f = i;
-            }
-            let CExprKind::DeclRef(_, decl, _) = self.ast_context[f].kind else { continue };
             // A library function has no daslang function to point at; storing
             // its address in the heap panics at `c2da_fn_index`.
             // A function another unit of a source-layout program defines is
@@ -699,75 +919,43 @@ impl<'c> Translation<'c> {
             if body.is_none() && !foreign {
                 continue;
             }
-            if seen.contains(&decl) {
-                continue;
-            }
-            seen.push(decl);
             // The definition's own signature: a decay through an unprototyped
             // declaration (`void A_Light0();`) has the type `void (*)()`.
-            let _ = ty;
             let sig = self.fn_sig(fn_typ)?;
             sig_id(&sig);
             let da_name = self.declare_value_name(decl, name);
             FUNCS.with(|fs| {
                 let mut fs = fs.borrow_mut();
-                FN_DECLS.with(|d| d.borrow_mut().insert(decl, fs.len()));
+                FN_DECLS.with(|d| d.borrow_mut().insert(decl, linked_fn_base() + fs.len() + 1));
                 fs.push((da_name, sig));
             });
         }
-        let mut order: Vec<CDeclId> = Vec::new();
-        // Function bodies, and the initializers of static-duration objects
-        // (`&g[k]` in a global's initializer puts `g` in the heap too).
-        let bodies: Vec<SomeId> = self
-            .ast_context
-            .iter_decls()
-            .filter_map(|(_, d)| match d.kind {
-                CDeclKind::Function { body: Some(b), .. } => Some(SomeId::Stmt(b)),
-                CDeclKind::Variable { has_static_duration: true, initializer: Some(i), .. } => Some(SomeId::Expr(i)),
-                _ => None,
-            })
-            .collect();
-        for body in bodies {
-            let nodes: Vec<CExprId> = DFExpr::new(&self.ast_context, body)
-                .filter_map(|n| match n {
-                    SomeId::Expr(e) => Some(e),
-                    _ => None,
-                })
-                .collect();
-            let mut subscript_bases = std::collections::HashSet::new();
-            for &e in &nodes {
-                if let CExprKind::ArraySubscript(_, lhs, rhs, _) = self.ast_context[e].kind {
-                    for side in [lhs, rhs] {
-                        let mut s = side;
-                        while let CExprKind::Paren(_, i) = self.ast_context[s].kind {
-                            s = i;
-                        }
-                        subscript_bases.insert(s);
+        let mut order = address_taken_statics(&self.ast_context);
+        // Source layout: an external object whose address some unit of the
+        // program takes lives at its program-wide offset in every unit
+        // (`plan_shared_externs`), whether or not this unit takes it.
+        let externs = IN_LINK.with(|l| l.borrow().as_ref().map(|link| link.externs.clone()));
+        let externs = externs.unwrap_or_default();
+        if !externs.is_empty() {
+            for (&id, _) in self.ast_context.iter_decls() {
+                if let Some(name) = shared_extern_name(&self.ast_context, id) {
+                    if externs.contains_key(name) && !order.contains(&id) {
+                        order.push(id);
                     }
-                }
-            }
-            for &e in &nodes {
-                let root = match &self.ast_context[e].kind {
-                    CExprKind::Unary(_, CUnOp::AddressOf, arg, _) => self.object_root(*arg),
-                    CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _)
-                        if !subscript_bases.contains(&e) =>
-                    {
-                        self.object_root(*inner)
-                    }
-                    _ => None,
-                };
-                let Some(decl) = root else { continue };
-                if matches!(
-                    self.ast_context[decl].kind,
-                    CDeclKind::Variable { has_static_duration: true, has_thread_duration: false, .. }
-                ) && !order.contains(&decl)
-                {
-                    order.push(decl);
                 }
             }
         }
         let mut inits: Vec<(CExprId, CTypeId, i64, usize)> = Vec::new();
+        let mut extern_inits: Vec<(CExprId, CTypeId, i64, usize)> = Vec::new();
         for decl in order {
+            if let Some(&(at, size)) = shared_extern_name(&self.ast_context, decl).and_then(|n| externs.get(n)) {
+                GLOBALS.with(|g| g.borrow_mut().insert(decl, at));
+                // The defining unit writes the initial bytes from its `[init]`.
+                if let CDeclKind::Variable { is_defn: true, typ, initializer: Some(init), .. } = self.ast_context[decl].kind {
+                    extern_inits.push((init, typ.ctype, at, size));
+                }
+                continue;
+            }
             // The definition carries the initializer; `extern` redeclarations
             // share the object.
             let is_defn = matches!(self.ast_context[decl].kind, CDeclKind::Variable { is_defn: true, .. });
@@ -817,6 +1005,11 @@ impl<'c> Translation<'c> {
             let mut bytes = vec![0u8; size];
             self.static_init_bytes(init, ty, &mut bytes, 0)?;
             STATIC.with(|s| s.borrow_mut().0[at as usize..at as usize + size].copy_from_slice(&bytes));
+        }
+        for (init, ty, at, size) in extern_inits {
+            let mut bytes = vec![0u8; size];
+            self.static_init_bytes(init, ty, &mut bytes, 0)?;
+            EXTERN_STATIC.with(|s| s.borrow_mut().push((at, bytes)));
         }
         Ok(())
     }
@@ -1543,20 +1736,7 @@ impl<'c> Translation<'c> {
 
     /// The array operand of an array-to-pointer decay, parentheses stripped.
     fn decayed_array(&self, expr_id: CExprId) -> Option<CExprId> {
-        let mut e = expr_id;
-        loop {
-            match &self.ast_context[e].kind {
-                CExprKind::Paren(_, inner) => e = *inner,
-                CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _) => {
-                    let mut a = *inner;
-                    while let CExprKind::Paren(_, i) = &self.ast_context[a].kind {
-                        a = *i;
-                    }
-                    return Some(a);
-                }
-                _ => return None,
-            }
-        }
+        decayed_array_in(&self.ast_context, expr_id)
     }
 
     /// The heap address of an array object: a string literal's static
@@ -2549,6 +2729,12 @@ pub struct LinearLink {
     pub format_heap: bool,
     pub file: bool,
     pub argv: bool,
+    /// External objects some unit takes the address of: name → (offset,
+    /// size), fixed before any unit is translated (`plan_shared_externs`).
+    pub externs: BTreeMap<String, (i64, usize)>,
+    /// External functions some unit takes the address of: name → their
+    /// program-wide function-table index (1..; also fixed beforehand).
+    pub fn_externs: BTreeMap<String, usize>,
 }
 
 thread_local! {
@@ -2589,6 +2775,8 @@ pub fn linked_state() -> LinearLink {
         format_heap: input.format_heap || va_heap::format_heap_used(),
         file: input.file || FILE_USED.with(|u| u.get()),
         argv: input.argv || ARGV_USED.with(|u| u.get()),
+        externs: input.externs,
+        fn_externs: input.fn_externs,
     }
 }
 
@@ -2619,27 +2807,61 @@ pub fn unit_runtime_source(module: &str) -> String {
             bytes.len() - base
         ));
     }
-    let funcs = FUNCS.with(|f| f.borrow().clone());
+    // The external objects this unit defines that live at program-wide
+    // offsets below the static blocks (`plan_shared_externs`).
+    let externs = EXTERN_STATIC.with(|s| s.borrow().clone());
+    let externs: Vec<(usize, i64, Vec<u8>)> = externs
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (_, b))| b.iter().any(|&x| x != 0))
+        .map(|(k, (at, b))| (k, at, b))
+        .collect();
+    if !externs.is_empty() {
+        text.push_str("\n// The initial bytes of this unit's shared external objects.\n");
+        for (k, _, b) in &externs {
+            let list: Vec<String> = b.iter().map(|x| format!("0x{x:x}")).collect();
+            text.push_str(&format!(
+                "let private c2da_lin_extern_{stem}_{k} = fixed_array<uint8>({})\n",
+                list.join(", ")
+            ));
+        }
+        text.push_str(&format!(
+            "\n[init]\ndef private c2da_lin_init_externs_{stem}() {{\n    c2da_lin_setup()\n"
+        ));
+        for (k, at, b) in &externs {
+            text.push_str(&format!(
+                "    for (i in range({})) {{\n        c2da_mem[{at} + i] = c2da_lin_extern_{stem}_{k}[i]\n    }}\n",
+                b.len()
+            ));
+        }
+        text.push_str("}\n");
+    }
+    // This unit's slots: the external functions it defines that have a
+    // program-wide index, then the functions it numbered itself.
+    let fn_base = linked_fn_base();
+    let mut funcs: Vec<(String, DaType, usize)> = OWN_EXTERN_FUNCS.with(|o| o.borrow().clone());
+    funcs.extend(
+        FUNCS.with(|f| f.borrow().clone())
+            .into_iter()
+            .enumerate()
+            .map(|(k, (name, sig))| (name, sig, fn_base + k + 1)),
+    );
     if !funcs.is_empty() {
         let sigs = SIGS.with(|s| s.borrow().clone());
-        let fn_base = linked_fn_base();
-        let count = fn_base + funcs.len() + 1;
+        let count = funcs.iter().map(|(_, _, index)| index + 1).max().unwrap_or(1);
         text.push_str(&format!(
             "\n// Fills this module's slots of the shared function tables (at start, and after a hot reload).\ndef c2da_relink_{stem}() {{\n"
         ));
         for (n, t) in sigs.iter().enumerate() {
-            if !funcs.iter().any(|(_, sig)| sig == t) {
+            if !funcs.iter().any(|(_, sig, _)| sig == t) {
                 continue;
             }
             text.push_str(&format!(
                 "    if (length(c2da_fn_table{n}) < {count}) {{\n        resize(c2da_fn_table{n}, {count})\n    }}\n"
             ));
-            for (k, (name, sig)) in funcs.iter().enumerate() {
+            for (name, sig, index) in &funcs {
                 if sig == t {
-                    text.push_str(&format!(
-                        "    c2da_fn_table{n}[{}] = @@{name}\n",
-                        fn_base + k + 1
-                    ));
+                    text.push_str(&format!("    c2da_fn_table{n}[{index}] = @@{name}\n"));
                 }
             }
         }

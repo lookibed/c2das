@@ -55,7 +55,7 @@ pub(crate) use self::global_order::collect_names;
 use self::value_lowering::ValueSite;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
-pub use linear::LinearLink;
+pub use linear::{plan_shared_externs, LinearLink};
 pub(crate) use linear::fn_table as linear_fn_table;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
