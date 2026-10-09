@@ -5,11 +5,11 @@ file of each translation is linted by daslang's lint runner (`utils/lint/main.da
 perf and style passes) with the repository `.lint_config` applied.  Findings in `.das.inc`
 fragments are reported by the module that includes them, under the fragment's name.
 
-- date: 2026-10-09T02:28:30+03:00
-- c2das commit: 1b1c6db5a-dirty
+- date: 2026-10-09T04:58:46+03:00
+- c2das commit: 6bb607d6a
 - daslang: 0.6.4 (c4e4906eb)
-- translations: 253; module files: 294; fragments: 59; lines: 1208003
-- findings: 71745; files that failed to lint: 0; lint wall time: 36.6s with 16 job(s)
+- translations: 281; module files: 330; fragments: 64; lines: 1325918
+- findings: 64557; files that failed to lint: 0; lint wall time: 45.1s with 16 job(s)
 
 Layout is `unity` (one module) or `source` (`--module-layout source`, one module per C unit).
 Flags are the translator arguments other than paths, include dirs and `-std`.
@@ -20,313 +20,363 @@ Counts sum over every translation, so a case translated in several variants coun
 
 | rule | count | example |
 |---|---:|---|
-| STYLE025 | 28272 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:521` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF020 | 13682 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:375` redundant uint(...) cast - argument is already uint |
-| STYLE043 | 10564 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:397` consecutive declarations share one type; declare them together - 'c2da_fresh5, c2da_fresh6' |
-| LINT003 | 6117 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:773` variable c2da_fresh28: uint8 -const can be made const (declare with 'let') |
-| STYLE042 | 3239 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:1254` function 'map_select_to_address' body is a single 'return'; write it as an expression body - 'def map_select_to_address(...) => EXPR' |
-| LINT010 | 2965 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:1007` dead store of 'display_bg': overwritten without intervening read |
-| PERF015 | 2948 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:511` ternary min - use 'min(a, b)' from math module |
-| LINT002 | 1109 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/i_scale.das:75` unused variable y: int const (add an underscore prefix if you really need it) |
-| STYLE016 | 1062 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/platform.das:27` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| PERF016 | 814 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/am_map.das.inc:617` ternary abs - use 'abs(x)' from math module |
-| LINT007 | 233 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:5695` left and right operands of '-' are the same |
-| LINT024 | 212 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/i_video.das.inc:155` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
-| STYLE013 | 182 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:1654` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_0 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
+| STYLE025 | 23297 | `.c2das-out/latest/binjgb-cgb-acid2-eden/canonical/binjgb_all.das:11296` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+| STYLE043 | 11173 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:228` consecutive declarations share one type; declare them together - 'was_enabled, new_vblank_irq, new_hblank_irq, hblank, vblank, y_compare, type_2' |
+| PERF020 | 10646 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:1640` redundant uint8(...) cast - argument is already uint8 |
+| LINT003 | 4920 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:22` variable e: int -const can be made const (declare with 'let') |
+| STYLE042 | 3759 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:861` function 'map_select_to_address' body is a single 'return'; write it as an expression body - 'def map_select_to_address(...) => EXPR' |
+| PERF015 | 3012 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:144` ternary min - use 'min(a, b)' from math module |
+| LINT010 | 3011 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:3914` dead store of 'i_16': overwritten without intervening read |
+| LINT002 | 1186 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1463` unused variable size: int64 const (add an underscore prefix if you really need it) |
+| STYLE016 | 1106 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/platform.das:49` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| PERF016 | 838 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2085` ternary abs - use 'abs(x)' from math module |
+| LINT007 | 280 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:7198` left and right operands of '-' are the same |
+| LINT024 | 213 | `.c2das-out/latest/doomgeneric-demo1-eden-linear/canonical/doom_all.das:23429` uint64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: uint64(a) * b |
+| STYLE013 | 202 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:1579` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_0 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
+| PERF014 | 162 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1939` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 148 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:13729` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| STYLE030 | 117 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:8` require strings is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | STYLE018 | 93 | `.c2das-out/latest/p104-field-by-name/canonical/p104_field_by_name.das:762` redundant boolean comparison - use 'b' directly (drop the '== true') |
-| STYLE030 | 89 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:7` require strings is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| LINT023 | 62 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/m_menu.das.inc:683` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
-| LINT009 | 30 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/am_map.das.inc:846` 'then' branch is equivalent to 'else' branch |
-| STYLE024 | 28 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/joypad.das:24` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
+| LINT023 | 68 | `.c2das-out/latest/doomgeneric-demo1-eden-linear/canonical/doom_all.das:30132` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
+| PERF006 | 56 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2113` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| PERF003 | 38 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1473` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| LINT009 | 33 | `.c2das-out/latest/doomgeneric-demo1-eden-linear/canonical/doom_all.das:14435` 'then' branch is equivalent to 'else' branch |
+| STYLE024 | 31 | `.c2das-out/latest/binjgb-cgb-acid2-eden/canonical/binjgb_all.das:11114` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
+| PERF021 | 29 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2147` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 28 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2155` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT018 | 22 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1691` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| LINT017 | 19 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1439` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
 | LINT008 | 18 | `.c2das-out/latest/h264bsd-mp4-640x360-std/canonical/h264_file_all.das:20762` both branches of ternary '?:' are equivalent |
-| LINT020 | 12 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:1453` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF033 | 14 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2302` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 14 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2302` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
 | STYLE017 | 8 | `.c2das-out/latest/p122-bool-conditions/canonical/p122_bool_conditions.das:674` 'if (cond) return false; return true' - use 'return !cond' directly |
+| PERF002 | 5 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2450` character_at(s, i) in loop is O(n) per call (strlen + bounds check each time); use peek_data(s) to access characters as array<uint8> |
+| LINT006 | 4 | `.c2das-out/latest/p190-float-compare-nan-safe/canonical/p190_float_compare_nan_safe.das:404` division by zero (/) |
 | LINT014 | 2 | `.c2das-out/latest/p75-va-list-parameter/canonical/p75_va_list_parameter.das:326` mutable argument ap_2: C2daVaCursor -const is never written; declare it without 'var' |
+| PERF013 | 2 | `.c2das-out/latest/p152-discarded-postfix-increments/canonical/p152_discarded_postfix_increments.das:752` '+= 1' on a numeric scalar; use postfix '++' for a faster, idiomatic increment |
 | STYLE034 | 2 | `.c2das-out/latest/p102-local-declarations/canonical/p102_local_declarations.das:414` reinterpret<uint8 const? aka cursor_t>(addr(...)) collapses to addr<uint8 const? aka cursor_t>(...); one unsafe() covers both halves |
-| PERF013 | 1 | `.c2das-out/latest/p152-discarded-postfix-increments/canonical/p152_discarded_postfix_increments.das:752` '+= 1' on a numeric scalar; use postfix '++' for a faster, idiomatic increment |
 | STYLE011 | 1 | `.c2das-out/latest/p102-local-declarations/canonical/p102_local_declarations.das:477` variable declaration followed by immediate assignment; combine into single declaration with initialization |
 
-## Top rules across canonical variants only (208 translations)
+## Top rules across canonical variants only (236 translations)
 
 | rule | count | example |
 |---|---:|---|
-| STYLE025 | 4994 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:521` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF020 | 3706 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:375` redundant uint(...) cast - argument is already uint |
-| STYLE043 | 2156 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:397` consecutive declarations share one type; declare them together - 'c2da_fresh5, c2da_fresh6' |
-| LINT003 | 1476 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:773` variable c2da_fresh28: uint8 -const can be made const (declare with 'let') |
-| STYLE042 | 1305 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:1254` function 'map_select_to_address' body is a single 'return'; write it as an expression body - 'def map_select_to_address(...) => EXPR' |
-| PERF015 | 730 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:511` ternary min - use 'min(a, b)' from math module |
-| LINT010 | 553 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:1007` dead store of 'display_bg': overwritten without intervening read |
-| LINT002 | 251 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/i_scale.das:75` unused variable y: int const (add an underscore prefix if you really need it) |
-| STYLE016 | 213 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/platform.das:27` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| PERF016 | 145 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/am_map.das.inc:617` ternary abs - use 'abs(x)' from math module |
-| STYLE030 | 89 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:7` require strings is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| LINT007 | 63 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:5695` left and right operands of '-' are the same |
-| STYLE013 | 44 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:1654` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_0 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
-| LINT024 | 38 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/i_video.das.inc:155` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
+| STYLE043 | 2767 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:228` consecutive declarations share one type; declare them together - 'was_enabled, new_vblank_irq, new_hblank_irq, hblank, vblank, y_compare, type_2' |
+| STYLE042 | 1825 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:861` function 'map_select_to_address' body is a single 'return'; write it as an expression body - 'def map_select_to_address(...) => EXPR' |
+| PERF015 | 794 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:144` ternary min - use 'min(a, b)' from math module |
+| PERF020 | 742 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:1640` redundant uint8(...) cast - argument is already uint8 |
+| LINT010 | 599 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:3914` dead store of 'i_16': overwritten without intervening read |
+| LINT003 | 379 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:22` variable e: int -const can be made const (declare with 'let') |
+| LINT002 | 328 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1463` unused variable size: int64 const (add an underscore prefix if you really need it) |
+| STYLE016 | 257 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/platform.das:49` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| PERF016 | 169 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2085` ternary abs - use 'abs(x)' from math module |
+| PERF014 | 162 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1939` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 140 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:13729` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| STYLE030 | 117 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:8` require strings is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| LINT007 | 110 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:7198` left and right operands of '-' are the same |
+| STYLE013 | 64 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/emulator.das:1579` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_0 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
+| PERF006 | 56 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2113` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| LINT024 | 39 | `.c2das-out/latest/doomgeneric-demo1-eden-linear/canonical/doom_all.das:23429` uint64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: uint64(a) * b |
+| PERF003 | 38 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1473` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 29 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2147` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 28 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2155` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT018 | 22 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1691` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
 | STYLE018 | 21 | `.c2das-out/latest/p104-field-by-name/canonical/p104_field_by_name.das:762` redundant boolean comparison - use 'b' directly (drop the '== true') |
-| LINT023 | 14 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/m_menu.das.inc:683` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
-| STYLE024 | 10 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/joypad.das:24` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
-| LINT009 | 6 | `.c2das-out/latest/doomgeneric-demo1-std-source/canonical/am_map.das.inc:846` 'then' branch is equivalent to 'else' branch |
+| LINT023 | 20 | `.c2das-out/latest/doomgeneric-demo1-eden-linear/canonical/doom_all.das:30132` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
+| LINT017 | 19 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:1439` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
+| STYLE025 | 19 | `.c2das-out/latest/binjgb-cgb-acid2-eden/canonical/binjgb_all.das:11296` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+| PERF033 | 14 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2302` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 14 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2302` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE024 | 13 | `.c2das-out/latest/binjgb-cgb-acid2-eden/canonical/binjgb_all.das:11114` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
+| LINT009 | 9 | `.c2das-out/latest/doomgeneric-demo1-eden-linear/canonical/doom_all.das:14435` 'then' branch is equivalent to 'else' branch |
+| PERF002 | 5 | `.c2das-out/latest/binjgb-cgb-acid2-eden-linear-source/canonical/c2da_runtime.das:2450` character_at(s, i) in loop is O(n) per call (strlen + bounds check each time); use peek_data(s) to access characters as array<uint8> |
+| LINT006 | 4 | `.c2das-out/latest/p190-float-compare-nan-safe/canonical/p190_float_compare_nan_safe.das:404` division by zero (/) |
 | LINT008 | 4 | `.c2das-out/latest/h264bsd-mp4-640x360-std/canonical/h264_file_all.das:20762` both branches of ternary '?:' are equivalent |
-| LINT020 | 4 | `.c2das-out/latest/binjgb-cgb-acid2-std-source/canonical/emulator.das:1453` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
 | LINT014 | 2 | `.c2das-out/latest/p75-va-list-parameter/canonical/p75_va_list_parameter.das:326` mutable argument ap_2: C2daVaCursor -const is never written; declare it without 'var' |
+| PERF013 | 2 | `.c2das-out/latest/p152-discarded-postfix-increments/canonical/p152_discarded_postfix_increments.das:752` '+= 1' on a numeric scalar; use postfix '++' for a faster, idiomatic increment |
 | STYLE017 | 2 | `.c2das-out/latest/p122-bool-conditions/canonical/p122_bool_conditions.das:674` 'if (cond) return false; return true' - use 'return !cond' directly |
 | STYLE034 | 2 | `.c2das-out/latest/p102-local-declarations/canonical/p102_local_declarations.das:414` reinterpret<uint8 const? aka cursor_t>(addr(...)) collapses to addr<uint8 const? aka cursor_t>(...); one unsafe() covers both halves |
-| PERF013 | 1 | `.c2das-out/latest/p152-discarded-postfix-increments/canonical/p152_discarded_postfix_increments.das:752` '+= 1' on a numeric scalar; use postfix '++' for a faster, idiomatic increment |
 | STYLE011 | 1 | `.c2das-out/latest/p102-local-declarations/canonical/p102_local_declarations.das:477` variable declaration followed by immediate assignment; combine into single declaration with initialization |
 
 ## Summary
 
 | case | variant | layout | flags | files | lines | findings | lint failures |
 |---|---|---|---|---:|---:|---:|---:|
-| binjgb-cgb-acid2-std-source | canonical | source | `--strict --libc std` | 6 | 12042 | 381 | 0 |
-| binjgb-cgb-acid2-std | canonical | unity | `--strict --libc std -DNDEBUG` | 1 | 11942 | 374 | 0 |
+| binjgb-cgb-acid2-eden-linear-source | canonical | source | `--strict --libc eden --das-option stack = 1048576 --memory-model linear --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe` | 6 | 18008 | 538 | 0 |
+| binjgb-cgb-acid2-eden-linear | canonical | unity | `--strict --libc eden --das-option stack = 1048576 --memory-model linear --dialect eden-0.6.4 --no-unsafe -DNDEBUG` | 1 | 17936 | 523 | 0 |
+| binjgb-cgb-acid2-eden | canonical | unity | `--strict --libc eden --dialect eden-0.6.4 -DNDEBUG` | 1 | 12145 | 220 | 0 |
+| binjgb-cgb-acid2-std-source | canonical | source | `--strict --libc std` | 6 | 12042 | 217 | 0 |
+| binjgb-cgb-acid2-std | canonical | unity | `--strict --libc std -DNDEBUG` | 1 | 11942 | 210 | 0 |
 | binjgb-cgb-acid2-std | matrix-bench_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --libc std -DNDEBUG` | 1 | 12011 | 385 | 0 |
 | binjgb-cgb-acid2-std | matrix-bench_unsafe_deref | unity | `--strict --unsafe-deref --libc std -DNDEBUG` | 1 | 12011 | 385 | 0 |
 | binjgb-cgb-acid2-std | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --unsafe-deref --libc std -DNDEBUG` | 1 | 12011 | 385 | 0 |
 | binjgb-cgb-acid2-std | matrix-canonical_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --libc std -DNDEBUG` | 1 | 11961 | 380 | 0 |
 | binjgb-cgb-acid2-std | matrix-generated | unity | `--strict --libc std -DNDEBUG` | 1 | 11961 | 380 | 0 |
 | binjgb-cgb-acid2-std | matrix-generated_bench | unity | `--strict --libc std -DNDEBUG` | 1 | 12011 | 385 | 0 |
-| doomgeneric-demo1-std-source | canonical | source | `--strict --libc std --das-option stack = 4194304` | 31 + 54 inc | 53954 | 1845 | 0 |
-| doomgeneric-demo1-std | canonical | unity | `--strict --libc std --das-option stack = 4194304` | 1 | 40988 | 1525 | 0 |
+| doomgeneric-demo1-eden-linear | canonical | unity | `--strict --libc eden --das-option stack = 4194304 --memory-model linear --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe` | 1 | 46596 | 626 | 0 |
+| doomgeneric-demo1-std-source | canonical | source | `--strict --libc std --das-option stack = 4194304` | 31 + 54 inc | 53954 | 948 | 0 |
+| doomgeneric-demo1-std | canonical | unity | `--strict --libc std --das-option stack = 4194304` | 1 | 40988 | 548 | 0 |
 | doomgeneric-demo1-std | matrix-bench_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --libc std --das-option stack = 4194304` | 1 | 41110 | 1539 | 0 |
 | doomgeneric-demo1-std | matrix-bench_unsafe_deref | unity | `--strict --unsafe-deref --libc std --das-option stack = 4194304` | 1 | 41110 | 1539 | 0 |
 | doomgeneric-demo1-std | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --unsafe-deref --libc std --das-option stack = 4194304` | 1 | 41110 | 1539 | 0 |
 | doomgeneric-demo1-std | matrix-canonical_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --libc std --das-option stack = 4194304` | 1 | 40988 | 1525 | 0 |
 | doomgeneric-demo1-std | matrix-generated | unity | `--strict --libc std --das-option stack = 4194304` | 1 | 40988 | 1525 | 0 |
 | doomgeneric-demo1-std | matrix-generated_bench | unity | `--strict --libc std --das-option stack = 4194304` | 1 | 41110 | 1539 | 0 |
-| h264bsd-mp4-640x360-std | canonical | unity | `--strict --libc std` | 1 | 24651 | 2222 | 0 |
+| h264bsd-mp4-640x360-std | canonical | unity | `--strict --libc std` | 1 | 24651 | 588 | 0 |
 | h264bsd-mp4-640x360-std | matrix-bench_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --libc std` | 1 | 24831 | 2195 | 0 |
 | h264bsd-mp4-640x360-std | matrix-bench_unsafe_deref | unity | `--strict --unsafe-deref --libc std` | 1 | 24831 | 2195 | 0 |
 | h264bsd-mp4-640x360-std | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --unsafe-deref --libc std` | 1 | 24831 | 2195 | 0 |
 | h264bsd-mp4-640x360-std | matrix-canonical_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --libc std` | 1 | 24651 | 2222 | 0 |
 | h264bsd-mp4-640x360-std | matrix-generated | unity | `--strict --libc std` | 1 | 24651 | 2222 | 0 |
 | h264bsd-mp4-640x360-std | matrix-generated_bench | unity | `--strict --libc std` | 1 | 24831 | 2195 | 0 |
-| h264bsd-mp4-640x360 | canonical | unity | `--strict` | 1 | 23959 | 2213 | 0 |
+| h264bsd-mp4-640x360 | canonical | unity | `--strict` | 1 | 23959 | 581 | 0 |
 | h264bsd-mp4-640x360 | matrix-bench_aot-generated | unity | `--strict --public-module --no-solid-context --das-option disable_auto_inline` | 1 | 24080 | 2181 | 0 |
 | h264bsd-mp4-640x360 | matrix-bench_unsafe_deref-generated | unity | `--strict --unsafe-deref` | 1 | 24079 | 2181 | 0 |
 | h264bsd-mp4-640x360 | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --public-module --no-solid-context --das-option disable_auto_inline --unsafe-deref` | 1 | 24080 | 2181 | 0 |
 | h264bsd-mp4-640x360 | matrix-generated | unity | `--strict` | 1 | 24079 | 2181 | 0 |
-| h264bsd-mp4 | canonical | unity | `--strict` | 1 | 23959 | 2213 | 0 |
+| h264bsd-mp4 | canonical | unity | `--strict` | 1 | 23959 | 581 | 0 |
 | h264bsd-mp4 | matrix-bench_aot-generated | unity | `--strict --public-module --no-solid-context --das-option disable_auto_inline` | 1 | 24080 | 2181 | 0 |
 | h264bsd-mp4 | matrix-bench_unsafe_deref-generated | unity | `--strict --unsafe-deref` | 1 | 24079 | 2181 | 0 |
 | h264bsd-mp4 | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --public-module --no-solid-context --das-option disable_auto_inline --unsafe-deref` | 1 | 24080 | 2181 | 0 |
 | h264bsd-mp4 | matrix-generated | unity | `--strict` | 1 | 24079 | 2181 | 0 |
-| legacy-c01-complex | canonical | unity | `--strict` | 1 | 310 | 7 | 0 |
-| legacy-c01-const-int | canonical | unity | `--strict` | 1 | 288 | 7 | 0 |
-| legacy-c02-const-ptr | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| legacy-c03-ptr-to-const | canonical | unity | `--strict` | 1 | 293 | 7 | 0 |
-| legacy-c04-const-array | canonical | unity | `--strict` | 1 | 304 | 7 | 0 |
-| legacy-c05-const-struct-ptr | canonical | unity | `--strict` | 1 | 306 | 8 | 0 |
-| legacy-c06-const-chain | canonical | unity | `--strict` | 1 | 302 | 7 | 0 |
-| legacy-c07-const-assign | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| legacy-c08-const-static | canonical | unity | `--strict` | 1 | 290 | 7 | 0 |
-| legacy-c09-const-multi | canonical | unity | `--strict` | 1 | 296 | 8 | 0 |
-| legacy-c10-const-mixed | canonical | unity | `--strict` | 1 | 298 | 7 | 0 |
-| legacy-d01-basic | canonical | unity | `--strict` | 1 | 295 | 6 | 0 |
-| legacy-d01-dowhile | canonical | unity | `--strict` | 1 | 299 | 7 | 0 |
-| legacy-d02-dowhile-break | canonical | unity | `--strict` | 1 | 302 | 7 | 0 |
-| legacy-d02-once | canonical | unity | `--strict` | 1 | 295 | 6 | 0 |
-| legacy-d03-dowhile-continue | canonical | unity | `--strict` | 1 | 305 | 7 | 0 |
-| legacy-d03-zero | canonical | unity | `--strict` | 1 | 290 | 6 | 0 |
-| legacy-d04-break | canonical | unity | `--strict` | 1 | 298 | 7 | 0 |
-| legacy-d04-dowhile-once | canonical | unity | `--strict` | 1 | 299 | 7 | 0 |
-| legacy-d05-continue | canonical | unity | `--strict` | 1 | 305 | 7 | 0 |
-| legacy-d05-dowhile-zero | canonical | unity | `--strict` | 1 | 298 | 7 | 0 |
-| legacy-d06-dowhile-nest | canonical | unity | `--strict` | 1 | 307 | 7 | 0 |
-| legacy-d06-nested-do | canonical | unity | `--strict` | 1 | 307 | 7 | 0 |
-| legacy-d07-do-while-var | canonical | unity | `--strict` | 1 | 299 | 7 | 0 |
-| legacy-d07-ptr-arith | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| legacy-d08-do-in-while | canonical | unity | `--strict` | 1 | 304 | 7 | 0 |
-| legacy-d08-ptr-arrow | canonical | unity | `--strict` | 1 | 302 | 7 | 0 |
-| legacy-d09-continue-in-while | canonical | unity | `--strict` | 1 | 302 | 7 | 0 |
-| legacy-d10-sum-do | canonical | unity | `--strict` | 1 | 299 | 7 | 0 |
-| legacy-g01-goto-basic | canonical | unity | `--strict` | 1 | 289 | 7 | 0 |
-| legacy-g02-goto-loop | canonical | unity | `--strict` | 1 | 301 | 7 | 0 |
-| legacy-g03-goto-forward | canonical | unity | `--strict` | 1 | 300 | 7 | 0 |
-| legacy-p01-ptr-deref | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| legacy-p01-ptr-int | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| legacy-p02-ptr-assign | canonical | unity | `--strict` | 1 | 293 | 6 | 0 |
-| legacy-p03-ptr-add | canonical | unity | `--strict` | 1 | 294 | 6 | 0 |
-| legacy-p04-arrow-basic | canonical | unity | `--strict` | 1 | 303 | 6 | 0 |
-| legacy-p05-arrow-chain | canonical | unity | `--strict` | 1 | 307 | 6 | 0 |
-| legacy-p06-ptr-to-ptr | canonical | unity | `--strict` | 1 | 294 | 6 | 0 |
-| legacy-p07-ptr-arith | canonical | unity | `--strict` | 1 | 299 | 7 | 0 |
-| legacy-p08-arrow-func | canonical | unity | `--strict` | 1 | 306 | 8 | 0 |
-| legacy-p09-ptr-null | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| legacy-p10-ptr-swap | canonical | unity | `--strict` | 1 | 300 | 9 | 0 |
-| legacy-s01-switch-basic | canonical | unity | `--strict` | 1 | 298 | 6 | 0 |
-| legacy-s02-switch-default | canonical | unity | `--strict` | 1 | 298 | 6 | 0 |
-| legacy-s03-switch-fallthrough | canonical | unity | `--strict` | 1 | 296 | 6 | 0 |
-| legacy-t01-arith | canonical | unity | `--strict` | 1 | 288 | 7 | 0 |
-| legacy-t01-typedef-simple | canonical | unity | `--strict` | 1 | 289 | 7 | 0 |
-| legacy-t02-mul-div | canonical | unity | `--strict` | 1 | 288 | 7 | 0 |
-| legacy-t02-typedef-ptr | canonical | unity | `--strict` | 1 | 293 | 6 | 0 |
-| legacy-t03-cmp | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| legacy-t03-typedef-struct | canonical | unity | `--strict` | 1 | 302 | 7 | 0 |
-| legacy-t04-logical | canonical | unity | `--strict` | 1 | 298 | 7 | 0 |
-| legacy-t05-if-elif | canonical | unity | `--strict` | 1 | 298 | 7 | 0 |
-| legacy-t06-while | canonical | unity | `--strict` | 1 | 300 | 8 | 0 |
-| legacy-t07-for | canonical | unity | `--strict` | 1 | 301 | 9 | 0 |
-| legacy-t08-struct | canonical | unity | `--strict` | 1 | 309 | 8 | 0 |
-| legacy-t09-enum | canonical | unity | `--strict` | 1 | 292 | 8 | 0 |
-| legacy-t10-chain | canonical | unity | `--strict` | 1 | 320 | 7 | 0 |
-| legacy-t11-bool-precedence | canonical | unity | `--strict` | 1 | 295 | 7 | 0 |
-| legacy-test-full | canonical | unity | `--strict` | 1 | 308 | 8 | 0 |
-| legacy-test-member | canonical | unity | `--strict` | 1 | 302 | 7 | 0 |
-| legacy-test-simple | canonical | unity | `--strict` | 1 | 292 | 8 | 0 |
-| legacy-test-struct-full | canonical | unity | `--strict` | 1 | 288 | 7 | 0 |
-| legacy-u01-unsafe-ptr | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| legacy-u02-unsafe-write | canonical | unity | `--strict` | 1 | 295 | 7 | 0 |
-| legacy-u03-unsafe-swap | canonical | unity | `--strict` | 1 | 300 | 9 | 0 |
-| legacy-ztest-inc | canonical | unity | `--strict` | 1 | 293 | 7 | 0 |
-| m01-module-layout-source | canonical | source | `--strict --libc std` | 4 | 757 | 17 | 0 |
-| m02-module-layout-cycle | canonical | source | `--strict --libc std` | 2 + 3 inc | 704 | 12 | 0 |
-| m03-module-layout-cycle-statics | canonical | source | `--strict --libc std` | 3 + 2 inc | 757 | 16 | 0 |
-| p100-redundant-conversions | canonical | unity | `--strict` | 1 | 376 | 32 | 0 |
-| p101-std-text-builders | canonical | unity | `--strict --libc std` | 1 | 995 | 16 | 0 |
-| p102-local-declarations | canonical | unity | `--strict` | 1 | 566 | 57 | 0 |
-| p103-zero-sized-fields | canonical | unity | `--strict --libc std` | 1 | 861 | 22 | 0 |
-| p104-field-by-name | canonical | unity | `--strict --libc std` | 1 | 808 | 16 | 0 |
-| p105-field-by-offset-kept | canonical | unity | `--strict --libc std` | 1 | 826 | 19 | 0 |
-| p110-std-string-extras | canonical | unity | `--strict --libc std` | 1 | 1158 | 23 | 0 |
-| p111-std-sscanf | canonical | unity | `--strict --libc std` | 1 | 1175 | 15 | 0 |
-| p113-block-scope-function-decl | canonical | unity | `--strict` | 1 | 342 | 23 | 0 |
-| p114-assignment-arguments | canonical | unity | `--strict` | 1 | 365 | 17 | 0 |
-| p115-unprototyped-function-values | canonical | unity | `--strict` | 1 | 374 | 14 | 0 |
-| p116-self-referencing-initializer | canonical | unity | `--strict` | 1 | 396 | 28 | 0 |
-| p120-enum-compound-assignment | canonical | unity | `--strict --libc std` | 1 | 803 | 15 | 0 |
-| p121-switch-dispatch | canonical | unity | `--strict --libc std` | 1 | 1772 | 12 | 0 |
-| p122-bool-conditions | canonical | unity | `--strict --libc std` | 1 | 760 | 13 | 0 |
-| p130-typedef-storage-records | canonical | unity | `--strict --libc std` | 1 | 743 | 10 | 0 |
-| p131-storage-record-arrays | canonical | unity | `--strict --libc std` | 1 | 841 | 25 | 0 |
-| p132-storage-object-identity | canonical | unity | `--strict --libc std` | 1 | 919 | 13 | 0 |
-| p133-const-record-copy | canonical | unity | `--strict --libc std` | 1 | 761 | 10 | 0 |
-| p134-pointer-integer-enum-conversions | canonical | unity | `--strict --libc std` | 1 | 742 | 15 | 0 |
-| p135-static-zero-spelled | canonical | unity | `--strict --libc std` | 1 | 703 | 8 | 0 |
-| p140-early-exit-jump-targets | canonical | unity | `--strict --libc std` | 1 | 774 | 8 | 0 |
-| p141-integer-to-pointer-width | canonical | unity | `--strict --libc std` | 1 | 746 | 14 | 0 |
-| p150-object-byte-copies | canonical | unity | `--strict --libc std` | 1 | 789 | 12 | 0 |
-| p151-bitfield-storage-units | canonical | unity | `--strict --libc std` | 1 | 821 | 13 | 0 |
-| p152-discarded-postfix-increments | canonical | unity | `--strict --libc std` | 1 | 806 | 26 | 0 |
-| p153-compound-assignment-spelling | canonical | unity | `--strict --libc std` | 1 | 771 | 10 | 0 |
-| p154-coalesced-temporaries | canonical | unity | `--strict --libc std` | 1 | 783 | 11 | 0 |
-| p160-structured-loops | canonical | unity | `--strict --libc std` | 1 | 884 | 14 | 0 |
-| p161-structured-switch | canonical | unity | `--strict --libc std` | 1 | 979 | 12 | 0 |
-| p162-structured-fallback | canonical | unity | `--strict --libc std` | 1 | 810 | 22 | 0 |
-| p17-runtime-malloc | canonical | unity | `--strict` | 1 | 289 | 6 | 0 |
-| p170-enum-constant-literals | canonical | unity | `--strict --libc std` | 1 | 763 | 10 | 0 |
-| p171-unused-call-side-effects | canonical | unity | `--strict --libc std` | 1 | 760 | 8 | 0 |
-| p173-same-type-pointer-index | canonical | unity | `--strict --libc std` | 1 | 728 | 8 | 0 |
-| p174-post-step-store | canonical | unity | `--strict --libc std` | 1 | 783 | 27 | 0 |
-| p175-counted-loops | canonical | unity | `--strict --libc std` | 1 | 893 | 20 | 0 |
-| p176-inline-union-fields | canonical | unity | `--strict --libc std` | 1 | 1033 | 21 | 0 |
-| p177-natural-bitfield-records | canonical | unity | `--strict --libc std` | 1 | 925 | 20 | 0 |
-| p178-direct-array-subscripts | canonical | unity | `--strict --libc std` | 1 | 887 | 18 | 0 |
-| p179-structured-switch-chain | canonical | unity | `--strict --libc std` | 1 | 1030 | 11 | 0 |
-| p18-runtime-calloc-memset | canonical | unity | `--strict` | 1 | 290 | 6 | 0 |
-| p180-value-stores | canonical | unity | `--strict --libc std` | 1 | 792 | 23 | 0 |
-| p181-pointer-inductions | canonical | unity | `--strict --libc std` | 1 | 969 | 26 | 0 |
-| p182-single-use-temporaries | canonical | unity | `--strict --libc std` | 1 | 836 | 25 | 0 |
-| p19-runtime-memory-calls | canonical | unity | `--strict` | 1 | 315 | 8 | 0 |
-| p20-pointer-abi-edges | canonical | unity | `--strict` | 1 | 309 | 10 | 0 |
-| p21-byte-numeric | canonical | unity | `--strict` | 1 | 299 | 7 | 0 |
-| p22-typed-literals | canonical | unity | `--strict` | 1 | 312 | 13 | 0 |
-| p23-bool-numeric | canonical | unity | `--strict` | 1 | 301 | 10 | 0 |
-| p24-nonruntime-pointer-call | canonical | unity | `--strict` | 1 | 308 | 10 | 0 |
-| p25-array-initializers | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| p26-variadic-sum | canonical | unity | `--strict` | 1 | 322 | 10 | 0 |
-| p27-variadic-promotions | canonical | unity | `--strict` | 1 | 323 | 11 | 0 |
-| p28-variadic-multiple-types | canonical | unity | `--strict` | 1 | 324 | 8 | 0 |
-| p30-macro-constant-expression | canonical | unity | `--strict` | 1 | 288 | 7 | 0 |
-| p31-macro-side-effect | canonical | unity | `--strict` | 1 | 294 | 8 | 0 |
-| p32-macro-statement-expression | canonical | unity | `--strict` | 1 | 291 | 6 | 0 |
-| p33-offsetof-sizeof | canonical | unity | `--strict` | 1 | 292 | 6 | 0 |
-| p34-clang-layout-records | canonical | unity | `--strict` | 1 | 334 | 12 | 0 |
-| p35-pointer-backed-struct | canonical | unity | `--strict` | 1 | 335 | 12 | 0 |
-| p37-union-overlay | canonical | unity | `--strict` | 1 | 324 | 12 | 0 |
-| p38-local-union-init | canonical | unity | `--strict` | 1 | 301 | 6 | 0 |
-| p39-packed-scalar | canonical | unity | `--strict` | 1 | 327 | 12 | 0 |
-| p40-bitfield-rmw | canonical | unity | `--strict` | 1 | 330 | 12 | 0 |
-| p40-nested-raw-aggregate-place | canonical | unity | `--strict` | 1 | 342 | 12 | 0 |
-| p41-raw-array-field-decay | canonical | unity | `--strict` | 1 | 347 | 12 | 0 |
-| p41-union-cast | canonical | unity | `--strict` | 1 | 297 | 6 | 0 |
-| p42-loops | canonical | unity | `--strict` | 1 | 417 | 8 | 0 |
-| p43-switch | canonical | unity | `--strict` | 1 | 397 | 7 | 0 |
-| p44-goto | canonical | unity | `--strict` | 1 | 409 | 7 | 0 |
-| p45-static-local | canonical | unity | `--strict` | 1 | 324 | 6 | 0 |
-| p46-function-pointers | canonical | unity | `--strict` | 1 | 369 | 14 | 0 |
-| p47-side-effects | canonical | unity | `--strict` | 1 | 446 | 13 | 0 |
-| p48-integer-semantics | canonical | unity | `--strict` | 1 | 524 | 25 | 0 |
-| p49-floating | canonical | unity | `--strict` | 1 | 401 | 18 | 0 |
-| p50-printer | canonical | unity | `--strict` | 1 | 442 | 24 | 0 |
-| p51-arrays | canonical | unity | `--strict` | 1 | 455 | 13 | 0 |
-| p52-struct-copy | canonical | unity | `--strict` | 1 | 473 | 10 | 0 |
-| p53-struct-by-value | canonical | unity | `--strict` | 1 | 444 | 13 | 0 |
-| p54-address-taken | canonical | unity | `--strict` | 1 | 472 | 17 | 0 |
-| p55-union-semantics | canonical | unity | `--strict` | 1 | 421 | 8 | 0 |
-| p56-heap-churn | canonical | unity | `--strict` | 1 | 497 | 20 | 0 |
-| p57-globals-aggregate | canonical | unity | `--strict` | 1 | 407 | 10 | 0 |
-| p58-bitfields-layout | canonical | unity | `--strict` | 1 | 520 | 16 | 0 |
-| p59-nested-aggregates | canonical | unity | `--strict` | 1 | 478 | 18 | 0 |
-| p60-layout-divergence | canonical | unity | `--strict` | 1 | 426 | 6 | 0 |
-| p61-callback-typedef | canonical | unity | `--strict` | 1 | 424 | 6 | 0 |
-| p62-bool-store | canonical | unity | `--strict` | 1 | 427 | 19 | 0 |
-| p63-const-static-table | canonical | unity | `--strict` | 1 | 448 | 10 | 0 |
-| p64-pointer-offset-types | canonical | unity | `--strict` | 1 | 498 | 18 | 0 |
-| p65-anonymous-records | canonical | unity | `--strict` | 1 | 498 | 14 | 0 |
-| p66-global-init-order | canonical | unity | `--strict` | 1 | 417 | 18 | 0 |
-| p67-bool-context-enum-void | canonical | unity | `--strict` | 1 | 545 | 19 | 0 |
-| p68-nested-place-rmw | canonical | unity | `--strict` | 1 | 808 | 30 | 0 |
-| p69-typedef-numeric-casts | canonical | unity | `--strict` | 1 | 436 | 22 | 0 |
-| p70-goto-over-declarations | canonical | unity | `--strict` | 1 | 582 | 19 | 0 |
-| p71-static-inline-calls | canonical | unity | `--strict` | 1 | 577 | 58 | 0 |
-| p72-std-file-io | canonical | unity | `--strict --libc std` | 1 | 1006 | 14 | 0 |
-| p73-indirect-call-expression | canonical | unity | `--strict` | 1 | 513 | 17 | 0 |
-| p74-musttail-return | canonical | unity | `--strict` | 1 | 356 | 10 | 0 |
-| p75-va-list-parameter | canonical | unity | `--strict` | 1 | 431 | 20 | 0 |
-| p76-std-strings | canonical | unity | `--strict --libc std` | 1 | 1482 | 35 | 0 |
-| p77-scalar-brace-initializer | canonical | unity | `--strict` | 1 | 390 | 6 | 0 |
-| p78-bool-value-semantics | canonical | unity | `--strict` | 1 | 447 | 16 | 0 |
-| p79-dispatch-table-cycle | canonical | unity | `--strict` | 1 | 410 | 10 | 0 |
-| p80-variable-length-array | canonical | unity | `--strict` | 1 | 406 | 13 | 0 |
-| p81-std-printf-edge | canonical | unity | `--strict --libc std` | 1 | 1112 | 14 | 0 |
-| p82-std-exit-status | canonical | unity | `--strict --libc std` | 1 | 752 | 8 | 0 |
-| p83-std-main-void | canonical | unity | `--strict --libc std` | 1 | 677 | 9 | 0 |
-| p84-struct-definition-order | canonical | unity | `--strict` | 1 | 447 | 6 | 0 |
-| p85-pointer-sum-compare | canonical | unity | `--strict` | 1 | 430 | 9 | 0 |
-| p86-va-start-rewind | canonical | unity | `--strict` | 1 | 475 | 24 | 0 |
-| p87-va-list-shared-cursor | canonical | unity | `--strict` | 1 | 386 | 14 | 0 |
-| p88-va-list-forwarding-chain | canonical | unity | `--strict` | 1 | 440 | 16 | 0 |
-| p89-std-errno-idioms | canonical | unity | `--strict --libc std` | 1 | 967 | 15 | 0 |
-| p90-std-errno-real-headers | canonical | unity | `--strict --libc std` | 1 | 845 | 18 | 0 |
-| p91-std-strerror-perror | canonical | unity | `--strict --libc std` | 1 | 1083 | 12 | 0 |
-| p92-std-stream-error-flags | canonical | unity | `--strict --libc std` | 1 | 1131 | 11 | 0 |
-| p93-std-fopen-errno | canonical | unity | `--strict --libc std` | 1 | 1084 | 11 | 0 |
-| p94-std-va-forward-libc | canonical | unity | `--strict --libc std` | 1 | 784 | 12 | 0 |
-| p95-unsafe-deref-flag | canonical | unity | `--strict --unsafe-deref` | 1 | 523 | 13 | 0 |
-| p96-memcpy-builtin | canonical | unity | `--strict` | 1 | 537 | 20 | 0 |
-| p97-constant-conversions | canonical | unity | `--strict` | 1 | 349 | 40 | 0 |
-| p98-pointer-arg-same-type | canonical | unity | `--strict` | 1 | 336 | 10 | 0 |
-| p99-direct-conditionals | canonical | unity | `--strict` | 1 | 530 | 41 | 0 |
-| plmpeg-stream-320x240-std | canonical | unity | `--strict --libc std -DPLM_NO_STDIO` | 1 | 5084 | 419 | 0 |
+| legacy-c01-complex | canonical | unity | `--strict` | 1 | 310 | 3 | 0 |
+| legacy-c01-const-int | canonical | unity | `--strict` | 1 | 288 | 3 | 0 |
+| legacy-c02-const-ptr | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| legacy-c03-ptr-to-const | canonical | unity | `--strict` | 1 | 293 | 3 | 0 |
+| legacy-c04-const-array | canonical | unity | `--strict` | 1 | 304 | 3 | 0 |
+| legacy-c05-const-struct-ptr | canonical | unity | `--strict` | 1 | 306 | 4 | 0 |
+| legacy-c06-const-chain | canonical | unity | `--strict` | 1 | 302 | 3 | 0 |
+| legacy-c07-const-assign | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| legacy-c08-const-static | canonical | unity | `--strict` | 1 | 290 | 3 | 0 |
+| legacy-c09-const-multi | canonical | unity | `--strict` | 1 | 296 | 4 | 0 |
+| legacy-c10-const-mixed | canonical | unity | `--strict` | 1 | 298 | 3 | 0 |
+| legacy-d01-basic | canonical | unity | `--strict` | 1 | 295 | 2 | 0 |
+| legacy-d01-dowhile | canonical | unity | `--strict` | 1 | 299 | 3 | 0 |
+| legacy-d02-dowhile-break | canonical | unity | `--strict` | 1 | 302 | 3 | 0 |
+| legacy-d02-once | canonical | unity | `--strict` | 1 | 295 | 2 | 0 |
+| legacy-d03-dowhile-continue | canonical | unity | `--strict` | 1 | 305 | 3 | 0 |
+| legacy-d03-zero | canonical | unity | `--strict` | 1 | 290 | 2 | 0 |
+| legacy-d04-break | canonical | unity | `--strict` | 1 | 298 | 3 | 0 |
+| legacy-d04-dowhile-once | canonical | unity | `--strict` | 1 | 299 | 3 | 0 |
+| legacy-d05-continue | canonical | unity | `--strict` | 1 | 305 | 3 | 0 |
+| legacy-d05-dowhile-zero | canonical | unity | `--strict` | 1 | 298 | 3 | 0 |
+| legacy-d06-dowhile-nest | canonical | unity | `--strict` | 1 | 307 | 3 | 0 |
+| legacy-d06-nested-do | canonical | unity | `--strict` | 1 | 307 | 3 | 0 |
+| legacy-d07-do-while-var | canonical | unity | `--strict` | 1 | 299 | 3 | 0 |
+| legacy-d07-ptr-arith | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| legacy-d08-do-in-while | canonical | unity | `--strict` | 1 | 304 | 3 | 0 |
+| legacy-d08-ptr-arrow | canonical | unity | `--strict` | 1 | 302 | 3 | 0 |
+| legacy-d09-continue-in-while | canonical | unity | `--strict` | 1 | 302 | 3 | 0 |
+| legacy-d10-sum-do | canonical | unity | `--strict` | 1 | 299 | 3 | 0 |
+| legacy-g01-goto-basic | canonical | unity | `--strict` | 1 | 289 | 3 | 0 |
+| legacy-g02-goto-loop | canonical | unity | `--strict` | 1 | 301 | 3 | 0 |
+| legacy-g03-goto-forward | canonical | unity | `--strict` | 1 | 300 | 3 | 0 |
+| legacy-p01-ptr-deref | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| legacy-p01-ptr-int | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| legacy-p02-ptr-assign | canonical | unity | `--strict` | 1 | 293 | 2 | 0 |
+| legacy-p03-ptr-add | canonical | unity | `--strict` | 1 | 294 | 2 | 0 |
+| legacy-p04-arrow-basic | canonical | unity | `--strict` | 1 | 303 | 2 | 0 |
+| legacy-p05-arrow-chain | canonical | unity | `--strict` | 1 | 307 | 2 | 0 |
+| legacy-p06-ptr-to-ptr | canonical | unity | `--strict` | 1 | 294 | 2 | 0 |
+| legacy-p07-ptr-arith | canonical | unity | `--strict` | 1 | 299 | 3 | 0 |
+| legacy-p08-arrow-func | canonical | unity | `--strict` | 1 | 306 | 4 | 0 |
+| legacy-p09-ptr-null | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| legacy-p10-ptr-swap | canonical | unity | `--strict` | 1 | 300 | 4 | 0 |
+| legacy-s01-switch-basic | canonical | unity | `--strict` | 1 | 298 | 2 | 0 |
+| legacy-s02-switch-default | canonical | unity | `--strict` | 1 | 298 | 2 | 0 |
+| legacy-s03-switch-fallthrough | canonical | unity | `--strict` | 1 | 296 | 2 | 0 |
+| legacy-t01-arith | canonical | unity | `--strict` | 1 | 288 | 3 | 0 |
+| legacy-t01-typedef-simple | canonical | unity | `--strict` | 1 | 289 | 3 | 0 |
+| legacy-t02-mul-div | canonical | unity | `--strict` | 1 | 288 | 3 | 0 |
+| legacy-t02-typedef-ptr | canonical | unity | `--strict` | 1 | 293 | 2 | 0 |
+| legacy-t03-cmp | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| legacy-t03-typedef-struct | canonical | unity | `--strict` | 1 | 302 | 3 | 0 |
+| legacy-t04-logical | canonical | unity | `--strict` | 1 | 298 | 3 | 0 |
+| legacy-t05-if-elif | canonical | unity | `--strict` | 1 | 298 | 3 | 0 |
+| legacy-t06-while | canonical | unity | `--strict` | 1 | 300 | 4 | 0 |
+| legacy-t07-for | canonical | unity | `--strict` | 1 | 301 | 5 | 0 |
+| legacy-t08-struct | canonical | unity | `--strict` | 1 | 309 | 4 | 0 |
+| legacy-t09-enum | canonical | unity | `--strict` | 1 | 292 | 4 | 0 |
+| legacy-t10-chain | canonical | unity | `--strict` | 1 | 320 | 3 | 0 |
+| legacy-t11-bool-precedence | canonical | unity | `--strict` | 1 | 295 | 3 | 0 |
+| legacy-test-full | canonical | unity | `--strict` | 1 | 308 | 4 | 0 |
+| legacy-test-member | canonical | unity | `--strict` | 1 | 302 | 3 | 0 |
+| legacy-test-simple | canonical | unity | `--strict` | 1 | 292 | 4 | 0 |
+| legacy-test-struct-full | canonical | unity | `--strict` | 1 | 288 | 3 | 0 |
+| legacy-u01-unsafe-ptr | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| legacy-u02-unsafe-write | canonical | unity | `--strict` | 1 | 295 | 2 | 0 |
+| legacy-u03-unsafe-swap | canonical | unity | `--strict` | 1 | 300 | 4 | 0 |
+| legacy-ztest-inc | canonical | unity | `--strict` | 1 | 293 | 2 | 0 |
+| m01-module-layout-source | canonical | source | `--strict --libc std` | 4 | 757 | 13 | 0 |
+| m02-module-layout-cycle-eden-linear | canonical | source | `--strict --libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe` | 2 + 3 inc | 940 | 42 | 0 |
+| m02-module-layout-cycle | canonical | source | `--strict --libc std` | 2 + 3 inc | 704 | 8 | 0 |
+| m03-module-layout-cycle-statics-eden-linear | canonical | source | `--strict --libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe` | 3 + 2 inc | 981 | 46 | 0 |
+| m03-module-layout-cycle-statics | canonical | source | `--strict --libc std` | 3 + 2 inc | 757 | 11 | 0 |
+| p100-redundant-conversions | canonical | unity | `--strict` | 1 | 376 | 10 | 0 |
+| p101-std-text-builders | canonical | unity | `--strict --libc std` | 1 | 995 | 7 | 0 |
+| p102-local-declarations | canonical | unity | `--strict` | 1 | 566 | 12 | 0 |
+| p103-zero-sized-fields | canonical | unity | `--strict --libc std` | 1 | 861 | 15 | 0 |
+| p104-field-by-name | canonical | unity | `--strict --libc std` | 1 | 808 | 11 | 0 |
+| p105-field-by-offset-kept | canonical | unity | `--strict --libc std` | 1 | 826 | 14 | 0 |
+| p110-std-string-extras | canonical | unity | `--strict --libc std` | 1 | 1158 | 17 | 0 |
+| p111-std-sscanf | canonical | unity | `--strict --libc std` | 1 | 1175 | 9 | 0 |
+| p113-block-scope-function-decl | canonical | unity | `--strict` | 1 | 342 | 7 | 0 |
+| p114-assignment-arguments | canonical | unity | `--strict` | 1 | 365 | 6 | 0 |
+| p115-unprototyped-function-values | canonical | unity | `--strict` | 1 | 374 | 4 | 0 |
+| p116-self-referencing-initializer | canonical | unity | `--strict` | 1 | 396 | 6 | 0 |
+| p120-enum-compound-assignment | canonical | unity | `--strict --libc std` | 1 | 803 | 11 | 0 |
+| p121-switch-dispatch | canonical | unity | `--strict --libc std` | 1 | 1772 | 7 | 0 |
+| p122-bool-conditions | canonical | unity | `--strict --libc std` | 1 | 760 | 9 | 0 |
+| p130-typedef-storage-records | canonical | unity | `--strict --libc std` | 1 | 743 | 6 | 0 |
+| p131-storage-record-arrays | canonical | unity | `--strict --libc std` | 1 | 841 | 15 | 0 |
+| p132-storage-object-identity | canonical | unity | `--strict --libc std` | 1 | 919 | 9 | 0 |
+| p133-const-record-copy | canonical | unity | `--strict --libc std` | 1 | 761 | 6 | 0 |
+| p134-pointer-integer-enum-conversions | canonical | unity | `--strict --libc std` | 1 | 742 | 10 | 0 |
+| p135-static-zero-spelled | canonical | unity | `--strict --libc std` | 1 | 703 | 4 | 0 |
+| p140-early-exit-jump-targets | canonical | unity | `--strict --libc std` | 1 | 774 | 4 | 0 |
+| p141-integer-to-pointer-width | canonical | unity | `--strict --libc std` | 1 | 746 | 10 | 0 |
+| p150-object-byte-copies | canonical | unity | `--strict --libc std` | 1 | 789 | 7 | 0 |
+| p151-bitfield-storage-units | canonical | unity | `--strict --libc std` | 1 | 821 | 5 | 0 |
+| p152-discarded-postfix-increments | canonical | unity | `--strict --libc std` | 1 | 806 | 12 | 0 |
+| p153-compound-assignment-spelling | canonical | unity | `--strict --libc std` | 1 | 771 | 4 | 0 |
+| p154-coalesced-temporaries | canonical | unity | `--strict --libc std` | 1 | 783 | 6 | 0 |
+| p160-structured-loops | canonical | unity | `--strict --libc std` | 1 | 884 | 9 | 0 |
+| p161-structured-switch | canonical | unity | `--strict --libc std` | 1 | 979 | 6 | 0 |
+| p162-structured-fallback | canonical | unity | `--strict --libc std` | 1 | 810 | 6 | 0 |
+| p17-runtime-malloc | canonical | unity | `--strict` | 1 | 289 | 2 | 0 |
+| p170-enum-constant-literals | canonical | unity | `--strict --libc std` | 1 | 763 | 6 | 0 |
+| p171-unused-call-side-effects | canonical | unity | `--strict --libc std` | 1 | 760 | 4 | 0 |
+| p173-same-type-pointer-index | canonical | unity | `--strict --libc std` | 1 | 728 | 4 | 0 |
+| p174-post-step-store | canonical | unity | `--strict --libc std` | 1 | 783 | 6 | 0 |
+| p175-counted-loops | canonical | unity | `--strict --libc std` | 1 | 893 | 13 | 0 |
+| p176-inline-union-fields | canonical | unity | `--strict --libc std` | 1 | 1033 | 12 | 0 |
+| p177-natural-bitfield-records | canonical | unity | `--strict --libc std` | 1 | 925 | 12 | 0 |
+| p178-direct-array-subscripts | canonical | unity | `--strict --libc std` | 1 | 887 | 12 | 0 |
+| p179-structured-switch-chain | canonical | unity | `--strict --libc std` | 1 | 1030 | 5 | 0 |
+| p18-runtime-calloc-memset | canonical | unity | `--strict` | 1 | 290 | 2 | 0 |
+| p180-value-stores | canonical | unity | `--strict --libc std` | 1 | 792 | 8 | 0 |
+| p181-pointer-inductions | canonical | unity | `--strict --libc std` | 1 | 969 | 8 | 0 |
+| p182-single-use-temporaries | canonical | unity | `--strict --libc std` | 1 | 836 | 17 | 0 |
+| p19-runtime-memory-calls | canonical | unity | `--strict` | 1 | 315 | 4 | 0 |
+| p190-float-compare-nan-safe | canonical | unity | `--strict --float-compare nan-safe` | 1 | 493 | 27 | 0 |
+| p193-linear-scalars | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 839 | 31 | 0 |
+| p194-linear-records | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 861 | 31 | 0 |
+| p196-linear-strings | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 659 | 30 | 0 |
+| p197-linear-record-values | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 779 | 32 | 0 |
+| p199-linear-locals-in-heap | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 834 | 28 | 0 |
+| p20-pointer-abi-edges | canonical | unity | `--strict` | 1 | 309 | 6 | 0 |
+| p200-linear-printf | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 1019 | 46 | 0 |
+| p201-linear-stdio | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 1334 | 54 | 0 |
+| p202-linear-enums | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 657 | 29 | 0 |
+| p203-linear-globals | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 640 | 27 | 0 |
+| p204-linear-function-pointers | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 696 | 29 | 0 |
+| p205-linear-record-iterators | canonical | unity | `--strict --libc eden --memory-model linear` | 1 | 1069 | 47 | 0 |
+| p206-linear-entry-eden | canonical | unity | `--strict --libc eden --memory-model linear --entry eden --dialect eden-0.6.4 --no-unsafe` | 1 | 951 | 47 | 0 |
+| p207-linear-fnptr-table | canonical | unity | `--strict --libc eden --memory-model linear --fnptr-model table --dialect eden-0.6.4 --no-unsafe` | 1 | 1015 | 48 | 0 |
+| p208-linear-varargs-heap | canonical | unity | `--strict --libc eden --memory-model linear --varargs-model heap --dialect eden-0.6.4 --no-unsafe` | 1 | 1556 | 44 | 0 |
+| p209-linear-records-typed | canonical | unity | `--strict --libc eden --memory-model linear --records typed --dialect eden-0.6.4 --no-unsafe` | 1 | 1005 | 48 | 0 |
+| p21-byte-numeric | canonical | unity | `--strict` | 1 | 299 | 3 | 0 |
+| p215-linear-static-initializers | canonical | unity | `--strict --libc eden --memory-model linear --fnptr-model table --dialect eden-0.6.4 --no-unsafe` | 1 | 1039 | 39 | 0 |
+| p216-linear-parameter-address | canonical | unity | `--strict --libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe` | 1 | 1043 | 46 | 0 |
+| p22-typed-literals | canonical | unity | `--strict` | 1 | 312 | 9 | 0 |
+| p23-bool-numeric | canonical | unity | `--strict` | 1 | 301 | 6 | 0 |
+| p24-nonruntime-pointer-call | canonical | unity | `--strict` | 1 | 308 | 6 | 0 |
+| p25-array-initializers | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| p26-variadic-sum | canonical | unity | `--strict` | 1 | 322 | 6 | 0 |
+| p27-variadic-promotions | canonical | unity | `--strict` | 1 | 323 | 7 | 0 |
+| p28-variadic-multiple-types | canonical | unity | `--strict` | 1 | 324 | 4 | 0 |
+| p30-macro-constant-expression | canonical | unity | `--strict` | 1 | 288 | 3 | 0 |
+| p31-macro-side-effect | canonical | unity | `--strict` | 1 | 294 | 3 | 0 |
+| p32-macro-statement-expression | canonical | unity | `--strict` | 1 | 291 | 2 | 0 |
+| p33-offsetof-sizeof | canonical | unity | `--strict` | 1 | 292 | 2 | 0 |
+| p34-clang-layout-records | canonical | unity | `--strict` | 1 | 334 | 8 | 0 |
+| p35-pointer-backed-struct | canonical | unity | `--strict` | 1 | 335 | 8 | 0 |
+| p37-union-overlay | canonical | unity | `--strict` | 1 | 324 | 8 | 0 |
+| p38-local-union-init | canonical | unity | `--strict` | 1 | 301 | 2 | 0 |
+| p39-packed-scalar | canonical | unity | `--strict` | 1 | 327 | 8 | 0 |
+| p40-bitfield-rmw | canonical | unity | `--strict` | 1 | 330 | 8 | 0 |
+| p40-nested-raw-aggregate-place | canonical | unity | `--strict` | 1 | 342 | 8 | 0 |
+| p41-raw-array-field-decay | canonical | unity | `--strict` | 1 | 347 | 8 | 0 |
+| p41-union-cast | canonical | unity | `--strict` | 1 | 297 | 2 | 0 |
+| p42-loops | canonical | unity | `--strict` | 1 | 417 | 4 | 0 |
+| p43-switch | canonical | unity | `--strict` | 1 | 397 | 2 | 0 |
+| p44-goto | canonical | unity | `--strict` | 1 | 409 | 3 | 0 |
+| p45-static-local | canonical | unity | `--strict` | 1 | 324 | 2 | 0 |
+| p46-function-pointers | canonical | unity | `--strict` | 1 | 369 | 10 | 0 |
+| p47-side-effects | canonical | unity | `--strict` | 1 | 446 | 7 | 0 |
+| p48-integer-semantics | canonical | unity | `--strict` | 1 | 524 | 19 | 0 |
+| p49-floating | canonical | unity | `--strict` | 1 | 401 | 14 | 0 |
+| p50-printer | canonical | unity | `--strict` | 1 | 442 | 19 | 0 |
+| p51-arrays | canonical | unity | `--strict` | 1 | 455 | 7 | 0 |
+| p52-struct-copy | canonical | unity | `--strict` | 1 | 473 | 6 | 0 |
+| p53-struct-by-value | canonical | unity | `--strict` | 1 | 444 | 9 | 0 |
+| p54-address-taken | canonical | unity | `--strict` | 1 | 472 | 9 | 0 |
+| p55-union-semantics | canonical | unity | `--strict` | 1 | 421 | 4 | 0 |
+| p56-heap-churn | canonical | unity | `--strict` | 1 | 497 | 13 | 0 |
+| p57-globals-aggregate | canonical | unity | `--strict` | 1 | 407 | 6 | 0 |
+| p58-bitfields-layout | canonical | unity | `--strict` | 1 | 520 | 10 | 0 |
+| p59-nested-aggregates | canonical | unity | `--strict` | 1 | 478 | 11 | 0 |
+| p60-layout-divergence | canonical | unity | `--strict` | 1 | 426 | 2 | 0 |
+| p61-callback-typedef | canonical | unity | `--strict` | 1 | 424 | 2 | 0 |
+| p62-bool-store | canonical | unity | `--strict` | 1 | 427 | 9 | 0 |
+| p63-const-static-table | canonical | unity | `--strict` | 1 | 448 | 6 | 0 |
+| p64-pointer-offset-types | canonical | unity | `--strict` | 1 | 498 | 8 | 0 |
+| p65-anonymous-records | canonical | unity | `--strict` | 1 | 498 | 10 | 0 |
+| p66-global-init-order | canonical | unity | `--strict` | 1 | 417 | 14 | 0 |
+| p67-bool-context-enum-void | canonical | unity | `--strict` | 1 | 545 | 15 | 0 |
+| p68-nested-place-rmw | canonical | unity | `--strict` | 1 | 808 | 11 | 0 |
+| p69-typedef-numeric-casts | canonical | unity | `--strict` | 1 | 436 | 18 | 0 |
+| p70-goto-over-declarations | canonical | unity | `--strict` | 1 | 582 | 8 | 0 |
+| p71-static-inline-calls | canonical | unity | `--strict` | 1 | 577 | 34 | 0 |
+| p72-eden-file-io | canonical | unity | `--strict --libc eden` | 1 | 1158 | 14 | 0 |
+| p72-std-file-io | canonical | unity | `--strict --libc std` | 1 | 1006 | 8 | 0 |
+| p73-indirect-call-expression | canonical | unity | `--strict` | 1 | 513 | 13 | 0 |
+| p74-musttail-return | canonical | unity | `--strict` | 1 | 356 | 6 | 0 |
+| p75-va-list-parameter | canonical | unity | `--strict` | 1 | 431 | 16 | 0 |
+| p76-eden-strings | canonical | unity | `--strict --libc eden` | 1 | 1558 | 15 | 0 |
+| p76-std-strings | canonical | unity | `--strict --libc std` | 1 | 1482 | 10 | 0 |
+| p77-scalar-brace-initializer | canonical | unity | `--strict` | 1 | 390 | 2 | 0 |
+| p78-bool-value-semantics | canonical | unity | `--strict` | 1 | 447 | 12 | 0 |
+| p79-dispatch-table-cycle | canonical | unity | `--strict` | 1 | 410 | 6 | 0 |
+| p80-variable-length-array | canonical | unity | `--strict` | 1 | 406 | 7 | 0 |
+| p81-eden-printf-edge | canonical | unity | `--strict --libc eden` | 1 | 1276 | 16 | 0 |
+| p81-std-printf-edge | canonical | unity | `--strict --libc std` | 1 | 1112 | 7 | 0 |
+| p82-eden-exit-status | canonical | unity | `--strict --libc eden` | 1 | 828 | 8 | 0 |
+| p82-std-exit-status | canonical | unity | `--strict --libc std` | 1 | 752 | 4 | 0 |
+| p83-std-main-void | canonical | unity | `--strict --libc std` | 1 | 677 | 5 | 0 |
+| p84-struct-definition-order | canonical | unity | `--strict` | 1 | 447 | 2 | 0 |
+| p85-pointer-sum-compare | canonical | unity | `--strict` | 1 | 430 | 5 | 0 |
+| p86-va-start-rewind | canonical | unity | `--strict` | 1 | 475 | 18 | 0 |
+| p87-va-list-shared-cursor | canonical | unity | `--strict` | 1 | 386 | 10 | 0 |
+| p88-va-list-forwarding-chain | canonical | unity | `--strict` | 1 | 440 | 11 | 0 |
+| p89-std-errno-idioms | canonical | unity | `--strict --libc std` | 1 | 967 | 9 | 0 |
+| p90-std-errno-real-headers | canonical | unity | `--strict --libc std` | 1 | 845 | 12 | 0 |
+| p91-std-strerror-perror | canonical | unity | `--strict --libc std` | 1 | 1083 | 6 | 0 |
+| p92-std-stream-error-flags | canonical | unity | `--strict --libc std` | 1 | 1131 | 5 | 0 |
+| p93-std-fopen-errno | canonical | unity | `--strict --libc std` | 1 | 1084 | 5 | 0 |
+| p94-std-va-forward-libc | canonical | unity | `--strict --libc std` | 1 | 784 | 8 | 0 |
+| p95-unsafe-deref-flag | canonical | unity | `--strict --unsafe-deref` | 1 | 523 | 7 | 0 |
+| p96-memcpy-builtin | canonical | unity | `--strict` | 1 | 537 | 7 | 0 |
+| p97-constant-conversions | canonical | unity | `--strict` | 1 | 349 | 4 | 0 |
+| p98-pointer-arg-same-type | canonical | unity | `--strict` | 1 | 336 | 6 | 0 |
+| p99-direct-conditionals | canonical | unity | `--strict` | 1 | 530 | 8 | 0 |
+| plmpeg-stream-320x240-std | canonical | unity | `--strict --libc std -DPLM_NO_STDIO` | 1 | 5084 | 245 | 0 |
 | plmpeg-stream-320x240-std | matrix-bench_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --libc std -DPLM_NO_STDIO` | 1 | 5162 | 426 | 0 |
 | plmpeg-stream-320x240-std | matrix-bench_unsafe_deref | unity | `--strict --unsafe-deref --libc std -DPLM_NO_STDIO` | 1 | 5162 | 426 | 0 |
 | plmpeg-stream-320x240-std | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --unsafe-deref --libc std -DPLM_NO_STDIO` | 1 | 5162 | 426 | 0 |
 | plmpeg-stream-320x240-std | matrix-generated | unity | `--strict --libc std -DPLM_NO_STDIO` | 1 | 5102 | 421 | 0 |
 | plmpeg-stream-320x240-std | matrix-generated_bench | unity | `--strict --libc std -DPLM_NO_STDIO` | 1 | 5162 | 426 | 0 |
-| plmpeg-stream-320x240 | canonical | unity | `--strict -DPLM_NO_STDIO` | 1 | 4392 | 410 | 0 |
+| plmpeg-stream-320x240 | canonical | unity | `--strict -DPLM_NO_STDIO` | 1 | 4392 | 238 | 0 |
 | plmpeg-stream-320x240 | matrix-bench_aot-generated | unity | `--strict --public-module --no-solid-context --das-option disable_auto_inline -DPLM_NO_STDIO` | 1 | 4411 | 412 | 0 |
 | plmpeg-stream-320x240 | matrix-bench_unsafe_deref-generated | unity | `--strict --unsafe-deref -DPLM_NO_STDIO` | 1 | 4410 | 412 | 0 |
 | plmpeg-stream-320x240 | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --public-module --no-solid-context --das-option disable_auto_inline --unsafe-deref -DPLM_NO_STDIO` | 1 | 4411 | 412 | 0 |
 | plmpeg-stream-320x240 | matrix-generated | unity | `--strict -DPLM_NO_STDIO` | 1 | 4410 | 412 | 0 |
-| plmpeg-stream | canonical | unity | `--strict -DPLM_NO_STDIO` | 1 | 4392 | 410 | 0 |
+| plmpeg-stream | canonical | unity | `--strict -DPLM_NO_STDIO` | 1 | 4392 | 238 | 0 |
 | plmpeg-stream | matrix-bench_aot-generated | unity | `--strict --public-module --no-solid-context --das-option disable_auto_inline -DPLM_NO_STDIO` | 1 | 4411 | 412 | 0 |
 | plmpeg-stream | matrix-bench_unsafe_deref-generated | unity | `--strict --unsafe-deref -DPLM_NO_STDIO` | 1 | 4410 | 412 | 0 |
 | plmpeg-stream | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --public-module --no-solid-context --das-option disable_auto_inline --unsafe-deref -DPLM_NO_STDIO` | 1 | 4411 | 412 | 0 |
-| plmpeg-stream | matrix-generated | unity | `--strict -DPLM_NO_STDIO` | 1 | 4410 | 412 | 0 |
-| wasm3-fib32-std | canonical | unity | `--strict --libc std --das-option stack = 4194304` | 1 | 26235 | 1383 | 0 |
+| plmpeg-stream | matrix-generated | unity | `--strict -DPLM_NO_STDIO` | 1 | 4410 | 238 | 0 |
+| wasm3-fib32-std | canonical | unity | `--strict --libc std --das-option stack = 4194304` | 1 | 26235 | 456 | 0 |
 | wasm3-fib32-std | matrix-bench_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --libc std --das-option stack = 4194304` | 1 | 26403 | 1387 | 0 |
 | wasm3-fib32-std | matrix-bench_unsafe_deref | unity | `--strict --unsafe-deref --libc std --das-option stack = 4194304` | 1 | 26403 | 1387 | 0 |
 | wasm3-fib32-std | matrix-bench_unsafe_deref_aot-generated | unity | `--strict --no-solid-context --das-option disable_auto_inline --unsafe-deref --libc std --das-option stack = 4194304` | 1 | 26403 | 1387 | 0 |
@@ -335,27 +385,6 @@ Counts sum over every translation, so a case translated in several variants coun
 | wasm3-fib32-std | matrix-generated_bench | unity | `--strict --libc std --das-option stack = 4194304` | 1 | 26403 | 1387 | 0 |
 
 ## Per translation
-
-### h264bsd-mp4-640x360-std/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 24651 lines, 2222 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE025 | 1208 | `h264_file_all.das:2421` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF020 | 329 | `h264_file_all.das:72` redundant int(...) cast - argument is already int |
-| STYLE043 | 257 | `h264_file_all.das:2198` consecutive declarations share one type; declare them together - 'aligned_header, total' |
-| LINT003 | 121 | `h264_file_all.das:2383` variable out_1: uint -const can be made const (declare with 'let') |
-| LINT010 | 97 | `h264_file_all.das:2203` dead store of 'header': overwritten without intervening read |
-| PERF015 | 71 | `h264_file_all.das:160` ternary min - use 'min(a, b)' from math module |
-| PERF016 | 46 | `h264_file_all.das:11797` ternary abs - use 'abs(x)' from math module |
-| STYLE016 | 31 | `h264_file_all.das:3488` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| STYLE042 | 31 | `h264_file_all.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT024 | 12 | `h264_file_all.das:6629` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
-| STYLE013 | 9 | `h264_file_all.das:15443` var (default-init or uninitialized) followed by assignments to fields {size, offset, duration, flag_random_access}; use a named-argument constructor `var smp = sample_t(size = ..., offset = ..., duration = ..., flag_random_access = ...)` |
-| LINT002 | 8 | `h264_file_all.das:5822` unused variable i_40: uint const (add an underscore prefix if you really need it) |
-| LINT007 | 1 | `h264_file_all.das:20762` left and right operands of '<' are the same |
-| LINT008 | 1 | `h264_file_all.das:20762` both branches of ternary '?:' are equivalent |
 
 ### h264bsd-mp4-640x360-std/matrix-canonical_aot-generated
 
@@ -398,48 +427,6 @@ unity layout, flags `--strict --libc std`, translated at commit 56428e691-dirty;
 | LINT002 | 8 | `h264_file_all.das:5822` unused variable i_40: uint const (add an underscore prefix if you really need it) |
 | LINT007 | 1 | `h264_file_all.das:20762` left and right operands of '<' are the same |
 | LINT008 | 1 | `h264_file_all.das:20762` both branches of ternary '?:' are equivalent |
-
-### h264bsd-mp4-640x360/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 23959 lines, 2213 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE025 | 1208 | `all.das:1816` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF020 | 327 | `all.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 256 | `all.das:1593` consecutive declarations share one type; declare them together - 'aligned_header, total' |
-| LINT003 | 120 | `all.das:1778` variable out_1: uint -const can be made const (declare with 'let') |
-| LINT010 | 94 | `all.das:1598` dead store of 'header': overwritten without intervening read |
-| PERF015 | 71 | `all.das:158` ternary min - use 'min(a, b)' from math module |
-| PERF016 | 46 | `all.das:11192` ternary abs - use 'abs(x)' from math module |
-| STYLE016 | 31 | `all.das:2883` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| STYLE042 | 29 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT024 | 12 | `all.das:6024` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
-| STYLE013 | 9 | `all.das:14838` var (default-init or uninitialized) followed by assignments to fields {size, offset, duration, flag_random_access}; use a named-argument constructor `var smp = sample_t(size = ..., offset = ..., duration = ..., flag_random_access = ...)` |
-| LINT002 | 8 | `all.das:5217` unused variable i_40: uint const (add an underscore prefix if you really need it) |
-| LINT007 | 1 | `all.das:20157` left and right operands of '<' are the same |
-| LINT008 | 1 | `all.das:20157` both branches of ternary '?:' are equivalent |
-
-### h264bsd-mp4/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 23959 lines, 2213 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE025 | 1208 | `all.das:1816` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF020 | 327 | `all.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 256 | `all.das:1593` consecutive declarations share one type; declare them together - 'aligned_header, total' |
-| LINT003 | 120 | `all.das:1778` variable out_1: uint -const can be made const (declare with 'let') |
-| LINT010 | 94 | `all.das:1598` dead store of 'header': overwritten without intervening read |
-| PERF015 | 71 | `all.das:158` ternary min - use 'min(a, b)' from math module |
-| PERF016 | 46 | `all.das:11192` ternary abs - use 'abs(x)' from math module |
-| STYLE016 | 31 | `all.das:2883` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| STYLE042 | 29 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT024 | 12 | `all.das:6024` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
-| STYLE013 | 9 | `all.das:14838` var (default-init or uninitialized) followed by assignments to fields {size, offset, duration, flag_random_access}; use a named-argument constructor `var smp = sample_t(size = ..., offset = ..., duration = ..., flag_random_access = ...)` |
-| LINT002 | 8 | `all.das:5217` unused variable i_40: uint const (add an underscore prefix if you really need it) |
-| LINT007 | 1 | `all.das:20157` left and right operands of '<' are the same |
-| LINT008 | 1 | `all.das:20157` both branches of ternary '?:' are equivalent |
 
 ### h264bsd-mp4-640x360-std/matrix-bench_aot-generated
 
@@ -693,29 +680,6 @@ unity layout, flags `--strict`, translated at commit 712474e26-dirty; 1 module f
 | LINT007 | 1 | `all.das:20270` left and right operands of '<' are the same |
 | LINT008 | 1 | `all.das:20270` both branches of ternary '?:' are equivalent |
 
-### doomgeneric-demo1-std-source/canonical
-
-source layout, flags `--strict --libc std --das-option stack = 4194304`, translated at commit 883c75d25-dirty; 31 module file(s), 54 fragment(s), 53954 lines, 1845 finding(s) (1342 in fragments).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 696 | `c2da_runtime.das:74` redundant int(...) cast - argument is already int |
-| STYLE043 | 313 | `m_config.das:534` consecutive declarations share one type; declare them together - 'orig_main, orig_extra' |
-| STYLE042 | 270 | `c2da_runtime.das:232` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE025 | 240 | `i_scale.das:82` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| LINT003 | 143 | `i_scale.das:72` variable w: int -const can be made const (declare with 'let') |
-| LINT002 | 55 | `i_scale.das:75` unused variable y: int const (add an underscore prefix if you really need it) |
-| STYLE016 | 42 | `am_map.das.inc:808` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| STYLE030 | 32 | `tables.das:6` require c2da_runtime is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| LINT007 | 16 | `hu_stuff.das.inc:421` left and right operands of '\|\|' are the same |
-| PERF015 | 14 | `c2da_runtime.das:162` ternary min - use 'min(a, b)' from math module |
-| LINT010 | 12 | `d_iwad.das:233` dead store of 'mission_1': overwritten without intervening read |
-| LINT023 | 6 | `m_menu.das.inc:683` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
-| LINT009 | 2 | `am_map.das.inc:846` 'then' branch is equivalent to 'else' branch |
-| PERF016 | 2 | `am_map.das.inc:617` ternary abs - use 'abs(x)' from math module |
-| LINT024 | 1 | `i_video.das.inc:155` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
-| STYLE024 | 1 | `info.das.inc:2245` redundant 'unsafe { ... }' block; no statement requires unsafe - drop the wrap |
-
 ### doomgeneric-demo1-std/matrix-bench_aot-generated
 
 unity layout, flags `--strict --no-solid-context --das-option disable_auto_inline --libc std --das-option stack = 4194304`, translated at commit 712474e26-dirty; 1 module file(s), 0 fragment(s), 41110 lines, 1539 finding(s).
@@ -803,28 +767,6 @@ unity layout, flags `--strict --libc std --das-option stack = 4194304`, translat
 | PERF016 | 2 | `doom_bench_all.das:29052` ternary abs - use 'abs(x)' from math module |
 | LINT024 | 1 | `doom_bench_all.das:22590` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
 | STYLE024 | 1 | `doom_bench_all.das:15060` redundant 'unsafe { ... }' block; no statement requires unsafe - drop the wrap |
-
-### doomgeneric-demo1-std/canonical
-
-unity layout, flags `--strict --libc std --das-option stack = 4194304`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 40988 lines, 1525 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 625 | `doom_all.das:73` redundant int(...) cast - argument is already int |
-| STYLE043 | 313 | `doom_all.das:12285` consecutive declarations share one type; declare them together - 'a, b, c, d, e, tm' |
-| STYLE025 | 245 | `doom_all.das:12268` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| LINT003 | 143 | `doom_all.das:12240` variable c2da_postinc: uint -const can be made const (declare with 'let') |
-| LINT002 | 55 | `doom_all.das:18956` unused variable count_1: int const (add an underscore prefix if you really need it) |
-| STYLE042 | 48 | `doom_all.das:231` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE016 | 42 | `doom_all.das:13526` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| LINT007 | 16 | `doom_all.das:17741` left and right operands of '-' are the same |
-| PERF015 | 14 | `doom_all.das:161` ternary min - use 'min(a, b)' from math module |
-| LINT010 | 12 | `doom_all.das:14207` dead store of 'x_1': overwritten without intervening read |
-| LINT023 | 6 | `doom_all.das:31390` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
-| LINT009 | 2 | `doom_all.das:18062` 'then' branch is equivalent to 'else' branch |
-| PERF016 | 2 | `doom_all.das:28974` ternary abs - use 'abs(x)' from math module |
-| LINT024 | 1 | `doom_all.das:22531` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
-| STYLE024 | 1 | `doom_all.das:15029` redundant 'unsafe { ... }' block; no statement requires unsafe - drop the wrap |
 
 ### doomgeneric-demo1-std/matrix-canonical_aot-generated
 
@@ -986,23 +928,221 @@ unity layout, flags `--strict --libc std --das-option stack = 4194304`, translat
 | LINT020 | 1 | `all_host.das:25970` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
 | STYLE017 | 1 | `all_host.das:24219` 'if (cond) return false; return true' - use 'return !cond' directly |
 
-### wasm3-fib32-std/canonical
+### doomgeneric-demo1-std-source/canonical
 
-unity layout, flags `--strict --libc std --das-option stack = 4194304`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 26235 lines, 1383 finding(s).
+source layout, flags `--strict --libc std --das-option stack = 4194304`, translated at commit 6bb607d6a; 31 module file(s), 54 fragment(s), 53954 lines, 948 finding(s) (762 in fragments).
 
 | rule | count | example |
 |---|---:|---|
-| STYLE025 | 808 | `all_host.das:2906` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+| STYLE043 | 313 | `i_scale.das:70` consecutive declarations share one type; declare them together - 'bufp, screenp' |
+| STYLE042 | 270 | `i_scale.das:28` function 'c2da___bswap_16' body is a single 'return'; write it as an expression body - 'def c2da___bswap_16(...) => EXPR' |
+| PERF020 | 148 | `am_map.das.inc:327` redundant int(...) cast - argument is already int |
+| LINT002 | 55 | `i_scale.das:75` unused variable y: int const (add an underscore prefix if you really need it) |
+| STYLE016 | 42 | `am_map.das.inc:808` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| LINT003 | 32 | `i_scale.das:72` variable w: int -const can be made const (declare with 'let') |
+| STYLE030 | 32 | `i_scale.das:9` require strings is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| LINT007 | 16 | `hu_stuff.das.inc:421` left and right operands of '\|\|' are the same |
+| PERF015 | 14 | `c2da_runtime.das:162` ternary min - use 'min(a, b)' from math module |
+| LINT010 | 12 | `d_iwad.das:233` dead store of 'mission_1': overwritten without intervening read |
+| LINT023 | 6 | `m_menu.das.inc:683` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
+| LINT009 | 2 | `am_map.das.inc:846` 'then' branch is equivalent to 'else' branch |
+| PERF016 | 2 | `am_map.das.inc:617` ternary abs - use 'abs(x)' from math module |
+| STYLE025 | 2 | `m_menu.das.inc:495` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+| LINT024 | 1 | `i_video.das.inc:155` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
+| STYLE024 | 1 | `info.das.inc:2245` redundant 'unsafe { ... }' block; no statement requires unsafe - drop the wrap |
+
+### doomgeneric-demo1-eden-linear/canonical
+
+unity layout, flags `--strict --libc eden --das-option stack = 4194304 --memory-model linear --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 46596 lines, 626 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 326 | `doom_all.das:6673` consecutive declarations share one type; declare them together - 't, msb, lsb' |
+| LINT003 | 62 | `doom_all.das:6860` variable p_0: int -const can be made const (declare with 'let') |
+| LINT002 | 57 | `doom_all.das:6257` unused variable size: int64 const (add an underscore prefix if you really need it) |
+| STYLE042 | 49 | `doom_all.das:6311` function 'c2da_std_errno_location' body is a single 'return'; write it as an expression body - 'def c2da_std_errno_location(...) => EXPR' |
+| STYLE016 | 41 | `doom_all.das:9226` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| LINT007 | 16 | `doom_all.das:13737` left and right operands of '-' are the same |
+| PERF020 | 14 | `doom_all.das:6907` redundant uint64(...) cast - argument is already uint64 |
+| PERF015 | 9 | `doom_all.das:8319` ternary min - use 'min(a, b)' from math module |
+| LINT010 | 8 | `doom_all.das:8492` dead store of 'x_0': overwritten without intervening read |
+| PERF014 | 8 | `doom_all.das:45698` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `doom_all.das:45466` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| LINT023 | 6 | `doom_all.das:30132` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
+| PERF006 | 4 | `doom_all.das:45872` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| LINT009 | 3 | `doom_all.das:14435` 'then' branch is equivalent to 'else' branch |
+| LINT017 | 3 | `doom_all.das:6233` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
+| PERF016 | 3 | `doom_all.das:27631` ternary abs - use 'abs(x)' from math module |
+| PERF003 | 2 | `doom_all.das:6267` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `doom_all.das:45906` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `doom_all.das:45914` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT018 | 1 | `doom_all.das:45450` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| LINT024 | 1 | `doom_all.das:23429` uint64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: uint64(a) * b |
+| PERF002 | 1 | `doom_all.das:46209` character_at(s, i) in loop is O(n) per call (strlen + bounds check each time); use peek_data(s) to access characters as array<uint8> |
+| PERF033 | 1 | `doom_all.das:46061` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `doom_all.das:46061` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+
+### h264bsd-mp4-640x360-std/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 24651 lines, 588 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 257 | `h264_file_all.das:2198` consecutive declarations share one type; declare them together - 'aligned_header, total' |
+| LINT010 | 97 | `h264_file_all.das:2203` dead store of 'header': overwritten without intervening read |
+| PERF015 | 71 | `h264_file_all.das:160` ternary min - use 'min(a, b)' from math module |
+| PERF016 | 46 | `h264_file_all.das:11797` ternary abs - use 'abs(x)' from math module |
+| STYLE016 | 31 | `h264_file_all.das:3488` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| STYLE042 | 31 | `h264_file_all.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 14 | `h264_file_all.das:2383` variable out_1: uint -const can be made const (declare with 'let') |
+| LINT024 | 12 | `h264_file_all.das:6629` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
+| PERF020 | 9 | `h264_file_all.das:13428` redundant uint(...) cast - argument is already uint |
+| STYLE013 | 9 | `h264_file_all.das:15443` var (default-init or uninitialized) followed by assignments to fields {size, offset, duration, flag_random_access}; use a named-argument constructor `var smp = sample_t(size = ..., offset = ..., duration = ..., flag_random_access = ...)` |
+| LINT002 | 8 | `h264_file_all.das:5822` unused variable i_40: uint const (add an underscore prefix if you really need it) |
+| LINT007 | 1 | `h264_file_all.das:20762` left and right operands of '<' are the same |
+| LINT008 | 1 | `h264_file_all.das:20762` both branches of ternary '?:' are equivalent |
+| STYLE025 | 1 | `h264_file_all.das:9160` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+
+### h264bsd-mp4-640x360/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 23959 lines, 581 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 256 | `all.das:1593` consecutive declarations share one type; declare them together - 'aligned_header, total' |
+| LINT010 | 94 | `all.das:1598` dead store of 'header': overwritten without intervening read |
+| PERF015 | 71 | `all.das:158` ternary min - use 'min(a, b)' from math module |
+| PERF016 | 46 | `all.das:11192` ternary abs - use 'abs(x)' from math module |
+| STYLE016 | 31 | `all.das:2883` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| STYLE042 | 29 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 13 | `all.das:1778` variable out_1: uint -const can be made const (declare with 'let') |
+| LINT024 | 12 | `all.das:6024` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
+| PERF020 | 9 | `all.das:12823` redundant uint(...) cast - argument is already uint |
+| STYLE013 | 9 | `all.das:14838` var (default-init or uninitialized) followed by assignments to fields {size, offset, duration, flag_random_access}; use a named-argument constructor `var smp = sample_t(size = ..., offset = ..., duration = ..., flag_random_access = ...)` |
+| LINT002 | 8 | `all.das:5217` unused variable i_40: uint const (add an underscore prefix if you really need it) |
+| LINT007 | 1 | `all.das:20157` left and right operands of '<' are the same |
+| LINT008 | 1 | `all.das:20157` both branches of ternary '?:' are equivalent |
+| STYLE025 | 1 | `all.das:8555` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+
+### h264bsd-mp4/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 23959 lines, 581 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 256 | `all.das:1593` consecutive declarations share one type; declare them together - 'aligned_header, total' |
+| LINT010 | 94 | `all.das:1598` dead store of 'header': overwritten without intervening read |
+| PERF015 | 71 | `all.das:158` ternary min - use 'min(a, b)' from math module |
+| PERF016 | 46 | `all.das:11192` ternary abs - use 'abs(x)' from math module |
+| STYLE016 | 31 | `all.das:2883` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| STYLE042 | 29 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 13 | `all.das:1778` variable out_1: uint -const can be made const (declare with 'let') |
+| LINT024 | 12 | `all.das:6024` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
+| PERF020 | 9 | `all.das:12823` redundant uint(...) cast - argument is already uint |
+| STYLE013 | 9 | `all.das:14838` var (default-init or uninitialized) followed by assignments to fields {size, offset, duration, flag_random_access}; use a named-argument constructor `var smp = sample_t(size = ..., offset = ..., duration = ..., flag_random_access = ...)` |
+| LINT002 | 8 | `all.das:5217` unused variable i_40: uint const (add an underscore prefix if you really need it) |
+| LINT007 | 1 | `all.das:20157` left and right operands of '<' are the same |
+| LINT008 | 1 | `all.das:20157` both branches of ternary '?:' are equivalent |
+| STYLE025 | 1 | `all.das:8555` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+
+### doomgeneric-demo1-std/canonical
+
+unity layout, flags `--strict --libc std --das-option stack = 4194304`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 40988 lines, 548 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 313 | `doom_all.das:12285` consecutive declarations share one type; declare them together - 'a, b, c, d, e, tm' |
+| LINT002 | 55 | `doom_all.das:18956` unused variable count_1: int const (add an underscore prefix if you really need it) |
+| STYLE042 | 48 | `doom_all.das:231` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE016 | 42 | `doom_all.das:13526` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| LINT003 | 32 | `doom_all.das:12770` variable p_0: int -const can be made const (declare with 'let') |
+| LINT007 | 16 | `doom_all.das:17741` left and right operands of '-' are the same |
+| PERF015 | 14 | `doom_all.das:161` ternary min - use 'min(a, b)' from math module |
+| LINT010 | 12 | `doom_all.das:14207` dead store of 'x_1': overwritten without intervening read |
+| LINT023 | 6 | `doom_all.das:31390` mutable by-value argument choice_0: int is written but never read - the caller never sees a write to a by-value copy; declare it `int&` if it is an out-parameter, otherwise the write is dead |
+| STYLE025 | 3 | `doom_all.das:26714` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+| LINT009 | 2 | `doom_all.das:18062` 'then' branch is equivalent to 'else' branch |
+| PERF016 | 2 | `doom_all.das:28974` ternary abs - use 'abs(x)' from math module |
+| LINT024 | 1 | `doom_all.das:22531` int64(...) widens a product that already wrapped - every factor is 32-bit, so the multiply overflows at 2^31 before the cast runs; widen a factor instead: int64(a) * b |
+| PERF020 | 1 | `doom_all.das:35966` redundant int64(...) cast - argument is already int64 |
+| STYLE024 | 1 | `doom_all.das:15029` redundant 'unsafe { ... }' block; no statement requires unsafe - drop the wrap |
+
+### binjgb-cgb-acid2-eden-linear-source/canonical
+
+source layout, flags `--strict --libc eden --das-option stack = 1048576 --memory-model linear --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 6 module file(s), 0 fragment(s), 18008 lines, 538 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| PERF020 | 276 | `emulator.das:1640` redundant uint8(...) cast - argument is already uint8 |
+| STYLE043 | 85 | `emulator.das:228` consecutive declarations share one type; declare them together - 'was_enabled, new_vblank_irq, new_hblank_irq, hblank, vblank, y_compare, type_2' |
+| STYLE042 | 64 | `emulator.das:861` function 'map_select_to_address' body is a single 'return'; write it as an expression body - 'def map_select_to_address(...) => EXPR' |
+| LINT003 | 27 | `emulator.das:22` variable e: int -const can be made const (declare with 'let') |
+| PERF015 | 18 | `emulator.das:144` ternary min - use 'min(a, b)' from math module |
+| LINT007 | 10 | `emulator.das:7198` left and right operands of '-' are the same |
+| STYLE030 | 10 | `emulator.das:8` require strings is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| PERF014 | 8 | `c2da_runtime.das:1939` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 7 | `emulator.das:13729` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| STYLE013 | 7 | `emulator.das:1579` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_0 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
+| LINT010 | 5 | `emulator.das:3914` dead store of 'i_16': overwritten without intervening read |
+| PERF006 | 4 | `c2da_runtime.das:2113` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| LINT017 | 3 | `c2da_runtime.das:1439` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
+| LINT002 | 2 | `c2da_runtime.das:1463` unused variable size: int64 const (add an underscore prefix if you really need it) |
+| PERF003 | 2 | `c2da_runtime.das:1473` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `c2da_runtime.das:2147` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `c2da_runtime.das:2155` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT018 | 1 | `c2da_runtime.das:1691` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF002 | 1 | `c2da_runtime.das:2450` character_at(s, i) in loop is O(n) per call (strlen + bounds check each time); use peek_data(s) to access characters as array<uint8> |
+| PERF016 | 1 | `c2da_runtime.das:2085` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `c2da_runtime.das:2302` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `c2da_runtime.das:2302` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE016 | 1 | `platform.das:49` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+
+### binjgb-cgb-acid2-eden-linear/canonical
+
+unity layout, flags `--strict --libc eden --das-option stack = 1048576 --memory-model linear --dialect eden-0.6.4 --no-unsafe -DNDEBUG`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 17936 lines, 523 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| PERF020 | 271 | `binjgb_all.das:3386` redundant uint8(...) cast - argument is already uint8 |
+| STYLE043 | 85 | `binjgb_all.das:1623` consecutive declarations share one type; declare them together - 'result_0, last_dot' |
+| STYLE042 | 64 | `binjgb_all.das:1509` function 'c2da_std_errno_location' body is a single 'return'; write it as an expression body - 'def c2da_std_errno_location(...) => EXPR' |
+| LINT003 | 26 | `binjgb_all.das:1686` variable f_1: int -const can be made const (declare with 'let') |
+| PERF015 | 18 | `binjgb_all.das:1890` ternary min - use 'min(a, b)' from math module |
+| LINT007 | 10 | `binjgb_all.das:8979` left and right operands of '-' are the same |
+| PERF014 | 8 | `binjgb_all.das:17355` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 7 | `binjgb_all.das:16423` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| STYLE013 | 7 | `binjgb_all.das:3325` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_1 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
+| LINT010 | 5 | `binjgb_all.das:5660` dead store of 'i_16': overwritten without intervening read |
+| PERF006 | 4 | `binjgb_all.das:17529` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| LINT017 | 3 | `binjgb_all.das:1438` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
+| LINT002 | 2 | `binjgb_all.das:1462` unused variable size: int64 const (add an underscore prefix if you really need it) |
+| PERF003 | 2 | `binjgb_all.das:1472` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `binjgb_all.das:17563` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `binjgb_all.das:17571` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT018 | 1 | `binjgb_all.das:17107` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF002 | 1 | `binjgb_all.das:17866` character_at(s, i) in loop is O(n) per call (strlen + bounds check each time); use peek_data(s) to access characters as array<uint8> |
+| PERF016 | 1 | `binjgb_all.das:17501` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `binjgb_all.das:17718` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `binjgb_all.das:17718` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE016 | 1 | `binjgb_all.das:15705` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| STYLE030 | 1 | `binjgb_all.das:6` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### wasm3-fib32-std/canonical
+
+unity layout, flags `--strict --libc std --das-option stack = 4194304`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 26235 lines, 456 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE043 | 276 | `all_host.das:2343` consecutive declarations share one type; declare them together - 'ftype_0, next' |
-| LINT003 | 74 | `all_host.das:2392` variable c2da_postinc: uint16 -const can be made const (declare with 'let') |
 | STYLE042 | 66 | `all_host.das:231` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 62 | `all_host.das:73` redundant int(...) cast - argument is already int |
 | LINT010 | 61 | `all_host.das:2970` dead store of 'result_3': overwritten without intervening read |
+| LINT003 | 15 | `all_host.das:3894` variable mask: uint -const can be made const (declare with 'let') |
 | STYLE018 | 12 | `all_host.das:10996` redundant boolean comparison - use 'b' directly (drop the '== true') |
 | STYLE016 | 11 | `all_host.das:9869` adjacent guards leading to identical early-exit can be combined with '\|\|' |
 | PERF015 | 7 | `all_host.das:161` ternary min - use 'min(a, b)' from math module |
 | LINT009 | 2 | `all_host.das:10688` 'then' branch is equivalent to 'else' branch |
 | LINT023 | 2 | `all_host.das:2328` mutable by-value argument i_environment: M3Environment? is written but never read - the caller never sees a write to a by-value copy; declare it `M3Environment?&` if it is an out-parameter, otherwise the write is dead |
+| STYLE025 | 2 | `all_host.das:9529` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
 | LINT020 | 1 | `all_host.das:25858` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
 | STYLE017 | 1 | `all_host.das:24111` 'if (cond) return false; return true' - use 'return !cond' directly |
 
@@ -1084,22 +1224,6 @@ unity layout, flags `--strict --libc std -DPLM_NO_STDIO`, translated at commit 7
 | LINT010 | 34 | `plmpeg_file_all.das:2252` dead store of 'tab3': overwritten without intervening read |
 | LINT002 | 32 | `plmpeg_file_all.das:2332` unused variable granule: int const (add an underscore prefix if you really need it) |
 | STYLE016 | 7 | `plmpeg_file_all.das:1797` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| PERF016 | 1 | `plmpeg_file_all.das:1086` ternary abs - use 'abs(x)' from math module |
-
-### plmpeg-stream-320x240-std/canonical
-
-unity layout, flags `--strict --libc std -DPLM_NO_STDIO`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 5084 lines, 419 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 103 | `plmpeg_file_all.das:1158` variable c2da_fresh3: uint64 -const can be made const (declare with 'let') |
-| PERF015 | 78 | `plmpeg_file_all.das:160` ternary min - use 'min(a, b)' from math module |
-| PERF020 | 74 | `plmpeg_file_all.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 46 | `plmpeg_file_all.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 44 | `plmpeg_file_all.das:1175` consecutive declarations share one type; declare them together - 'sync, hasCRC, bitrate_index, samplerate_index, padding, mode' |
-| LINT010 | 34 | `plmpeg_file_all.das:2236` dead store of 'tab3': overwritten without intervening read |
-| LINT002 | 32 | `plmpeg_file_all.das:2316` unused variable granule: int const (add an underscore prefix if you really need it) |
-| STYLE016 | 7 | `plmpeg_file_all.das:1783` adjacent guards leading to identical early-exit can be combined with '\|\|' |
 | PERF016 | 1 | `plmpeg_file_all.das:1086` ternary abs - use 'abs(x)' from math module |
 
 ### plmpeg-stream-320x240/matrix-bench_aot-generated
@@ -1214,54 +1338,6 @@ unity layout, flags `--strict --public-module --no-solid-context --das-option di
 | STYLE016 | 7 | `all.das:1193` adjacent guards leading to identical early-exit can be combined with '\|\|' |
 | PERF016 | 1 | `all.das:482` ternary abs - use 'abs(x)' from math module |
 
-### plmpeg-stream/matrix-generated
-
-unity layout, flags `--strict -DPLM_NO_STDIO`, translated at commit 712474e26-dirty; 1 module file(s), 0 fragment(s), 4410 lines, 412 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 102 | `all.das:553` variable c2da_fresh3: uint64 -const can be made const (declare with 'let') |
-| PERF015 | 78 | `all.das:158` ternary min - use 'min(a, b)' from math module |
-| PERF020 | 72 | `all.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 45 | `all.das:570` consecutive declarations share one type; declare them together - 'sync, hasCRC, bitrate_index, samplerate_index, padding, mode, bitrate, samplerate, frame_size' |
-| STYLE042 | 44 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT002 | 32 | `all.das:1727` unused variable granule: int const (add an underscore prefix if you really need it) |
-| LINT010 | 31 | `all.das:1647` dead store of 'tab3': overwritten without intervening read |
-| STYLE016 | 7 | `all.das:1192` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| PERF016 | 1 | `all.das:481` ternary abs - use 'abs(x)' from math module |
-
-### plmpeg-stream-320x240/canonical
-
-unity layout, flags `--strict -DPLM_NO_STDIO`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 4392 lines, 410 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 102 | `all.das:553` variable c2da_fresh3: uint64 -const can be made const (declare with 'let') |
-| PERF015 | 78 | `all.das:158` ternary min - use 'min(a, b)' from math module |
-| PERF020 | 72 | `all.das:70` redundant int(...) cast - argument is already int |
-| STYLE042 | 44 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 43 | `all.das:570` consecutive declarations share one type; declare them together - 'sync, hasCRC, bitrate_index, samplerate_index, padding, mode' |
-| LINT002 | 32 | `all.das:1711` unused variable granule: int const (add an underscore prefix if you really need it) |
-| LINT010 | 31 | `all.das:1631` dead store of 'tab3': overwritten without intervening read |
-| STYLE016 | 7 | `all.das:1178` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| PERF016 | 1 | `all.das:481` ternary abs - use 'abs(x)' from math module |
-
-### plmpeg-stream/canonical
-
-unity layout, flags `--strict -DPLM_NO_STDIO`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 4392 lines, 410 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 102 | `all.das:553` variable c2da_fresh3: uint64 -const can be made const (declare with 'let') |
-| PERF015 | 78 | `all.das:158` ternary min - use 'min(a, b)' from math module |
-| PERF020 | 72 | `all.das:70` redundant int(...) cast - argument is already int |
-| STYLE042 | 44 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 43 | `all.das:570` consecutive declarations share one type; declare them together - 'sync, hasCRC, bitrate_index, samplerate_index, padding, mode' |
-| LINT002 | 32 | `all.das:1711` unused variable granule: int const (add an underscore prefix if you really need it) |
-| LINT010 | 31 | `all.das:1631` dead store of 'tab3': overwritten without intervening read |
-| STYLE016 | 7 | `all.das:1178` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-| PERF016 | 1 | `all.das:481` ternary abs - use 'abs(x)' from math module |
-
 ### binjgb-cgb-acid2-std/matrix-bench_aot-generated
 
 unity layout, flags `--strict --no-solid-context --das-option disable_auto_inline --libc std -DNDEBUG`, translated at commit 712474e26-dirty; 1 module file(s), 0 fragment(s), 12011 lines, 385 finding(s).
@@ -1338,26 +1414,6 @@ unity layout, flags `--strict --libc std -DNDEBUG`, translated at commit 712474e
 | LINT020 | 1 | `binjgb_bench_all.das:3977` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
 | STYLE016 | 1 | `binjgb_bench_all.das:11377` adjacent guards leading to identical early-exit can be combined with '\|\|' |
 
-### binjgb-cgb-acid2-std-source/canonical
-
-source layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 6 module file(s), 0 fragment(s), 12042 lines, 381 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 127 | `emulator.das:375` redundant uint(...) cast - argument is already uint |
-| STYLE043 | 87 | `emulator.das:397` consecutive declarations share one type; declare them together - 'c2da_fresh5, c2da_fresh6' |
-| STYLE042 | 49 | `emulator.das:1254` function 'map_select_to_address' body is a single 'return'; write it as an expression body - 'def map_select_to_address(...) => EXPR' |
-| LINT003 | 46 | `emulator.das:773` variable c2da_fresh28: uint8 -const can be made const (declare with 'let') |
-| LINT010 | 27 | `emulator.das:1007` dead store of 'display_bg': overwritten without intervening read |
-| PERF015 | 14 | `emulator.das:511` ternary min - use 'min(a, b)' from math module |
-| LINT007 | 10 | `emulator.das:5695` left and right operands of '-' are the same |
-| STYLE025 | 8 | `emulator.das:521` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE030 | 7 | `emulator.das:7` require strings is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| STYLE013 | 2 | `emulator.das:1654` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_0 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
-| STYLE024 | 2 | `joypad.das:24` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
-| LINT020 | 1 | `emulator.das:1453` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
-| STYLE016 | 1 | `platform.das:27` adjacent guards leading to identical early-exit can be combined with '\|\|' |
-
 ### binjgb-cgb-acid2-std/matrix-canonical_aot-generated
 
 unity layout, flags `--strict --no-solid-context --das-option disable_auto_inline --libc std -DNDEBUG`, translated at commit 491557d52-dirty; 1 module file(s), 0 fragment(s), 11961 lines, 380 finding(s).
@@ -1396,222 +1452,515 @@ unity layout, flags `--strict --libc std -DNDEBUG`, translated at commit 712474e
 | LINT020 | 1 | `binjgb_all.das:3953` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
 | STYLE016 | 1 | `binjgb_all.das:11353` adjacent guards leading to identical early-exit can be combined with '\|\|' |
 
-### binjgb-cgb-acid2-std/canonical
+### plmpeg-stream-320x240-std/canonical
 
-unity layout, flags `--strict --libc std -DNDEBUG`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 11942 lines, 374 finding(s).
+unity layout, flags `--strict --libc std -DPLM_NO_STDIO`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 5084 lines, 245 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 127 | `binjgb_all.das:72` redundant int(...) cast - argument is already int |
+| PERF015 | 78 | `plmpeg_file_all.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 46 | `plmpeg_file_all.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 44 | `plmpeg_file_all.das:1175` consecutive declarations share one type; declare them together - 'sync, hasCRC, bitrate_index, samplerate_index, padding, mode' |
+| LINT010 | 34 | `plmpeg_file_all.das:2236` dead store of 'tab3': overwritten without intervening read |
+| LINT002 | 32 | `plmpeg_file_all.das:2316` unused variable granule: int const (add an underscore prefix if you really need it) |
+| STYLE016 | 7 | `plmpeg_file_all.das:1783` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| LINT003 | 3 | `plmpeg_file_all.das:1399` variable byte_pos: uint64 -const can be made const (declare with 'let') |
+| PERF016 | 1 | `plmpeg_file_all.das:1086` ternary abs - use 'abs(x)' from math module |
+
+### plmpeg-stream-320x240/canonical
+
+unity layout, flags `--strict -DPLM_NO_STDIO`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 4392 lines, 238 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| PERF015 | 78 | `all.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 44 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 43 | `all.das:570` consecutive declarations share one type; declare them together - 'sync, hasCRC, bitrate_index, samplerate_index, padding, mode' |
+| LINT002 | 32 | `all.das:1711` unused variable granule: int const (add an underscore prefix if you really need it) |
+| LINT010 | 31 | `all.das:1631` dead store of 'tab3': overwritten without intervening read |
+| STYLE016 | 7 | `all.das:1178` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| LINT003 | 2 | `all.das:794` variable byte_pos: uint64 -const can be made const (declare with 'let') |
+| PERF016 | 1 | `all.das:481` ternary abs - use 'abs(x)' from math module |
+
+### plmpeg-stream/canonical
+
+unity layout, flags `--strict -DPLM_NO_STDIO`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 4392 lines, 238 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| PERF015 | 78 | `all.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 44 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 43 | `all.das:570` consecutive declarations share one type; declare them together - 'sync, hasCRC, bitrate_index, samplerate_index, padding, mode' |
+| LINT002 | 32 | `all.das:1711` unused variable granule: int const (add an underscore prefix if you really need it) |
+| LINT010 | 31 | `all.das:1631` dead store of 'tab3': overwritten without intervening read |
+| STYLE016 | 7 | `all.das:1178` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| LINT003 | 2 | `all.das:794` variable byte_pos: uint64 -const can be made const (declare with 'let') |
+| PERF016 | 1 | `all.das:481` ternary abs - use 'abs(x)' from math module |
+
+### plmpeg-stream/matrix-generated
+
+unity layout, flags `--strict -DPLM_NO_STDIO`, translated at commit 712474e26-dirty; 1 module file(s), 0 fragment(s), 4410 lines, 238 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| PERF015 | 78 | `all.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 44 | `all.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 43 | `all.das:570` consecutive declarations share one type; declare them together - 'sync, hasCRC, bitrate_index, samplerate_index, padding, mode' |
+| LINT002 | 32 | `all.das:1711` unused variable granule: int const (add an underscore prefix if you really need it) |
+| LINT010 | 31 | `all.das:1631` dead store of 'tab3': overwritten without intervening read |
+| STYLE016 | 7 | `all.das:1178` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| LINT003 | 2 | `all.das:794` variable byte_pos: uint64 -const can be made const (declare with 'let') |
+| PERF016 | 1 | `all.das:481` ternary abs - use 'abs(x)' from math module |
+
+### binjgb-cgb-acid2-eden/canonical
+
+unity layout, flags `--strict --libc eden --dialect eden-0.6.4 -DNDEBUG`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 12145 lines, 220 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 87 | `binjgb_all.das:2880` consecutive declarations share one type; declare them together - 'result_0, last_dot' |
+| STYLE042 | 52 | `binjgb_all.das:229` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT010 | 27 | `binjgb_all.das:3698` dead store of 'display_bg': overwritten without intervening read |
+| LINT003 | 16 | `binjgb_all.das:2253` variable opened: uint64 -const can be made const (declare with 'let') |
+| PERF015 | 14 | `binjgb_all.das:159` ternary min - use 'min(a, b)' from math module |
+| LINT007 | 10 | `binjgb_all.das:8386` left and right operands of '-' are the same |
+| LINT017 | 3 | `binjgb_all.das:2033` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
+| PERF003 | 2 | `binjgb_all.das:2067` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| STYLE013 | 2 | `binjgb_all.das:4345` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_1 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
+| STYLE024 | 2 | `binjgb_all.das:11114` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
+| LINT002 | 1 | `binjgb_all.das:2057` unused variable size: int64 const (add an underscore prefix if you really need it) |
+| LINT020 | 1 | `binjgb_all.das:4144` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF020 | 1 | `binjgb_all.das:11242` redundant int64(...) cast - argument is already int64 |
+| STYLE016 | 1 | `binjgb_all.das:11526` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| STYLE025 | 1 | `binjgb_all.das:11296` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+
+### binjgb-cgb-acid2-std-source/canonical
+
+source layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 6 module file(s), 0 fragment(s), 12042 lines, 217 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 87 | `emulator.das:397` consecutive declarations share one type; declare them together - 'c2da_fresh5, c2da_fresh6' |
+| STYLE042 | 49 | `emulator.das:1254` function 'map_select_to_address' body is a single 'return'; write it as an expression body - 'def map_select_to_address(...) => EXPR' |
+| LINT010 | 27 | `emulator.das:1007` dead store of 'display_bg': overwritten without intervening read |
+| LINT003 | 15 | `emulator.das:1064` variable c2da_fresh45: c2da_runtime::TileMapSelect -const can be made const (declare with 'let') |
+| PERF015 | 14 | `emulator.das:511` ternary min - use 'min(a, b)' from math module |
+| LINT007 | 10 | `emulator.das:5695` left and right operands of '-' are the same |
+| STYLE030 | 7 | `emulator.das:7` require strings is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE013 | 2 | `emulator.das:1654` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_0 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
+| STYLE024 | 2 | `joypad.das:24` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
+| LINT020 | 1 | `emulator.das:1453` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF020 | 1 | `joypad.das:152` redundant int64(...) cast - argument is already int64 |
+| STYLE016 | 1 | `platform.das:27` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| STYLE025 | 1 | `joypad.das:206` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+
+### binjgb-cgb-acid2-std/canonical
+
+unity layout, flags `--strict --libc std -DNDEBUG`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 11942 lines, 210 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE043 | 87 | `binjgb_all.das:2688` consecutive declarations share one type; declare them together - 'result_0, last_dot' |
 | STYLE042 | 49 | `binjgb_all.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT003 | 46 | `binjgb_all.das:2814` variable old_size: uint64 -const can be made const (declare with 'let') |
 | LINT010 | 27 | `binjgb_all.das:3506` dead store of 'display_bg': overwritten without intervening read |
+| LINT003 | 15 | `binjgb_all.das:2814` variable old_size: uint64 -const can be made const (declare with 'let') |
 | PERF015 | 14 | `binjgb_all.das:160` ternary min - use 'min(a, b)' from math module |
 | LINT007 | 10 | `binjgb_all.das:8194` left and right operands of '-' are the same |
-| STYLE025 | 8 | `binjgb_all.das:3020` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
 | STYLE013 | 2 | `binjgb_all.das:4153` var (default-init or uninitialized) followed by assignments to fields {type_0, addr_0}; use a named-argument constructor `var result_1 = MemoryTypeAddressPair(type_0 = ..., addr_0 = ...)` |
 | STYLE024 | 2 | `binjgb_all.das:10922` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
 | LINT020 | 1 | `binjgb_all.das:3952` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF020 | 1 | `binjgb_all.das:11050` redundant int64(...) cast - argument is already int64 |
 | STYLE016 | 1 | `binjgb_all.das:11334` adjacent guards leading to identical early-exit can be combined with '\|\|' |
+| STYLE025 | 1 | `binjgb_all.das:11104` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+
+### p201-linear-stdio/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1334 lines, 54 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 17 | `p201_linear_stdio.das:283` function 'c2da_std_errno_location' body is a single 'return'; write it as an expression body - 'def c2da_std_errno_location(...) => EXPR' |
+| PERF014 | 8 | `p201_linear_stdio.das:819` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `p201_linear_stdio.das:587` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| LINT017 | 4 | `p201_linear_stdio.das:165` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
+| PERF006 | 4 | `p201_linear_stdio.das:993` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| LINT002 | 2 | `p201_linear_stdio.das:239` unused variable size: int64 const (add an underscore prefix if you really need it) |
+| PERF003 | 2 | `p201_linear_stdio.das:249` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `p201_linear_stdio.das:1027` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `p201_linear_stdio.das:1035` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT003 | 1 | `p201_linear_stdio.das:478` variable argv_at: int -const can be made const (declare with 'let') |
+| LINT018 | 1 | `p201_linear_stdio.das:571` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF002 | 1 | `p201_linear_stdio.das:1330` character_at(s, i) in loop is O(n) per call (strlen + bounds check each time); use peek_data(s) to access characters as array<uint8> |
+| PERF016 | 1 | `p201_linear_stdio.das:965` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p201_linear_stdio.das:1182` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p201_linear_stdio.das:1182` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE030 | 1 | `p201_linear_stdio.das:5` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p207-linear-fnptr-table/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear --fnptr-model table --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1015 lines, 48 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 18 | `p207_linear_fnptr_table.das:81` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `p207_linear_fnptr_table.das:546` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `p207_linear_fnptr_table.das:314` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `p207_linear_fnptr_table.das:720` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| PERF003 | 2 | `p207_linear_fnptr_table.das:53` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `p207_linear_fnptr_table.das:754` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `p207_linear_fnptr_table.das:762` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT002 | 1 | `p207_linear_fnptr_table.das:719` unused variable i: int const (add an underscore prefix if you really need it) |
+| LINT018 | 1 | `p207_linear_fnptr_table.das:298` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p207_linear_fnptr_table.das:692` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p207_linear_fnptr_table.das:909` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p207_linear_fnptr_table.das:909` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE030 | 1 | `p207_linear_fnptr_table.das:5` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p209-linear-records-typed/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear --records typed --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1005 lines, 48 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 14 | `p209_linear_records_typed.das:89` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `p209_linear_records_typed.das:562` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `p209_linear_records_typed.das:330` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `p209_linear_records_typed.das:736` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| LINT002 | 2 | `p209_linear_records_typed.das:205` unused variable i_0: int const (add an underscore prefix if you really need it) |
+| PERF003 | 2 | `p209_linear_records_typed.das:61` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `p209_linear_records_typed.das:770` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `p209_linear_records_typed.das:778` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| STYLE043 | 2 | `p209_linear_records_typed.das:176` consecutive declarations share one type; declare them together - 'p_0, same, next' |
+| LINT018 | 1 | `p209_linear_records_typed.das:314` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p209_linear_records_typed.das:708` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p209_linear_records_typed.das:925` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p209_linear_records_typed.das:925` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE013 | 1 | `p209_linear_records_typed.das:127` var (zero-arg `new`) followed by assignments to fields {value, next}; use a named-argument constructor `var n = new node(value = ..., next = ...)` |
+| STYLE030 | 1 | `p209_linear_records_typed.das:5` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p205-linear-record-iterators/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1069 lines, 47 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 15 | `p205_linear_record_iterators.das:157` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `p205_linear_record_iterators.das:626` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `p205_linear_record_iterators.das:394` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `p205_linear_record_iterators.das:800` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| PERF003 | 2 | `p205_linear_record_iterators.das:126` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `p205_linear_record_iterators.das:834` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `p205_linear_record_iterators.das:842` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| STYLE043 | 2 | `p205_linear_record_iterators.das:231` consecutive declarations share one type; declare them together - 'a, b' |
+| LINT002 | 1 | `p205_linear_record_iterators.das:799` unused variable i: int const (add an underscore prefix if you really need it) |
+| LINT018 | 1 | `p205_linear_record_iterators.das:378` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p205_linear_record_iterators.das:772` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p205_linear_record_iterators.das:989` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p205_linear_record_iterators.das:989` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE030 | 1 | `p205_linear_record_iterators.das:5` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p206-linear-entry-eden/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear --entry eden --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 951 lines, 47 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 14 | `p206_linear_entry_eden.das:102` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `p206_linear_entry_eden.das:497` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `p206_linear_entry_eden.das:265` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `p206_linear_entry_eden.das:671` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| LINT003 | 2 | `p206_linear_entry_eden.das:158` variable argc: int -const can be made const (declare with 'let') |
+| PERF003 | 2 | `p206_linear_entry_eden.das:70` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `p206_linear_entry_eden.das:705` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `p206_linear_entry_eden.das:713` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT002 | 1 | `p206_linear_entry_eden.das:670` unused variable i: int const (add an underscore prefix if you really need it) |
+| LINT018 | 1 | `p206_linear_entry_eden.das:249` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF002 | 1 | `p206_linear_entry_eden.das:947` character_at(s, i) in loop is O(n) per call (strlen + bounds check each time); use peek_data(s) to access characters as array<uint8> |
+| PERF016 | 1 | `p206_linear_entry_eden.das:643` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p206_linear_entry_eden.das:860` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p206_linear_entry_eden.das:860` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE030 | 1 | `p206_linear_entry_eden.das:5` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### m03-module-layout-cycle-statics-eden-linear/canonical
+
+source layout, flags `--strict --libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 3 module file(s), 2 fragment(s), 981 lines, 46 finding(s) (4 in fragments).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 12 | `c2da_runtime.das:105` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `c2da_runtime.das:441` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `c2da_runtime.das:209` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `c2da_runtime.das:615` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| STYLE030 | 4 | `c2da_runtime.das:6` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| PERF003 | 2 | `c2da_runtime.das:77` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `c2da_runtime.das:649` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `c2da_runtime.das:657` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT002 | 1 | `c2da_runtime.das:614` unused variable i: int const (add an underscore prefix if you really need it) |
+| LINT003 | 1 | `main.das:12` variable end: int -const can be made const (declare with 'let') |
+| LINT018 | 1 | `c2da_runtime.das:193` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `c2da_runtime.das:587` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `c2da_runtime.das:804` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `c2da_runtime.das:804` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+
+### p200-linear-printf/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1019 lines, 46 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 15 | `p200_linear_printf.das:152` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `p200_linear_printf.das:576` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `p200_linear_printf.das:344` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `p200_linear_printf.das:750` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| PERF003 | 2 | `p200_linear_printf.das:124` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `p200_linear_printf.das:784` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `p200_linear_printf.das:792` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT002 | 1 | `p200_linear_printf.das:749` unused variable i: int const (add an underscore prefix if you really need it) |
+| LINT018 | 1 | `p200_linear_printf.das:328` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p200_linear_printf.das:722` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p200_linear_printf.das:939` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p200_linear_printf.das:939` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE030 | 1 | `p200_linear_printf.das:5` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p200_linear_printf.das:208` consecutive declarations share one type; declare them together - 'name, dot, n_0, heap' |
+
+### p216-linear-parameter-address/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1043 lines, 46 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 15 | `p216_linear_parameter_address.das:98` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `p216_linear_parameter_address.das:600` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `p216_linear_parameter_address.das:368` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `p216_linear_parameter_address.das:774` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| PERF003 | 2 | `p216_linear_parameter_address.das:70` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `p216_linear_parameter_address.das:808` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `p216_linear_parameter_address.das:816` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT002 | 1 | `p216_linear_parameter_address.das:773` unused variable i: int const (add an underscore prefix if you really need it) |
+| LINT003 | 1 | `p216_linear_parameter_address.das:226` variable p: int -const can be made const (declare with 'let') |
+| LINT018 | 1 | `p216_linear_parameter_address.das:352` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p216_linear_parameter_address.das:746` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p216_linear_parameter_address.das:963` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p216_linear_parameter_address.das:963` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE043 | 1 | `p216_linear_parameter_address.das:234` consecutive declarations share one type; declare them together - 'ok, d' |
+
+### p208-linear-varargs-heap/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear --varargs-model heap --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1556 lines, 44 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| PERF014 | 10 | `p208_linear_varargs_heap.das:935` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| STYLE042 | 9 | `p208_linear_varargs_heap.das:83` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| LINT020 | 6 | `p208_linear_varargs_heap.das:703` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `p208_linear_varargs_heap.das:1109` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| PERF021 | 3 | `p208_linear_varargs_heap.das:1143` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| LINT002 | 2 | `p208_linear_varargs_heap.das:98` unused variable i: int const (add an underscore prefix if you really need it) |
+| PERF003 | 2 | `p208_linear_varargs_heap.das:55` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF022 | 2 | `p208_linear_varargs_heap.das:1151` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT010 | 1 | `p208_linear_varargs_heap.das:109` dead store of 'again': overwritten without intervening read |
+| LINT018 | 1 | `p208_linear_varargs_heap.das:687` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p208_linear_varargs_heap.das:1081` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p208_linear_varargs_heap.das:1298` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p208_linear_varargs_heap.das:1298` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE043 | 1 | `p208_linear_varargs_heap.das:151` consecutive declarations share one type; declare them together - 'total_1, i_0' |
+
+### m02-module-layout-cycle-eden-linear/canonical
+
+source layout, flags `--strict --libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 2 module file(s), 3 fragment(s), 940 lines, 42 finding(s) (2 in fragments).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 9 | `c2da_runtime.das:98` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `c2da_runtime.das:434` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `c2da_runtime.das:202` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `c2da_runtime.das:608` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| STYLE030 | 3 | `c2da_runtime.das:6` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| PERF003 | 2 | `c2da_runtime.das:70` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `c2da_runtime.das:642` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `c2da_runtime.das:650` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT002 | 1 | `c2da_runtime.das:607` unused variable i: int const (add an underscore prefix if you really need it) |
+| LINT003 | 1 | `ring_a.das.inc:10` variable result_0: int -const can be made const (declare with 'let') |
+| LINT018 | 1 | `c2da_runtime.das:186` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `c2da_runtime.das:580` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `c2da_runtime.das:797` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `c2da_runtime.das:797` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+
+### p215-linear-static-initializers/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear --fnptr-model table --dialect eden-0.6.4 --no-unsafe`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1039 lines, 39 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 9 | `p215_linear_static_initializers.das:131` function 'c2da_std_file' body is a single 'return'; write it as an expression body - 'def c2da_std_file(...) => EXPR' |
+| PERF014 | 8 | `p215_linear_static_initializers.das:559` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT020 | 6 | `p215_linear_static_initializers.das:327` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF006 | 4 | `p215_linear_static_initializers.das:733` push in loop without prior reserve() may cause repeated reallocations; consider reserve() before the loop |
+| PERF003 | 2 | `p215_linear_static_initializers.das:103` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| PERF021 | 2 | `p215_linear_static_initializers.das:767` redundant per-branch uint8(...) cast in ternary - hoist as uint8(cond ? a : b) |
+| PERF022 | 2 | `p215_linear_static_initializers.das:775` for-loop body 'B \|> push(x)' pushes one element per iteration; use 'B \|> push_from(A)' for a bulk reserve+copy |
+| LINT002 | 1 | `p215_linear_static_initializers.das:732` unused variable i: int const (add an underscore prefix if you really need it) |
+| LINT018 | 1 | `p215_linear_static_initializers.das:311` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p215_linear_static_initializers.das:705` ternary abs - use 'abs(x)' from math module |
+| PERF033 | 1 | `p215_linear_static_initializers.das:922` array declared inside a loop is never freed - every iteration leaks its buffer until the heap resets; declare it 'var inscope' |
+| STYLE012 | 1 | `p215_linear_static_initializers.das:922` array<T> initialized by a run of push/emplace calls; use an array literal `var a <- [x, <-y, z]` (or `var a <- array<T>(x, y, z)` when you need an explicit element type, e.g. for polymorphic upcasts) |
+| STYLE043 | 1 | `p215_linear_static_initializers.das:165` consecutive declarations share one type; declare them together - 'p_0, q, r, n, v, f, d, st, routine' |
 
 ### p71-static-inline-calls/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 577 lines, 58 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 577 lines, 34 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | PERF015 | 22 | `p71_static_inline_calls.das:158` ternary min - use 'min(a, b)' from math module |
-| LINT003 | 20 | `p71_static_inline_calls.das:364` variable c2da_fresh0: int -const can be made const (declare with 'let') |
 | STYLE042 | 9 | `p71_static_inline_calls.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p71_static_inline_calls.das:70` redundant int(...) cast - argument is already int |
 | STYLE043 | 2 | `p71_static_inline_calls.das:333` consecutive declarations share one type; declare them together - 'total, i' |
 | LINT008 | 1 | `p71_static_inline_calls.das:374` both branches of ternary '?:' are equivalent |
 
-### p102-local-declarations/canonical
+### p197-linear-record-values/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 566 lines, 57 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 39 | `p102_local_declarations.das:384` variable c2da_fresh0: int -const can be made const (declare with 'let') |
-| PERF020 | 5 | `p102_local_declarations.das:70` redundant int(...) cast - argument is already int |
-| STYLE042 | 4 | `p102_local_declarations.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 3 | `p102_local_declarations.das:321` consecutive declarations share one type; declare them together - 'total, acc' |
-| STYLE034 | 2 | `p102_local_declarations.das:414` reinterpret<uint8 const? aka cursor_t>(addr(...)) collapses to addr<uint8 const? aka cursor_t>(...); one unsafe() covers both halves |
-| LINT010 | 1 | `p102_local_declarations.das:439` dead store of 'c': overwritten without intervening read |
-| PERF015 | 1 | `p102_local_declarations.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE011 | 1 | `p102_local_declarations.das:477` variable declaration followed by immediate assignment; combine into single declaration with initialization |
-| STYLE025 | 1 | `p102_local_declarations.das:455` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-
-### p99-direct-conditionals/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 530 lines, 41 finding(s).
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 779 lines, 32 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| LINT003 | 27 | `p99_direct_conditionals.das:309` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| PERF020 | 6 | `p99_direct_conditionals.das:70` redundant int(...) cast - argument is already int |
-| STYLE042 | 3 | `p99_direct_conditionals.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 3 | `p99_direct_conditionals.das:360` consecutive declarations share one type; declare them together - 'failures, negative' |
-| LINT010 | 1 | `p99_direct_conditionals.das:443` dead store of 'value_0': overwritten without intervening read |
-| PERF015 | 1 | `p99_direct_conditionals.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 13 | `p197_linear_record_values.das:54` function 'c2da___bswap_16' body is a single 'return'; write it as an expression body - 'def c2da___bswap_16(...) => EXPR' |
+| LINT020 | 6 | `p197_linear_record_values.das:378` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF014 | 6 | `p197_linear_record_values.das:610` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT003 | 2 | `p197_linear_record_values.das:79` variable t: triple -const can be made const (declare with 'let') |
+| STYLE013 | 2 | `p197_linear_record_values.das:237` var (default-init or uninitialized) followed by assignments to fields {s, d}; use a named-argument constructor `var c2da_fresh22 = inner(s = ..., d = ...)` |
+| LINT018 | 1 | `p197_linear_record_values.das:362` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p197_linear_record_values.das:756` ternary abs - use 'abs(x)' from math module |
+| STYLE043 | 1 | `p197_linear_record_values.das:100` consecutive declarations share one type; declare them together - 'local, back' |
 
-### p97-constant-conversions/canonical
+### p193-linear-scalars/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 349 lines, 40 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 32 | `p97_constant_conversions.das:296` variable c2da_fresh0: int64 -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p97_constant_conversions.das:70` redundant int(...) cast - argument is already int |
-| STYLE042 | 2 | `p97_constant_conversions.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT007 | 1 | `p97_constant_conversions.das:314` left and right operands of '==' are the same |
-| PERF015 | 1 | `p97_constant_conversions.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p76-std-strings/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1482 lines, 35 finding(s).
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 839 lines, 31 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| LINT003 | 19 | `p76_std_strings.das:1426` variable c2da_fresh9: int -const can be made const (declare with 'let') |
-| STYLE042 | 7 | `p76_std_strings.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 6 | `p76_std_strings.das:72` redundant int(...) cast - argument is already int |
-| STYLE043 | 2 | `p76_std_strings.das:1353` consecutive declarations share one type; declare them together - 'hello, sentence' |
-| PERF015 | 1 | `p76_std_strings.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 13 | `p193_linear_scalars.das:44` function 'c2da___bswap_16' body is a single 'return'; write it as an expression body - 'def c2da___bswap_16(...) => EXPR' |
+| LINT020 | 6 | `p193_linear_scalars.das:438` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF014 | 6 | `p193_linear_scalars.das:670` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| STYLE043 | 3 | `p193_linear_scalars.das:69` consecutive declarations share one type; declare them together - 'b, sc, s16, u16, s32, u32, s64, u64, f, d, old' |
+| LINT003 | 1 | `p193_linear_scalars.das:349` variable r_0: int -const can be made const (declare with 'let') |
+| LINT018 | 1 | `p193_linear_scalars.das:422` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p193_linear_scalars.das:816` ternary abs - use 'abs(x)' from math module |
 
-### p100-redundant-conversions/canonical
+### p194-linear-records/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 376 lines, 32 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 18 | `p100_redundant_conversions.das:342` variable c2da_fresh0: int64 -const can be made const (declare with 'let') |
-| STYLE042 | 6 | `p100_redundant_conversions.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p100_redundant_conversions.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 3 | `p100_redundant_conversions.das:320` consecutive declarations share one type; declare them together - 'failures, i_1, negative' |
-| PERF015 | 1 | `p100_redundant_conversions.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p68-nested-place-rmw/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 808 lines, 30 finding(s).
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 861 lines, 31 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| LINT003 | 15 | `p68_nested_place_rmw.das:380` variable c2da_postinc: uint -const can be made const (declare with 'let') |
-| STYLE042 | 7 | `p68_nested_place_rmw.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 5 | `p68_nested_place_rmw.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 2 | `p68_nested_place_rmw.das:366` consecutive declarations share one type; declare them together - 'post, pre' |
-| PERF015 | 1 | `p68_nested_place_rmw.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 13 | `p194_linear_records.das:56` function 'c2da___bswap_16' body is a single 'return'; write it as an expression body - 'def c2da___bswap_16(...) => EXPR' |
+| LINT020 | 6 | `p194_linear_records.das:460` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF014 | 6 | `p194_linear_records.das:692` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| STYLE043 | 4 | `p194_linear_records.das:81` consecutive declarations share one type; declare them together - 'pts, p, o, ip' |
+| LINT018 | 1 | `p194_linear_records.das:444` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p194_linear_records.das:838` ternary abs - use 'abs(x)' from math module |
 
-### p116-self-referencing-initializer/canonical
+### p196-linear-strings/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 396 lines, 28 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 18 | `p116_self_referencing_initializer.das:350` variable c2da_fresh0: int -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p116_self_referencing_initializer.das:70` redundant int(...) cast - argument is already int |
-| STYLE042 | 3 | `p116_self_referencing_initializer.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE025 | 2 | `p116_self_referencing_initializer.das:319` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF015 | 1 | `p116_self_referencing_initializer.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p174-post-step-store/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 783 lines, 27 finding(s).
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 659 lines, 30 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| STYLE025 | 13 | `p174_post_step_store.das:711` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF020 | 8 | `p174_post_step_store.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 3 | `p174_post_step_store.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT002 | 1 | `p174_post_step_store.das:703` unused variable i_1: int const (add an underscore prefix if you really need it) |
-| PERF015 | 1 | `p174_post_step_store.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p174_post_step_store.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE042 | 14 | `p196_linear_strings.das:37` function 'c2da___bswap_16' body is a single 'return'; write it as an expression body - 'def c2da___bswap_16(...) => EXPR' |
+| LINT020 | 6 | `p196_linear_strings.das:258` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF014 | 6 | `p196_linear_strings.das:490` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT018 | 1 | `p196_linear_strings.das:242` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p196_linear_strings.das:636` ternary abs - use 'abs(x)' from math module |
+| STYLE030 | 1 | `p196_linear_strings.das:4` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p196_linear_strings.das:66` consecutive declarations share one type; declare them together - 'path, dot, buf, ext' |
 
-### p152-discarded-postfix-increments/canonical
+### p202-linear-enums/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 806 lines, 26 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 7 | `p152_discarded_postfix_increments.das:758` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p152_discarded_postfix_increments.das:72` redundant int(...) cast - argument is already int |
-| LINT010 | 3 | `p152_discarded_postfix_increments.das:723` dead store of 'ph': overwritten without intervening read |
-| STYLE025 | 3 | `p152_discarded_postfix_increments.das:753` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE042 | 3 | `p152_discarded_postfix_increments.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 2 | `p152_discarded_postfix_increments.das:711` consecutive declarations share one type; declare them together - 'i, j, y, n, total' |
-| LINT002 | 1 | `p152_discarded_postfix_increments.das:781` unused variable c2da_postinc_5: int? -const (add an underscore prefix if you really need it) |
-| PERF013 | 1 | `p152_discarded_postfix_increments.das:752` '+= 1' on a numeric scalar; use postfix '++' for a faster, idiomatic increment |
-| PERF015 | 1 | `p152_discarded_postfix_increments.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p152_discarded_postfix_increments.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
-### p181-pointer-inductions/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 969 lines, 26 finding(s).
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 657 lines, 29 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| LINT003 | 7 | `p181_pointer_inductions.das:698` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| PERF020 | 6 | `p181_pointer_inductions.das:72` redundant int(...) cast - argument is already int |
-| STYLE025 | 5 | `p181_pointer_inductions.das:757` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE042 | 3 | `p181_pointer_inductions.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 2 | `p181_pointer_inductions.das:746` consecutive declarations share one type; declare them together - 'acc, n' |
-| LINT002 | 1 | `p181_pointer_inductions.das:809` unused variable j: uint const (add an underscore prefix if you really need it) |
-| PERF015 | 1 | `p181_pointer_inductions.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p181_pointer_inductions.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE042 | 13 | `p202_linear_enums.das:64` function 'c2da___bswap_16' body is a single 'return'; write it as an expression body - 'def c2da___bswap_16(...) => EXPR' |
+| LINT020 | 6 | `p202_linear_enums.das:256` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF014 | 6 | `p202_linear_enums.das:488` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT018 | 1 | `p202_linear_enums.das:240` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p202_linear_enums.das:634` ternary abs - use 'abs(x)' from math module |
+| STYLE030 | 1 | `p202_linear_enums.das:4` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p202_linear_enums.das:101` consecutive declarations share one type; declare them together - 'info, m, pf' |
 
-### p131-storage-record-arrays/canonical
+### p204-linear-function-pointers/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 841 lines, 25 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE042 | 11 | `p131_storage_record_arrays.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT003 | 6 | `p131_storage_record_arrays.das:753` variable c2da_fresh13: uint64 -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p131_storage_record_arrays.das:72` redundant int(...) cast - argument is already int |
-| LINT002 | 1 | `p131_storage_record_arrays.das:791` unused variable c2da_i: int const (add an underscore prefix if you really need it) |
-| PERF015 | 1 | `p131_storage_record_arrays.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p131_storage_record_arrays.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| STYLE043 | 1 | `p131_storage_record_arrays.das:742` consecutive declarations share one type; declare them together - 'heap, p, q' |
-
-### p182-single-use-temporaries/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 836 lines, 25 finding(s).
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 696 lines, 29 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| LINT003 | 8 | `p182_single_use_temporaries.das:720` variable t_1: int -const can be made const (declare with 'let') |
-| PERF020 | 6 | `p182_single_use_temporaries.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 5 | `p182_single_use_temporaries.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 3 | `p182_single_use_temporaries.das:725` consecutive declarations share one type; declare them together - 't_2, s' |
-| LINT002 | 1 | `p182_single_use_temporaries.das:687` unused variable c2da_iter: uint64 const (add an underscore prefix if you really need it) |
-| PERF015 | 1 | `p182_single_use_temporaries.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p182_single_use_temporaries.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE042 | 13 | `p204_linear_function_pointers.das:48` function 'c2da___bswap_16' body is a single 'return'; write it as an expression body - 'def c2da___bswap_16(...) => EXPR' |
+| LINT020 | 6 | `p204_linear_function_pointers.das:256` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF014 | 6 | `p204_linear_function_pointers.das:488` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT018 | 1 | `p204_linear_function_pointers.das:240` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p204_linear_function_pointers.das:634` ternary abs - use 'abs(x)' from math module |
+| STYLE013 | 1 | `p204_linear_function_pointers.das:145` var (default-init or uninitialized) followed by assignments to fields {read_ext_ram, write_ext_ram}; use a named-argument constructor `var c2da_fresh11 = MemoryMap(read_ext_ram = ..., write_ext_ram = ...)` |
+| STYLE030 | 1 | `p204_linear_function_pointers.das:4` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p199-linear-locals-in-heap/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 834 lines, 28 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 13 | `p199_linear_locals_in_heap.das:41` function 'c2da___bswap_16' body is a single 'return'; write it as an expression body - 'def c2da___bswap_16(...) => EXPR' |
+| LINT020 | 6 | `p199_linear_locals_in_heap.das:433` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF014 | 6 | `p199_linear_locals_in_heap.das:665` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT018 | 1 | `p199_linear_locals_in_heap.das:417` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p199_linear_locals_in_heap.das:811` ternary abs - use 'abs(x)' from math module |
+| STYLE043 | 1 | `p199_linear_locals_in_heap.das:209` consecutive declarations share one type; declare them together - 'px, pa, plain' |
+
+### p190-float-compare-nan-safe/canonical
+
+unity layout, flags `--strict --float-compare nan-safe`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 493 lines, 27 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 17 | `p190_float_compare_nan_safe.das:229` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT006 | 4 | `p190_float_compare_nan_safe.das:404` division by zero (/) |
+| STYLE043 | 3 | `p190_float_compare_nan_safe.das:396` consecutive declarations share one type; declare them together - 'dnan, dneg, dinf' |
+| LINT007 | 1 | `p190_float_compare_nan_safe.das:477` left and right operands of '&&' are the same |
+| PERF013 | 1 | `p190_float_compare_nan_safe.das:487` '+= 1' on a numeric scalar; use postfix '++' for a faster, idiomatic increment |
+| PERF015 | 1 | `p190_float_compare_nan_safe.das:159` ternary min - use 'min(a, b)' from math module |
+
+### p203-linear-globals/canonical
+
+unity layout, flags `--strict --libc eden --memory-model linear`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 640 lines, 27 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 10 | `p203_linear_globals.das:64` function 'pick' body is a single 'return'; write it as an expression body - 'def pick(...) => EXPR' |
+| LINT020 | 6 | `p203_linear_globals.das:239` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF014 | 6 | `p203_linear_globals.das:471` char-class range check '0'..'9' - use 'is_number(c)' from strings module |
+| LINT003 | 1 | `p203_linear_globals.das:77` variable p_0: int -const can be made const (declare with 'let') |
+| LINT018 | 1 | `p203_linear_globals.das:223` int(...) truncates the resize argument above 2^31; resize has an int64 overload, so drop the cast |
+| PERF016 | 1 | `p203_linear_globals.das:617` ternary abs - use 'abs(x)' from math module |
+| STYLE030 | 1 | `p203_linear_globals.das:4` require daslib/math_bits is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p203_linear_globals.das:96` consecutive declarations share one type; declare them together - 'pc, pal' |
 
 ### p48-integer-semantics/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 524 lines, 25 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 524 lines, 19 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 13 | `p48_integer_semantics.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p48_integer_semantics.das:70` redundant int(...) cast - argument is already int |
 | STYLE043 | 3 | `p48_integer_semantics.das:342` consecutive declarations share one type; declare them together - 'p, q' |
-| STYLE025 | 2 | `p48_integer_semantics.das:390` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
 | LINT003 | 1 | `p48_integer_semantics.das:337` variable a: int -const can be made const (declare with 'let') |
 | PERF015 | 1 | `p48_integer_semantics.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE018 | 1 | `p48_integer_semantics.das:427` redundant boolean comparison - use 'b' directly (drop the '== true') |
 
 ### p50-printer/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 442 lines, 24 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 442 lines, 19 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 9 | `p50_printer.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 5 | `p50_printer.das:70` redundant int(...) cast - argument is already int |
 | LINT003 | 2 | `p50_printer.das:295` variable wide: int64 -const can be made const (declare with 'let') |
 | LINT007 | 2 | `p50_printer.das:352` left and right operands of '==' are the same |
 | STYLE018 | 2 | `p50_printer.das:374` redundant boolean comparison - use 'b' directly (drop the '== true') |
@@ -1619,17 +1968,27 @@ unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module f
 | PERF015 | 1 | `p50_printer.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `p50_printer.das:370` consecutive declarations share one type; declare them together - 'r, o, r2, o2' |
 
+### p69-typedef-numeric-casts/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 436 lines, 18 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 13 | `p69_typedef_numeric_casts.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p69_typedef_numeric_casts.das:356` consecutive declarations share one type; declare them together - 'a0, a0_again, a1, big' |
+| LINT007 | 1 | `p69_typedef_numeric_casts.das:376` left and right operands of '!=' are the same |
+| LINT010 | 1 | `p69_typedef_numeric_casts.das:360` dead store of 'c_0': overwritten without intervening read |
+| PERF015 | 1 | `p69_typedef_numeric_casts.das:158` ternary min - use 'min(a, b)' from math module |
+
 ### p86-va-start-rewind/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 475 lines, 24 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 475 lines, 18 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | LINT003 | 7 | `p86_va_start_rewind.das:302` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
 | STYLE043 | 5 | `p86_va_start_rewind.das:324` consecutive declarations share one type; declare them together - 'first_pass, second_pass' |
-| PERF020 | 4 | `p86_va_start_rewind.das:70` redundant int(...) cast - argument is already int |
 | LINT002 | 2 | `p86_va_start_rewind.das:301` unused variable i: int const (add an underscore prefix if you really need it) |
-| STYLE025 | 2 | `p86_va_start_rewind.das:408` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
 | LINT010 | 1 | `p86_va_start_rewind.das:310` dead store of 'mine': overwritten without intervening read |
 | LINT014 | 1 | `p86_va_start_rewind.das:309` mutable argument ap_0: C2daVaCursor -const is never written; declare it without 'var' |
 | PERF015 | 1 | `p86_va_start_rewind.das:158` ternary min - use 'min(a, b)' from math module |
@@ -1637,142 +1996,37 @@ unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module f
 
 ### p110-std-string-extras/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1158 lines, 23 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1158 lines, 17 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 12 | `p110_std_string_extras.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 6 | `p110_std_string_extras.das:72` redundant int(...) cast - argument is already int |
 | LINT003 | 1 | `p110_std_string_extras.das:1102` variable y: double -const can be made const (declare with 'let') |
 | PERF015 | 1 | `p110_std_string_extras.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE016 | 1 | `p110_std_string_extras.das:382` adjacent guards leading to identical early-exit can be combined with '\|\|' |
 | STYLE030 | 1 | `p110_std_string_extras.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | STYLE043 | 1 | `p110_std_string_extras.das:1109` consecutive declarations share one type; declare them together - 'copy, empty_0' |
 
-### p113-block-scope-function-decl/canonical
+### p182-single-use-temporaries/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 342 lines, 23 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 12 | `p113_block_scope_function_decl.das:322` variable c2da_fresh0: int -const can be made const (declare with 'let') |
-| STYLE042 | 6 | `p113_block_scope_function_decl.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p113_block_scope_function_decl.das:70` redundant int(...) cast - argument is already int |
-| PERF015 | 1 | `p113_block_scope_function_decl.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p180-value-stores/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 792 lines, 23 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 836 lines, 17 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 15 | `p180_value_stores.das:72` redundant int(...) cast - argument is already int |
-| STYLE043 | 3 | `p180_value_stores.das:716` consecutive declarations share one type; declare them together - 'loc, other' |
-| STYLE042 | 2 | `p180_value_stores.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT010 | 1 | `p180_value_stores.das:761` dead store of 'local': overwritten without intervening read |
-| PERF015 | 1 | `p180_value_stores.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p180_value_stores.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
-### p103-zero-sized-fields/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 861 lines, 22 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE042 | 9 | `p103_zero_sized_fields.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 7 | `p103_zero_sized_fields.das:72` redundant int(...) cast - argument is already int |
-| LINT002 | 1 | `p103_zero_sized_fields.das:813` unused variable c2da_fresh10: Empty -const (add an underscore prefix if you really need it) |
-| LINT003 | 1 | `p103_zero_sized_fields.das:814` variable c2da_fresh11: Empty -const can be made const (declare with 'let') |
-| LINT010 | 1 | `p103_zero_sized_fields.das:815` dead store of 'e0': value written but never read before scope exit |
-| PERF015 | 1 | `p103_zero_sized_fields.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p103_zero_sized_fields.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| STYLE043 | 1 | `p103_zero_sized_fields.das:759` consecutive declarations share one type; declare them together - 's, i' |
-
-### p162-structured-fallback/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 810 lines, 22 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 8 | `p162_structured_fallback.das:72` redundant int(...) cast - argument is already int |
-| STYLE025 | 8 | `p162_structured_fallback.das:736` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE042 | 2 | `p162_structured_fallback.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 2 | `p162_structured_fallback.das:693` consecutive declarations share one type; declare them together - 'i, total_0' |
-| PERF015 | 1 | `p162_structured_fallback.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p162_structured_fallback.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
-### p69-typedef-numeric-casts/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 436 lines, 22 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE042 | 13 | `p69_typedef_numeric_casts.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p69_typedef_numeric_casts.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 2 | `p69_typedef_numeric_casts.das:356` consecutive declarations share one type; declare them together - 'a0, a0_again, a1, big' |
-| LINT007 | 1 | `p69_typedef_numeric_casts.das:376` left and right operands of '!=' are the same |
-| LINT010 | 1 | `p69_typedef_numeric_casts.das:360` dead store of 'c_0': overwritten without intervening read |
-| PERF015 | 1 | `p69_typedef_numeric_casts.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p176-inline-union-fields/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1033 lines, 21 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 9 | `p176_inline_union_fields.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 8 | `p176_inline_union_fields.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 2 | `p176_inline_union_fields.das:812` consecutive declarations share one type; declare them together - 't_0, next' |
-| PERF015 | 1 | `p176_inline_union_fields.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p176_inline_union_fields.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
-### p175-counted-loops/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 893 lines, 20 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE043 | 5 | `p175_counted_loops.das:743` consecutive declarations share one type; declare them together - 'total_5, count_5' |
-| LINT002 | 4 | `p175_counted_loops.das:674` unused variable c2da_iter: uint64 const (add an underscore prefix if you really need it) |
-| PERF020 | 4 | `p175_counted_loops.das:72` redundant int(...) cast - argument is already int |
-| LINT003 | 3 | `p175_counted_loops.das:695` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| STYLE042 | 2 | `p175_counted_loops.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF015 | 1 | `p175_counted_loops.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p175_counted_loops.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
-### p177-natural-bitfield-records/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 925 lines, 20 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE042 | 8 | `p177_natural_bitfield_records.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 5 | `p177_natural_bitfield_records.das:72` redundant int(...) cast - argument is already int |
-| LINT003 | 4 | `p177_natural_bitfield_records.das:790` variable c2da_postinc: uint -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p177_natural_bitfield_records.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p177_natural_bitfield_records.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| STYLE043 | 1 | `p177_natural_bitfield_records.das:772` consecutive declarations share one type; declare them together - 'c_0, d' |
-
-### p56-heap-churn/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 497 lines, 20 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE042 | 7 | `p56_heap_churn.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 5 | `p56_heap_churn.das:333` consecutive declarations share one type; declare them together - 'a, b' |
-| PERF020 | 4 | `p56_heap_churn.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 3 | `p56_heap_churn.das:393` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p56_heap_churn.das:158` ternary min - use 'min(a, b)' from math module |
+| LINT003 | 6 | `p182_single_use_temporaries.das:720` variable t_1: int -const can be made const (declare with 'let') |
+| STYLE042 | 5 | `p182_single_use_temporaries.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 3 | `p182_single_use_temporaries.das:725` consecutive declarations share one type; declare them together - 't_2, s' |
+| LINT002 | 1 | `p182_single_use_temporaries.das:687` unused variable c2da_iter: uint64 const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p182_single_use_temporaries.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p182_single_use_temporaries.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p75-va-list-parameter/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 431 lines, 20 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 431 lines, 16 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | LINT003 | 5 | `p75_va_list_parameter.das:296` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p75_va_list_parameter.das:70` redundant int(...) cast - argument is already int |
 | LINT002 | 3 | `p75_va_list_parameter.das:295` unused variable i: int const (add an underscore prefix if you really need it) |
 | STYLE043 | 3 | `p75_va_list_parameter.das:305` consecutive declarations share one type; declare them together - 'first, second' |
 | LINT010 | 2 | `p75_va_list_parameter.das:327` dead store of 'mine': overwritten without intervening read |
@@ -1780,423 +2034,417 @@ unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module f
 | PERF015 | 1 | `p75_va_list_parameter.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p75_va_list_parameter.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
-### p96-memcpy-builtin/canonical
+### p81-eden-printf-edge/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 537 lines, 20 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 8 | `p96_memcpy_builtin.das:401` variable c2da_fresh14: uint64 -const can be made const (declare with 'let') |
-| PERF020 | 6 | `p96_memcpy_builtin.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 3 | `p96_memcpy_builtin.das:294` consecutive declarations share one type; declare them together - 'i, i_0' |
-| STYLE042 | 2 | `p96_memcpy_builtin.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF015 | 1 | `p96_memcpy_builtin.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p105-field-by-offset-kept/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 826 lines, 19 finding(s).
+unity layout, flags `--strict --libc eden`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1276 lines, 16 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| STYLE042 | 11 | `p105_field_by_offset_kept.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 5 | `p105_field_by_offset_kept.das:72` redundant int(...) cast - argument is already int |
-| PERF015 | 1 | `p105_field_by_offset_kept.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p105_field_by_offset_kept.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| STYLE043 | 1 | `p105_field_by_offset_kept.das:740` consecutive declarations share one type; declare them together - 's, k' |
+| STYLE042 | 7 | `p81_std_printf_edge.das:229` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 2 | `p81_std_printf_edge.das:639` variable opened: uint64 -const can be made const (declare with 'let') |
+| LINT017 | 2 | `p81_std_printf_edge.das:437` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
+| PERF003 | 2 | `p81_std_printf_edge.das:471` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| LINT002 | 1 | `p81_std_printf_edge.das:461` unused variable size: int64 const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p81_std_printf_edge.das:159` ternary min - use 'min(a, b)' from math module |
+| STYLE043 | 1 | `p81_std_printf_edge.das:1190` consecutive declarations share one type; declare them together - 'count, seek_failed' |
 
-### p62-bool-store/canonical
+### p103-zero-sized-fields/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 427 lines, 19 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 861 lines, 15 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| STYLE042 | 7 | `p62_bool_store.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT003 | 6 | `p62_bool_store.das:337` variable c2da_fresh0: int -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p62_bool_store.das:70` redundant int(...) cast - argument is already int |
-| PERF015 | 1 | `p62_bool_store.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE043 | 1 | `p62_bool_store.das:351` consecutive declarations share one type; declare them together - 'hits, is_even' |
+| STYLE042 | 9 | `p103_zero_sized_fields.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT002 | 1 | `p103_zero_sized_fields.das:813` unused variable c2da_fresh10: Empty -const (add an underscore prefix if you really need it) |
+| LINT003 | 1 | `p103_zero_sized_fields.das:814` variable c2da_fresh11: Empty -const can be made const (declare with 'let') |
+| LINT010 | 1 | `p103_zero_sized_fields.das:815` dead store of 'e0': value written but never read before scope exit |
+| PERF015 | 1 | `p103_zero_sized_fields.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p103_zero_sized_fields.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p103_zero_sized_fields.das:759` consecutive declarations share one type; declare them together - 's, i' |
+
+### p131-storage-record-arrays/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 841 lines, 15 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 11 | `p131_storage_record_arrays.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT002 | 1 | `p131_storage_record_arrays.das:791` unused variable c2da_i: int const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p131_storage_record_arrays.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p131_storage_record_arrays.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p131_storage_record_arrays.das:742` consecutive declarations share one type; declare them together - 'heap, p, q' |
 
 ### p67-bool-context-enum-void/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 545 lines, 19 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 545 lines, 15 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | LINT010 | 8 | `p67_bool_context_enum_void.das:375` dead store of 's_4': overwritten without intervening read |
 | STYLE042 | 5 | `p67_bool_context_enum_void.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p67_bool_context_enum_void.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p67_bool_context_enum_void.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `p67_bool_context_enum_void.das:443` consecutive declarations share one type; declare them together - 'i_1, pointer_rc' |
 
-### p70-goto-over-declarations/canonical
+### p76-eden-strings/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 582 lines, 19 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 7 | `p70_goto_over_declarations.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 6 | `p70_goto_over_declarations.das:352` consecutive declarations share one type; declare them together - 'total, a, b, c, d' |
-| LINT003 | 2 | `p70_goto_over_declarations.das:298` variable c2da_postinc: uint -const can be made const (declare with 'let') |
-| STYLE025 | 2 | `p70_goto_over_declarations.das:465` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF015 | 1 | `p70_goto_over_declarations.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `p70_goto_over_declarations.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-
-### p178-direct-array-subscripts/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 887 lines, 18 finding(s).
+unity layout, flags `--strict --libc eden`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1558 lines, 15 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| STYLE042 | 8 | `p178_direct_array_subscripts.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 6 | `p178_direct_array_subscripts.das:72` redundant int(...) cast - argument is already int |
-| STYLE043 | 2 | `p178_direct_array_subscripts.das:788` consecutive declarations share one type; declare them together - 's_1, i_2' |
-| PERF015 | 1 | `p178_direct_array_subscripts.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p178_direct_array_subscripts.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE042 | 9 | `p76_std_strings.das:229` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF003 | 2 | `p76_std_strings.das:489` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| STYLE043 | 2 | `p76_std_strings.das:1429` consecutive declarations share one type; declare them together - 'hello, sentence' |
+| PERF015 | 1 | `p76_std_strings.das:159` ternary min - use 'min(a, b)' from math module |
+| STYLE024 | 1 | `p76_std_strings.das:538` redundant 'unsafe(...)' wrap; the inner expression has no operation that requires unsafe - drop the wrap |
+
+### p105-field-by-offset-kept/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 826 lines, 14 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 11 | `p105_field_by_offset_kept.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p105_field_by_offset_kept.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p105_field_by_offset_kept.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p105_field_by_offset_kept.das:740` consecutive declarations share one type; declare them together - 's, k' |
 
 ### p49-floating/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 401 lines, 18 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 401 lines, 14 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 8 | `p49_floating.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p49_floating.das:70` redundant int(...) cast - argument is already int |
 | LINT003 | 3 | `p49_floating.das:295` variable d_1: double -const can be made const (declare with 'let') |
 | STYLE043 | 2 | `p49_floating.das:301` consecutive declarations share one type; declare them together - 'e, f' |
 | PERF015 | 1 | `p49_floating.das:158` ternary min - use 'min(a, b)' from math module |
 
-### p59-nested-aggregates/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 478 lines, 18 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE042 | 7 | `p59_nested_aggregates.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 5 | `p59_nested_aggregates.das:70` redundant int(...) cast - argument is already int |
-| STYLE025 | 2 | `p59_nested_aggregates.das:393` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE043 | 2 | `p59_nested_aggregates.das:373` consecutive declarations share one type; declare them together - 'r, c' |
-| LINT003 | 1 | `p59_nested_aggregates.das:346` variable last: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p59_nested_aggregates.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p64-pointer-offset-types/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 498 lines, 18 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE025 | 6 | `p64_pointer_offset_types.das:404` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE042 | 5 | `p64_pointer_offset_types.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p64_pointer_offset_types.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 2 | `p64_pointer_offset_types.das:364` consecutive declarations share one type; declare them together - 'u, offset' |
-| PERF015 | 1 | `p64_pointer_offset_types.das:158` ternary min - use 'min(a, b)' from math module |
-
 ### p66-global-init-order/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 417 lines, 18 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 417 lines, 14 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 10 | `p66_global_init_order.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p66_global_init_order.das:70` redundant int(...) cast - argument is already int |
 | STYLE025 | 2 | `p66_global_init_order.das:323` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
 | PERF015 | 1 | `p66_global_init_order.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `p66_global_init_order.das:375` consecutive declarations share one type; declare them together - 'first, second' |
 
-### p90-std-errno-real-headers/canonical
+### p72-eden-file-io/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 845 lines, 18 finding(s).
+unity layout, flags `--strict --libc eden`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1158 lines, 14 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| STYLE042 | 10 | `p90_std_errno_real_headers.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 6 | `p90_std_errno_real_headers.das:72` redundant int(...) cast - argument is already int |
-| PERF015 | 1 | `p90_std_errno_real_headers.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p90_std_errno_real_headers.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE042 | 5 | `p72_std_file_io.das:229` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 2 | `p72_std_file_io.das:599` variable opened: uint64 -const can be made const (declare with 'let') |
+| PERF003 | 2 | `p72_std_file_io.das:410` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| STYLE043 | 2 | `p72_std_file_io.das:1060` consecutive declarations share one type; declare them together - 'first, second' |
+| LINT017 | 1 | `p72_std_file_io.das:451` int64(length(...)) widens an already-32-bit result, so the 2^31 limit is still hit inside length (as a wrap, or as the panic guard on array/table/string length) before the cast runs; call long_length(...) instead |
+| LINT020 | 1 | `p72_std_file_io.das:1083` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF015 | 1 | `p72_std_file_io.das:159` ternary min - use 'min(a, b)' from math module |
 
 ### m01-module-layout-source/canonical
 
-source layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 4 module file(s), 0 fragment(s), 757 lines, 17 finding(s).
+source layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 4 module file(s), 0 fragment(s), 757 lines, 13 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 6 | `c2da_runtime.das:231` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `c2da_runtime.das:73` redundant int(...) cast - argument is already int |
 | STYLE030 | 4 | `c2da_runtime.das:6` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | LINT003 | 1 | `main.das:23` variable p: c2da_runtime::pair -const can be made const (declare with 'let') |
 | PERF015 | 1 | `c2da_runtime.das:161` ternary min - use 'min(a, b)' from math module |
 | STYLE013 | 1 | `split.das:9` var (default-init or uninitialized) followed by assignments to fields {lo, hi}; use a named-argument constructor `var p = pair(lo = ..., hi = ...)` |
 
-### p114-assignment-arguments/canonical
+### p175-counted-loops/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 365 lines, 17 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 6 | `p114_assignment_arguments.das:332` variable c2da_fresh0: int -const can be made const (declare with 'let') |
-| PERF020 | 5 | `p114_assignment_arguments.das:70` redundant int(...) cast - argument is already int |
-| STYLE042 | 3 | `p114_assignment_arguments.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT010 | 1 | `p114_assignment_arguments.das:317` dead store of 'y': overwritten without intervening read |
-| PERF015 | 1 | `p114_assignment_arguments.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE043 | 1 | `p114_assignment_arguments.das:307` consecutive declarations share one type; declare them together - 'failures, x, y, out_0, cell' |
-
-### p54-address-taken/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 472 lines, 17 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 893 lines, 13 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 6 | `p54_address_taken.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 5 | `p54_address_taken.das:311` consecutive declarations share one type; declare them together - 'a, b' |
-| STYLE025 | 2 | `p54_address_taken.das:404` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE042 | 2 | `p54_address_taken.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT003 | 1 | `p54_address_taken.das:354` variable last: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p54_address_taken.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE043 | 5 | `p175_counted_loops.das:743` consecutive declarations share one type; declare them together - 'total_5, count_5' |
+| LINT002 | 4 | `p175_counted_loops.das:674` unused variable c2da_iter: uint64 const (add an underscore prefix if you really need it) |
+| STYLE042 | 2 | `p175_counted_loops.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p175_counted_loops.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p175_counted_loops.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p56-heap-churn/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 497 lines, 13 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 7 | `p56_heap_churn.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 5 | `p56_heap_churn.das:333` consecutive declarations share one type; declare them together - 'a, b' |
+| PERF015 | 1 | `p56_heap_churn.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p73-indirect-call-expression/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 513 lines, 17 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 513 lines, 13 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 10 | `p73_indirect_call_expression.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p73_indirect_call_expression.das:70` redundant int(...) cast - argument is already int |
 | LINT003 | 2 | `p73_indirect_call_expression.das:312` variable op: function<(var _arg0:uint8?? -const;var _arg1:int -const):int> aka Op -const can be made const (declare with 'let') |
 | PERF015 | 1 | `p73_indirect_call_expression.das:158` ternary min - use 'min(a, b)' from math module |
 
+### p102-local-declarations/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 566 lines, 12 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 4 | `p102_local_declarations.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 3 | `p102_local_declarations.das:321` consecutive declarations share one type; declare them together - 'total, acc' |
+| STYLE034 | 2 | `p102_local_declarations.das:414` reinterpret<uint8 const? aka cursor_t>(addr(...)) collapses to addr<uint8 const? aka cursor_t>(...); one unsafe() covers both halves |
+| LINT010 | 1 | `p102_local_declarations.das:439` dead store of 'c': overwritten without intervening read |
+| PERF015 | 1 | `p102_local_declarations.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE011 | 1 | `p102_local_declarations.das:477` variable declaration followed by immediate assignment; combine into single declaration with initialization |
+
+### p152-discarded-postfix-increments/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 806 lines, 12 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| LINT010 | 3 | `p152_discarded_postfix_increments.das:723` dead store of 'ph': overwritten without intervening read |
+| STYLE042 | 3 | `p152_discarded_postfix_increments.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p152_discarded_postfix_increments.das:711` consecutive declarations share one type; declare them together - 'i, j, y, n, total' |
+| LINT002 | 1 | `p152_discarded_postfix_increments.das:781` unused variable c2da_postinc_5: int? -const (add an underscore prefix if you really need it) |
+| PERF013 | 1 | `p152_discarded_postfix_increments.das:752` '+= 1' on a numeric scalar; use postfix '++' for a faster, idiomatic increment |
+| PERF015 | 1 | `p152_discarded_postfix_increments.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p152_discarded_postfix_increments.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p176-inline-union-fields/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1033 lines, 12 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 8 | `p176_inline_union_fields.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p176_inline_union_fields.das:812` consecutive declarations share one type; declare them together - 't_0, next' |
+| PERF015 | 1 | `p176_inline_union_fields.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p176_inline_union_fields.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p177-natural-bitfield-records/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 925 lines, 12 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 8 | `p177_natural_bitfield_records.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p177_natural_bitfield_records.das:160` ternary min - use 'min(a, b)' from math module |
+| PERF020 | 1 | `p177_natural_bitfield_records.das:804` redundant uint(...) cast - argument is already uint |
+| STYLE030 | 1 | `p177_natural_bitfield_records.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p177_natural_bitfield_records.das:772` consecutive declarations share one type; declare them together - 'c_0, d' |
+
+### p178-direct-array-subscripts/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 887 lines, 12 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 8 | `p178_direct_array_subscripts.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p178_direct_array_subscripts.das:788` consecutive declarations share one type; declare them together - 's_1, i_2' |
+| PERF015 | 1 | `p178_direct_array_subscripts.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p178_direct_array_subscripts.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p78-bool-value-semantics/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 447 lines, 12 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 5 | `p78_bool_value_semantics.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 3 | `p78_bool_value_semantics.das:359` variable c2da_fresh0: bool -const can be made const (declare with 'let') |
+| STYLE018 | 3 | `p78_bool_value_semantics.das:307` redundant boolean comparison - use 'b' directly (drop the '== true') |
+| PERF015 | 1 | `p78_bool_value_semantics.das:158` ternary min - use 'min(a, b)' from math module |
+
+### p90-std-errno-real-headers/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 845 lines, 12 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 10 | `p90_std_errno_real_headers.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p90_std_errno_real_headers.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p90_std_errno_real_headers.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
 ### m03-module-layout-cycle-statics/canonical
 
-source layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 3 module file(s), 2 fragment(s), 757 lines, 16 finding(s) (5 in fragments).
+source layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 3 module file(s), 2 fragment(s), 757 lines, 11 finding(s) (4 in fragments).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 6 | `c2da_runtime.das:231` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 5 | `c2da_runtime.das:73` redundant int(...) cast - argument is already int |
 | STYLE030 | 3 | `c2da_runtime.das:6` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | LINT003 | 1 | `main.das:14` variable end: int -const can be made const (declare with 'let') |
 | PERF015 | 1 | `c2da_runtime.das:161` ternary min - use 'min(a, b)' from math module |
 
-### p101-std-text-builders/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 995 lines, 16 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 7 | `p101_std_text_builders.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 5 | `p101_std_text_builders.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE025 | 2 | `p101_std_text_builders.das:944` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF015 | 1 | `p101_std_text_builders.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE043 | 1 | `p101_std_text_builders.das:960` consecutive declarations share one type; declare them together - 'format, buffer' |
-
 ### p104-field-by-name/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 808 lines, 16 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 808 lines, 11 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p104_field_by_name.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p104_field_by_name.das:72` redundant int(...) cast - argument is already int |
-| LINT003 | 1 | `p104_field_by_name.das:734` variable c2da_postinc: int16 -const can be made const (declare with 'let') |
 | PERF015 | 1 | `p104_field_by_name.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE018 | 1 | `p104_field_by_name.das:762` redundant boolean comparison - use 'b' directly (drop the '== true') |
 | STYLE030 | 1 | `p104_field_by_name.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | STYLE043 | 1 | `p104_field_by_name.das:750` consecutive declarations share one type; declare them together - 'b, a' |
 
-### p58-bitfields-layout/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 520 lines, 16 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE042 | 7 | `p58_bitfields_layout.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p58_bitfields_layout.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 2 | `p58_bitfields_layout.das:386` variable c2da_postinc: uint -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p58_bitfields_layout.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE013 | 1 | `p58_bitfields_layout.das:316` var (default-init or uninitialized) followed by assignments to fields {c2da_bits_0, c2da_bits_0, c2da_bits_0, c2da_bits_0, c2da_bits_1}; use a named-argument constructor `var f = flags(c2da_bits_0 = ..., c2da_bits_0 = ..., c2da_bits_0 = ..., c2da_bits_0 = ..., c2da_bits_1 = ...)` |
-| STYLE043 | 1 | `p58_bitfields_layout.das:434` consecutive declarations share one type; declare them together - 'a, b' |
-
-### p78-bool-value-semantics/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 447 lines, 16 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE042 | 5 | `p78_bool_value_semantics.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p78_bool_value_semantics.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 3 | `p78_bool_value_semantics.das:359` variable c2da_fresh0: bool -const can be made const (declare with 'let') |
-| STYLE018 | 3 | `p78_bool_value_semantics.das:307` redundant boolean comparison - use 'b' directly (drop the '== true') |
-| PERF015 | 1 | `p78_bool_value_semantics.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p88-va-list-forwarding-chain/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 440 lines, 16 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 7 | `p88_va_list_forwarding_chain.das:304` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p88_va_list_forwarding_chain.das:70` redundant int(...) cast - argument is already int |
-| LINT002 | 1 | `p88_va_list_forwarding_chain.das:336` unused variable i: int const (add an underscore prefix if you really need it) |
-| PERF015 | 1 | `p88_va_list_forwarding_chain.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE025 | 1 | `p88_va_list_forwarding_chain.das:386` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE042 | 1 | `p88_va_list_forwarding_chain.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 1 | `p88_va_list_forwarding_chain.das:356` consecutive declarations share one type; declare them together - 'a, b' |
-
-### p111-std-sscanf/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1175 lines, 15 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 6 | `p111_std_sscanf.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 4 | `p111_std_sscanf.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 3 | `p111_std_sscanf.das:1096` consecutive declarations share one type; declare them together - 'value, r' |
-| PERF015 | 1 | `p111_std_sscanf.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p111_std_sscanf.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
 ### p120-enum-compound-assignment/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 803 lines, 15 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 803 lines, 11 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | LINT010 | 5 | `p120_enum_compound_assignment.das:729` dead store of 's': overwritten without intervening read |
-| PERF020 | 4 | `p120_enum_compound_assignment.das:72` redundant int(...) cast - argument is already int |
 | LINT003 | 2 | `p120_enum_compound_assignment.das:768` variable c2da_postinc: Small -const can be made const (declare with 'let') |
 | STYLE042 | 2 | `p120_enum_compound_assignment.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p120_enum_compound_assignment.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p120_enum_compound_assignment.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
+### p59-nested-aggregates/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 478 lines, 11 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 7 | `p59_nested_aggregates.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p59_nested_aggregates.das:373` consecutive declarations share one type; declare them together - 'r, c' |
+| LINT003 | 1 | `p59_nested_aggregates.das:346` variable last: int -const can be made const (declare with 'let') |
+| PERF015 | 1 | `p59_nested_aggregates.das:158` ternary min - use 'min(a, b)' from math module |
+
+### p68-nested-place-rmw/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 808 lines, 11 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 7 | `p68_nested_place_rmw.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p68_nested_place_rmw.das:366` consecutive declarations share one type; declare them together - 'post, pre' |
+| PERF015 | 1 | `p68_nested_place_rmw.das:158` ternary min - use 'min(a, b)' from math module |
+| PERF020 | 1 | `p68_nested_place_rmw.das:692` redundant uint(...) cast - argument is already uint |
+
+### p88-va-list-forwarding-chain/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 440 lines, 11 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| LINT003 | 7 | `p88_va_list_forwarding_chain.das:304` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
+| LINT002 | 1 | `p88_va_list_forwarding_chain.das:336` unused variable i: int const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p88_va_list_forwarding_chain.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `p88_va_list_forwarding_chain.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 1 | `p88_va_list_forwarding_chain.das:356` consecutive declarations share one type; declare them together - 'a, b' |
+
+### p100-redundant-conversions/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 376 lines, 10 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 6 | `p100_redundant_conversions.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 3 | `p100_redundant_conversions.das:320` consecutive declarations share one type; declare them together - 'failures, i_1, negative' |
+| PERF015 | 1 | `p100_redundant_conversions.das:158` ternary min - use 'min(a, b)' from math module |
+
 ### p134-pointer-integer-enum-conversions/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 742 lines, 15 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 742 lines, 10 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | LINT010 | 5 | `p134_pointer_integer_enum_conversions.das:703` dead store of 'skill': overwritten without intervening read |
-| PERF020 | 4 | `p134_pointer_integer_enum_conversions.das:72` redundant int(...) cast - argument is already int |
-| STYLE025 | 2 | `p134_pointer_integer_enum_conversions.das:705` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
 | STYLE042 | 2 | `p134_pointer_integer_enum_conversions.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p134_pointer_integer_enum_conversions.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE025 | 1 | `p134_pointer_integer_enum_conversions.das:705` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
 | STYLE030 | 1 | `p134_pointer_integer_enum_conversions.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
-### p89-std-errno-idioms/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 967 lines, 15 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 6 | `p89_std_errno_idioms.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 5 | `p89_std_errno_idioms.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 2 | `p89_std_errno_idioms.das:903` consecutive declarations share one type; declare them together - 'slot_a, slot_b' |
-| PERF015 | 1 | `p89_std_errno_idioms.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p89_std_errno_idioms.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
-### p115-unprototyped-function-values/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 374 lines, 14 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| LINT003 | 6 | `p115_unprototyped_function_values.das:347` variable c2da_fresh2: int -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p115_unprototyped_function_values.das:70` redundant int(...) cast - argument is already int |
-| STYLE042 | 2 | `p115_unprototyped_function_values.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF015 | 1 | `p115_unprototyped_function_values.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE043 | 1 | `p115_unprototyped_function_values.das:336` consecutive declarations share one type; declare them together - 'failures, v' |
 
 ### p141-integer-to-pointer-width/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 746 lines, 14 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 746 lines, 10 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 6 | `p141_integer_to_pointer_width.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p141_integer_to_pointer_width.das:72` redundant int(...) cast - argument is already int |
 | LINT007 | 1 | `p141_integer_to_pointer_width.das:718` left and right operands of '==' are the same |
 | PERF015 | 1 | `p141_integer_to_pointer_width.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p141_integer_to_pointer_width.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | STYLE043 | 1 | `p141_integer_to_pointer_width.das:709` consecutive declarations share one type; declare them together - 'removed, idle' |
 
-### p160-structured-loops/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 884 lines, 14 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| STYLE043 | 5 | `p160_structured_loops.das:684` consecutive declarations share one type; declare them together - 'total, a, b' |
-| PERF020 | 4 | `p160_structured_loops.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 2 | `p160_structured_loops.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT003 | 1 | `p160_structured_loops.das:678` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p160_structured_loops.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p160_structured_loops.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
 ### p46-function-pointers/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 369 lines, 14 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 369 lines, 10 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p46_function_pointers.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p46_function_pointers.das:70` redundant int(...) cast - argument is already int |
 | LINT003 | 1 | `p46_function_pointers.das:314` variable o: ops -const can be made const (declare with 'let') |
 | LINT007 | 1 | `p46_function_pointers.das:346` left and right operands of '!=' are the same |
 | PERF015 | 1 | `p46_function_pointers.das:158` ternary min - use 'min(a, b)' from math module |
 
-### p65-anonymous-records/canonical
+### p58-bitfields-layout/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 498 lines, 14 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 520 lines, 10 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p65_anonymous_records.das:70` redundant int(...) cast - argument is already int |
+| STYLE042 | 7 | `p58_bitfields_layout.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p58_bitfields_layout.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE013 | 1 | `p58_bitfields_layout.das:316` var (default-init or uninitialized) followed by assignments to fields {c2da_bits_0, c2da_bits_0, c2da_bits_0, c2da_bits_0, c2da_bits_1}; use a named-argument constructor `var f = flags(c2da_bits_0 = ..., c2da_bits_0 = ..., c2da_bits_0 = ..., c2da_bits_0 = ..., c2da_bits_1 = ...)` |
+| STYLE043 | 1 | `p58_bitfields_layout.das:434` consecutive declarations share one type; declare them together - 'a, b' |
+
+### p65-anonymous-records/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 498 lines, 10 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE013 | 4 | `p65_anonymous_records.das:345` var (default-init or uninitialized) followed by assignments to fields {a, b}; use a named-argument constructor `var e = Unnamed_1(a = ..., b = ...)` |
 | LINT003 | 2 | `p65_anonymous_records.das:382` variable e_2: uint -const can be made const (declare with 'let') |
 | STYLE043 | 2 | `p65_anonymous_records.das:353` consecutive declarations share one type; declare them together - 'v, w' |
 | PERF015 | 1 | `p65_anonymous_records.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p65_anonymous_records.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
-### p72-std-file-io/canonical
+### p76-std-strings/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1006 lines, 14 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 6 | `p72_std_file_io.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 3 | `p72_std_file_io.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 2 | `p72_std_file_io.das:919` consecutive declarations share one type; declare them together - 'first, second' |
-| LINT003 | 1 | `p72_std_file_io.das:987` variable argv_raw: uint64 -const can be made const (declare with 'let') |
-| LINT020 | 1 | `p72_std_file_io.das:942` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
-| PERF015 | 1 | `p72_std_file_io.das:160` ternary min - use 'min(a, b)' from math module |
-
-### p81-std-printf-edge/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1112 lines, 14 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1482 lines, 10 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 7 | `p81_std_printf_edge.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 4 | `p81_std_printf_edge.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT003 | 1 | `p81_std_printf_edge.das:1100` variable argv_raw: uint64 -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p81_std_printf_edge.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE043 | 1 | `p81_std_printf_edge.das:1037` consecutive declarations share one type; declare them together - 'count, seek_failed' |
+| STYLE042 | 7 | `p76_std_strings.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p76_std_strings.das:1353` consecutive declarations share one type; declare them together - 'hello, sentence' |
+| PERF015 | 1 | `p76_std_strings.das:160` ternary min - use 'min(a, b)' from math module |
 
 ### p87-va-list-shared-cursor/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 386 lines, 14 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 386 lines, 10 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | LINT003 | 4 | `p87_va_list_shared_cursor.das:296` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p87_va_list_shared_cursor.das:70` redundant int(...) cast - argument is already int |
 | STYLE043 | 4 | `p87_va_list_shared_cursor.das:294` consecutive declarations share one type; declare them together - 'a, b' |
 | PERF015 | 1 | `p87_va_list_shared_cursor.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p87_va_list_shared_cursor.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
-### p122-bool-conditions/canonical
+### p111-std-sscanf/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 760 lines, 13 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1175 lines, 9 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p122_bool_conditions.das:72` redundant int(...) cast - argument is already int |
+| STYLE042 | 4 | `p111_std_sscanf.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 3 | `p111_std_sscanf.das:1096` consecutive declarations share one type; declare them together - 'value, r' |
+| PERF015 | 1 | `p111_std_sscanf.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p111_std_sscanf.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p122-bool-conditions/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 760 lines, 9 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE042 | 3 | `p122_bool_conditions.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE018 | 2 | `p122_bool_conditions.das:730` redundant boolean comparison - use 'b' directly (drop the '== true') |
 | PERF015 | 1 | `p122_bool_conditions.das:160` ternary min - use 'min(a, b)' from math module |
@@ -2206,1474 +2454,1551 @@ unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty;
 
 ### p132-storage-object-identity/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 919 lines, 13 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 919 lines, 9 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 5 | `p132_storage_object_identity.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p132_storage_object_identity.das:72` redundant int(...) cast - argument is already int |
 | STYLE024 | 2 | `p132_storage_object_identity.das:782` redundant 'unsafe { ... }' block; no statement requires unsafe - drop the wrap |
 | PERF015 | 1 | `p132_storage_object_identity.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p132_storage_object_identity.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
-### p151-bitfield-storage-units/canonical
+### p160-structured-loops/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 821 lines, 13 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 884 lines, 9 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| LINT003 | 4 | `p151_bitfield_storage_units.das:724` variable c2da_postinc: uint -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p151_bitfield_storage_units.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 3 | `p151_bitfield_storage_units.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF015 | 1 | `p151_bitfield_storage_units.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p151_bitfield_storage_units.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 5 | `p160_structured_loops.das:684` consecutive declarations share one type; declare them together - 'total, a, b' |
+| STYLE042 | 2 | `p160_structured_loops.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p160_structured_loops.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p160_structured_loops.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p22-typed-literals/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 312 lines, 13 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 312 lines, 9 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 8 | `p22_typed_literals.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p22_typed_literals.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p22_typed_literals.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p47-side-effects/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 446 lines, 13 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 4 | `p47_side_effects.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 3 | `p47_side_effects.das:308` consecutive declarations share one type; declare them together - 'x, r_0' |
-| LINT003 | 2 | `p47_side_effects.das:354` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| STYLE042 | 2 | `p47_side_effects.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT007 | 1 | `p47_side_effects.das:342` left and right operands of '&&' are the same |
-| PERF015 | 1 | `p47_side_effects.das:158` ternary min - use 'min(a, b)' from math module |
-
-### p51-arrays/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 455 lines, 13 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 4 | `p51_arrays.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 3 | `p51_arrays.das:318` variable m: int[2][3] -const can be made const (declare with 'let') |
-| STYLE043 | 2 | `p51_arrays.das:305` consecutive declarations share one type; declare them together - 's, i' |
-| LINT002 | 1 | `p51_arrays.das:345` unused variable a_1: int[7] -const (add an underscore prefix if you really need it) |
-| PERF015 | 1 | `p51_arrays.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE025 | 1 | `p51_arrays.das:358` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE042 | 1 | `p51_arrays.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p53-struct-by-value/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 444 lines, 13 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 444 lines, 9 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | LINT003 | 4 | `p53_struct_by_value.das:316` variable a: vec2 -const can be made const (declare with 'let') |
-| PERF020 | 4 | `p53_struct_by_value.das:70` redundant int(...) cast - argument is already int |
 | STYLE043 | 2 | `p53_struct_by_value.das:331` consecutive declarations share one type; declare them together - 'v_2, w' |
 | PERF015 | 1 | `p53_struct_by_value.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE013 | 1 | `p53_struct_by_value.das:309` var (default-init or uninitialized) followed by assignments to fields {x, y}; use a named-argument constructor `var v_0 = vec2(x = ..., y = ...)` |
 | STYLE042 | 1 | `p53_struct_by_value.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
-### p80-variable-length-array/canonical
+### p54-address-taken/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 406 lines, 13 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 6 | `p80_variable_length_array.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 4 | `p80_variable_length_array.das:297` consecutive declarations share one type; declare them together - 'i, total' |
-| LINT002 | 1 | `p80_variable_length_array.das:378` unused variable unused: int[4] -const (add an underscore prefix if you really need it) |
-| PERF015 | 1 | `p80_variable_length_array.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `p80_variable_length_array.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-
-### p95-unsafe-deref-flag/canonical
-
-unity layout, flags `--strict --unsafe-deref`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 523 lines, 13 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 472 lines, 9 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p95_unsafe_deref_flag.das:70` redundant int(...) cast - argument is already int |
-| STYLE043 | 3 | `p95_unsafe_deref_flag.das:338` consecutive declarations share one type; declare them together - 'total_2, j' |
-| LINT002 | 2 | `p95_unsafe_deref_flag.das:305` unused variable i: int const (add an underscore prefix if you really need it) |
-| STYLE025 | 2 | `p95_unsafe_deref_flag.das:369` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| PERF015 | 1 | `p95_unsafe_deref_flag.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `p95_unsafe_deref_flag.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 5 | `p54_address_taken.das:311` consecutive declarations share one type; declare them together - 'a, b' |
+| STYLE042 | 2 | `p54_address_taken.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 1 | `p54_address_taken.das:354` variable last: int -const can be made const (declare with 'let') |
+| PERF015 | 1 | `p54_address_taken.das:158` ternary min - use 'min(a, b)' from math module |
+
+### p62-bool-store/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 427 lines, 9 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 7 | `p62_bool_store.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p62_bool_store.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE043 | 1 | `p62_bool_store.das:351` consecutive declarations share one type; declare them together - 'hits, is_even' |
+
+### p89-std-errno-idioms/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 967 lines, 9 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 5 | `p89_std_errno_idioms.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p89_std_errno_idioms.das:903` consecutive declarations share one type; declare them together - 'slot_a, slot_b' |
+| PERF015 | 1 | `p89_std_errno_idioms.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p89_std_errno_idioms.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### m02-module-layout-cycle/canonical
 
-source layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 2 module file(s), 3 fragment(s), 704 lines, 12 finding(s) (3 in fragments).
+source layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 2 module file(s), 3 fragment(s), 704 lines, 8 finding(s) (3 in fragments).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c2da_runtime.das:73` redundant int(...) cast - argument is already int |
 | STYLE030 | 3 | `c2da_runtime.das:6` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | STYLE042 | 3 | `c2da_runtime.das:231` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | LINT003 | 1 | `ring_a.das.inc:12` variable result_0: int -const can be made const (declare with 'let') |
 | PERF015 | 1 | `c2da_runtime.das:161` ternary min - use 'min(a, b)' from math module |
 
-### p121-switch-dispatch/canonical
+### p180-value-stores/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1772 lines, 12 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 4 | `p121_switch_dispatch.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 2 | `p121_switch_dispatch.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 2 | `p121_switch_dispatch.das:1689` consecutive declarations share one type; declare them together - 'c2da_fresh1, n, copied' |
-| LINT002 | 1 | `p121_switch_dispatch.das:1731` unused variable i: int const (add an underscore prefix if you really need it) |
-| LINT003 | 1 | `p121_switch_dispatch.das:683` variable c2da_fresh0: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p121_switch_dispatch.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p121_switch_dispatch.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-
-### p150-object-byte-copies/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 789 lines, 12 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 792 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p150_object_byte_copies.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 4 | `p150_object_byte_copies.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT003 | 1 | `p150_object_byte_copies.das:762` variable c2da_fresh18: uint64 -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p150_object_byte_copies.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p150_object_byte_copies.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| STYLE043 | 1 | `p150_object_byte_copies.das:710` consecutive declarations share one type; declare them together - 'p_0, q' |
+| STYLE043 | 3 | `p180_value_stores.das:716` consecutive declarations share one type; declare them together - 'loc, other' |
+| STYLE042 | 2 | `p180_value_stores.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT010 | 1 | `p180_value_stores.das:761` dead store of 'local': overwritten without intervening read |
+| PERF015 | 1 | `p180_value_stores.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p180_value_stores.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
-### p161-structured-switch/canonical
+### p181-pointer-inductions/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 979 lines, 12 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 969 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p161_structured_switch.das:72` redundant int(...) cast - argument is already int |
-| LINT003 | 2 | `p161_structured_switch.das:933` variable c2da_postinc_0: int -const can be made const (declare with 'let') |
-| STYLE042 | 2 | `p161_structured_switch.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 2 | `p161_structured_switch.das:707` consecutive declarations share one type; declare them together - 'c2da_fresh0, acc, i' |
-| PERF015 | 1 | `p161_structured_switch.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p161_structured_switch.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE042 | 3 | `p181_pointer_inductions.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p181_pointer_inductions.das:746` consecutive declarations share one type; declare them together - 'acc, n' |
+| LINT002 | 1 | `p181_pointer_inductions.das:809` unused variable j: uint const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p181_pointer_inductions.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p181_pointer_inductions.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p34-clang-layout-records/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 334 lines, 12 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 334 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p34_c_layout_records.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p34_c_layout_records.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p34_c_layout_records.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p35-pointer-backed-struct/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 335 lines, 12 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 335 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p35_pointer_backed_struct.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p35_pointer_backed_struct.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p35_pointer_backed_struct.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p37-union-overlay/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 324 lines, 12 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 324 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p37_union_overlay.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p37_union_overlay.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p37_union_overlay.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p39-packed-scalar/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 327 lines, 12 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 327 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p39_packed_scalar.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p39_packed_scalar.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p39_packed_scalar.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p40-bitfield-rmw/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 330 lines, 12 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 330 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p40_bitfield_rmw.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p40_bitfield_rmw.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p40_bitfield_rmw.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p40-nested-raw-aggregate-place/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 342 lines, 12 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 342 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p40_nested_raw_aggregate_place.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p40_nested_raw_aggregate_place.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p40_nested_raw_aggregate_place.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p41-raw-array-field-decay/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 347 lines, 12 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 347 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 7 | `p41_raw_array_field_decay.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p41_raw_array_field_decay.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p41_raw_array_field_decay.das:158` ternary min - use 'min(a, b)' from math module |
 
-### p91-std-strerror-perror/canonical
+### p64-pointer-offset-types/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1083 lines, 12 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 498 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 6 | `p91_std_strerror_perror.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 5 | `p91_std_strerror_perror.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF015 | 1 | `p91_std_strerror_perror.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 5 | `p64_pointer_offset_types.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p64_pointer_offset_types.das:364` consecutive declarations share one type; declare them together - 'u, offset' |
+| PERF015 | 1 | `p64_pointer_offset_types.das:158` ternary min - use 'min(a, b)' from math module |
+
+### p70-goto-over-declarations/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 582 lines, 8 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 6 | `p70_goto_over_declarations.das:352` consecutive declarations share one type; declare them together - 'total, a, b, c, d' |
+| PERF015 | 1 | `p70_goto_over_declarations.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `p70_goto_over_declarations.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+
+### p72-std-file-io/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1006 lines, 8 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 3 | `p72_std_file_io.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p72_std_file_io.das:919` consecutive declarations share one type; declare them together - 'first, second' |
+| LINT003 | 1 | `p72_std_file_io.das:987` variable argv_raw: uint64 -const can be made const (declare with 'let') |
+| LINT020 | 1 | `p72_std_file_io.das:942` range(int(...)) truncates a 64-bit bound above 2^31; use range64(...) on the 64-bit values directly - arrays and pointers index with int64/uint64 as-is |
+| PERF015 | 1 | `p72_std_file_io.das:160` ternary min - use 'min(a, b)' from math module |
+
+### p82-eden-exit-status/canonical
+
+unity layout, flags `--strict --libc eden`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 828 lines, 8 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 4 | `p82_std_exit_status.das:229` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF003 | 2 | `p82_std_exit_status.das:329` character_at is O(n) due to strlen; consider peek_data() for hot paths |
+| LINT003 | 1 | `p82_std_exit_status.das:805` variable argv_raw: uint64 -const can be made const (declare with 'let') |
+| PERF015 | 1 | `p82_std_exit_status.das:159` ternary min - use 'min(a, b)' from math module |
 
 ### p94-std-va-forward-libc/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 784 lines, 12 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 784 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p94_std_va_forward_libc.das:72` redundant int(...) cast - argument is already int |
 | LINT003 | 2 | `p94_std_va_forward_libc.das:728` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
 | STYLE042 | 2 | `p94_std_va_forward_libc.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 2 | `p94_std_va_forward_libc.das:738` consecutive declarations share one type; declare them together - 'a, b' |
 | PERF015 | 1 | `p94_std_va_forward_libc.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p94_std_va_forward_libc.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
-### p154-coalesced-temporaries/canonical
+### p99-direct-conditionals/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 783 lines, 11 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 5 | `p154_coalesced_temporaries.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 2 | `p154_coalesced_temporaries.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT010 | 1 | `p154_coalesced_temporaries.das:754` dead store of 's_0': overwritten without intervening read |
-| PERF015 | 1 | `p154_coalesced_temporaries.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p154_coalesced_temporaries.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| STYLE043 | 1 | `p154_coalesced_temporaries.das:755` consecutive declarations share one type; declare them together - 'total, i, r_0' |
-
-### p179-structured-switch-chain/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1030 lines, 11 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 530 lines, 8 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p179_structured_switch_chain.das:72` redundant int(...) cast - argument is already int |
-| LINT003 | 2 | `p179_structured_switch_chain.das:705` variable c2da_fresh0: uint -const can be made const (declare with 'let') |
-| STYLE042 | 2 | `p179_structured_switch_chain.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF015 | 1 | `p179_structured_switch_chain.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p179_structured_switch_chain.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
-| STYLE043 | 1 | `p179_structured_switch_chain.das:977` consecutive declarations share one type; declare them together - 'c2da_fresh3, n_0, r_7' |
+| STYLE042 | 3 | `p99_direct_conditionals.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 3 | `p99_direct_conditionals.das:360` consecutive declarations share one type; declare them together - 'failures, negative' |
+| LINT010 | 1 | `p99_direct_conditionals.das:443` dead store of 'value_0': overwritten without intervening read |
+| PERF015 | 1 | `p99_direct_conditionals.das:158` ternary min - use 'min(a, b)' from math module |
+
+### p101-std-text-builders/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 995 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 5 | `p101_std_text_builders.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p101_std_text_builders.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE043 | 1 | `p101_std_text_builders.das:960` consecutive declarations share one type; declare them together - 'format, buffer' |
+
+### p113-block-scope-function-decl/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 342 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 6 | `p113_block_scope_function_decl.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p113_block_scope_function_decl.das:158` ternary min - use 'min(a, b)' from math module |
+
+### p121-switch-dispatch/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1772 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 2 | `p121_switch_dispatch.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p121_switch_dispatch.das:1689` consecutive declarations share one type; declare them together - 'c2da_fresh1, n, copied' |
+| LINT002 | 1 | `p121_switch_dispatch.das:1731` unused variable i: int const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p121_switch_dispatch.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p121_switch_dispatch.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p150-object-byte-copies/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 789 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 4 | `p150_object_byte_copies.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p150_object_byte_copies.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p150_object_byte_copies.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p150_object_byte_copies.das:710` consecutive declarations share one type; declare them together - 'p_0, q' |
 
 ### p27-variadic-promotions/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 323 lines, 11 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 323 lines, 7 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p27_variadic_promotions.das:70` redundant int(...) cast - argument is already int |
 | LINT003 | 3 | `p27_variadic_promotions.das:299` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
 | STYLE042 | 2 | `p27_variadic_promotions.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p27_variadic_promotions.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `p27_variadic_promotions.das:295` consecutive declarations share one type; declare them together - 'from_char, from_short' |
 
-### p92-std-stream-error-flags/canonical
+### p47-side-effects/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1131 lines, 11 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 6 | `p92_std_stream_error_flags.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 4 | `p92_std_stream_error_flags.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF015 | 1 | `p92_std_stream_error_flags.das:160` ternary min - use 'min(a, b)' from math module |
-
-### p93-std-fopen-errno/canonical
-
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 1084 lines, 11 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 446 lines, 7 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 6 | `p93_std_fopen_errno.das:72` redundant int(...) cast - argument is already int |
-| STYLE042 | 3 | `p93_std_fopen_errno.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| LINT003 | 1 | `p93_std_fopen_errno.das:1007` variable argv_raw: uint64 -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p93_std_fopen_errno.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE043 | 3 | `p47_side_effects.das:308` consecutive declarations share one type; declare them together - 'x, r_0' |
+| STYLE042 | 2 | `p47_side_effects.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT007 | 1 | `p47_side_effects.das:342` left and right operands of '&&' are the same |
+| PERF015 | 1 | `p47_side_effects.das:158` ternary min - use 'min(a, b)' from math module |
+
+### p51-arrays/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 455 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| LINT003 | 2 | `p51_arrays.das:318` variable m: int[2][3] -const can be made const (declare with 'let') |
+| STYLE043 | 2 | `p51_arrays.das:305` consecutive declarations share one type; declare them together - 's, i' |
+| LINT002 | 1 | `p51_arrays.das:345` unused variable a_1: int[7] -const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p51_arrays.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `p51_arrays.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+
+### p80-variable-length-array/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 406 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 4 | `p80_variable_length_array.das:297` consecutive declarations share one type; declare them together - 'i, total' |
+| LINT002 | 1 | `p80_variable_length_array.das:378` unused variable unused: int[4] -const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p80_variable_length_array.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `p80_variable_length_array.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+
+### p81-std-printf-edge/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1112 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 4 | `p81_std_printf_edge.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 1 | `p81_std_printf_edge.das:1100` variable argv_raw: uint64 -const can be made const (declare with 'let') |
+| PERF015 | 1 | `p81_std_printf_edge.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE043 | 1 | `p81_std_printf_edge.das:1037` consecutive declarations share one type; declare them together - 'count, seek_failed' |
+
+### p95-unsafe-deref-flag/canonical
+
+unity layout, flags `--strict --unsafe-deref`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 523 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 3 | `p95_unsafe_deref_flag.das:338` consecutive declarations share one type; declare them together - 'total_2, j' |
+| LINT002 | 2 | `p95_unsafe_deref_flag.das:305` unused variable i: int const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p95_unsafe_deref_flag.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `p95_unsafe_deref_flag.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+
+### p96-memcpy-builtin/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 537 lines, 7 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE043 | 3 | `p96_memcpy_builtin.das:294` consecutive declarations share one type; declare them together - 'i, i_0' |
+| STYLE042 | 2 | `p96_memcpy_builtin.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 1 | `p96_memcpy_builtin.das:524` variable total_0: uint -const can be made const (declare with 'let') |
+| PERF015 | 1 | `p96_memcpy_builtin.das:158` ternary min - use 'min(a, b)' from math module |
+
+### p114-assignment-arguments/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 365 lines, 6 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 3 | `p114_assignment_arguments.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT010 | 1 | `p114_assignment_arguments.das:317` dead store of 'y': overwritten without intervening read |
+| PERF015 | 1 | `p114_assignment_arguments.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE043 | 1 | `p114_assignment_arguments.das:307` consecutive declarations share one type; declare them together - 'failures, x, y, out_0, cell' |
+
+### p116-self-referencing-initializer/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 396 lines, 6 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 3 | `p116_self_referencing_initializer.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE025 | 2 | `p116_self_referencing_initializer.das:319` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
+| PERF015 | 1 | `p116_self_referencing_initializer.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p130-typedef-storage-records/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 743 lines, 10 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 743 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p130_typedef_storage_records.das:72` redundant int(...) cast - argument is already int |
 | STYLE042 | 4 | `p130_typedef_storage_records.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p130_typedef_storage_records.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p130_typedef_storage_records.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p133-const-record-copy/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 761 lines, 10 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 761 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p133_const_record_copy.das:72` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `p133_const_record_copy.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p133_const_record_copy.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE025 | 1 | `p133_const_record_copy.das:696` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
 | STYLE030 | 1 | `p133_const_record_copy.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | STYLE043 | 1 | `p133_const_record_copy.das:723` consecutive declarations share one type; declare them together - 'g, e' |
 
-### p153-compound-assignment-spelling/canonical
+### p154-coalesced-temporaries/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 771 lines, 10 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 783 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p153_compound_assignment_spelling.das:72` redundant int(...) cast - argument is already int |
-| STYLE025 | 2 | `p153_compound_assignment_spelling.das:733` 'unsafe { ... }' block scope is too broad; only one operation requires unsafe - narrow to 'unsafe(<sub-expr>)' wrapping that operation |
-| STYLE042 | 2 | `p153_compound_assignment_spelling.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF015 | 1 | `p153_compound_assignment_spelling.das:160` ternary min - use 'min(a, b)' from math module |
-| STYLE030 | 1 | `p153_compound_assignment_spelling.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE042 | 2 | `p154_coalesced_temporaries.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT010 | 1 | `p154_coalesced_temporaries.das:754` dead store of 's_0': overwritten without intervening read |
+| PERF015 | 1 | `p154_coalesced_temporaries.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p154_coalesced_temporaries.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p154_coalesced_temporaries.das:755` consecutive declarations share one type; declare them together - 'total, i, r_0' |
+
+### p161-structured-switch/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 979 lines, 6 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 2 | `p161_structured_switch.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p161_structured_switch.das:707` consecutive declarations share one type; declare them together - 'c2da_fresh0, acc, i' |
+| PERF015 | 1 | `p161_structured_switch.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p161_structured_switch.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p162-structured-fallback/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 810 lines, 6 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 2 | `p162_structured_fallback.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 2 | `p162_structured_fallback.das:693` consecutive declarations share one type; declare them together - 'i, total_0' |
+| PERF015 | 1 | `p162_structured_fallback.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p162_structured_fallback.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p170-enum-constant-literals/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 763 lines, 10 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 763 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p170_enum_constant_literals.das:72` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `p170_enum_constant_literals.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | LINT010 | 1 | `p170_enum_constant_literals.das:737` dead store of 'm_0': overwritten without intervening read |
 | PERF015 | 1 | `p170_enum_constant_literals.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p170_enum_constant_literals.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 | STYLE043 | 1 | `p170_enum_constant_literals.das:738` consecutive declarations share one type; declare them together - 'out_0, i' |
 
-### p20-pointer-abi-edges/canonical
+### p174-post-step-store/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 309 lines, 10 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 783 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p20_pointer_abi_edges.das:70` redundant int(...) cast - argument is already int |
+| STYLE042 | 3 | `p174_post_step_store.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT002 | 1 | `p174_post_step_store.das:703` unused variable i_1: int const (add an underscore prefix if you really need it) |
+| PERF015 | 1 | `p174_post_step_store.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p174_post_step_store.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p20-pointer-abi-edges/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 309 lines, 6 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE042 | 4 | `p20_pointer_abi_edges.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p20_pointer_abi_edges.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `p20_pointer_abi_edges.das:300` consecutive declarations share one type; declare them together - 'typed, erased' |
 
 ### p23-bool-numeric/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 301 lines, 10 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 301 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p23_bool_numeric.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 4 | `p23_bool_numeric.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | LINT003 | 1 | `p23_bool_numeric.das:295` variable from_call: int -const can be made const (declare with 'let') |
 | PERF015 | 1 | `p23_bool_numeric.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p24-nonruntime-pointer-call/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 308 lines, 10 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 308 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p24_nonruntime_pointer_call.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 4 | `p24_nonruntime_pointer_call.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p24_nonruntime_pointer_call.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `p24_nonruntime_pointer_call.das:300` consecutive declarations share one type; declare them together - 'typed, erased, restored' |
 
 ### p26-variadic-sum/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 322 lines, 10 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 322 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p26_variadic_sum.das:70` redundant int(...) cast - argument is already int |
 | LINT003 | 3 | `p26_variadic_sum.das:298` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
 | STYLE042 | 2 | `p26_variadic_sum.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p26_variadic_sum.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p52-struct-copy/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 473 lines, 10 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 473 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p52_struct_copy.das:70` redundant int(...) cast - argument is already int |
 | STYLE043 | 4 | `p52_struct_copy.das:306` consecutive declarations share one type; declare them together - 'a, b' |
 | PERF015 | 1 | `p52_struct_copy.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p52_struct_copy.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p57-globals-aggregate/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 407 lines, 10 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 407 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 5 | `p57_globals_aggregate.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p57_globals_aggregate.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p57_globals_aggregate.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p63-const-static-table/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 448 lines, 10 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 448 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p63_const_static_table.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 4 | `p63_const_static_table.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | LINT007 | 1 | `p63_const_static_table.das:414` left and right operands of '!=' are the same |
 | PERF015 | 1 | `p63_const_static_table.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### p74-musttail-return/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 356 lines, 10 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 356 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p74_musttail_return.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 3 | `p74_musttail_return.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 3 | `p74_musttail_return.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p79-dispatch-table-cycle/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 410 lines, 10 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 410 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
 | STYLE042 | 5 | `p79_dispatch_table_cycle.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| PERF020 | 4 | `p79_dispatch_table_cycle.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p79_dispatch_table_cycle.das:158` ternary min - use 'min(a, b)' from math module |
 
-### p98-pointer-arg-same-type/canonical
+### p91-std-strerror-perror/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 336 lines, 10 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1083 lines, 6 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p98_pointer_arg_same_type.das:70` redundant int(...) cast - argument is already int |
+| STYLE042 | 5 | `p91_std_strerror_perror.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p91_std_strerror_perror.das:160` ternary min - use 'min(a, b)' from math module |
+
+### p98-pointer-arg-same-type/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 336 lines, 6 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE042 | 4 | `p98_pointer_arg_same_type.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p98_pointer_arg_same_type.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `p98_pointer_arg_same_type.das:309` consecutive declarations share one type; declare them together - 'word, got' |
 
-### legacy-p10-ptr-swap/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 300 lines, 9 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 5 | `p10_ptr_swap.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 1 | `p10_ptr_swap.das:287` variable t: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p10_ptr_swap.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `p10_ptr_swap.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 1 | `p10_ptr_swap.das:294` consecutive declarations share one type; declare them together - 'x, y' |
-
 ### legacy-t07-for/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 301 lines, 9 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 301 lines, 5 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t07_for.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `t07_for.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | LINT010 | 1 | `t07_for.das:290` dead store of 'i': overwritten without intervening read |
 | PERF015 | 1 | `t07_for.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `t07_for.das:287` consecutive declarations share one type; declare them together - 's, i' |
 
-### legacy-u03-unsafe-swap/canonical
+### p151-bitfield-storage-units/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 300 lines, 9 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 821 lines, 5 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 5 | `u03_unsafe_swap.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 1 | `u03_unsafe_swap.das:287` variable t: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `u03_unsafe_swap.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `u03_unsafe_swap.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 1 | `u03_unsafe_swap.das:294` consecutive declarations share one type; declare them together - 'x, y' |
+| STYLE042 | 3 | `p151_bitfield_storage_units.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p151_bitfield_storage_units.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p151_bitfield_storage_units.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p179-structured-switch-chain/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1030 lines, 5 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 2 | `p179_structured_switch_chain.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p179_structured_switch_chain.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p179_structured_switch_chain.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+| STYLE043 | 1 | `p179_structured_switch_chain.das:977` consecutive declarations share one type; declare them together - 'c2da_fresh3, n_0, r_7' |
 
 ### p83-std-main-void/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 677 lines, 9 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 677 lines, 5 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p83_std_main_void.das:72` redundant int(...) cast - argument is already int |
 | STYLE042 | 3 | `p83_std_main_void.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p83_std_main_void.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p83_std_main_void.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p85-pointer-sum-compare/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 430 lines, 9 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 430 lines, 5 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p85_pointer_sum_compare.das:70` redundant int(...) cast - argument is already int |
 | STYLE043 | 3 | `p85_pointer_sum_compare.das:322` consecutive declarations share one type; declare them together - 'base_0, end_0' |
 | PERF015 | 1 | `p85_pointer_sum_compare.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p85_pointer_sum_compare.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
-### legacy-c05-const-struct-ptr/canonical
+### p92-std-stream-error-flags/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 306 lines, 8 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1131 lines, 5 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c05_const_struct_ptr.das:70` redundant int(...) cast - argument is already int |
+| STYLE042 | 4 | `p92_std_stream_error_flags.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p92_std_stream_error_flags.das:160` ternary min - use 'min(a, b)' from math module |
+
+### p93-std-fopen-errno/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 1084 lines, 5 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 3 | `p93_std_fopen_errno.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT003 | 1 | `p93_std_fopen_errno.das:1007` variable argv_raw: uint64 -const can be made const (declare with 'let') |
+| PERF015 | 1 | `p93_std_fopen_errno.das:160` ternary min - use 'min(a, b)' from math module |
+
+### legacy-c05-const-struct-ptr/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 306 lines, 4 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE042 | 2 | `c05_const_struct_ptr.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `c05_const_struct_ptr.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE013 | 1 | `c05_const_struct_ptr.das:295` var (default-init or uninitialized) followed by assignments to fields {x, y}; use a named-argument constructor `var pt = Point(x = ..., y = ...)` |
 
 ### legacy-c09-const-multi/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 296 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 296 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c09_const_multi.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `c09_const_multi.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `c09_const_multi.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `c09_const_multi.das:291` consecutive declarations share one type; declare them together - 'x, y' |
 
 ### legacy-p08-arrow-func/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 306 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 306 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p08_arrow_func.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `p08_arrow_func.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p08_arrow_func.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE013 | 1 | `p08_arrow_func.das:295` var (default-init or uninitialized) followed by assignments to fields {w, h}; use a named-argument constructor `var r_0 = Rect(w = ..., h = ...)` |
 
-### legacy-t06-while/canonical
+### legacy-p10-ptr-swap/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 300 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 300 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t06_while.das:70` redundant int(...) cast - argument is already int |
+| LINT003 | 1 | `p10_ptr_swap.das:287` variable t: int -const can be made const (declare with 'let') |
+| PERF015 | 1 | `p10_ptr_swap.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `p10_ptr_swap.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 1 | `p10_ptr_swap.das:294` consecutive declarations share one type; declare them together - 'x, y' |
+
+### legacy-t06-while/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 300 lines, 4 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE042 | 2 | `t06_while.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `t06_while.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `t06_while.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-t08-struct/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 309 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 309 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t08_struct.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `t08_struct.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `t08_struct.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `t08_struct.das:291` consecutive declarations share one type; declare them together - 'p1, p2' |
 
 ### legacy-t09-enum/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t09_enum.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 3 | `t09_enum.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `t09_enum.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-test-full/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 308 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 308 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `test_full.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `test_full.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `test_full.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `test_full.das:295` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-test-simple/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `test_simple.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 3 | `test_simple.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `test_simple.das:158` ternary min - use 'min(a, b)' from math module |
 
-### p135-static-zero-spelled/canonical
+### legacy-u03-unsafe-swap/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 703 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 300 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p135_static_zero_spelled.das:72` redundant int(...) cast - argument is already int |
+| LINT003 | 1 | `u03_unsafe_swap.das:287` variable t: int -const can be made const (declare with 'let') |
+| PERF015 | 1 | `u03_unsafe_swap.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `u03_unsafe_swap.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 1 | `u03_unsafe_swap.das:294` consecutive declarations share one type; declare them together - 'x, y' |
+
+### p115-unprototyped-function-values/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 374 lines, 4 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| STYLE042 | 2 | `p115_unprototyped_function_values.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p115_unprototyped_function_values.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE043 | 1 | `p115_unprototyped_function_values.das:336` consecutive declarations share one type; declare them together - 'failures, v' |
+
+### p135-static-zero-spelled/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 703 lines, 4 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE042 | 2 | `p135_static_zero_spelled.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p135_static_zero_spelled.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p135_static_zero_spelled.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p140-early-exit-jump-targets/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 774 lines, 8 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 774 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p140_early_exit_jump_targets.das:72` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `p140_early_exit_jump_targets.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p140_early_exit_jump_targets.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p140_early_exit_jump_targets.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
-### p171-unused-call-side-effects/canonical
+### p153-compound-assignment-spelling/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 760 lines, 8 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 771 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p171_unused_call_side_effects.das:72` redundant int(...) cast - argument is already int |
+| STYLE042 | 2 | `p153_compound_assignment_spelling.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p153_compound_assignment_spelling.das:160` ternary min - use 'min(a, b)' from math module |
+| STYLE030 | 1 | `p153_compound_assignment_spelling.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
+
+### p171-unused-call-side-effects/canonical
+
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 760 lines, 4 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | STYLE042 | 2 | `p171_unused_call_side_effects.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p171_unused_call_side_effects.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p171_unused_call_side_effects.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p173-same-type-pointer-index/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 728 lines, 8 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 728 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p173_same_type_pointer_index.das:72` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `p173_same_type_pointer_index.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p173_same_type_pointer_index.das:160` ternary min - use 'min(a, b)' from math module |
 | STYLE030 | 1 | `p173_same_type_pointer_index.das:5` require daslib/fio is unused - no symbol from it (or a module it re-exports) is referenced; drop it |
 
 ### p19-runtime-memory-calls/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 315 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 315 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p19_runtime_memory_calls.das:70` redundant int(...) cast - argument is already int |
 | STYLE043 | 2 | `p19_runtime_memory_calls.das:287` consecutive declarations share one type; declare them together - 'left, right' |
 | PERF015 | 1 | `p19_runtime_memory_calls.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p19_runtime_memory_calls.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p28-variadic-multiple-types/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 324 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 324 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p28_variadic_multiple_types.das:70` redundant int(...) cast - argument is already int |
 | LINT003 | 2 | `p28_variadic_multiple_types.das:299` variable c2da_va_item: C2daVaArg -const can be made const (declare with 'let') |
 | PERF015 | 1 | `p28_variadic_multiple_types.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p28_variadic_multiple_types.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
-### p31-macro-side-effect/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 294 lines, 8 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 4 | `p31_macro_side_effect.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 1 | `p31_macro_side_effect.das:290` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p31_macro_side_effect.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `p31_macro_side_effect.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-| STYLE043 | 1 | `p31_macro_side_effect.das:287` consecutive declarations share one type; declare them together - 'value, result_0' |
-
 ### p42-loops/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 417 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 417 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p42_loops.das:70` redundant int(...) cast - argument is already int |
 | STYLE043 | 2 | `p42_loops.das:301` consecutive declarations share one type; declare them together - 's_0, i_0' |
 | PERF015 | 1 | `p42_loops.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p42_loops.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p55-union-semantics/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 421 lines, 8 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 421 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p55_union_semantics.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `p55_union_semantics.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p55_union_semantics.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE043 | 1 | `p55_union_semantics.das:335` consecutive declarations share one type; declare them together - 't, u' |
 
 ### p82-std-exit-status/canonical
 
-unity layout, flags `--strict --libc std`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 752 lines, 8 finding(s).
+unity layout, flags `--strict --libc std`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 752 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p82_std_exit_status.das:72` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `p82_std_exit_status.das:230` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | LINT003 | 1 | `p82_std_exit_status.das:740` variable argv_raw: uint64 -const can be made const (declare with 'let') |
 | PERF015 | 1 | `p82_std_exit_status.das:160` ternary min - use 'min(a, b)' from math module |
 
-### legacy-c01-complex/canonical
+### p97-constant-conversions/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 310 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 349 lines, 4 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c01_complex.das:70` redundant int(...) cast - argument is already int |
+| STYLE042 | 2 | `p97_constant_conversions.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| LINT007 | 1 | `p97_constant_conversions.das:314` left and right operands of '==' are the same |
+| PERF015 | 1 | `p97_constant_conversions.das:158` ternary min - use 'min(a, b)' from math module |
+
+### legacy-c01-complex/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 310 lines, 3 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | PERF015 | 1 | `c01_complex.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE013 | 1 | `c01_complex.das:299` var (default-init or uninitialized) followed by assignments to fields {a, b}; use a named-argument constructor `var p_0 = Pair(a = ..., b = ...)` |
 | STYLE042 | 1 | `c01_complex.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-c01-const-int/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 288 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 288 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c01_const_int.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `c01_const_int.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `c01_const_int.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-c03-ptr-to-const/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 293 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 293 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c03_ptr_to_const.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `c03_ptr_to_const.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `c03_ptr_to_const.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-c04-const-array/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 304 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 304 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c04_const_array.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `c04_const_array.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `c04_const_array.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `c04_const_array.das:287` consecutive declarations share one type; declare them together - 's, i' |
 
 ### legacy-c06-const-chain/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 302 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 302 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c06_const_chain.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `c06_const_chain.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `c06_const_chain.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `c06_const_chain.das:295` consecutive declarations share one type; declare them together - 'x, y' |
 
 ### legacy-c08-const-static/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 290 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 290 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c08_const_static.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `c08_const_static.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `c08_const_static.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-c10-const-mixed/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 298 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 298 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c10_const_mixed.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `c10_const_mixed.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `c10_const_mixed.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `c10_const_mixed.das:292` consecutive declarations share one type; declare them together - 'x, r' |
 
 ### legacy-d01-dowhile/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 299 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 299 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d01_dowhile.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d01_dowhile.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d01_dowhile.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d01_dowhile.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-d02-dowhile-break/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 302 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 302 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d02_dowhile_break.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d02_dowhile_break.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d02_dowhile_break.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d02_dowhile_break.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-d03-dowhile-continue/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 305 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 305 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d03_dowhile_continue.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d03_dowhile_continue.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d03_dowhile_continue.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d03_dowhile_continue.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-d04-break/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 298 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 298 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d04_break.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d04_break.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE016 | 1 | `d04_break.das:290` adjacent guards leading to identical early-exit can be combined with '\|\|' |
 | STYLE042 | 1 | `d04_break.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-d04-dowhile-once/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 299 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 299 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d04_dowhile_once.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d04_dowhile_once.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d04_dowhile_once.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d04_dowhile_once.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-d05-continue/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 305 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 305 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d05_continue.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d05_continue.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d05_continue.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d05_continue.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-d05-dowhile-zero/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 298 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 298 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d05_dowhile_zero.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d05_dowhile_zero.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d05_dowhile_zero.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d05_dowhile_zero.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-d06-dowhile-nest/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 307 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 307 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d06_dowhile_nest.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d06_dowhile_nest.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d06_dowhile_nest.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d06_dowhile_nest.das:287` consecutive declarations share one type; declare them together - 'i, s, j' |
 
 ### legacy-d06-nested-do/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 307 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 307 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d06_nested_do.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d06_nested_do.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d06_nested_do.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d06_nested_do.das:287` consecutive declarations share one type; declare them together - 'i, s, j' |
 
 ### legacy-d07-do-while-var/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 299 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 299 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d07_do_while_var.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d07_do_while_var.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d07_do_while_var.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d07_do_while_var.das:287` consecutive declarations share one type; declare them together - 'n, f' |
 
 ### legacy-d08-do-in-while/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 304 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 304 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d08_do_in_while.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d08_do_in_while.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d08_do_in_while.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d08_do_in_while.das:287` consecutive declarations share one type; declare them together - 'i, s, j' |
 
 ### legacy-d08-ptr-arrow/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 302 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 302 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d08_ptr_arrow.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d08_ptr_arrow.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE013 | 1 | `d08_ptr_arrow.das:291` var (default-init or uninitialized) followed by assignments to fields {x, y}; use a named-argument constructor `var p = Point(x = ..., y = ...)` |
 | STYLE042 | 1 | `d08_ptr_arrow.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-d09-continue-in-while/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 302 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 302 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d09_continue_in_while.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d09_continue_in_while.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d09_continue_in_while.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d09_continue_in_while.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-d10-sum-do/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 299 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 299 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d10_sum_do.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d10_sum_do.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d10_sum_do.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `d10_sum_do.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-g01-goto-basic/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 289 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 289 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `g01_goto_basic.das:70` redundant int(...) cast - argument is already int |
 | LINT003 | 1 | `g01_goto_basic.das:287` variable x: int -const can be made const (declare with 'let') |
 | PERF015 | 1 | `g01_goto_basic.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `g01_goto_basic.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-g02-goto-loop/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 301 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 301 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `g02_goto_loop.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `g02_goto_loop.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `g02_goto_loop.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `g02_goto_loop.das:287` consecutive declarations share one type; declare them together - 'i, s' |
 
 ### legacy-g03-goto-forward/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 300 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 300 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `g03_goto_forward.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `g03_goto_forward.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `g03_goto_forward.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `g03_goto_forward.das:287` consecutive declarations share one type; declare them together - 'a, b' |
 
 ### legacy-p07-ptr-arith/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 299 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 299 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p07_ptr_arith.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p07_ptr_arith.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p07_ptr_arith.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `p07_ptr_arith.das:289` consecutive declarations share one type; declare them together - 'a, b' |
 
 ### legacy-t01-arith/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 288 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 288 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t01_arith.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `t01_arith.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `t01_arith.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-t01-typedef-simple/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 289 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 289 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t01_typedef_simple.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `t01_typedef_simple.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `t01_typedef_simple.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-t02-mul-div/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 288 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 288 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t02_mul_div.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `t02_mul_div.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `t02_mul_div.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-t03-typedef-struct/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 302 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 302 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t03_typedef_struct.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `t03_typedef_struct.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE013 | 1 | `t03_typedef_struct.das:291` var (default-init or uninitialized) followed by assignments to fields {x, y}; use a named-argument constructor `var p = Point(x = ..., y = ...)` |
 | STYLE042 | 1 | `t03_typedef_struct.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-t04-logical/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 298 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 298 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t04_logical.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `t04_logical.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `t04_logical.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `t04_logical.das:287` consecutive declarations share one type; declare them together - 'b, r' |
 
 ### legacy-t05-if-elif/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 298 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 298 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t05_if_elif.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `t05_if_elif.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `t05_if_elif.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-t10-chain/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 320 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 320 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t10_chain.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `t10_chain.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `t10_chain.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `t10_chain.das:313` consecutive declarations share one type; declare them together - 'm, n, c' |
 
 ### legacy-t11-bool-precedence/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 295 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 295 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t11_bool_precedence.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `t11_bool_precedence.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `t11_bool_precedence.das:158` ternary min - use 'min(a, b)' from math module |
 
 ### legacy-test-member/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 302 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 302 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `test_member.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `test_member.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE013 | 1 | `test_member.das:291` var (default-init or uninitialized) followed by assignments to fields {x, y}; use a named-argument constructor `var p = Point(x = ..., y = ...)` |
 | STYLE042 | 1 | `test_member.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-test-struct-full/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 288 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 288 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `test_struct_full.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `test_struct_full.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `test_struct_full.das:158` ternary min - use 'min(a, b)' from math module |
 
-### legacy-u02-unsafe-write/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 295 lines, 7 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 5 | `u02_unsafe_write.das:70` redundant int(...) cast - argument is already int |
-| PERF015 | 1 | `u02_unsafe_write.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `u02_unsafe_write.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-
-### legacy-ztest-inc/canonical
-
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 293 lines, 7 finding(s).
-
-| rule | count | example |
-|---|---:|---|
-| PERF020 | 4 | `ztest_inc.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 1 | `ztest_inc.das:289` variable c2da_postinc: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `ztest_inc.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `ztest_inc.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
-
 ### p21-byte-numeric/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 299 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 299 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p21_byte_numeric.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p21_byte_numeric.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p21_byte_numeric.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `p21_byte_numeric.das:288` consecutive declarations share one type; declare them together - 'left, right' |
 
 ### p30-macro-constant-expression/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 288 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 288 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p30_macro_constant_expression.das:70` redundant int(...) cast - argument is already int |
 | STYLE042 | 2 | `p30_macro_constant_expression.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | PERF015 | 1 | `p30_macro_constant_expression.das:158` ternary min - use 'min(a, b)' from math module |
 
-### p43-switch/canonical
+### p31-macro-side-effect/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 397 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 294 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p43_switch.das:70` redundant int(...) cast - argument is already int |
-| LINT003 | 1 | `p43_switch.das:349` variable c2da_fresh1: int -const can be made const (declare with 'let') |
-| PERF015 | 1 | `p43_switch.das:158` ternary min - use 'min(a, b)' from math module |
-| STYLE042 | 1 | `p43_switch.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| PERF015 | 1 | `p31_macro_side_effect.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `p31_macro_side_effect.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+| STYLE043 | 1 | `p31_macro_side_effect.das:287` consecutive declarations share one type; declare them together - 'value, result_0' |
 
 ### p44-goto/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 409 lines, 7 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 409 lines, 3 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p44_goto.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p44_goto.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p44_goto.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 | STYLE043 | 1 | `p44_goto.das:366` consecutive declarations share one type; declare them together - 's_0, i_0' |
 
 ### legacy-c02-const-ptr/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c02_const_ptr.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `c02_const_ptr.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `c02_const_ptr.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-c07-const-assign/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `c07_const_assign.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `c07_const_assign.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `c07_const_assign.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-d01-basic/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 295 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 295 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d01_basic.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d01_basic.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d01_basic.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-d02-once/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 295 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 295 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d02_once.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d02_once.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d02_once.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-d03-zero/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 290 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 290 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d03_zero.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d03_zero.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d03_zero.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-d07-ptr-arith/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `d07_ptr_arith.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `d07_ptr_arith.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `d07_ptr_arith.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-p01-ptr-deref/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p01_ptr_deref.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p01_ptr_deref.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p01_ptr_deref.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-p01-ptr-int/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p01_ptr_int.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p01_ptr_int.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p01_ptr_int.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-p02-ptr-assign/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 293 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 293 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p02_ptr_assign.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p02_ptr_assign.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p02_ptr_assign.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-p03-ptr-add/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 294 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 294 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p03_ptr_add.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p03_ptr_add.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p03_ptr_add.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-p04-arrow-basic/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 303 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 303 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p04_arrow_basic.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p04_arrow_basic.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p04_arrow_basic.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-p05-arrow-chain/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 307 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 307 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p05_arrow_chain.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p05_arrow_chain.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p05_arrow_chain.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-p06-ptr-to-ptr/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 294 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 294 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p06_ptr_to_ptr.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p06_ptr_to_ptr.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p06_ptr_to_ptr.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-p09-ptr-null/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p09_ptr_null.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p09_ptr_null.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p09_ptr_null.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-s01-switch-basic/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 298 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 298 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `s01_switch_basic.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `s01_switch_basic.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `s01_switch_basic.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-s02-switch-default/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 298 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 298 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `s02_switch_default.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `s02_switch_default.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `s02_switch_default.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-s03-switch-fallthrough/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 296 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 296 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `s03_switch_fallthrough.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `s03_switch_fallthrough.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `s03_switch_fallthrough.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-t02-typedef-ptr/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 293 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 293 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t02_typedef_ptr.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `t02_typedef_ptr.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `t02_typedef_ptr.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-t03-cmp/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `t03_cmp.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `t03_cmp.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `t03_cmp.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### legacy-u01-unsafe-ptr/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `u01_unsafe_ptr.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `u01_unsafe_ptr.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `u01_unsafe_ptr.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
-### p17-runtime-malloc/canonical
+### legacy-u02-unsafe-write/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 289 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 295 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p17_runtime_malloc.das:70` redundant int(...) cast - argument is already int |
+| PERF015 | 1 | `u02_unsafe_write.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `u02_unsafe_write.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+
+### legacy-ztest-inc/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 293 lines, 2 finding(s).
+
+| rule | count | example |
+|---|---:|---|
+| PERF015 | 1 | `ztest_inc.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `ztest_inc.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+
+### p17-runtime-malloc/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 289 lines, 2 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | PERF015 | 1 | `p17_runtime_malloc.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p17_runtime_malloc.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p18-runtime-calloc-memset/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 290 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 290 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p18_runtime_calloc_memset.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p18_runtime_calloc_memset.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p18_runtime_calloc_memset.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p25-array-initializers/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p25_array_initializers.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p25_array_initializers.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p25_array_initializers.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p32-macro-statement-expression/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 291 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 291 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p32_macro_statement_expression.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p32_macro_statement_expression.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p32_macro_statement_expression.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p33-offsetof-sizeof/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 292 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 292 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p33_predefined_sizeof_builtin.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p33_predefined_sizeof_builtin.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p33_predefined_sizeof_builtin.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p38-local-union-init/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 301 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 301 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p38_local_union_init.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p38_local_union_init.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p38_local_union_init.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p41-union-cast/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 297 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 297 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p41_union_cast.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p41_union_cast.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p41_union_cast.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
-### p45-static-local/canonical
+### p43-switch/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 324 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 397 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p45_static_local.das:70` redundant int(...) cast - argument is already int |
+| PERF015 | 1 | `p43_switch.das:158` ternary min - use 'min(a, b)' from math module |
+| STYLE042 | 1 | `p43_switch.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
+
+### p45-static-local/canonical
+
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 324 lines, 2 finding(s).
+
+| rule | count | example |
+|---|---:|---|
 | PERF015 | 1 | `p45_static_local.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p45_static_local.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p60-layout-divergence/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 426 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 426 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p60_layout_divergence.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p60_layout_divergence.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p60_layout_divergence.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p61-callback-typedef/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 424 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 424 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p61_callback_typedef.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p61_callback_typedef.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p61_callback_typedef.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p77-scalar-brace-initializer/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 390 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 390 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p77_scalar_brace_initializer.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p77_scalar_brace_initializer.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p77_scalar_brace_initializer.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |
 
 ### p84-struct-definition-order/canonical
 
-unity layout, flags `--strict`, translated at commit 883c75d25-dirty; 1 module file(s), 0 fragment(s), 447 lines, 6 finding(s).
+unity layout, flags `--strict`, translated at commit 6bb607d6a; 1 module file(s), 0 fragment(s), 447 lines, 2 finding(s).
 
 | rule | count | example |
 |---|---:|---|
-| PERF020 | 4 | `p84_struct_definition_order.das:70` redundant int(...) cast - argument is already int |
 | PERF015 | 1 | `p84_struct_definition_order.das:158` ternary min - use 'min(a, b)' from math module |
 | STYLE042 | 1 | `p84_struct_definition_order.das:228` function 'c2da_rt_frame_enter' body is a single 'return'; write it as an expression body - 'def c2da_rt_frame_enter(...) => EXPR' |

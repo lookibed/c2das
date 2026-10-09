@@ -1,15 +1,68 @@
 # Translator flags for an EdenSpark target
 
-**What this is.** A plan of the switches c2das needs so its output compiles and runs in the
-EdenSpark editor's daslang. Written 2026-10-09. Step 1 of the order of work is in place: the
-CLI switches (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and
-`--no-unsafe` checkers, and `scripts/eden_check.py`. Step 2 adds `--libc eden` and runs the
-checkers on the shared runtime module too. Step 3 adds the core of `--memory-model linear`
-and `--heap-reserve` (see "`--memory-model linear` as built" below). Step 6 runs the
-linear model under `--module-layout source` (one shared heap module) and adds
-`--fnptr-model table` and `--entry eden`. The Status column says
-which flag is implemented; every other flag, and so the `--target eden` preset, is refused
-by name.
+**What this is.** The switches c2das needs so its output compiles and runs in the EdenSpark
+editor's daslang. Written 2026-10-09.
+
+## State at the end of 2026-10-09
+
+Every switch of the plan is implemented, and `--target eden` translates. Everything is
+tested on master daslang ("upstream") and against the local sandbox model, as wasm3das is.
+The editor itself has not been run.
+
+**Cases that run with C output equal to daslang output on master:**
+
+| case | flags | layout | result |
+|---|---|---|---|
+| `binjgb-cgb-acid2-eden` | `--libc eden --dialect eden-0.6.4` | unity | 60 frames equal to C |
+| `binjgb-cgb-acid2-eden-linear` | + `--memory-model linear --no-unsafe` | unity | 60 frames equal to C; `eden_check` ok |
+| `binjgb-cgb-acid2-eden-linear-source` | + `--fnptr-model table --entry eden` | 5 unit modules + `c2da_runtime` | 60 frames equal to C; `eden_check` ok on all 6 modules |
+| `doomgeneric-demo1-eden-linear` | `--libc eden --memory-model linear --fnptr-model table --entry eden --dialect eden-0.6.4 --no-unsafe` | unity | 70 frames equal to C; `eden_check` ok |
+
+Each flag also has its own fixtures: p190–p216, plus `m02`/`m03` under the eden flags.
+
+**Cost** of whole runs in the master interpreter, including compile:
+
+| program | linear model vs raw model | memory |
+|---|---|---|
+| binjgb | about 3.2× slower | — |
+| Doom | about 3.1× slower | peak 1.28 GB vs 365 MB, not yet explained |
+
+The peak memory is far above the editor's 100 MiB heap cap. Because it is measured on the whole
+process, it may be compile-time memory, but this must be found before Doom goes into the
+editor.
+
+**Lint** (`scripts/lint_translated.py`, full report in [`lint-translated.md`](lint-translated.md)):
+
+| case | layout | files | lines | findings |
+|---|---|---:|---:|---:|
+| `binjgb-cgb-acid2-std` | unity | 1 | 11 942 | 210 |
+| `binjgb-cgb-acid2-std-source` | source | 6 | 12 042 | 217 |
+| `binjgb-cgb-acid2-eden` | unity | 1 | 12 145 | 220 |
+| `binjgb-cgb-acid2-eden-linear` | unity | 1 | 17 936 | 523 |
+| `binjgb-cgb-acid2-eden-linear-source` | source | 6 | 18 008 | 538 |
+| `doomgeneric-demo1-std` | unity | 1 | 40 988 | 548 |
+| `doomgeneric-demo1-std-source` | source | 31 + 54 fragments | 53 954 | 948 |
+| `doomgeneric-demo1-eden-linear` | unity | 1 | 46 596 | 626 |
+
+- The linear model adds about 50% more lines (byte-assembled loads and stores) and doubles
+  the findings on binjgb.
+- The new findings are the same rule classes as upstream, chiefly STYLE043 consecutive
+  same-type declarations, LINT003 `var`→`let` and PERF020 same-type casts in the generated
+  load/store code. None of them is a sandbox or correctness issue.
+
+**Not done:**
+- the editor run itself;
+- Doom under `--module-layout source` with the eden flags (each half works alone);
+- `--records typed` across units, which is refused under `--module-layout source`;
+- an explanation of Doom's memory peak.
+
+Earlier status notes, kept for history: step 1 of the order of work is the CLI switches
+(`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and `--no-unsafe`
+checkers, and `scripts/eden_check.py`. Step 2 adds `--libc eden` and runs the checkers on the
+shared runtime module too. Step 3 adds the core of `--memory-model linear` and
+`--heap-reserve` (see "`--memory-model linear` as built" below). Step 6 runs the linear model
+under `--module-layout source` (one shared heap module) and adds `--fnptr-model table` and
+`--entry eden`.
 
 **Sources.**
 
