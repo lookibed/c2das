@@ -149,8 +149,9 @@ impl TargetOptions {
         if let (Some(bytes), MemoryModel::Raw) = (self.heap_reserve, self.memory_model) {
             missing.push(format!("--heap-reserve {bytes} (needs --memory-model linear)"));
         }
-        if self.entry != EntryModel::default() {
-            missing.push(format!("--entry {}", self.entry));
+        // `--entry eden` builds argv in the linear heap.
+        if let (EntryModel::Eden, MemoryModel::Raw) = (self.entry, self.memory_model) {
+            missing.push(format!("--entry {} (needs --memory-model linear)", self.entry));
         }
         if self.records != RecordsModel::default() {
             missing.push(format!("--records {}", self.records));

@@ -46,6 +46,80 @@ fn linear() -> bool {
     LINEAR.with(|linear| linear.get())
 }
 
+thread_local! {
+    static ENTRY_EDEN: Cell<bool> = const { Cell::new(false) };
+}
+
+/// `--entry eden`: the entry wrapper is the host API `c2da_eden_start`
+/// instead of the `[export] def main` that reads the command line.
+pub(crate) fn set_entry_eden(on: bool) {
+    ENTRY_EDEN.with(|entry| entry.set(on));
+}
+
+fn entry_eden() -> bool {
+    ENTRY_EDEN.with(|entry| entry.get())
+}
+
+/// The host API of `--entry eden` (`--libc eden`, `--memory-model linear`):
+/// `def c2da_eden_start(args : array<string>) : int` builds C's `argv` from
+/// `args` in the heap (`args[0]` is the program name the host chooses; no
+/// element gives `argc == 0` and `argv[0] == NULL`), runs C `main` under the
+/// `--libc eden` `try`/`recover` (`eden_entry_body`) and answers its exit
+/// status.  No command line is read.
+fn build_eden_start(translated_main: &str, arity: usize) -> DaDecl {
+    let call_main = match arity {
+        0 => ret(call(translated_main, vec![])),
+        1 => ret(call(translated_main, vec![call("length", vec![var("args")])])),
+        _ => {
+            super::linear::note_argv();
+            let mut stmts = vec![
+                local("argc", DaType::int(), call("length", vec![var("args")])),
+                local(
+                    "argv_at",
+                    DaType::int(),
+                    call(
+                        "c2da_lin_calloc",
+                        vec![
+                            cast(op2("+", var("argc"), DaExpr::ConstInt(1)), DaType::uint64()),
+                            uint64_const(8),
+                        ],
+                    ),
+                ),
+                local("i", DaType::int(), DaExpr::ConstInt(0)),
+                while_(
+                    op2("<", var("i"), var("argc")),
+                    vec![
+                        DaStmt::Expr(call(
+                            "c2da_lin_put_arg",
+                            vec![
+                                var("argv_at"),
+                                var("i"),
+                                DaExpr::Index(Box::new(var("args")), Box::new(var("i"))),
+                            ],
+                        )),
+                        advance("i"),
+                    ],
+                ),
+            ];
+            stmts.push(ret(call(translated_main, vec![var("argc"), var("argv_at")])));
+            return eden_start_decl(stmts);
+        }
+    };
+    eden_start_decl(vec![call_main])
+}
+
+fn eden_start_decl(stmts: Vec<DaStmt>) -> DaDecl {
+    DaDecl::Function(DaFunction {
+        name: "c2da_eden_start".to_owned(),
+        params: vec![param("args", DaType::array(DaType::string()))],
+        ret_type: DaType::int(),
+        body: Some(DaExpr::Block(DaBlock { stmts: eden_entry_body(stmts) })),
+        annotations: vec![],
+        is_public: false,
+        is_unsafe: false,
+    })
+}
+
 /// `errno` under `--memory-model linear`: 4 bytes inside the heap's
 /// reserved first 16, which no object occupies.
 const LINEAR_ERRNO_AT: u64 = 8;
@@ -877,7 +951,11 @@ fn require_main_wrapper_with(facts: StdLayout, translated_main: &str, arity: usi
     if arity >= 2 && !linear() {
         require(STORE);
     }
-    let entry = build_main_wrapper(translated_main, arity);
+    let entry = if entry_eden() {
+        build_eden_start(translated_main, arity)
+    } else {
+        build_main_wrapper(translated_main, arity)
+    };
     ENTRY_DECLARATIONS.with(|entries| entries.borrow_mut().push(entry));
 }
 

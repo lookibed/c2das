@@ -4277,6 +4277,14 @@ fn translate_impl(
     libc::reset();
     libc::set_eden(tcfg.libc == crate::LibcMode::Eden);
     libc::set_linear(tcfg.target.memory_model == crate::target::MemoryModel::Linear);
+    let entry_eden = tcfg.target.entry == crate::target::EntryModel::Eden;
+    if entry_eden && tcfg.libc != crate::LibcMode::Eden {
+        return Err(format_translation_err!(
+            None,
+            "--entry eden needs --libc eden (the host API runs C main under its exit recovery)"
+        ));
+    }
+    libc::set_entry_eden(entry_eden);
 
     // Prune unreachable system declarations (removes __-prefixed noise from system headers)
     t.ast_context.prune_unwanted_decls(false);

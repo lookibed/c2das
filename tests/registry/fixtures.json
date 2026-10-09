@@ -6444,6 +6444,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p206-linear-entry-eden",
+      "canonical_cases": [
+        "p206-linear-entry-eden"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 7,
+          "stdout": "argc=2\nargv[argc] is NULL\nargv[1] ends with .c\nfinishing with 7\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p206_linear_entry_eden",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p206_linear_entry_eden.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p20-pointer-abi-edges",
       "canonical_cases": [
         "p20-pointer-abi-edges"

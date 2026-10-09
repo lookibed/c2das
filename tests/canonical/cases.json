@@ -1220,6 +1220,24 @@
       "runtime": "required"
     },
     {
+      "id": "p206-linear-entry-eden",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p206_linear_entry_eden.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--entry", "eden", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p206_linear_entry_eden.c"],
+      "expected": {
+        "stdout": "argc=2\nargv[argc] is NULL\nargv[1] ends with .c\nfinishing with 7\n",
+        "exit_code": 7
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p205-linear-record-iterators",
       "status": "ready",
       "source_root": "tests/syntax",
@@ -2481,7 +2499,7 @@
       "translation_units": ["upstream/binjgb/src/common.c", "upstream/binjgb/src/emulator.c", "upstream/binjgb/src/joypad.c", "src/platform.c", "src/entry.c"],
       "c_graph": "binjgb",
       "libc": "eden",
-      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "translator_flags": ["--memory-model", "linear", "--entry", "eden", "--dialect", "eden-0.6.4", "--no-unsafe"],
       "das_options": ["stack = 1048576"],
       "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-DNDEBUG", "-Iinclude", "-Iupstream/binjgb/src", "-Isrc"] },
       "c_reference": { "entrypoint": "main", "return_type": "int" },

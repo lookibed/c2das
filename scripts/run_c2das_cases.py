@@ -23,7 +23,11 @@ LIBC_MODES = ("nostd", "std", "ffi", "all", "eden")
 
 
 def write_eden_host(
-    generated_das: Path, program_args: list[str], destination: Path, das_options: list[str] = ()
+    generated_das: Path,
+    program_args: list[str],
+    destination: Path,
+    das_options: list[str] = (),
+    entry_eden: bool = False,
 ) -> Path:
     """The test host of a `--libc eden` case (`docs/eden-flags.md` flag 5).
 
@@ -53,7 +57,12 @@ def write_eden_host(
         "[export]",
         "def c2da_host_main() : int {",
     ]
-    for arg in program_args:
+    # A program that opens no file has no file table to register into.
+    has_files = any(
+        "def c2da_eden_add_file" in das.read_text()
+        for das in generated_das.parent.glob("*.das")
+    )
+    for arg in program_args if has_files else []:
         path = json.dumps(arg)
         lines += [
             f"    fopen({path}, \"rb\") $(f) {{",
@@ -66,7 +75,15 @@ def write_eden_host(
             "        }",
             "    }",
         ]
-    lines += [f"    return {module}::main()", "}", ""]
+    if entry_eden:
+        # `--entry eden`: the module's host API takes C's argv as strings
+        # (argv[0] first) instead of reading the command line.
+        lines.append("    var args : array<string>")
+        for arg in [str(generated_das), *program_args]:
+            lines.append(f"    push(args, {json.dumps(arg)})")
+        lines += [f"    return {module}::c2da_eden_start(args)", "}", ""]
+    else:
+        lines += [f"    return {module}::main()", "}", ""]
     destination.write_text("\n".join(lines))
     return destination
 
@@ -542,12 +559,17 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         # the native program's.
         separated = case.get("libc") in ("std", "eden") or bool(program_args)
         das_main = case["das_entrypoint"]
-        if case.get("libc") == "eden" and program_args:
+        flags = case.get("translator_flags", [])
+        entry_eden = any(
+            flags[i : i + 2] == ["--entry", "eden"] for i in range(len(flags))
+        )
+        if case.get("libc") == "eden" and (program_args or entry_eden):
             das_entry = write_eden_host(
                 generated_das,
                 program_args,
                 generated_das.parent / "c2da_eden_host.das",
                 case.get("das_options", []),
+                entry_eden,
             )
             das_main = "c2da_host_main"
         da_result = subprocess.run(

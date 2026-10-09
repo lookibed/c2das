@@ -62,7 +62,7 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | 6 | `--varargs-model heap` | Variadic arguments are written into the C stack region of the heap, as clang's wasm ABI does, instead of a daslang array literal per call. | Garbage is collected only between engine frames; a long call that allocates an array per `printf` grows towards the 100 MiB cap (§3) | `[C2daVaArg(…), …]`, an array per call | Not yet: parsed, refused by name. binjgb under `--memory-model linear` passes without it (its variadic calls are the printf family at start and end); the per-call array is legal in the sandbox |
 | 7 | `--heap-reserve <bytes>` | The heap is reserved at its final size before `resize`, and the translator refuses a program whose static data plus heap exceed a set limit (default about 80 MB). | `max_unreserved_size` panics past 64 MB; the per-context heap cap is 100 MiB (§3) | Grows on demand | **Implemented** with `--memory-model linear` (refused without it): the heap is reserved at this size (default 80 MiB) before any `resize`; an allocation past it returns NULL. No static check of the limit yet |
 | 8 | `--dialect eden-0.6.4` | Emitted syntax limited to what the editor's 0.6.4 parses, with located errors otherwise. Excluded:<ul><li>no `!` original operators;</li><li>no `@` metadata on locals;</li><li>no `memmove`;</li><li>options limited to the sandbox list: `gen2`, `indenting`, `stack`, `rtti`, `no_global_variables`, `no_aot`, `solid_context`, `strict_smart_pointers`;</li><li>no `heap_size_limit`.</li></ul> | The editor's daslang is older than master v0.6.4-481 (§1, §4) | Emits only `options gen2`, `solid_context` and case options; uses no `!` operators today, but nothing enforces it | **Implemented** as a checker (`translator/target_check.rs`): options, requires (§6 lists), `!` operators, `memmove`; case `p192-dialect-eden-refuses-option`. Local `@` metadata is not checked: `das_ast` has no node for it |
-| 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | Not yet: parsed, refused by name |
+| 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | **Implemented** with `--memory-model linear --libc eden` (refused without them): the host API `c2da_eden_start(args : array<string>) : int`, see "`--entry eden` as built"; cases `p206-linear-entry-eden`, `binjgb-cgb-acid2-eden-linear-source`. Splitting a frame-driven program into `init`/`tick` is per-program host code |
 | 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (clusters too); with `--memory-model linear` acyclic programs only (one shared heap module; case `binjgb-cgb-acid2-eden-linear-source`), a cluster is refused by name |
 | 11 | `--no-unsafe` (check, implied by the preset) | The translator fails closed, with a source-located diagnostic, on any construct that would need `unsafe` under the other flags. The output is then also checked locally under `sandbox.das_project`. | A sandbox refusal in the editor names only the first error | No such check | **Implemented** as a checker: `--no-unsafe` fails naming the first 10 sites by C declaration; `--no-unsafe=report` prints a census. `scripts/eden_check.py` runs the sandbox model |
 
@@ -250,6 +250,22 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   best of 3 in the interpreter, the same as the single-module `binjgb-cgb-acid2-eden-linear`
   (3.64 s best of 3) on the same loaded machine. Still refused: a cluster (units on a
   reference cycle, so `m02`/`m03` under the model).
+- **`--entry eden` as built (flag 9).** The unit defining C `main` gets no `[export] def
+  main` and reads no command line. It declares `def c2da_eden_start(args : array<string>)
+  : int` instead: `args` is C's whole `argv` (`args[0]` is the program name the host
+  picks; no elements gives `argc == 0`), copied into the heap with `argv[argc]` NULL;
+  C `main` runs under the `--libc eden` `try`/`recover`, so `exit` anywhere answers its
+  status and any other panic is raised again after the console flush. The host
+  registers files with `c2da_eden_add_file` (in the shared module under the source
+  layout) and calls `c2da_eden_start`; the local runner's host
+  (`scripts/run_c2das_cases.py`, `c2da_eden_host.das`) does exactly that. Splitting a
+  frame-driven program into `init`/`tick` is not generated: it is host code per program
+  that calls the translated C functions. Covered: one start per loaded context (an
+  `exit` leaves `c2da_lin_sp` and the exit flag as they were). It needs
+  `--memory-model linear` (refused by name without it) and `--libc eden` (refused,
+  naming both). Cases `p206-linear-entry-eden` (argc/argv, NULL terminator, `exit(7)`
+  from a nested call; C == daslang, exit 7; `--no-unsafe --dialect eden-0.6.4` and
+  `eden_check.py` ok) and `binjgb-cgb-acid2-eden-linear-source`.
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
   - `&` of a parameter, an array in a parameter or a call result used as a pointer, and

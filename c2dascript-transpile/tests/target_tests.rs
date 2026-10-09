@@ -111,7 +111,6 @@ fn eden_preset_lists_every_unimplemented_switch() {
         [
             "--fnptr-model table",
             "--varargs-model heap",
-            "--entry eden",
             "--records typed",
         ]
     );
