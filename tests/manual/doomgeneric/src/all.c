@@ -128,4 +128,8 @@
 #undef puts
 #undef printf
 
+/* The interactive entry `doom_eden_play_all.c` brings its own platform layer
+ * (`dg_eden_play.c`) and defines `DG_NO_BENCH_PLATFORM` to leave this one out. */
+#ifndef DG_NO_BENCH_PLATFORM
 #include "dg_platform.c"
+#endif

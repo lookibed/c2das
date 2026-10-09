@@ -136,9 +136,36 @@ For comparison, binjgb under wasm3das in the same editor runs about 1 250 ms/fra
 6. **`options stack` is accepted** in the project's `main.das`. Doom and binjgb ran with
    `options stack = 8388608`.
 
+### Doom played interactively in the editor
+
+The translated Doom runs directly in the editor's interpreter, with no wasm and no
+double interpretation.
+
+**Pieces:**
+
+| piece | file | what it does |
+|---|---|---|
+| C play entry | `tests/manual/doomgeneric/src/doom_eden_play_all.c`, platform `dg_eden_play.c` | `dge_init`, `dge_tick(ms)`, `dge_key`, `dge_screen`, `dge_palette`, `dge_frames`; `DG_SleepMs` advances the clock, because the screen wipe busy-waits on it |
+| translation | — | the flags of `doomgeneric-demo1-eden-linear` plus `--public-module` |
+| host | `tests/manual/doomgeneric/eden/c2das_doom_player.das`, hand-written, mirrors the wasm3das `DgvPlayer` | one `dge_tick` per update; the 8-bit screen goes through the palette into a `Bitmap` and `update_texture` on a quad; keys come through an action set |
+
+**Measured in the editor:**
+
+| mode | tics/s | one Doom tick | frame copy |
+|---|---|---|---|
+| uncapped | **59.8**, the editor's update rate | 6.9–8.7 ms | 1.2–1.3 ms |
+| capped to Doom's real time | 35.0 | 6.4 ms | — |
+
+`dge_init` takes about 125 ms and the heap is 8 MB. The menu and a new game (E1M1) were
+reached through key input.
+
+For comparison, the same Doom through wasm3das in the editor runs a few frames per second.
+
+**To start it:** run the game, then the cheat `doom_play`, or `doom_play fast` for uncapped
+speed. Keys: arrows/WASD, Ctrl/F to fire, Space/E to use, Enter, Esc.
+
 **Not done:** an exported (published) build, which is stricter than the editor
-(`eden-target.md` §3), and a frame-driven host. Doom and binjgb run to completion inside one
-cheat; nothing is drawn yet.
+(`eden-target.md` §3), and sound.
 
 Earlier status notes, kept for history: step 1 of the order of work is the CLI switches
 (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and `--no-unsafe`
