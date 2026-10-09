@@ -14,7 +14,9 @@
  *   `colors[256]` (`struct color`: one 4-byte bitfield unit per entry, bytes
  *   b, g, r, a) as integers: under
  *   `--memory-model linear` they are offsets into the heap `c2da_mem`.
- * - `dge_frames` counts `DG_DrawFrame` calls. */
+ * - `dge_frames` counts `DG_DrawFrame` calls.
+ * - After each tick, `dge_tick` mixes the sound effects of the game time
+ *   the tick covered (`dg_eden_sound.c`, `dge_audio_*`). */
 #include <stdint.h>
 
 #include "doomgeneric.h"
@@ -44,6 +46,8 @@ void DG_DrawFrame(void)
  * clock in `dge_tick` is added on top of everything slept so far. */
 static uint32_t dge_slept_ms = 0;
 static uint32_t dge_host_ms = 0;
+/* the clock up to which `dge_audio_mix` (`dg_eden_sound.c`) has mixed */
+static uint32_t dge_audio_clock_ms = 0;
 
 void DG_SleepMs(uint32_t ms)
 {
@@ -77,10 +81,10 @@ int dge_init(void)
     dge_argv[0] = "doom";
     dge_argv[1] = "-iwad";
     dge_argv[2] = "doom1.wad";
-    dge_argv[3] = "-nosound";
-    dge_argv[4] = "-nomusic";
-    dge_argv[5] = 0;
-    doomgeneric_Create(5, dge_argv);
+    dge_argv[3] = "-nomusic";
+    dge_argv[4] = 0;
+    doomgeneric_Create(4, dge_argv);
+    dge_audio_clock_ms = dge_clock_ms;
     return dge_frame_count;
 }
 
@@ -90,6 +94,9 @@ void dge_tick(unsigned ms)
     dge_host_ms = ms;
     dge_clock_ms = 1000u + dge_host_ms + dge_slept_ms;
     doomgeneric_Tick();
+    /* the sound of the game time this tick covered, sleeps included */
+    dge_audio_mix(dge_clock_ms - dge_audio_clock_ms);
+    dge_audio_clock_ms = dge_clock_ms;
 }
 
 void dge_key(int pressed, int doomkey)

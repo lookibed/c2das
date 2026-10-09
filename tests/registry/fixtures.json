@@ -1397,6 +1397,30 @@
         "value": "unregistered"
       },
       "family": "doomgeneric",
+      "id": "tests--manual--doomgeneric--src--dg_eden_sound",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/doomgeneric/src/dg_eden_sound.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "doomgeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iinclude",
+          "-Iupstream/doomgeneric/doomgeneric",
+          "-Isrc"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "doomgeneric",
       "id": "tests--manual--doomgeneric--src--dg_platform",
       "owner": "corpus graph inventory",
       "runtime": "unverified",

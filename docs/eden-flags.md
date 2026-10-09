@@ -146,7 +146,7 @@ double interpretation.
 | piece | file | what it does |
 |---|---|---|
 | C play entry | `tests/manual/doomgeneric/src/doom_eden_play_all.c`, platform `dg_eden_play.c` | `dge_init`, `dge_tick(ms)`, `dge_key`, `dge_screen`, `dge_palette`, `dge_frames`; `DG_SleepMs` advances the clock, because the screen wipe busy-waits on it |
-| translation | — | the flags of `doomgeneric-demo1-eden-linear` plus `--public-module` |
+| translation | — | the flags of `doomgeneric-demo1-eden-linear` plus `--public-module` and `-Isrc/eden_play_include` |
 | host | `tests/manual/doomgeneric/eden/c2das_doom_player.das`, hand-written, mirrors the wasm3das `DgvPlayer` | one `dge_tick` per update; the 8-bit screen goes through the palette into a `Bitmap` and `update_texture` on a quad; keys come through an action set |
 
 **Measured in the editor:**
@@ -186,8 +186,31 @@ For comparison, the same Doom through wasm3das in the editor runs a few frames p
 **To start it:** run the game, then the cheat `doom_play`, or `doom_play fast` for uncapped
 speed. Keys: arrows/WASD, Ctrl/F to fire, Space/E to use, Enter, Esc.
 
+**Sound effects** (2026-10-09). The play build defines upstream's `FEATURE_SOUND`, so
+`i_sound.c` lists the platform's `DG_sound_module`. That module is `src/dg_eden_sound.c`, a
+software mixer in the harness C:
+- It plays the DMX `ds*` lumps on 16 voices with upstream's `vol`/`sep` gains.
+- The output is 11 025 Hz interleaved int16 stereo.
+- `dge_tick` mixes the game time each tick covered.
+
+The host opens one `play_sound_stream(11025, 2)` and, after each update's ticks, appends the
+frames from `c2da_mem` as floats. It drops audio while the stream holds more than 8 batches.
+Under `FEATURE_SOUND`, `i_sound.c` includes `<SDL_mixer.h>`, which the empty
+`src/eden_play_include/SDL_mixer.h` answers. The translation therefore adds
+`-Isrc/eden_play_include`. Music stays off (`-nomusic`; `DG_music_module` is silent).
+
+Measured in the editor:
+- After about 580 real-time tics, the status read: 274 sounds started, peak 21 535,
+  288 215 frames appended in 915 batches (315 a tic), stream queue 1, nothing skipped.
+- `doom_bench 700`, with and without sound: engine 6.82 / 6.82 ms/tick (tics 1–700) and
+  8.52 / 8.67 ms/tick (tics 701–1400).
+- The host's conversion and append take 0.6 ms per update.
+- The editor logs `internal error: unable to start audio system` on each reload, but
+  `is_audio_active()` is true and the stream drains. Whether it is audible has not been checked
+  by ear.
+
 **Not done:** an exported (published) build, which is stricter than the editor
-(`eden-target.md` §3), and sound.
+(`eden-target.md` §3), and music.
 
 Earlier status notes, kept for history: step 1 of the order of work is the CLI switches
 (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and `--no-unsafe`

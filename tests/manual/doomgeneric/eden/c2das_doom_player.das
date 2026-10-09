@@ -20,7 +20,9 @@ require math
     (the WAD load and R_Init) and creates a node with a C2dasDoomPlayer
     component. Every on_update the component sends the key edges, runs one
     dge_tick with the clock advanced by one game tic (1000 / 35 ms), and
-    copies the 320x200 paletted screen into the texture.
+    copies the 320x200 paletted screen into the texture. When
+    is_audio_active(), one stereo stream at dge_audio_rate() plays the sound
+    effects dg_eden_sound.c mixed during the update's tics (pump_audio).
 
     Keys (action set c2das_doom_keys): arrows / W S move and turn, A D and
     , . strafe, Alt + turn strafes, Ctrl or F fire, Space or E use, Shift
@@ -68,6 +70,9 @@ let private DOOM_KEY_F1 = 187
 
 let private SCREEN_W = 320
 let private SCREEN_H = 200
+
+// queued stream batches (about one game tic each) above which new audio is dropped
+let private AUDIO_MAX_QUEUE = 8
 
 // keyboard autorepeat of held arrows: first repeat, then the period
 let private REPEAT_DELAY_MS = 400.0lf
@@ -249,6 +254,16 @@ class C2dasDoomPlayer : Component {
     prevUpdate : int64 = 0l
     lastFrameMs : double = 0.0lf
     avgFrameMs : double = 0.0lf
+    // sound effects: one stereo stream at dge_audio_rate(), fed every update
+    // with the frames dg_eden_sound.c mixed since the last update
+    audioOn : bool = false
+    audio : SoundHandle
+    audioFrames : int = 0
+    audioBatches : int = 0
+    audioSkipped : int = 0
+    audioQueue : int = 0
+    lastAudioMs : double = 0.0lf
+    totalAudioMs : double = 0.0lf
 
     def override on_update {
         if (stopped) {
@@ -271,6 +286,7 @@ class C2dasDoomPlayer : Component {
                 return
             }
         }
+        pump_audio()
         show_frame()
         update_status()
     }
@@ -293,6 +309,44 @@ class C2dasDoomPlayer : Component {
             return false
         }
         return true
+    }
+
+    // the frames mixed since the last call (interleaved int16 stereo in the
+    // heap) as floats into the stream; dropped when audio is off or the stream
+    // already holds AUDIO_MAX_QUEUE batches (a game faster than real time)
+    def pump_audio {
+        let n = dge_audio_frames()
+        if (n == 0) {
+            return
+        }
+        if (!audioOn) {
+            dge_audio_consume()
+            return
+        }
+        let t0 = ref_time_ticks()
+        audioQueue = get_stream_queue(audio)
+        if (audioQueue > AUDIO_MAX_QUEUE) {
+            audioSkipped += n
+            dge_audio_consume()
+            return
+        }
+        let base = int(dge_audio_buffer())
+        var inscope floats : array<float>
+        resize(floats, n * 2)
+        for (i in range(n * 2)) {
+            let at = base + i * 2
+            var v = int(c2da_mem[at]) | (int(c2da_mem[at + 1]) << 8)
+            if (v >= 32768) {
+                v -= 65536
+            }
+            floats[i] = float(v) / 32768.0
+        }
+        append_to_stream(audio, floats)
+        dge_audio_consume()
+        audioFrames += n
+        audioBatches++
+        lastAudioMs = double(get_time_nsec(t0)) / 1000000.0lf
+        totalAudioMs += lastAudioMs
     }
 
     def show_frame {
@@ -345,7 +399,13 @@ class C2dasDoomPlayer : Component {
         let copy100 = ticks > 0 ? int(totalCopyMs * 100.0lf / double(ticks)) : 0
         let frame10 = int(avgFrameMs * 10.0lf)
         let mode = turbo > 0 ? "turbo {turbo} tics/update" : (realTime ? "real time" : "fast")
-        return "c2das doom ({mode}): {ticks} tics, {fps10 / 10}.{fps10 % 10} tics/s (35 = real time), tick {int(lastTickMs)} ms (avg {avg10 / 10}.{avg10 % 10}), frame copy {copy100 / 100}.{copy100 % 100} ms avg, upload {int(lastUploadMs * 1000.0lf)} us, editor frame {frame10 / 10}.{frame10 % 10} ms, frames {dge_frames()}, key events {g_keyEvents}"
+        return "c2das doom ({mode}): {ticks} tics, {fps10 / 10}.{fps10 % 10} tics/s (35 = real time), tick {int(lastTickMs)} ms (avg {avg10 / 10}.{avg10 % 10}), frame copy {copy100 / 100}.{copy100 % 100} ms avg, upload {int(lastUploadMs * 1000.0lf)} us, editor frame {frame10 / 10}.{frame10 % 10} ms, frames {dge_frames()}, key events {g_keyEvents}\n{self->audio_report()}"
+    }
+
+    def audio_report : string {
+        let audio100 = audioBatches > 0 ? int(totalAudioMs * 100.0lf / double(audioBatches)) : 0
+        let state = audioOn ? "on" : "off"
+        return "audio {state}: sfx started {dge_audio_starts()}, peak {dge_audio_peak()}, appended {audioFrames} frames in {audioBatches} batches, stream queue {audioQueue}, skipped {audioSkipped}, mixer dropped {int(dge_audio_dropped())}, append {audio100 / 100}.{audio100 % 100} ms avg"
     }
 
     // runs `n` tics in one call, game time (no real-time cap); `copy`: the full
@@ -362,6 +422,8 @@ class C2dasDoomPlayer : Component {
             if (!self->one_tick()) {
                 break
             }
+            // the bench's sound is not played (its mixing is in the tick's time)
+            dge_audio_consume()
             engineMs += lastTickMs
             // the first ~40 tics of the attract demo include the screen wipe
             if (ticks > 50) {
@@ -415,6 +477,10 @@ class C2dasDoomPlayer : Component {
     }
 
     def override on_destroy {
+        if (audioOn) {
+            stop(audio)
+            audioOn = false
+        }
         if (status.isAlive) {
             remove_node(status)
         }
@@ -453,6 +519,11 @@ def public c2das_doom_start(var wad : array<uint8>; realTime : bool = true; turb
     let status = create_debug_text("c2das doom: starting", float2(16, 48), TOP_LEFT_ANCHOR)
     var player = new C2dasDoomPlayer(screen = screen, status = status, realTime = realTime, turbo = turbo)
     player.startTicks = ref_time_ticks()
+    if (is_audio_active()) {
+        player.audio = play_sound_stream(dge_audio_rate(), 2)
+        player.audioOn = true
+    }
+    print("[c2das doom] audio {player.audioOn ? "on" : "off (is_audio_active false)"}, {dge_audio_rate()} Hz stereo\n")
     add_component(screen, player)
     return screen
 }
