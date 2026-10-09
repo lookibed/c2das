@@ -1,16 +1,17 @@
-/* `--memory-model linear` fails closed: a local whose address is taken lives
- * in the C stack frame (p199) and a global in the static block (p203), but a
- * parameter's address is not placed in the heap yet, so `&v` is refused
- * with a located error rather than written as `addr(v)`. */
+/* `--memory-model linear` fails closed: a scalar parameter whose address is
+ * taken is spilled to the C stack (p216), but a by-value record parameter is
+ * not, so `&v.x` is refused with a located error, never `addr(v)`. */
+struct box { int x; };
 static void bump(int *p) { *p += 1; }
-
-static int bumped(int v)
+static int bumped(struct box v)
 {
-	bump(&v);
-	return v;
+	int r = 0;
+	bump(&v.x);
+	return v.x + r;
 }
 
 int linear_refuses_local_address(void)
 {
-	return bumped(1);
+	struct box b = { 1 };
+	return bumped(b);
 }

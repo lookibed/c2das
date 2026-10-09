@@ -277,6 +277,9 @@ impl<'c> Translation<'c> {
             // body already refers to them by the C parameter's name, and a
             // `goto` cannot jump ahead of index 0.
             let mut prologue = self.by_value_record_prologue(&by_value_records)?;
+            if self.is_linear() {
+                prologue.extend(self.linear_param_spills(&param_bindings)?);
+            }
             prologue.append(&mut body_stmts);
 
             Some(DaExpr::Block(DaBlock { stmts: prologue }))

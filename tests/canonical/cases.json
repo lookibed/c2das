@@ -1180,7 +1180,7 @@
         "exit_code": 0
       },
       "expected_error": {
-        "cause": "not supported under --memory-model linear yet: the address of a global object or a parameter",
+        "cause": "not supported under --memory-model linear yet: the address of a parameter of record or array type",
         "location": "p195_linear_refuses_local_address.c:9"
       },
       "runtime": "not-applicable"
@@ -1232,6 +1232,23 @@
       "das_entrypoint": "linear_fnptr_table",
       "expected": {
         "stdout": "null=1 same=1 differ=1\ncopy(9,4)=5\ntotal=81\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p216-linear-parameter-address",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p216_linear_parameter_address.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "101003 8009\n55\n",
         "exit_code": 0
       },
       "runtime": "required"

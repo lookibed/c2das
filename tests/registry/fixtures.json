@@ -6125,7 +6125,7 @@
       "expected": {
         "kind": "translation-error",
         "value": {
-          "cause": "not supported under --memory-model linear yet: the address of a global object or a parameter",
+          "cause": "not supported under --memory-model linear yet: the address of a parameter of record or array type",
           "location": "p195_linear_refuses_local_address.c:9"
         }
       },
@@ -6442,6 +6442,34 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p205_linear_record_iterators.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p216-linear-parameter-address",
+      "canonical_cases": [
+        "p216-linear-parameter-address"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "101003 8009\n55\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p216_linear_parameter_address",
+      "owner": "linear.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p216_linear_parameter_address.c",
       "status": "supported"
     },
     {

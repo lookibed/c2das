@@ -584,8 +584,20 @@ impl<'c> Translation<'c> {
                 _ => None,
             };
             let Some(decl) = root else { continue };
-            if map.contains_key(&decl) || parameters.contains(&decl) {
+            if map.contains_key(&decl) {
                 continue;
+            }
+            // A parameter whose address is taken is spilled to its slot on
+            // entry (`linear_param_spills`); only scalars are.
+            if parameters.contains(&decl) {
+                if let CDeclKind::Variable { typ, .. } = self.ast_context[decl].kind {
+                    if self.is_aggregate(typ.ctype) || self.scalar_of(typ.ctype).is_none() {
+                        return Err(self.linear_refuse(
+                            e,
+                            "the address of a parameter of record or array type (only scalar parameters are spilled to the C stack)",
+                        ));
+                    }
+                }
             }
             let CDeclKind::Variable {
                 has_static_duration: false,
@@ -1096,6 +1108,25 @@ impl<'c> Translation<'c> {
                 Ok(())
             }
         }
+    }
+
+    /// The stores that copy each scalar parameter whose address is taken
+    /// into its C stack slot, first thing in the body; every later use of
+    /// the parameter is a heap access at that slot.
+    pub(crate) fn linear_param_spills(
+        &self,
+        bindings: &[(CDeclId, String, CQualTypeId, String)],
+    ) -> TranslationResult<Vec<DaStmt>> {
+        let mut out = Vec::new();
+        for (decl, _, typ, pname) in bindings {
+            let Some(off) = frame_offset(*decl) else { continue };
+            let Some(s) = self.scalar_of(typ.ctype) else { continue };
+            let a = plus(&DaExpr::Var(FP.into()), off);
+            let stored = self.emit_store(s, WithStmts::new_val(a), WithStmts::new_val(DaExpr::Var(pname.clone())));
+            let (stmts, _) = stored.into_stmts_and_val();
+            out.extend(stmts);
+        }
+        Ok(out)
     }
 
     /// Makes `frame` the frame the following lowering reads.
@@ -1613,6 +1644,12 @@ impl<'c> Translation<'c> {
                     // in C, and a call through a mismatched type finds an
                     // empty slot and panics.
                     return Ok(Some(self.convert_expr(ctx.used(), inner, None)?));
+                }
+                // An integer as a function pointer is that index (a sentinel
+                // such as `(actionf_v)(-1)` is in no table; calling it panics).
+                CastKind::IntegralToPointer if to_fn => {
+                    let v = self.convert_expr(ctx.used(), inner, None)?;
+                    return Ok(Some(v.map(|v| if Self::infer_type(&v) == Some(DaType::int()) { v } else { cast(DaType::int(), v) })));
                 }
                 CastKind::BitCast if to_fn && from_ptr && self.ast_context.is_null_expr(inner) => {
                     return Ok(Some(WithStmts::new_val(DaExpr::ConstInt(0))));
@@ -2200,6 +2237,17 @@ impl<'c> Translation<'c> {
             "strcat" => Some(("c2da_lin_strcat", "II")),
             "strstr" => Some(("c2da_lin_strstr", "II")),
             "memchr" => Some(("c2da_lin_memchr", "IIU")),
+            "strcasecmp" => Some(("c2da_lin_strcasecmp", "II")),
+            "strncasecmp" => Some(("c2da_lin_strncasecmp", "IIU")),
+            "strdup" => Some(("c2da_lin_strdup", "I")),
+            "atoi" => Some(("c2da_lin_atoi", "I")),
+            "atof" => Some(("c2da_lin_atof", "I")),
+            // `--libc eden` has no command processor and writes no files:
+            // `system(NULL)` answers 0 and every request fails with -1.
+            "system" if self.tcfg.libc == crate::LibcMode::Eden => Some(("c2da_lin_system", "I")),
+            "remove" if self.tcfg.libc == crate::LibcMode::Eden => Some(("c2da_lin_remove", "I")),
+            "mkdir" if self.tcfg.libc == crate::LibcMode::Eden && args.len() == 2 => Some(("c2da_lin_mkdir", "IU")),
+            "rename" if self.tcfg.libc == crate::LibcMode::Eden => Some(("c2da_lin_rename", "II")),
             _ => None,
         };
         if let Some((runtime, types)) = sig {
@@ -2755,6 +2803,99 @@ def c2da_lin_strncpy(d : int; s : int; n : uint64) : int {{
 def c2da_lin_strcat(d : int; s : int) : int {{
     c2da_lin_strcpy(d + int(c2da_lin_strlen(d)), s)
     return d
+}}
+
+def c2da_lin_lower(c : int) : int {{
+    return c >= 65 && c <= 90 ? c + 32 : c
+}}
+
+def c2da_lin_strncasecmp(a : int; b : int; n : uint64) : int {{
+    for (i in range(int(n))) {{
+        let x = c2da_lin_lower(int(c2da_mem[a + i]))
+        let y = c2da_lin_lower(int(c2da_mem[b + i]))
+        if (x != y || x == 0) {{
+            return x - y
+        }}
+    }}
+    return 0
+}}
+
+def c2da_lin_strcasecmp(a : int; b : int) : int {{
+    var i = 0
+    while (true) {{
+        let x = c2da_lin_lower(int(c2da_mem[a + i]))
+        let y = c2da_lin_lower(int(c2da_mem[b + i]))
+        if (x != y || x == 0) {{
+            return x - y
+        }}
+        i++
+    }}
+    return 0
+}}
+
+def c2da_lin_strdup(s : int) : int {{
+    let n = c2da_lin_strlen(s) + 1ul
+    let d = c2da_lin_malloc(n)
+    if (d != 0) {{
+        c2da_lin_memcpy(d, s, n)
+    }}
+    return d
+}}
+
+def c2da_lin_isspace(c : int) : bool {{
+    return c == 32 || (c >= 9 && c <= 13)
+}}
+
+// --libc eden: no command processor, no file writes.
+def c2da_lin_system(cmd : int) : int {{
+    return cmd == 0 ? 0 : -1
+}}
+
+def c2da_lin_remove(path : int) : int {{
+    return -1
+}}
+
+def c2da_lin_rename(from : int; to : int) : int {{
+    return -1
+}}
+
+def c2da_lin_mkdir(path : int; mode : uint64) : int {{
+    return -1
+}}
+
+// atoi: optional blanks and sign, then decimal digits (wrapping like the
+// 32-bit accumulation of common libcs; overflow is undefined in C).
+def c2da_lin_atoi(s : int) : int {{
+    var i = s
+    while (c2da_lin_isspace(int(c2da_mem[i]))) {{
+        i++
+    }}
+    var neg = false
+    if (c2da_mem[i] == uint8(45) || c2da_mem[i] == uint8(43)) {{
+        neg = c2da_mem[i] == uint8(45)
+        i++
+    }}
+    var v = 0
+    while (int(c2da_mem[i]) >= 48 && int(c2da_mem[i]) <= 57) {{
+        v = v * 10 + int(c2da_mem[i]) - 48
+        i++
+    }}
+    return neg ? -v : v
+}}
+
+// atof: the text up to the NUL, read by daslang's `to_double`.
+def c2da_lin_atof(s : int) : double {{
+    let text = build_string() $(var w) {{
+        var i = s
+        while (c2da_lin_isspace(int(c2da_mem[i]))) {{
+            i++
+        }}
+        while (c2da_mem[i] != uint8(0)) {{
+            write_char(w, int(c2da_mem[i]))
+            i++
+        }}
+    }}
+    return to_double(text)
 }}
 
 def c2da_lin_strstr(h : int; n : int) : int {{
