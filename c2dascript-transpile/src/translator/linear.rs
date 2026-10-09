@@ -951,20 +951,26 @@ impl<'c> Translation<'c> {
                     self.static_int(*f)
                 }
             }
-            // Integer arithmetic on constants.  Division, remainder and right
-            // shift are folded only on non-negative operands, where signed and
-            // unsigned C agree; the store truncates to the element width.
+            // Integer arithmetic on constants.  On unsigned operands division,
+            // remainder, right shift and comparisons are folded only for
+            // non-negative values, where they agree with i64 arithmetic; signed
+            // ones truncate towards zero as C does.  The store truncates to the
+            // element width.
             CExprKind::Binary(_, op, l, r, _, _) => {
                 let (a, b) = (self.static_int(*l)?, self.static_int(*r)?);
-                let nonneg = a >= 0 && b >= 0;
+                let signed = self.ast_context[*l]
+                    .kind
+                    .get_type()
+                    .map_or(false, |t| self.ast_context.resolve_type(t).kind.is_signed_integral_type());
+                let nonneg = signed || (a >= 0 && b >= 0);
                 Some(match op {
                     CBinOp::Add => a.wrapping_add(b),
                     CBinOp::Subtract => a.wrapping_sub(b),
                     CBinOp::Multiply => a.wrapping_mul(b),
-                    CBinOp::Divide if nonneg && b != 0 => a / b,
-                    CBinOp::Modulus if nonneg && b != 0 => a % b,
+                    CBinOp::Divide if nonneg && b != 0 => a.wrapping_div(b),
+                    CBinOp::Modulus if nonneg && b != 0 => a.wrapping_rem(b),
                     CBinOp::ShiftLeft if (0..63).contains(&b) => a.wrapping_shl(b as u32),
-                    CBinOp::ShiftRight if nonneg && b < 63 => a >> b,
+                    CBinOp::ShiftRight if nonneg && (0..63).contains(&b) => a >> b,
                     CBinOp::BitAnd => a & b,
                     CBinOp::BitOr => a | b,
                     CBinOp::BitXor => a ^ b,

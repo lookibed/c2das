@@ -6462,7 +6462,7 @@
         "kind": "stdout-and-exit-code",
         "value": {
           "exit_code": 0,
-          "stdout": "idmus 520\niddqd 500 idclip 640\n12 4 -3\n- 0 - -1\none 1 - -1\ntwo 2 one 4\n4 one\n-32768 45875 65536 -56819\n150 -75 10\nhits=5\n"
+          "stdout": "idmus 520\niddqd 500 idclip 640\n12 4 -6\n- 0 - -1\none 1 - -1\ntwo 2 one 4\n4 one\n-32768 45875 65536 -56819\n150 -75 10\nhits=5\n"
         }
       },
       "family": "syntax-pointer-legacy",

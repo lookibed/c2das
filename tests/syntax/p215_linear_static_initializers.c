@@ -16,7 +16,7 @@ typedef struct {
 
 seq_t seq_a = SEQ("idmus", 2);
 seq_t seq_b[2] = { SEQ("iddqd", 0), SEQ("idclip", 1 << 2) };
-static int scaled[3] = { 3 * 4, (10 + 2) / 3, -(7 % 4) };
+static int scaled[3] = { 3 * 4, (10 + 2) / 3, -(7 % 4) + -9 / 2 - -9 % 4 };
 
 typedef struct node_s node_t;
 struct node_s {
