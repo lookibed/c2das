@@ -3119,6 +3119,11 @@ impl<'c> Translation<'c> {
                 ref ident,
                 ..
             } if self.link_owner(ident).is_some() => Ok(crate::cfg::DeclStmtInfo::empty()),
+            // `--memory-model linear`: a function-scope `static` whose address
+            // is taken is in the heap's static block, initialised there.
+            CDeclKind::Variable { .. } if linear::is_heap_global(decl_id) => {
+                Ok(crate::cfg::DeclStmtInfo::empty())
+            }
             // A function-scope `static` is not a local at all: it has the
             // lifetime of the program and is initialised exactly once, before
             // `main` (C 6.2.4p3, 6.7.9p4 — its initialiser is a constant
@@ -4266,6 +4271,9 @@ fn translate_impl(
     // Prune unreachable system declarations (removes __-prefixed noise from system headers)
     t.ast_context.prune_unwanted_decls(false);
     t.ast_context.set_prenamed_decls();
+    if t.is_linear() {
+        t.linear_plan_globals()?;
+    }
 
     for (&typedef_id, &subdecl_id) in &t.ast_context.prenamed_decls {
         if let CDeclKind::Typedef { ref name, .. } = t.ast_context[typedef_id].kind {
@@ -4428,6 +4436,9 @@ fn translate_impl(
                 ref ident,
                 ..
             } if t.link_owner(ident).is_some() => continue,
+            // `--memory-model linear`: a global whose address is taken lives
+            // in the heap's static block (`linear.rs`), not in a daslang global.
+            CDeclKind::Variable { .. } if linear::is_heap_global(top_id) => continue,
             CDeclKind::Variable {
                 is_defn: false,
                 ref ident,

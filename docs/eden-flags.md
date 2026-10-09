@@ -55,7 +55,7 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | # | Flag | What it changes in the output | Eden rule it answers | c2das today | Status |
 |---|---|---|---|---|---|
 | 1 | `--memory-model linear` | An address is an `int`/`uint` offset into one `array<uint8>` heap; NULL is 0, with the first bytes reserved. Loads and stores are `[inline]` byte helpers (`load_u32`, `store_u32`, …), shaped like wasm3das `m3_exec_defs.das`. Floats go through `math_bits`. Pointer-backed records become an offset plus Clang's field offsets. | `unsafe`, `addr`, `reinterpret`, pointer arithmetic and `intptr` are refused in every form (§2) | Raw host addresses: `c2da_rt_heap` plus `reinterpret<T?>(address)[i]`; 16 675 `unsafe` across the generated files (§5). The biggest piece of work. | **Core implemented** (`translator/linear.rs`): `int` offsets, in-place byte loads and stores, records through pointers, string literals, allocator and byte functions; what it does not cover fails closed. Cases `p193`, `p194`, `p195` |
-| 2 | `--locals-in-heap` (part of 1) | A local whose address is taken lives in a C stack region of the heap, with a stack pointer global, as clang's wasm lowering does. Other locals stay daslang locals. | No `addr(local)` (§2) | Uses `addr(local)` | **Locals implemented, implied by `--memory-model linear`** (no separate flag; see "C stack (step 4)" below); case `p199`. Globals and parameters whose address is taken are still refused (`p195`) |
+| 2 | `--locals-in-heap` (part of 1) | A local whose address is taken lives in a C stack region of the heap, with a stack pointer global, as clang's wasm lowering does. Other locals stay daslang locals. | No `addr(local)` (§2) | Uses `addr(local)` | **Locals implemented, implied by `--memory-model linear`** (no separate flag; see "C stack (step 4)" below); case `p199`. Globals whose address is taken are in the static block (`p203`); parameters whose address is taken are still refused (`p195`) |
 | 3 | `--fnptr-model table` | A function pointer is an index into a per-signature global `array<function<…>>`, filled by an init function. `c2da_relink()` refills the tables after a hot reload. Calls are `invoke(table[i], …)`. | Function values whose type mentions a struct become null on hot reload (§3; wasm3das rebuilds its op tables in `m3_NewRuntime`) | `@@f` values stored as host function values | Not yet: parsed, refused by name |
 | 4 | `--float-compare nan-safe` | Every float comparison is guarded by a bit-test `isnan` from `math_bits`: `eq = !isnan(a) && !isnan(b) && a == b`, and so on. | NaN comparisons are not IEEE in the editor: `NaN == NaN` is true, `NaN < 1` is true (§3) | Plain `==`, `<` | **Implemented** (`translator/float_compare.rs`): `[inline]` `c2da_fcmp_*` helpers over binary operators, truthiness and `!x`; case `p190-float-compare-nan-safe`. Not covered: the `--libc std` helpers' own floating compares |
 | 5 | `--libc eden` | A libc prelude with:<ul><li>no `fio`; stdout and stderr go to `print` line buffers;</li><li>files read from project assets through a host callback (`request_text` plus `get_binary_asset`); no writes;</li><li>no `exit` (the program ends by returning);</li><li>`memcpy`/`memset`/`memmove`/`memcmp` as byte loops over the heap.</li></ul> | `fio`, `network` and `jobque_boost` are refused; `memmove` is missing; `memcpy` on pointers needs `unsafe` (§2, §4, §6) | `--libc std` uses `fio` and the `memcpy`/`memmove` builtins | **Implemented** (`translator/libc.rs`; under flag 1 `memcpy`/`memmove`/`memset`/`memcmp`/`strlen` are the `c2da_lin_*` heap byte loops, and the std formatter behind `printf` is still refused there), see "`--libc eden` as built" below); cases `p72/p76/p81/p82-eden-*`, `binjgb-cgb-acid2-eden` |
@@ -194,10 +194,24 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   conversions; in the heap an enumeration is that integer's bytes. The `enum` declaration
   is still emitted for a hand-written caller. Case `p202-linear-enums` (C == daslang;
   `--no-unsafe --dialect eden-0.6.4` and `eden_check.py` ok).
+- **Globals in the heap (step 5).** Before any function is lowered, a pass over every
+  function body finds the objects of static duration (globals and function-scope
+  `static`s) whose address is taken or whose array decays to a pointer other than as the
+  base of `a[i]`. Each gets a 16-byte aligned, unshared place in the static block with
+  its initial bytes, written by the same `[init]` copy as the string literals; every use
+  of the name is then a heap access at that constant offset, and no daslang global is
+  emitted for it. Initializers covered: none (zero), integer and enumeration scalars,
+  arrays and records of them (designated and partial lists), `char` arrays from a string
+  literal, and pointers that are NULL or a string literal. Any other initializer (floating
+  point, the address of another object, a bitfield or union) is refused, located. An
+  address taken only in a file-scope initializer is not seen by the pass. Case
+  `p203-linear-globals` (C == daslang; `--no-unsafe --dialect eden-0.6.4` and
+  `eden_check.py` ok). `p195` now refuses `&` of a parameter, which is still not in the heap.
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
-  - `&` of a global or a parameter, and a global array (or an array in a parameter or a
-    call result) used as a pointer;
+  - `&` of a parameter, an array in a parameter or a call result used as a pointer, and
+    a heap global whose initializer is outside the covered forms (see "Globals in the
+    heap");
   - a record value with bitfields read or assigned through a pointer (step 4 copies
     every other record value: see below), and a bitfield through a pointer;
   - a wide string literal;
@@ -272,8 +286,8 @@ Things the target cannot fix and has to document:
      index.
    - Core of `--memory-model linear` done (above): fixtures p193/p194 match C, the
      sandbox model accepts them, and the column kernel costs about 1.2× raw. Still to do:
-     - `--locals-in-heap`: locals done in step 4 (p199); `&global`, `&param` and global
-       arrays used as pointers still to do (globals placed in the heap from `[init]`);
+     - `--locals-in-heap`: locals done in step 4 (p199); `&global` and global arrays used
+       as pointers done in step 5 (p203); `&param` still to do;
      - record and array values through pointers: done in step 4 (p197), except records
        with bitfields;
      - `<string.h>` string functions: done in step 4 (p196); the printf family over
@@ -281,8 +295,9 @@ Things the target cannot fix and has to document:
        --dialect eden-0.6.4 --no-unsafe` (case `binjgb-cgb-acid2-eden-linear`, known-red)
        then stopped at `fopen`; the `<stdio.h>` file functions, argv and errno over the
        heap: done in step 5 (p201); enumerations through pointers: done in step 5
-       (p202). binjgb next stops at a global array used as a pointer
-       (`emulator.c:4800`, in `init_emulator`);
+       (p202); globals in the heap: done in step 5 (p203). binjgb next stops at a
+       function pointer stored in the heap (`e->memory_map.read_ext_ram(e, …)`,
+       `emulator.c:1963`): `--fnptr-model table`;
      - by-value struct parameters with pointer fields;
      - then binjgb.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,

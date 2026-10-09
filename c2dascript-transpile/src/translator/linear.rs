@@ -62,6 +62,7 @@ thread_local! {
 pub fn reset() {
     STATIC.with(|s| *s.borrow_mut() = (vec![0; RESERVED], StdHashMap::new()));
     FRAME.with(|f| f.borrow_mut().clear());
+    GLOBALS.with(|g| g.borrow_mut().clear());
     FORMAT_USED.with(|u| u.set(false));
     FILE_USED.with(|u| u.set(false));
     ARGV_USED.with(|u| u.set(false));
@@ -94,6 +95,34 @@ fn unsupported_linear_conversion(format: &[u8]) -> Option<String> {
 
 fn frame_offset(decl: CDeclId) -> Option<i64> {
     FRAME.with(|f| f.borrow().get(&decl).copied())
+}
+
+thread_local! {
+    /// Objects of static duration whose address is taken (or whose array
+    /// decays to a pointer): their offset in the static block.
+    static GLOBALS: RefCell<StdHashMap<CDeclId, i64>> = RefCell::new(StdHashMap::new());
+}
+
+fn global_offset(decl: CDeclId) -> Option<i64> {
+    GLOBALS.with(|g| g.borrow().get(&decl).copied())
+}
+
+/// True for a static-duration object the linear model keeps in the heap; its
+/// daslang declaration is not emitted.
+pub(crate) fn is_heap_global(decl: CDeclId) -> bool {
+    global_offset(decl).is_some()
+}
+
+/// Appends `bytes` to the static block at a 16-byte boundary (never shared:
+/// the object is writable) and answers its offset.
+fn place_static(bytes: &[u8]) -> i64 {
+    STATIC.with(|s| {
+        let mut s = s.borrow_mut();
+        let at = (s.0.len() + 15) & !15;
+        s.0.resize(at, 0);
+        s.0.extend_from_slice(bytes);
+        at as i64
+    })
 }
 
 /// The offset of a string literal's bytes (with its NUL) in the static block.
@@ -468,6 +497,212 @@ impl<'c> Translation<'c> {
         Ok((map, size))
     }
 
+    /// Places in the static block every object of static duration (a global
+    /// or a function-scope `static`) whose address is taken or whose array
+    /// decays to a pointer in any function body, with its initial bytes.
+    /// Every use of such an object is then a heap access (`heap_place`) and
+    /// its daslang declaration is not emitted.
+    pub(crate) fn linear_plan_globals(&self) -> TranslationResult<()> {
+        let mut order: Vec<CDeclId> = Vec::new();
+        let bodies: Vec<CStmtId> = self
+            .ast_context
+            .iter_decls()
+            .filter_map(|(_, d)| match d.kind {
+                CDeclKind::Function { body: Some(b), .. } => Some(b),
+                _ => None,
+            })
+            .collect();
+        for body in bodies {
+            let nodes: Vec<CExprId> = DFExpr::new(&self.ast_context, SomeId::Stmt(body))
+                .filter_map(|n| match n {
+                    SomeId::Expr(e) => Some(e),
+                    _ => None,
+                })
+                .collect();
+            let mut subscript_bases = std::collections::HashSet::new();
+            for &e in &nodes {
+                if let CExprKind::ArraySubscript(_, lhs, rhs, _) = self.ast_context[e].kind {
+                    for side in [lhs, rhs] {
+                        let mut s = side;
+                        while let CExprKind::Paren(_, i) = self.ast_context[s].kind {
+                            s = i;
+                        }
+                        subscript_bases.insert(s);
+                    }
+                }
+            }
+            for &e in &nodes {
+                let root = match &self.ast_context[e].kind {
+                    CExprKind::Unary(_, CUnOp::AddressOf, arg, _) => self.object_root(*arg),
+                    CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _)
+                        if !subscript_bases.contains(&e) =>
+                    {
+                        self.object_root(*inner)
+                    }
+                    _ => None,
+                };
+                let Some(decl) = root else { continue };
+                if matches!(
+                    self.ast_context[decl].kind,
+                    CDeclKind::Variable { has_static_duration: true, has_thread_duration: false, .. }
+                ) && !order.contains(&decl)
+                {
+                    order.push(decl);
+                }
+            }
+        }
+        for decl in order {
+            // The definition carries the initializer; `extern` redeclarations
+            // share the object.
+            let def = self.ast_context.iter_decls().find_map(|(&id, d)| match &d.kind {
+                CDeclKind::Variable { is_defn: true, ident, .. }
+                    if id == decl || Some(ident) == self.ast_context[decl].kind.get_name() =>
+                {
+                    Some(id)
+                }
+                _ => None,
+            });
+            let src = def.unwrap_or(decl);
+            let CDeclKind::Variable { typ, initializer, .. } = self.ast_context[src].kind else {
+                continue;
+            };
+            let size = self.sizeof_type(typ.ctype).map_err(|_| {
+                format_translation_err!(
+                    self.ast_context.display_loc(&self.ast_context[src].loc),
+                    "not supported under --memory-model linear yet: a global of this type in the heap"
+                )
+            })?;
+            let mut bytes = vec![0u8; size as usize];
+            if let Some(init) = initializer {
+                self.static_init_bytes(init, typ.ctype, &mut bytes, 0)?;
+            }
+            let at = place_static(&bytes);
+            GLOBALS.with(|g| {
+                let mut g = g.borrow_mut();
+                g.insert(decl, at);
+                g.insert(src, at);
+            });
+        }
+        Ok(())
+    }
+
+    /// The constant integer value of a static initializer element.
+    fn static_int(&self, e: CExprId) -> Option<i64> {
+        match &self.ast_context[e].kind {
+            CExprKind::Literal(_, CLiteral::Integer(v, _)) => Some(*v as i64),
+            CExprKind::Literal(_, CLiteral::Character(v)) => Some(*v as i64),
+            CExprKind::ConstantExpr(_, _, Some(ConstIntExpr::I(v))) => Some(*v),
+            CExprKind::ConstantExpr(_, _, Some(ConstIntExpr::U(v))) => Some(*v as i64),
+            CExprKind::ConstantExpr(_, inner, None)
+            | CExprKind::Paren(_, inner)
+            | CExprKind::ImplicitCast(_, inner, _, _, _)
+            | CExprKind::ExplicitCast(_, inner, _, _, _) => self.static_int(*inner),
+            CExprKind::Unary(_, CUnOp::Negate, inner, _) => self.static_int(*inner).map(|v| v.wrapping_neg()),
+            CExprKind::DeclRef(_, d, _) => match self.ast_context[*d].kind {
+                CDeclKind::EnumConstant { value: ConstIntExpr::I(v), .. } => Some(v),
+                CDeclKind::EnumConstant { value: ConstIntExpr::U(v), .. } => Some(v as i64),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Writes the bytes of a static initializer of C type `ty` at `at`:
+    /// integer scalars and arrays of them (also from a string literal);
+    /// anything else is refused, located.
+    fn static_init_bytes(&self, init: CExprId, ty: CTypeId, out: &mut [u8], at: usize) -> TranslationResult<()> {
+        let refuse = || {
+            format_translation_err!(
+                self.ast_context.display_loc(&self.ast_context[init].loc),
+                "not supported under --memory-model linear yet: this initializer of a global in the heap"
+            )
+        };
+        match self.ast_context.resolve_type(ty).kind {
+            CTypeKind::ConstantArray(elem, n) => {
+                let esize = self.sizeof_type(elem).map_err(|_| refuse())? as usize;
+                let mut e = init;
+                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) = self.ast_context[e].kind {
+                    e = i;
+                }
+                match &self.ast_context[e].kind {
+                    CExprKind::InitList(_, items, None, _) => {
+                        if items.len() > n {
+                            return Err(refuse());
+                        }
+                        for (k, item) in items.iter().enumerate() {
+                            if matches!(self.ast_context[*item].kind, CExprKind::ImplicitValueInit(_)) {
+                                continue;
+                            }
+                            self.static_init_bytes(*item, elem, out, at + k * esize)?;
+                        }
+                        Ok(())
+                    }
+                    CExprKind::Literal(_, CLiteral::String(bytes, 1)) if esize == 1 => {
+                        for (k, b) in bytes.iter().take(n).enumerate() {
+                            out[at + k] = *b;
+                        }
+                        Ok(())
+                    }
+                    _ => Err(refuse()),
+                }
+            }
+            CTypeKind::Struct(rec) => {
+                let CDeclKind::Struct { fields: Some(ref fields), .. } = self.ast_context[rec].kind else {
+                    return Err(refuse());
+                };
+                let mut e = init;
+                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) = self.ast_context[e].kind {
+                    e = i;
+                }
+                let CExprKind::InitList(_, items, None, _) = &self.ast_context[e].kind else {
+                    return Err(refuse());
+                };
+                if items.len() > fields.len() {
+                    return Err(refuse());
+                }
+                for (item, field) in items.iter().zip(fields.iter()) {
+                    let CDeclKind::Field { typ: fty, bitfield_width: None, .. } = self.ast_context[*field].kind else {
+                        return Err(refuse());
+                    };
+                    if matches!(self.ast_context[*item].kind, CExprKind::ImplicitValueInit(_)) {
+                        continue;
+                    }
+                    let off = self.field_offset(*field)? as usize;
+                    self.static_init_bytes(*item, fty.ctype, out, at + off)?;
+                }
+                Ok(())
+            }
+            _ => {
+                let Some(scalar) = self.scalar_of(ty) else { return Err(refuse()) };
+                if matches!(scalar, Scalar::F32 | Scalar::F64) {
+                    return Err(refuse());
+                }
+                // A pointer element: NULL, or a string literal's static offset.
+                let literal = match scalar {
+                    Scalar::Ptr => self.decayed_array(init).filter(|a| {
+                        matches!(self.ast_context[*a].kind, CExprKind::Literal(_, CLiteral::String(..)))
+                    }),
+                    _ => None,
+                };
+                let v = match literal {
+                    Some(array) => match self.array_address(ExprContext::default(), array)? {
+                        Some(WithStmts { val: DaExpr::ConstInt(at), .. }) => at,
+                        _ => return Err(refuse()),
+                    },
+                    None => match self.static_int(init) {
+                        Some(v) if scalar != Scalar::Ptr || v == 0 => v,
+                        _ => return Err(refuse()),
+                    },
+                };
+                let width = self.sizeof_type(ty).map_err(|_| refuse())? as usize;
+                for k in 0..width {
+                    out[at + k] = (v >> (8 * k)) as u8;
+                }
+                Ok(())
+            }
+        }
+    }
+
     /// Makes `frame` the frame the following lowering reads.
     pub(crate) fn linear_set_frame(&self, frame: StdHashMap<CDeclId, i64>) {
         FRAME.with(|f| *f.borrow_mut() = frame);
@@ -759,7 +994,8 @@ impl<'c> Translation<'c> {
         match &self.ast_context[expr_id].kind {
             Paren(_, inner) => self.heap_place(ctx, *inner),
             DeclRef(_, decl, _) => Ok(frame_offset(*decl)
-                .map(|off| WithStmts::new_val(plus(&DaExpr::Var(FP.into()), off)))),
+                .map(|off| WithStmts::new_val(plus(&DaExpr::Var(FP.into()), off)))
+                .or_else(|| global_offset(*decl).map(|at| WithStmts::new_val(DaExpr::ConstInt(at))))),
             Unary(_, CUnOp::Deref, ptr, _) => {
                 let ptr_ty = self.qual_of(*ptr)?;
                 if !self.is_data_pointer(ptr_ty.ctype) {
