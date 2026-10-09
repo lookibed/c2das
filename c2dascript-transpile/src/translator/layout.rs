@@ -226,7 +226,9 @@ impl<'c> Translation<'c> {
         // Clang's: a pointer field is a 4-byte `int` offset there.  A field
         // named on such a value (a bitfield unit of a local or global record)
         // needs no proof; a typed daScript pointer to one could only come
-        // from `addr`/`reinterpret`, which `check_linear` refuses.
+        // from `addr`/`reinterpret`, which `check_linear` refuses, or from a
+        // `--records typed` object, whose fields are only ever read by name
+        // (`linear/typed_records.rs`).
         if self.is_linear() {
             return Ok(None);
         }

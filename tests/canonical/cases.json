@@ -1097,7 +1097,7 @@
       "source_root": "tests/syntax",
       "translation_entry": "p191_target_flag_unimplemented.c",
       "c_graph": "single-tu",
-      "translator_flags": ["--varargs-model", "heap"],
+      "translator_flags": ["--heap-reserve", "4096"],
       "clang": { "compiler": "clang-18", "flags": ["-w"] },
       "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
       "das_entrypoint": "not-applicable",
@@ -1106,7 +1106,7 @@
         "exit_code": 0
       },
       "expected_error": {
-        "cause": "--varargs-model heap is not implemented yet"
+        "cause": "--heap-reserve 4096 (needs --memory-model linear) is not implemented yet"
       },
       "runtime": "not-applicable"
     },
@@ -1254,6 +1254,23 @@
       "runtime": "required"
     },
     {
+      "id": "p208-linear-varargs-heap",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p208_linear_varargs_heap.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--varargs-model", "heap", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_varargs_heap", "return_type": "int" },
+      "das_entrypoint": "linear_varargs_heap",
+      "expected": {
+        "stdout": "sum=40\nmixed=4000003016\nforward=55\ndescribe=tag:-12:ff:z len=12\ndepth=31\nloop 0 1 2 3 4 5 6 7 8 9 abcdef 4000000000 -1234567890123    xy|\nloop 1 2 3 4 5 6 7 8 9 10 abcdef 4000000000 -1234567890123    xy|\nloop 2 3 4 5 6 7 8 9 10 11 abcdef 4000000000 -1234567890123    xy|\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p215-linear-static-initializers",
       "status": "ready",
       "source_root": "tests/syntax",
@@ -1266,6 +1283,23 @@
       "das_entrypoint": "main",
       "expected": {
         "stdout": "idmus 520\niddqd 500 idclip 640\n12 4 -6\n- 0 - -1\none 1 - -1\ntwo 2 one 4\n4 one\n-32768 45875 65536 -56819\n150 -75 10\nhits=5\nhits=10\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p209-linear-records-typed",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p209_linear_records_typed.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--records", "typed", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_records_typed", "return_type": "int" },
+      "das_entrypoint": "linear_records_typed",
+      "expected": {
+        "stdout": "list count=10 sum=285 same=1\ntree walk=674206\ncells=410\n",
         "exit_code": 0
       },
       "runtime": "required"

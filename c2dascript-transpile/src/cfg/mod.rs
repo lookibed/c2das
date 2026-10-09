@@ -468,6 +468,9 @@ pub(super) fn convert_return(
                     .map_or(false, |qty| tr.is_pointer_type(qty.ctype));
                 if matches!(ret_da.kind, DaTypeKind::UInt64) && expr_is_ptr {
                     DaExpr::reinterpret(ws.val, DaType::uint64())
+                } else if tr.is_typed_da_pointer(&ret_da) {
+                    // A `--records typed` `T?` only ever meets itself.
+                    ws.val
                 } else if matches!(ret_da.kind, DaTypeKind::Pointer(_)) {
                     DaExpr::reinterpret(ws.val, ret_da)
                 } else {

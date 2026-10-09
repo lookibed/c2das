@@ -329,8 +329,14 @@ impl<'c> Translation<'c> {
                     let params = params.clone();
                     return self.function_value_type(ret, &params, is_variadic);
                 }
-                // `--memory-model linear`: an offset into the heap.
+                // `--memory-model linear`: an offset into the heap, except a
+                // `--records typed` pointer, a daslang `T?`.
                 if self.is_linear() {
+                    if self.is_typed_record_pointer(typ) {
+                        // `T?` whatever the pointee's qualifiers: a typed
+                        // pointer has one daslang type.
+                        return Ok(DaType::pointer(self.convert_type(CQualTypeId::new(inner.ctype))?));
+                    }
                     return Ok(DaType::int());
                 }
                 if matches!(self.ast_context.resolve_type(inner.ctype).kind, Void) {

@@ -411,6 +411,10 @@ impl<'c> Translation<'c> {
         if matches!(pointer, DaExpr::ConstNull) {
             return self.null_pointer(&target);
         }
+        // `--records typed`: a `T?` value only ever meets its own type.
+        if self.is_typed_da_pointer(&target) {
+            return pointer;
+        }
         DaExpr::reinterpret(pointer, target)
     }
 
@@ -456,6 +460,13 @@ impl<'c> Translation<'c> {
                     value = inner
                 }
                 _ => break,
+            }
+        }
+        // `--records typed`: every `T *` of a typed record is the one
+        // daslang type `T?` (qualifiers dropped), so no conversion exists.
+        if let Some(q) = self.ast_context[value].kind.get_qual_type() {
+            if self.is_typed_record_pointer(q.ctype) {
+                return Ok(pointer);
             }
         }
         if let CExprKind::DeclRef(source, ..)

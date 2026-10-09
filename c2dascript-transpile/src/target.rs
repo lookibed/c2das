@@ -66,7 +66,8 @@ switch!(
 );
 switch!(
     /// `--varargs-model`: an array literal per variadic call (today) or a C
-    /// stack region in the heap.  `heap` is not implemented yet.
+    /// stack region of the `--memory-model linear` heap
+    /// (`translator/linear/va_heap.rs`; refused without that model).
     VarargsModel { Array = "array", Heap = "heap" }
 );
 switch!(
@@ -82,8 +83,8 @@ switch!(
 );
 switch!(
     /// `--records`: C records in the memory model's natural form (today) or
-    /// non-escaping records as typed `new T` objects.  `typed` is not
-    /// implemented yet.
+    /// non-escaping records as typed `new T` objects (`typed` needs
+    /// `--memory-model linear`; `translator/linear/typed_records.rs`).
     RecordsModel { Natural = "natural", Typed = "typed" }
 );
 
@@ -142,8 +143,10 @@ impl TargetOptions {
         if let (FnPtrModel::Table, MemoryModel::Raw) = (self.fnptr_model, self.memory_model) {
             missing.push(format!("--fnptr-model {} (needs --memory-model linear)", self.fnptr_model));
         }
-        if self.varargs_model != VarargsModel::default() {
-            missing.push(format!("--varargs-model {}", self.varargs_model));
+        // `--varargs-model heap` writes the arguments into the linear heap's
+        // C stack.
+        if let (VarargsModel::Heap, MemoryModel::Raw) = (self.varargs_model, self.memory_model) {
+            missing.push(format!("--varargs-model {} (needs --memory-model linear)", self.varargs_model));
         }
         // `--heap-reserve` sizes the linear heap; without that model there is
         // no heap it could size.
@@ -154,8 +157,10 @@ impl TargetOptions {
         if let (EntryModel::Eden, MemoryModel::Raw) = (self.entry, self.memory_model) {
             missing.push(format!("--entry {} (needs --memory-model linear)", self.entry));
         }
-        if self.records != RecordsModel::default() {
-            missing.push(format!("--records {}", self.records));
+        // `--records typed` chooses between the linear heap's byte form and
+        // a typed object; without that model there is no byte form.
+        if let (RecordsModel::Typed, MemoryModel::Raw) = (self.records, self.memory_model) {
+            missing.push(format!("--records {} (needs --memory-model linear)", self.records));
         }
         missing
     }

@@ -376,6 +376,34 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     and refuses the casts an index cannot follow; `functions.rs` wraps an indirect
     callee as `c2da_fn_table<n>[i]` (`linear_fn_callee`); the heap load/store of
     `Scalar::Fn` is the plain 4-byte index.
+  - **`--varargs-model heap`.** `linear/va_heap.rs` (a child of `linear.rs`, so it uses
+    its private `Scalar`/`load`/`store`). `linear_plan_frame` gives every call to a
+    variadic function (not `va_start`/`va_copy`) its own outgoing-argument area in the
+    caller's C stack frame, 8 bytes per variadic argument, keyed by the call's callee
+    expression (`AREAS`); `functions.rs convert_function_call` and `linear_format_call`
+    store the promoted values there (`va_heap_area`: integers as `int64`, `float`/`double`
+    as `double`, pointers as offsets) and pass the area's address. `c2da_va_args` is then
+    an `int`, `va_start` sets the cursor's `index` to it, `va_arg` is an 8-byte load at
+    `index` and `index += 8` (`va_heap_vaarg`), and the printf family calls the
+    `c2da_lin_*printf_h` entries over `c2da_lin_vfmt_h` (the `FORMAT_HEAP_RUNTIME`
+    section, `LinearLink::format_heap` under the source layout). A per-site area keeps one
+    call's stores from clobbering an enclosing call's; a recursive call has its own frame.
+    Refused: a variadic `--libc std`/runtime helper (`open`, `sscanf`, …), a variadic call
+    outside a function body, an argument of record type.
+  - **`--records typed`.** `linear/typed_records.rs` (a child of `linear.rs`).
+    `typed_plan`, run by `mod.rs` before `linear_plan_globals`, decides once per unit
+    which structs qualify, by a whitelist over every declaration and expression of the
+    unit (the module comment lists it); a `T *` field of a record that does not qualify
+    disqualifies `T` (fixpoint); `--module-layout source` is refused with the flag. A
+    qualifying `T *` is `T?` (`convert_type.rs`, pointee qualifiers dropped) and is not
+    a data pointer to `linear_pointee`, so every byte-heap path skips it;
+    `typed_member` lowers `p->f` to `p.f` (from `linear_expr`, so stores and `++` reach
+    it through the ordinary lvalue paths), `typed_cast` lowers NULL to `null`, truth to
+    `!= null` and the `malloc(sizeof(T))`/`calloc(1, sizeof(T))` cast to `new T()`, and
+    refuses any other cast; `typed_free` drops `free(p)` to an evaluation of `p`.
+    `abi.rs abi_pointer_cast` and `cfg/mod.rs convert_return` emit no `reinterpret` to
+    a typed `T?` (`is_typed_da_pointer`); `layout.rs` accepts named-field access only
+    for typed records.
   - **`--entry eden`.** `libc.rs build_eden_start` replaces the `[export] def main`
     wrapper by `c2da_eden_start(args : array<string>) : int`: `args` is C's argv, put
     in the heap with `c2da_lin_put_arg`, and C `main` runs inside `eden_entry_body`'s

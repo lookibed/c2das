@@ -1383,7 +1383,8 @@
       "c_graph": "doomgeneric",
       "canonical_case": "doomgeneric-demo1-std",
       "canonical_cases": [
-        "doomgeneric-demo1-std"
+        "doomgeneric-demo1-std",
+        "doomgeneric-demo1-eden-linear"
       ],
       "checked_in_das": null,
       "clang": {
@@ -6014,7 +6015,7 @@
       "expected": {
         "kind": "translation-error",
         "value": {
-          "cause": "--varargs-model heap is not implemented yet"
+          "cause": "--heap-reserve 4096 (needs --memory-model linear) is not implemented yet"
         }
       },
       "family": "syntax-pointer-legacy",
@@ -6446,62 +6447,6 @@
     },
     {
       "c_graph": "single-tu",
-      "canonical_case": "p216-linear-parameter-address",
-      "canonical_cases": [
-        "p216-linear-parameter-address"
-      ],
-      "checked_in_das": null,
-      "clang": {
-        "compile_commands": null,
-        "flags": [
-          "-w"
-        ]
-      },
-      "entrypoint": "main",
-      "expected": {
-        "kind": "stdout-and-exit-code",
-        "value": {
-          "exit_code": 0,
-          "stdout": "101003 8009\n55\n3 31 15 -42\n3 16 8 -9\n-123 0 0 Hello\n275\n"
-        }
-      },
-      "family": "syntax-pointer-legacy",
-      "id": "tests--syntax--p216_linear_parameter_address",
-      "owner": "linear.rs",
-      "runtime": "required",
-      "source": "tests/syntax/p216_linear_parameter_address.c",
-      "status": "supported"
-    },
-    {
-      "c_graph": "single-tu",
-      "canonical_case": "p215-linear-static-initializers",
-      "canonical_cases": [
-        "p215-linear-static-initializers"
-      ],
-      "checked_in_das": null,
-      "clang": {
-        "compile_commands": null,
-        "flags": [
-          "-w"
-        ]
-      },
-      "entrypoint": "main",
-      "expected": {
-        "kind": "stdout-and-exit-code",
-        "value": {
-          "exit_code": 0,
-          "stdout": "idmus 520\niddqd 500 idclip 640\n12 4 -6\n- 0 - -1\none 1 - -1\ntwo 2 one 4\n4 one\n-32768 45875 65536 -56819\n150 -75 10\nhits=5\nhits=10\n"
-        }
-      },
-      "family": "syntax-pointer-legacy",
-      "id": "tests--syntax--p215_linear_static_initializers",
-      "owner": "linear.rs",
-      "runtime": "required",
-      "source": "tests/syntax/p215_linear_static_initializers.c",
-      "status": "supported"
-    },
-    {
-      "c_graph": "single-tu",
       "canonical_case": "p206-linear-entry-eden",
       "canonical_cases": [
         "p206-linear-entry-eden"
@@ -6558,6 +6503,62 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p208-linear-varargs-heap",
+      "canonical_cases": [
+        "p208-linear-varargs-heap"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_varargs_heap",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "sum=40\nmixed=4000003016\nforward=55\ndescribe=tag:-12:ff:z len=12\ndepth=31\nloop 0 1 2 3 4 5 6 7 8 9 abcdef 4000000000 -1234567890123    xy|\nloop 1 2 3 4 5 6 7 8 9 10 abcdef 4000000000 -1234567890123    xy|\nloop 2 3 4 5 6 7 8 9 10 11 abcdef 4000000000 -1234567890123    xy|\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p208_linear_varargs_heap",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p208_linear_varargs_heap.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p209-linear-records-typed",
+      "canonical_cases": [
+        "p209-linear-records-typed"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_records_typed",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "list count=10 sum=285 same=1\ntree walk=674206\ncells=410\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p209_linear_records_typed",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p209_linear_records_typed.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p20-pointer-abi-edges",
       "canonical_cases": [
         "p20-pointer-abi-edges"
@@ -6582,6 +6583,62 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p20_pointer_abi_edges.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p215-linear-static-initializers",
+      "canonical_cases": [
+        "p215-linear-static-initializers"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "idmus 520\niddqd 500 idclip 640\n12 4 -6\n- 0 - -1\none 1 - -1\ntwo 2 one 4\n4 one\n-32768 45875 65536 -56819\n150 -75 10\nhits=5\nhits=10\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p215_linear_static_initializers",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p215_linear_static_initializers.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p216-linear-parameter-address",
+      "canonical_cases": [
+        "p216-linear-parameter-address"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "101003 8009\n55\n3 31 15 -42\n3 16 8 -9\n-123 0 0 Hello\n275\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p216_linear_parameter_address",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p216_linear_parameter_address.c",
       "status": "supported"
     },
     {

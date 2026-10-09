@@ -243,7 +243,10 @@ impl<'c> Translation<'c> {
             // The promoted-argument array is only ever read: `va_arg` indexes
             // it and a forwarded `va_list` passes it on (`variadic.rs`), and
             // every function that receives it declares it read-only too.
-            params.push(mk().param(arg_name, DaType::array(self.va_arg_type()), None));
+            // `--varargs-model heap`: the address of the caller's argument
+            // area in the C stack (`linear/va_heap.rs`).
+            let va_args_ty = if self.va_heap() { DaType::int() } else { DaType::array(self.va_arg_type()) };
+            params.push(mk().param(arg_name, va_args_ty, None));
         }
         if let Some(body_id) = body {
             self.add_definition_param_aliases(body_id, &param_bindings);
@@ -554,7 +557,18 @@ impl<'c> Translation<'c> {
                 das_args.push(arg_val);
             }
         }
-        if is_variadic {
+        if is_variadic && self.va_heap() {
+            // A runtime or `--libc std` helper takes the array payload.
+            if runtime.is_some() || std_libc.is_some() {
+                return Err(format_translation_err!(
+                    self.ast_context.display_loc(&self.ast_context[func].loc),
+                    "not supported under --varargs-model heap yet: a call to this C library variadic function",
+                ));
+            }
+            let area = self.va_heap_area(func, variadic_tail)?;
+            all_stmts.extend(area.stmts);
+            das_args.push(area.val);
+        } else if is_variadic {
             das_args.push(DaExpr::MakeArray(
                 self.pack_variadic_call_tail(0, variadic_tail)?,
             ));
@@ -671,7 +685,7 @@ impl<'c> Translation<'c> {
             .collect()
     }
 
-    fn is_variadic_callee(&self, func: CExprId) -> bool {
+    pub(crate) fn is_variadic_callee(&self, func: CExprId) -> bool {
         let mut func = func;
         while let CExprKind::ImplicitCast(_, inner, _, _, _) = &self.ast_context[func].kind {
             func = *inner;

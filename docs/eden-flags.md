@@ -61,12 +61,70 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | 3 | `--fnptr-model table` | A function pointer is an index into a per-signature global `array<function<…>>`, filled by an init function. `c2da_relink()` refills the tables after a hot reload. Calls are `invoke(table[i], …)`. | Function values whose type mentions a struct become null on hot reload (§3; wasm3das rebuilds its op tables in `m3_NewRuntime`) | `@@f` values stored as host function values | **Implemented** with `--memory-model linear` (refused by name without it): every function pointer — local, parameter, record field, global, heap — is its `int` index; calls are `invoke(c2da_fn_table<n>[i], …)`; NULL is 0; `c2da_relink()` (one module) or `c2da_relink_<stem>()` (source layout) refills the tables. Cases `p207-linear-fnptr-table`, `binjgb-cgb-acid2-eden-linear-source`. Without the switch, linear keeps the heap-only half (`p204`) |
 | 4 | `--float-compare nan-safe` | Every float comparison is guarded by a bit-test `isnan` from `math_bits`: `eq = !isnan(a) && !isnan(b) && a == b`, and so on. | NaN comparisons are not IEEE in the editor: `NaN == NaN` is true, `NaN < 1` is true (§3) | Plain `==`, `<` | **Implemented** (`translator/float_compare.rs`): `[inline]` `c2da_fcmp_*` helpers over binary operators, truthiness and `!x`; case `p190-float-compare-nan-safe`. Not covered: the `--libc std` helpers' own floating compares |
 | 5 | `--libc eden` | A libc prelude with:<ul><li>no `fio`; stdout and stderr go to `print` line buffers;</li><li>files read from project assets through a host callback (`request_text` plus `get_binary_asset`); no writes;</li><li>no `exit` (the program ends by returning);</li><li>`memcpy`/`memset`/`memmove`/`memcmp` as byte loops over the heap.</li></ul> | `fio`, `network` and `jobque_boost` are refused; `memmove` is missing; `memcpy` on pointers needs `unsafe` (§2, §4, §6) | `--libc std` uses `fio` and the `memcpy`/`memmove` builtins | **Implemented** (`translator/libc.rs`; under flag 1 `memcpy`/`memmove`/`memset`/`memcmp`/`strlen` are the `c2da_lin_*` heap byte loops, and the std formatter behind `printf` is still refused there), see "`--libc eden` as built" below); cases `p72/p76/p81/p82-eden-*`, `binjgb-cgb-acid2-eden` |
-| 6 | `--varargs-model heap` | Variadic arguments are written into the C stack region of the heap, as clang's wasm ABI does, instead of a daslang array literal per call. | Garbage is collected only between engine frames; a long call that allocates an array per `printf` grows towards the 100 MiB cap (§3) | `[C2daVaArg(…), …]`, an array per call | Not yet: parsed, refused by name. binjgb under `--memory-model linear` passes without it (its variadic calls are the printf family at start and end); the per-call array is legal in the sandbox |
+| 6 | `--varargs-model heap` | Variadic arguments are written into the C stack region of the heap, as clang's wasm ABI does, instead of a daslang array literal per call. | Garbage is collected only between engine frames; a long call that allocates an array per `printf` grows towards the 100 MiB cap (§3) | `[C2daVaArg(…), …]`, an array per call | **Implemented** with `--memory-model linear` (refused by name without it; `translator/linear/va_heap.rs`): each variadic call site owns an area of 8-byte slots in its caller's C stack frame (integers promoted to `int64`, `float`/`double` as `double`, pointers as offsets); `c2da_va_args` is the area's address and a `va_list`'s `index` the address of its next slot; the printf family reads the slots (`c2da_lin_vfmt_h`). No array per call. Case `p208-linear-varargs-heap`. Still refused: variadic `--libc std` helpers (`open`, `sscanf`, …) and record-typed variadic arguments |
 | 7 | `--heap-reserve <bytes>` | The heap is reserved at its final size before `resize`, and the translator refuses a program whose static data plus heap exceed a set limit (default about 80 MB). | `max_unreserved_size` panics past 64 MB; the per-context heap cap is 100 MiB (§3) | Grows on demand | **Implemented** with `--memory-model linear` (refused without it): the heap is reserved at this size (default 80 MiB) before any `resize`; an allocation past it returns NULL. No static check of the limit yet |
 | 8 | `--dialect eden-0.6.4` | Emitted syntax limited to what the editor's 0.6.4 parses, with located errors otherwise. Excluded:<ul><li>no `!` original operators;</li><li>no `@` metadata on locals;</li><li>no `memmove`;</li><li>options limited to the sandbox list: `gen2`, `indenting`, `stack`, `rtti`, `no_global_variables`, `no_aot`, `solid_context`, `strict_smart_pointers`;</li><li>no `heap_size_limit`.</li></ul> | The editor's daslang is older than master v0.6.4-481 (§1, §4) | Emits only `options gen2`, `solid_context` and case options; uses no `!` operators today, but nothing enforces it | **Implemented** as a checker (`translator/target_check.rs`): options, requires (§6 lists), `!` operators, `memmove`; case `p192-dialect-eden-refuses-option`. Local `@` metadata is not checked: `das_ast` has no node for it |
 | 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | **Implemented** with `--memory-model linear --libc eden` (refused without them): the host API `c2da_eden_start(args : array<string>) : int`, see "`--entry eden` as built"; cases `p206-linear-entry-eden`, `binjgb-cgb-acid2-eden-linear-source`. Splitting a frame-driven program into `init`/`tick` is per-program host code |
 | 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (clusters too), also with `--memory-model linear` (one shared heap module; cases `binjgb-cgb-acid2-eden-linear-source`, `m02`/`m03-…-eden-linear`) |
 | 11 | `--no-unsafe` (check, implied by the preset) | The translator fails closed, with a source-located diagnostic, on any construct that would need `unsafe` under the other flags. The output is then also checked locally under `sandbox.das_project`. | A sandbox refusal in the editor names only the first error | No such check | **Implemented** as a checker: `--no-unsafe` fails naming the first 10 sites by C declaration; `--no-unsafe=report` prints a census. `scripts/eden_check.py` runs the sandbox model |
+| 12 | `--records typed` (needs 1) | A heap allocation of a struct type whose interior addresses never escape as byte pointers is a `new T` daslang object with typed fields; `T*` is `T?`. | Byte-heap fields cost 5–6× raw in the interpreter; a typed object 0.96× (measured below) | Every record through a pointer is an offset plus Clang's field offsets | **Implemented, minimal rule** with `--memory-model linear` (refused by name without it, and with `--module-layout source`; `translator/linear/typed_records.rs`): a struct qualifies per translation unit by a whitelist (below); its `T *` is `T?`, `malloc(sizeof(T))`/`calloc(1, sizeof(T))` is `new T()`, `p->f` is `p.f`, NULL is `null`, `free(p)` releases nothing. Everything else keeps the byte heap. Case `p209-linear-records-typed`. See "`--records typed` as built" below |
+
+### `--records typed` as built
+
+A minimal, sound first version (`translator/linear/typed_records.rs`). What it does not
+cover keeps the byte-heap form; nothing is accepted outside the rule.
+
+- **Scope: one translation unit.** `typed_plan` decides before translation. With
+  `--module-layout source` the flag is refused by name ("the rule needs every unit of the
+  program"); a whole-program version would run the same rule in the link pass.
+- **The rule is a whitelist.** A struct `T` qualifies only when, across every
+  declaration and expression of the unit:
+  - a `T *` value is only read, assigned, compared with `==`/`!=`, tested for truth
+    (`if (p)`, `!p`, `p ? a : b`), passed to or returned from a function the unit defines
+    (fixed parameters only), or used as the base of `p->f`;
+  - every conversion to `T *` is NULL (`0` or `(void *)0`), a qualifier change, or
+    `malloc(sizeof(T))` / `calloc(1, sizeof(T))` (the type form of `sizeof`); the only
+    conversion from `T *` is the argument of `free`;
+  - nothing puts a `T` or a `T *` into byte memory: no `T **`, no array of `T` or `T *`,
+    no `T` by value inside another record, no `T *` field of a record or union that does
+    not qualify (a fixpoint), no `T *` variadic argument or `va_arg`;
+  - no address inside a `T` object is taken: no `&x` of a `T`, no `&p->f` / `&s.f` /
+    `&s.a.b` of a field of `T`, no decayed array field of `T`;
+  - no `*p`, `p[i]`, `p + n`, `++p` or `<` on a `T *` (so `sizeof *p` disqualifies too);
+  - no library function other than `free` takes or returns a `T *` (`memset`, `memcpy`,
+    `realloc`, `printf("%p")`, … all disqualify);
+  - `T` has no bitfield and no aggregate field (record, union or array by value).
+- **Lowering.** A qualifying `T *` is `T?` everywhere (locals, parameters, returns,
+  globals, fields of typed records), pointee qualifiers dropped. The allocation patterns
+  are `new T()`: daslang zero-initialises every field, which is `calloc`'s contract and
+  one valid value of `malloc`'s indeterminate bytes. NULL is `null`, truth `!= null`,
+  `p->f` `p.f`. `free(p)` evaluates `p` and releases nothing: `delete` needs `unsafe`,
+  which the sandbox refuses (`eden-target.md` §2), so the object is reclaimed by
+  daslang's garbage collector between engine frames. A use-after-free that C leaves
+  undefined reads the still-live object instead of failing.
+- **Fail closed.** A cast the rule did not whitelist still reaching a typed pointer is
+  refused by name; a library call with a typed pointer argument or result is refused; the
+  module-wide `unsafe` net (`target_check.rs check_linear`) still applies.
+- **Verified.** `p209-linear-records-typed`: a list (`malloc`, global head, traversal,
+  `free`), a binary search tree (`calloc`, recursion through `const` parameters, `free`)
+  and a list record disqualified by `&c->value` that stays in the byte heap in the same
+  program; C == daslang on master, `--no-unsafe`, `scripts/eden_check.py` ok (0
+  `unsafe`/`addr`/`reinterpret`/`intptr`).
+- **Measured** (master daslang interpreter, this machine, 3 runs each, no editor run):
+  building a 1 000-node list and walking it 2 000 times (2 M `p->value` / `p->next`
+  reads) takes 15.4–15.6 ms typed, 125–127 ms with the byte heap (`--records natural`),
+  15.6–16.1 ms under today's raw-pointer model. Typed is 8.1× faster than the byte heap
+  and on par with raw pointers (0.98×), in line with the 0.96× kernel measured below.
+- **binjgb would not qualify** under this rule. Its `Emulator` (`xcalloc` is `calloc`) has
+  20 `&e->…` interior addresses in `emulator.c` (`&e->state`, `&e->audio_buffer`,
+  `&e->pal[i]`, `&e->frame_buffer`, …), and its `state` member is `memcpy`'d for save states
+  (`emulator_read_state`/`emulator_write_state`). Getting the measured 0.96× there needs
+  more than flag 12 as built: interior pointers to typed sub-records as daslang
+  references, typed arrays and records inside a typed record, and a field-wise copy for
+  `memcpy` of a typed record. No binjgb measurement was taken.
+- **Still missing:** the whole-program (source layout) version; aggregate fields; `T`
+  by value meeting a typed object (`*p`, `s = *p`, `*p = s`); arrays of typed objects;
+  `sizeof *p` in the allocation pattern; typed pointers in variadic calls.
 
 ### `--libc eden` as built
 
@@ -395,8 +453,9 @@ Things the target cannot fix and has to document:
        raw `binjgb-cgb-acid2-eden` build 2.10 s − 1.00 s ≈ 1.10 s, about 18 ms/frame.
        Linear is about 3.2× raw here (the column kernel above was 1.2×: binjgb's
        accesses are mostly multi-byte fields of the emulator record in the heap);
-     - still open: `&param`, by-value parameters of storage-backed records, the
-       `--varargs-model heap` and the daslang-value half of `--fnptr-model table`.
+     - still open: `&param`, by-value parameters of storage-backed records, and the
+       daslang-value half of `--fnptr-model table`. `--varargs-model heap`: done
+       (p208).
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,
    `--heap-reserve`.**
    - `--float-compare nan-safe` done in step 1; `--libc eden` done (above), with the
