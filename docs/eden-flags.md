@@ -63,7 +63,7 @@ on master daslang first. In the table, a reference like "§2" points to a sectio
 | 7 | `--heap-reserve <bytes>` | The heap is reserved at its final size before `resize`, and the translator refuses a program whose static data plus heap exceed a set limit (default about 80 MB). | `max_unreserved_size` panics past 64 MB; the per-context heap cap is 100 MiB (§3) | Grows on demand | **Implemented** with `--memory-model linear` (refused without it): the heap is reserved at this size (default 80 MiB) before any `resize`; an allocation past it returns NULL. No static check of the limit yet |
 | 8 | `--dialect eden-0.6.4` | Emitted syntax limited to what the editor's 0.6.4 parses, with located errors otherwise. Excluded:<ul><li>no `!` original operators;</li><li>no `@` metadata on locals;</li><li>no `memmove`;</li><li>options limited to the sandbox list: `gen2`, `indenting`, `stack`, `rtti`, `no_global_variables`, `no_aot`, `solid_context`, `strict_smart_pointers`;</li><li>no `heap_size_limit`.</li></ul> | The editor's daslang is older than master v0.6.4-481 (§1, §4) | Emits only `options gen2`, `solid_context` and case options; uses no `!` operators today, but nothing enforces it | **Implemented** as a checker (`translator/target_check.rs`): options, requires (§6 lists), `!` operators, `memmove`; case `p192-dialect-eden-refuses-option`. Local `@` metadata is not checked: `das_ast` has no node for it |
 | 9 | `--entry eden` | No `[export] def main` with an `argv` wrapper. Instead a module API the project's `main.das` calls from `on_initialize`/`on_update` or a `[cheat]`. A frame-driven program (Doom, binjgb) exposes `init`/`tick`/framebuffer access, like wasm3das `eden/abi_*_player.das`. | Entry points are `[export] on_initialize/on_update` and `[cheat]` in the project's `main.das` (DESIGN §1) | `main` wrapper with a C `argv` | **Implemented** with `--memory-model linear --libc eden` (refused without them): the host API `c2da_eden_start(args : array<string>) : int`, see "`--entry eden` as built"; cases `p206-linear-entry-eden`, `binjgb-cgb-acid2-eden-linear-source`. Splitting a frame-driven program into `init`/`tick` is per-program host code |
-| 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (clusters too); with `--memory-model linear` acyclic programs only (one shared heap module; case `binjgb-cgb-acid2-eden-linear-source`), a cluster is refused by name |
+| 10 | `--module-layout source` (exists) plus project placement | One `.das` per C file under a non-dot folder of the project. Generated scratch goes under dot-folders, which the editor skips. | The editor compiles every non-hidden `.das` in the project tree and reports only the first error of the first failing file (DESIGN §1) | `--module-layout source` exists (acyclic programs); the cyclic case is still open | Exists (clusters too), also with `--memory-model linear` (one shared heap module; cases `binjgb-cgb-acid2-eden-linear-source`, `m02`/`m03-…-eden-linear`) |
 | 11 | `--no-unsafe` (check, implied by the preset) | The translator fails closed, with a source-located diagnostic, on any construct that would need `unsafe` under the other flags. The output is then also checked locally under `sandbox.das_project`. | A sandbox refusal in the editor names only the first error | No such check | **Implemented** as a checker: `--no-unsafe` fails naming the first 10 sites by C declaration; `--no-unsafe=report` prints a census. `scripts/eden_check.py` runs the sandbox model |
 
 ### `--libc eden` as built
@@ -248,8 +248,11 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   eden-0.6.4`, and `eden_check.py` reports `ok` with 0 `unsafe`/`addr`/`reinterpret`/
   `intptr` for each of the six modules. A whole run (compile, 60 frames) took 3.64 s
   best of 3 in the interpreter, the same as the single-module `binjgb-cgb-acid2-eden-linear`
-  (3.64 s best of 3) on the same loaded machine. Still refused: a cluster (units on a
-  reference cycle, so `m02`/`m03` under the model).
+  (3.64 s best of 3) on the same loaded machine. Units on a reference cycle (one
+  cluster module of `include`d fragments) work the same way: a fragment's static block
+  and table slots are appended to its `.das.inc`, every name suffixed with its stem
+  (cases `m02-module-layout-cycle-eden-linear`, `m03-module-layout-cycle-statics-eden-linear`;
+  C == daslang, `--no-unsafe --dialect eden-0.6.4`, `eden_check.py` ok on every `.das`).
 - **`--entry eden` as built (flag 9).** The unit defining C `main` gets no `[export] def
   main` and reads no command line. It declares `def c2da_eden_start(args : array<string>)
   : int` instead: `args` is C's whole `argv` (`args[0]` is the program name the host
@@ -276,8 +279,7 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   - a wide string literal;
   - a cast between data and function pointers;
   - any other libc function over C memory (string-literal arguments aside);
-  - units on a reference cycle (a `--module-layout source` cluster), and
-    `--runtime-module` without `--module-layout source`;
+  - `--runtime-module` without `--module-layout source`;
   - as a net, any construct that needs `unsafe` in the finished module. This catches, for
     example, a by-value struct parameter whose pointer field is indexed.
 

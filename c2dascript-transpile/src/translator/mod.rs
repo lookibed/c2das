@@ -4732,14 +4732,7 @@ fn translate_impl(
     if t.is_linear() {
         // Under the source layout the heap, the allocator and the function
         // tables live in the shared module (`linear::shared_runtime_source`).
-        // A cluster fragment and `--runtime-module` without the source layout
-        // are not covered yet.
-        if t.link.as_ref().map_or(false, |link| link.fragment) {
-            return Err(format_translation_err!(
-                None,
-                "not supported under --memory-model linear yet: units that reference each other in a cycle (one --module-layout source cluster)"
-            ));
-        }
+        // `--runtime-module` without the source layout is not covered yet.
         if t.link.is_none() && t.tcfg.runtime_module.is_some() {
             return Err(format_translation_err!(
                 None,
@@ -4814,13 +4807,22 @@ fn translate_impl(
                 )));
             }
         }
+        // Under `--memory-model linear` a fragment's `source` is its own part
+        // of the heap runtime (static block, table slots), which `lib.rs`
+        // appends to the fragment text.
+        let (source, linear) = if t.is_linear() {
+            let module = &t.link.as_ref().expect("a fragment is linked").module;
+            (linear::unit_runtime_source(module), Some(linear::linked_state()))
+        } else {
+            (String::new(), None)
+        };
         return Ok(UnitOutput {
-            source: String::new(),
+            source,
             shared_types,
             libc_helpers: libc_contribution.unwrap_or_default(),
             fragment_decls: module.decls,
             requires: module.requires,
-            linear: None,
+            linear,
         });
     }
     // Linear memory refuses a linked layout above, so a fragment never gets

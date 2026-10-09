@@ -3743,7 +3743,8 @@
       "c_graph": "multi-tu-source",
       "canonical_case": "m02-module-layout-cycle",
       "canonical_cases": [
-        "m02-module-layout-cycle"
+        "m02-module-layout-cycle",
+        "m02-module-layout-cycle-eden-linear"
       ],
       "checked_in_das": null,
       "clang": {
@@ -3834,7 +3835,8 @@
       "c_graph": "multi-tu-source",
       "canonical_case": "m03-module-layout-cycle-statics",
       "canonical_cases": [
-        "m03-module-layout-cycle-statics"
+        "m03-module-layout-cycle-statics",
+        "m03-module-layout-cycle-statics-eden-linear"
       ],
       "checked_in_das": null,
       "clang": {

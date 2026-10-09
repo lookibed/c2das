@@ -2087,13 +2087,19 @@ pub fn linked_state() -> LinearLink {
 pub fn unit_runtime_source(module: &str) -> String {
     let bytes = STATIC.with(|s| s.borrow().0.clone());
     let base = linked_base();
+    // Every name carries the unit's stem: two fragments of one cluster share
+    // a module.
+    let stem: String = module
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
     let mut text = String::new();
     if bytes.len() > base {
         let list: Vec<String> = bytes[base..].iter().map(|b| format!("0x{b:x}")).collect();
         text.push_str(&format!(
-            "\n// This module's static data, at heap offset {base}.\nlet private c2da_lin_static = fixed_array<uint8>({})\n\n\
-             [init]\ndef private c2da_lin_init_static() {{\n    c2da_lin_setup()\n    \
-             for (i in range({})) {{\n        c2da_mem[{base} + i] = c2da_lin_static[i]\n    }}\n}}\n",
+            "\n// This unit's static data, at heap offset {base}.\nlet private c2da_lin_static_{stem} = fixed_array<uint8>({})\n\n\
+             [init]\ndef private c2da_lin_init_static_{stem}() {{\n    c2da_lin_setup()\n    \
+             for (i in range({})) {{\n        c2da_mem[{base} + i] = c2da_lin_static_{stem}[i]\n    }}\n}}\n",
             list.join(", "),
             bytes.len() - base
         ));
@@ -2103,10 +2109,6 @@ pub fn unit_runtime_source(module: &str) -> String {
         let sigs = SIGS.with(|s| s.borrow().clone());
         let fn_base = linked_fn_base();
         let count = fn_base + funcs.len() + 1;
-        let stem: String = module
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-            .collect();
         text.push_str(&format!(
             "\n// Fills this module's slots of the shared function tables (at start, and after a hot reload).\ndef c2da_relink_{stem}() {{\n"
         ));
@@ -2127,7 +2129,7 @@ pub fn unit_runtime_source(module: &str) -> String {
             }
         }
         text.push_str(&format!(
-            "}}\n\n[init]\ndef private c2da_lin_relink_init() {{\n    c2da_relink_{stem}()\n}}\n"
+            "}}\n\n[init]\ndef private c2da_lin_relink_init_{stem}() {{\n    c2da_relink_{stem}()\n}}\n"
         ));
     }
     text

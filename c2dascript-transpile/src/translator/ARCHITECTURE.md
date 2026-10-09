@@ -365,8 +365,15 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     the shared module's global initialisers (`c2da_lin_ready`) have run by then. A
     function another unit defines is a translated call (`UnitLink::owners`), never a
     library function, and a unit taking the address of another unit's function numbers it
-    as its own (two slots may then hold one function). Not covered, refused by name: a cluster fragment (units on a
-    reference cycle) and `--runtime-module` without the source layout.
+    as its own (two slots may then hold one function). A cluster fragment hands the
+    same unit part back in `UnitOutput::source`, which `lib.rs` appends to its
+    `.das.inc`; every name in it carries the unit's stem, so module mates never clash.
+    Not covered, refused by name: `--runtime-module` without the source layout.
+  - **`--entry eden`.** `libc.rs build_eden_start` replaces the `[export] def main`
+    wrapper by `c2da_eden_start(args : array<string>) : int`: `args` is C's argv, put
+    in the heap with `c2da_lin_put_arg`, and C `main` runs inside `eden_entry_body`'s
+    `try`/`recover`. It needs `--memory-model linear` (`target.rs`) and `--libc eden`
+    (`mod.rs`).
 
 ## Module-wide policy
 

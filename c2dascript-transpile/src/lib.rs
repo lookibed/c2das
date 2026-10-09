@@ -873,6 +873,9 @@ fn transpile_source_layout(
             text.push_str(&decl_text);
             text.push('\n');
         }
+        // `--memory-model linear`: the fragment's static block and table
+        // slots (names suffixed with its stem, so module mates never clash).
+        text.push_str(&output.source);
         cluster_requires[cluster].extend(output.requires);
         fs::create_dir_all(&output_dir).map_err(|error| TranspileError::Output {
             path: output_dir.clone(),

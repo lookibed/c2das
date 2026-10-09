@@ -2383,6 +2383,42 @@
       "runtime": "required"
     },
     {
+      "id": "m02-module-layout-cycle-eden-linear",
+      "status": "ready",
+      "source_root": "tests/syntax/m02_module_layout_cycle",
+      "translation_entry": "ring_a.c",
+      "translation_units": ["ring_a.c", "ring_b.c", "ring_c.c"],
+      "c_graph": "multi-tu-source",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "result=7 calls=20\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "m03-module-layout-cycle-statics-eden-linear",
+      "status": "ready",
+      "source_root": "tests/syntax/m03_module_layout_cycle_statics",
+      "translation_entry": "main.c",
+      "translation_units": ["main.c", "right.c", "left.c"],
+      "c_graph": "multi-tu-source",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "end=24 left=240 right=313 count=7 own=5 left_only=3\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p72-eden-file-io",
       "status": "ready",
       "source_root": "tests/syntax",
