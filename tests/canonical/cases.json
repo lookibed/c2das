@@ -1443,25 +1443,21 @@
       "runtime": "required"
     },
     {
-      "id": "p198-linear-refuses-bitfield-record-value",
-      "status": "negative",
+      "id": "p198-linear-heap-bitfields",
+      "status": "ready",
       "source_root": "tests/syntax",
-      "translation_entry": "p198_linear_refuses_bitfield_record_value.c",
+      "translation_entry": "p198_linear_heap_bitfields.c",
       "c_graph": "single-tu",
       "libc": "eden",
-      "translator_flags": ["--memory-model", "linear"],
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
       "clang": { "compiler": "clang-18", "flags": ["-w"] },
-      "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
-      "das_entrypoint": "not-applicable",
+      "c_reference": { "entrypoint": "linear_heap_bitfields", "return_type": "int" },
+      "das_entrypoint": "linear_heap_bitfields",
       "expected": {
         "stdout": "",
         "exit_code": 0
       },
-      "expected_error": {
-        "cause": "not supported under --memory-model linear yet: a record value with bitfields through a pointer",
-        "location": "p198_linear_refuses_bitfield_record_value.c:11"
-      },
-      "runtime": "not-applicable"
+      "runtime": "required"
     },
     {
       "id": "p96-memcpy-builtin",

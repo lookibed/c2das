@@ -305,6 +305,14 @@ lowering does not exist yet is refused by name in `main.rs` before translation.
     A subscript of a declared array is the heap only when the array itself is (a field
     array reached through a pointer, a string literal); otherwise the ordinary
     fixed-array index applies.
+  - **Bitfields in the heap.** `heap_bitfield` answers a bitfield member of a heap record
+    with the address of its storage unit (`layout.rs bitfield_unit`: Clang's unit offset)
+    and a `HeapBits`. A read loads the unit (u8/u16/u32/u64 by its size) and shifts and
+    masks it in `uint`/`uint64`; a signed field is sign-extended by `<<` to the word's top
+    and arithmetic `>>`. A store, compound assignment or `++`/`--` is a read-modify-write
+    of the unit (`bits_store`). A whole-record copy takes each unit as one leaf
+    (`aggregate_leaves`, the natural record's `c2da_bits_<n>` field). A bitfield that
+    straddles its unit is refused. Case `p198-linear-heap-bitfields`.
   - **Loads and stores** are written in place, with no helper call. A byte is
     `c2da_mem[a]`. A wider integer is assembled little-endian from bytes with shifts, or
     stored as `uint8(bits >> 8k)`. `float`/`double` go through `math_bits`

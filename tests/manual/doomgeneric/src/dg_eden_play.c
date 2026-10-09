@@ -10,9 +10,9 @@
  * - `dge_key(pressed, key)` queues a key event (`doomkeys.h` codes) for
  *   `DG_GetKey`.
  * - `dge_screen` and `dge_palette` answer the addresses of `DG_ScreenBuffer`
- *   (320x200 palette indices under `CMAP256`) and of a copy of the palette
- *   `colors[256]` that `dge_palette` refreshes (one 0x00RRGGBB word per
- *   entry, little-endian) as integers: under
+ *   (320x200 palette indices under `CMAP256`) and of Doom's palette
+ *   `colors[256]` (`struct color`: one 4-byte bitfield unit per entry, bytes
+ *   b, g, r, a) as integers: under
  *   `--memory-model linear` they are offsets into the heap `c2da_mem`.
  * - `dge_frames` counts `DG_DrawFrame` calls. */
 #include <stdint.h>
@@ -109,20 +109,9 @@ unsigned dge_screen(void)
     return (unsigned)(uintptr_t)DG_ScreenBuffer;
 }
 
-/* `colors` is a bitfield struct array; taking its address would move it into
- * the linear heap, where bitfields through a pointer are not supported.  The
- * palette is copied by value into a plain word array instead. */
-static uint32_t dge_palette_words[256];
-
 unsigned dge_palette(void)
 {
-    int i = 0;
-
-    for (i = 0; i < 256; i++) {
-        struct color c = colors[i];
-        dge_palette_words[i] = ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | (uint32_t)c.b;
-    }
-    return (unsigned)(uintptr_t)dge_palette_words;
+    return (unsigned)(uintptr_t)colors;
 }
 
 int dge_frames(void)

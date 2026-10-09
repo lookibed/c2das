@@ -643,6 +643,153 @@ fn store(s: Scalar, a: &DaExpr, v: &DaExpr, fresh: &mut dyn FnMut() -> String) -
     }
 }
 
+/// The unsigned scalar of a bitfield storage unit of `size` bytes.
+fn unit_scalar(size: u64) -> Option<Scalar> {
+    Some(match size {
+        1 => Scalar::U8,
+        2 => Scalar::U16,
+        4 => Scalar::U32,
+        8 => Scalar::U64,
+        _ => return None,
+    })
+}
+
+/// A bitfield in the heap: its storage unit, an unsigned integer of the
+/// unit's size at Clang's offset (loaded and stored like any heap scalar),
+/// and the field's bits inside it.  The arithmetic runs in `uint` (`uint64`
+/// for an eight-byte unit), as the natural-record bitfield code does
+/// (`object_memory.rs bitfield_load` / `bitfield_store`).
+#[derive(Clone, Copy)]
+struct HeapBits {
+    unit: Scalar,
+    bit_offset: u64,
+    width: u64,
+    /// The field's own scalar kind (an integer or `_Bool`).
+    field: Scalar,
+}
+
+impl HeapBits {
+    fn bits(self) -> u64 {
+        if self.unit == Scalar::U64 {
+            64
+        } else {
+            32
+        }
+    }
+
+    fn compute(self) -> DaType {
+        if self.unit == Scalar::U64 {
+            DaType::uint64()
+        } else {
+            DaType::uint()
+        }
+    }
+
+    fn konst(self, v: u64) -> DaExpr {
+        let v = if self.bits() == 64 { v } else { v & 0xffff_ffff };
+        cast(self.compute(), DaExpr::ConstUInt(v))
+    }
+
+    fn mask(self) -> u64 {
+        if self.width >= 64 {
+            u64::MAX
+        } else {
+            (1u64 << self.width) - 1
+        }
+    }
+
+    /// The unit word (of the unit's type) widened to the compute type.
+    fn widen(self, word: DaExpr) -> DaExpr {
+        match self.unit {
+            Scalar::U8 | Scalar::U16 => cast(self.compute(), word),
+            _ => word,
+        }
+    }
+
+    /// The field's value (of its own daScript type) in the unit `word`:
+    /// shifted down and masked, a signed field sign-extended by shifting
+    /// its top bit to the word's top and arithmetically back.
+    fn extract(self, word: DaExpr) -> DaExpr {
+        let w = self.widen(word);
+        let bits = self.bits();
+        let signed = matches!(self.field, Scalar::I8 | Scalar::I16 | Scalar::I32 | Scalar::I64);
+        if signed {
+            let left = bits - self.bit_offset - self.width;
+            let right = bits - self.width;
+            let w = if left == 0 { w } else { op2("<<", w, DaExpr::ConstInt(left as i64)) };
+            let sty = if bits == 64 { DaType::int64() } else { DaType::int() };
+            let s = cast(sty.clone(), w);
+            let s = if right == 0 { s } else { op2(">>", s, DaExpr::ConstInt(right as i64)) };
+            let to = self.field.da_type();
+            return if to == sty { s } else { cast(to, s) };
+        }
+        let shifted = if self.bit_offset == 0 {
+            w
+        } else {
+            op2(">>", w, DaExpr::ConstInt(self.bit_offset as i64))
+        };
+        let masked = if self.bit_offset + self.width == bits {
+            shifted
+        } else {
+            op2("&", shifted, self.konst(self.mask()))
+        };
+        if self.field == Scalar::Bool {
+            return op2("!=", masked, self.konst(0));
+        }
+        let to = self.field.da_type();
+        if to == self.compute() {
+            masked
+        } else {
+            cast(to, masked)
+        }
+    }
+
+    /// The unit `word` with the field replaced by the stable value `v` (of
+    /// the field's type), as a value of the unit's type.
+    fn insert(self, word: DaExpr, v: DaExpr) -> DaExpr {
+        let bits = self.bits();
+        let v = if self.field == Scalar::Bool {
+            DaExpr::Op3 {
+                cond: Box::new(v),
+                then: Box::new(self.konst(1)),
+                else_: Box::new(self.konst(0)),
+            }
+        } else if self.field.da_type() == self.compute() {
+            v
+        } else {
+            cast(self.compute(), v)
+        };
+        let unit_bits = match self.unit {
+            Scalar::U8 => 8,
+            Scalar::U16 => 16,
+            Scalar::U32 => 32,
+            _ => 64,
+        };
+        // High bits shifted out of the compute word need no mask.
+        let masked = if self.bit_offset + self.width == bits {
+            v
+        } else {
+            op2("&", v, self.konst(self.mask()))
+        };
+        let placed = if self.bit_offset == 0 {
+            masked
+        } else {
+            op2("<<", masked, DaExpr::ConstInt(self.bit_offset as i64))
+        };
+        let new = if self.width == unit_bits {
+            placed
+        } else {
+            let unit_mask = if unit_bits == 64 { u64::MAX } else { (1u64 << unit_bits) - 1 };
+            let keep = !(self.mask() << self.bit_offset) & unit_mask;
+            op2("|", op2("&", self.widen(word), self.konst(keep)), placed)
+        };
+        match self.unit {
+            Scalar::U8 | Scalar::U16 => cast(self.unit.da_type(), new),
+            _ => new,
+        }
+    }
+}
+
 /// An address expression that may be written more than once.
 fn is_stable(e: &DaExpr) -> bool {
     match e {
@@ -1287,11 +1434,32 @@ impl<'c> Translation<'c> {
                 if items.len() > fields.len() {
                     return Err(refuse());
                 }
+                // An unnamed bitfield takes no initializer, so items and
+                // fields would not pair up.
+                if fields.iter().any(|f| {
+                    matches!(&self.ast_context[*f].kind, CDeclKind::Field { name, bitfield_width: Some(_), .. } if name.is_empty())
+                }) {
+                    return Err(refuse());
+                }
                 for (item, field) in items.iter().zip(fields.iter()) {
-                    let CDeclKind::Field { typ: fty, bitfield_width: None, .. } = self.ast_context[*field].kind else {
+                    if matches!(self.ast_context[*item].kind, CExprKind::ImplicitValueInit(_)) {
+                        continue;
+                    }
+                    let CDeclKind::Field { typ: fty, bitfield_width, platform_bit_offset, .. } =
+                        self.ast_context[*field].kind
+                    else {
                         return Err(refuse());
                     };
-                    if matches!(self.ast_context[*item].kind, CExprKind::ImplicitValueInit(_)) {
+                    // A bitfield: its value's low `width` bits at Clang's
+                    // bit offset, little-endian.
+                    if let Some(width) = bitfield_width {
+                        let v = self.static_int(*item).ok_or_else(refuse)?;
+                        for k in 0..width {
+                            if (v >> k) & 1 != 0 {
+                                let bit = at as u64 * 8 + platform_bit_offset + k;
+                                out[(bit / 8) as usize] |= 1 << (bit % 8);
+                            }
+                        }
                         continue;
                     }
                     let off = self.field_offset(*field)? as usize;
@@ -1496,10 +1664,20 @@ impl<'c> Translation<'c> {
                             let field = DaExpr::Field(Box::new(place.clone()), name);
                             self.aggregate_leaves(at, typ.ctype, field, offset + self.field_offset(fid)?, out)?;
                         }
-                        // A bitfield of a daScript record value is itself
-                        // still raw-memory lowered under the model.
-                        NaturalMember::BitfieldUnit { .. } => {
-                            return Err(self.linear_refuse(at, "a record value with bitfields through a pointer"));
+                        // A run of bitfields: its storage unit, an unsigned
+                        // integer field of the daScript value, is the leaf
+                        // at the unit's offset.
+                        NaturalMember::BitfieldUnit {
+                            index,
+                            byte_offset,
+                            size_bytes,
+                            ..
+                        } => {
+                            let Some(s) = unit_scalar(size_bytes) else {
+                                return Err(self.linear_refuse(at, "a bitfield storage unit that is not 1, 2, 4 or 8 bytes"));
+                            };
+                            let unit = DaExpr::Field(Box::new(place.clone()), NaturalMember::unit_name(index));
+                            out.push((s, unit, offset + byte_offset as i64));
                         }
                     }
                 }
@@ -1709,6 +1887,91 @@ impl<'c> Translation<'c> {
         }
     }
 
+    /// A bitfield member whose record lives in the heap (`p->f`, `a[i].f`,
+    /// `(*p).f`): the address of its storage unit (Clang's unit offset in
+    /// the record) and the field's bits.  `None` for anything else,
+    /// including a bitfield of a daScript record value.
+    fn heap_bitfield(
+        &self,
+        ctx: ExprContext,
+        expr_id: CExprId,
+    ) -> TranslationResult<Option<(WithStmts<DaExpr>, HeapBits)>> {
+        let mut e = expr_id;
+        while let CExprKind::Paren(_, inner) = self.ast_context[e].kind {
+            e = inner;
+        }
+        let CExprKind::Member(_, base, field, kind, _) = self.ast_context[e].kind else {
+            return Ok(None);
+        };
+        let CDeclKind::Field {
+            typ,
+            bitfield_width: Some(width),
+            ..
+        } = self.ast_context[field].kind
+        else {
+            return Ok(None);
+        };
+        let base_address = match kind {
+            MemberKind::Arrow if self.typed_pointee(self.qual_of(base)?.ctype).is_some() => return Ok(None),
+            MemberKind::Arrow => self.convert_expr(ctx.used(), base, None)?,
+            MemberKind::Dot => match self.heap_place(ctx, base)? {
+                Some(address) => address,
+                None => return Ok(None),
+            },
+        };
+        let unit = self.bitfield_unit(field)?;
+        let Some(unit_kind) = unit_scalar(unit.size_bytes) else {
+            return Err(self.linear_refuse(expr_id, "a bitfield whose storage unit is not 1, 2, 4 or 8 bytes"));
+        };
+        if width == 0 || unit.bit_offset + width > unit.size_bytes * 8 {
+            return Err(self.linear_refuse(expr_id, "a bitfield that straddles its storage unit (a packed record)"));
+        }
+        let field_kind = match self.scalar_of(typ.ctype) {
+            Some(
+                s @ (Scalar::Bool
+                | Scalar::I8
+                | Scalar::U8
+                | Scalar::I16
+                | Scalar::U16
+                | Scalar::I32
+                | Scalar::U32
+                | Scalar::I64
+                | Scalar::U64),
+            ) => s,
+            _ => return Err(self.linear_refuse(expr_id, "a bitfield of this type in the heap")),
+        };
+        let bits = HeapBits {
+            unit: unit_kind,
+            bit_offset: unit.bit_offset,
+            width,
+            field: field_kind,
+        };
+        let offset = unit.byte_offset as i64;
+        Ok(Some((base_address.map(|b| plus(&b, offset)), bits)))
+    }
+
+    /// The read-modify-write of the bitfield `bits` whose unit is at the
+    /// stable address `a`: `new` (a stable value of the field's type) put
+    /// into the unit.  The expression is the field's value after the store
+    /// (C's value of the assignment) when `used`.
+    fn bits_store(&self, bits: HeapBits, a: &DaExpr, new: DaExpr, used: bool) -> WithStmts<DaExpr> {
+        let word = bits.insert(load(bits.unit, a), new);
+        let mut fresh = || self.fresh_name();
+        if !used {
+            // `store` binds a multi-byte word itself and uses a byte once.
+            let stmts = store(bits.unit, a, &word, &mut fresh);
+            return WithStmts::new(stmts, DaExpr::ConstInt(0));
+        }
+        let name = self.fresh_name();
+        let mut stmts = vec![DaStmt::Let {
+            name: name.clone(),
+            var_type: Some(bits.unit.da_type()),
+            init: Some(word),
+        }];
+        stmts.extend(store(bits.unit, a, &DaExpr::Var(name.clone()), &mut fresh));
+        WithStmts::new(stmts, bits.extract(DaExpr::Var(name)))
+    }
+
     /// `a[i]` over a declared array that is a daScript value (a local, a
     /// global, a field of one): plain daScript indexing, the decay never
     /// becomes an address.  `None` for anything else.
@@ -1777,6 +2040,10 @@ impl<'c> Translation<'c> {
             Unary(ty, CUnOp::Deref, ..) | ArraySubscript(ty, ..) | Member(ty, ..) => {
                 if let Some(field) = self.typed_member(ctx, expr_id)? {
                     return Ok(Some(field));
+                }
+                if let Some((address, bits)) = self.heap_bitfield(ctx, expr_id)? {
+                    let address = self.stable(address, DaType::int());
+                    return Ok(Some(address.map(|a| bits.extract(load(bits.unit, &a)))));
                 }
                 let Some(address) = self.heap_place(ctx, expr_id)? else {
                     return self.linear_daslang_index(ctx, expr_id);
@@ -1910,6 +2177,10 @@ impl<'c> Translation<'c> {
                 Ok(Some(WithStmts::new_val(DaExpr::DefaultValue(self.convert_type(ty)?))))
             }
             CastKind::LValueToRValue => {
+                if let Some((address, bits)) = self.heap_bitfield(ctx, inner)? {
+                    let address = self.stable(address, DaType::int());
+                    return Ok(Some(address.map(|a| bits.extract(load(bits.unit, &a)))));
+                }
                 let Some(address) = self.heap_place(ctx, inner)? else {
                     return Ok(None);
                 };
@@ -2020,6 +2291,15 @@ impl<'c> Translation<'c> {
         let rp = self.is_data_pointer(rhs_ty.ctype);
         match op {
             CBinOp::Assign => {
+                if let Some((address, bits)) = self.heap_bitfield(ctx, lhs)? {
+                    let address = self.stable(address, DaType::int());
+                    let value = self.convert_expr(ctx.used(), rhs, Some(lhs_ty))?;
+                    let value = self.force_temp(value, bits.field.da_type());
+                    let (mut stmts, (a, v)) = address.zip(value).into_stmts_and_val();
+                    let (sstmts, result) = self.bits_store(bits, &a, v, ctx.is_used()).into_stmts_and_val();
+                    stmts.extend(sstmts);
+                    return Ok(Some(WithStmts::new(stmts, result)));
+                }
                 let Some(address) = self.heap_place(ctx, lhs)? else {
                     return Ok(None);
                 };
@@ -2085,6 +2365,25 @@ impl<'c> Translation<'c> {
             | CBinOp::AssignBitAnd
             | CBinOp::AssignShiftLeft
             | CBinOp::AssignShiftRight => {
+                if let Some((address, bits)) = self.heap_bitfield(ctx, lhs)? {
+                    let compute = match lty {
+                        Some(t) => self.convert_type(t)?,
+                        None => bits.field.da_type(),
+                    };
+                    if matches!(bits.field, Scalar::Bool) {
+                        return Err(self.linear_refuse(expr_id, "compound assignment to a `_Bool` in the heap"));
+                    }
+                    let address = self.stable(address, DaType::int());
+                    let n = self.convert_expr(ctx.used(), rhs, None)?;
+                    let (mut stmts, (a, n)) = address.zip(n).into_stmts_and_val();
+                    let old = bits.extract(load(bits.unit, &a));
+                    let new = self.arith(op, old, n, bits.field.da_type(), compute)?;
+                    let (vstmts, v) = self.force_temp(WithStmts::new_val(new), bits.field.da_type()).into_stmts_and_val();
+                    stmts.extend(vstmts);
+                    let (sstmts, result) = self.bits_store(bits, &a, v, ctx.is_used()).into_stmts_and_val();
+                    stmts.extend(sstmts);
+                    return Ok(Some(WithStmts::new(stmts, result)));
+                }
                 let Some(address) = self.heap_place(ctx, lhs)? else {
                     return Ok(None);
                 };
@@ -2197,8 +2496,12 @@ impl<'c> Translation<'c> {
         let inc = matches!(op, CUnOp::PreIncrement | CUnOp::PostIncrement);
         let pre = matches!(op, CUnOp::PreIncrement | CUnOp::PreDecrement);
         let das_op: &'static str = if inc { "+" } else { "-" };
-        let heap = self.heap_place(ctx, arg)?;
-        if heap.is_none() && !is_ptr {
+        let bitfield = self.heap_bitfield(ctx, arg)?;
+        let heap = match bitfield {
+            Some(_) => None,
+            None => self.heap_place(ctx, arg)?,
+        };
+        if heap.is_none() && !is_ptr && bitfield.is_none() {
             return Ok(None);
         }
         let s = self.scalar_or_refuse(arg, arg_ty.ctype)?;
@@ -2218,6 +2521,19 @@ impl<'c> Translation<'c> {
                 _ => op2(das_op, old, cast(ty.clone(), DaExpr::ConstInt(1))),
             })
         };
+        if let Some((address, bits)) = bitfield {
+            let (mut stmts, a) = self.stable(address, DaType::int()).into_stmts_and_val();
+            let (ostmts, old) = self
+                .force_temp(WithStmts::new_val(bits.extract(load(bits.unit, &a))), ty.clone())
+                .into_stmts_and_val();
+            stmts.extend(ostmts);
+            let (nstmts, new) = self.force_temp(WithStmts::new_val(step(old.clone())?), ty.clone()).into_stmts_and_val();
+            stmts.extend(nstmts);
+            let used = ctx.is_used();
+            let (sstmts, result) = self.bits_store(bits, &a, new, used && pre).into_stmts_and_val();
+            stmts.extend(sstmts);
+            return Ok(Some(WithStmts::new(stmts, if pre { result } else { old })));
+        }
         match heap {
             Some(address) => {
                 let address = self.stable(address, DaType::int());

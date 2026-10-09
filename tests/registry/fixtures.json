@@ -6385,9 +6385,9 @@
     },
     {
       "c_graph": "single-tu",
-      "canonical_case": "p198-linear-refuses-bitfield-record-value",
+      "canonical_case": "p198-linear-heap-bitfields",
       "canonical_cases": [
-        "p198-linear-refuses-bitfield-record-value"
+        "p198-linear-heap-bitfields"
       ],
       "checked_in_das": null,
       "clang": {
@@ -6396,19 +6396,19 @@
           "-w"
         ]
       },
-      "entrypoint": "not-applicable",
+      "entrypoint": "linear_heap_bitfields",
       "expected": {
-        "kind": "translation-error",
+        "kind": "stdout-and-exit-code",
         "value": {
-          "cause": "not supported under --memory-model linear yet: a record value with bitfields through a pointer",
-          "location": "p198_linear_refuses_bitfield_record_value.c:11"
+          "exit_code": 0,
+          "stdout": ""
         }
       },
       "family": "syntax-pointer-legacy",
-      "id": "tests--syntax--p198_linear_refuses_bitfield_record_value",
+      "id": "tests--syntax--p198_linear_heap_bitfields",
       "owner": "abi.rs / object_memory.rs",
-      "runtime": "not-applicable",
-      "source": "tests/syntax/p198_linear_refuses_bitfield_record_value.c",
+      "runtime": "required",
+      "source": "tests/syntax/p198_linear_heap_bitfields.c",
       "status": "supported"
     },
     {

@@ -404,7 +404,17 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   array fields are unrolled (more than 4096 scalars is refused). `a[i]` over a declared
   array that is a daslang value (a local, a field of a record value) is plain daslang
   indexing. Case `p197-linear-record-values` (C == daslang; `--no-unsafe` and
-  `eden_check.py` ok); `p198` is the located refusal of a record with bitfields. Still
+  `eden_check.py` ok). A record with bitfields is bytes at Clang's layout too: each run of
+  bitfields is its storage unit (an unsigned integer of the unit's size at Clang's unit
+  offset). A bitfield through a pointer loads the unit like any heap scalar, then shifts
+  and masks it (a signed field is sign-extended by shifting its top bit to the word's top
+  and back); a store, compound assignment or `++`/`--` is a read-modify-write of the unit;
+  a whole-record copy moves the units as leaves (`linear.rs heap_bitfield`, `HeapBits`).
+  Static initializers of heap globals place bitfield values at Clang's bit offsets. A
+  bitfield that straddles its unit (a packed record) is refused. Case
+  `p198-linear-heap-bitfields` (C == daslang under `--dialect eden-0.6.4 --no-unsafe`):
+  Doom's `struct color colors[256]` with `&colors[i]`, a heap global table and malloc'd
+  arrays, signed/unsigned/`_Bool`/full-unit fields, two units, copies. Still
   open: a by-value parameter of a record with a pointer field stays raw-memory lowered
   (the `unsafe` net refuses it), and an array field of a call result (`f().arr[i]`) is emitted
   as `cast<int[3]>(f()).arr[i]`, which daslang rejects at compile time; the fixture avoids
@@ -544,8 +554,7 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   - `&` of a parameter, an array in a parameter or a call result used as a pointer, and
     a heap global whose initializer is outside the covered forms (see "Globals in the
     heap");
-  - a record value with bitfields read or assigned through a pointer (step 4 copies
-    every other record value: see below), and a bitfield through a pointer;
+  - a bitfield in the heap that straddles its storage unit (a packed record);
   - a wide string literal;
   - a cast between data and function pointers;
   - any other libc function over C memory (string-literal arguments aside);
@@ -620,8 +629,8 @@ Things the target cannot fix and has to document:
      sandbox model accepts them, and the column kernel costs about 1.2× raw. Still to do:
      - `--locals-in-heap`: locals done in step 4 (p199); `&global` and global arrays used
        as pointers done in step 5 (p203); `&param` still to do;
-     - record and array values through pointers: done in step 4 (p197), except records
-       with bitfields;
+     - record and array values through pointers: done in step 4 (p197); records with
+       bitfields in the heap done (p198);
      - `<string.h>` string functions: done in step 4 (p196); the printf family over
        `c2da_mem`: done in step 5 (p200). binjgb under `--libc eden --memory-model linear
        --dialect eden-0.6.4 --no-unsafe` (case `binjgb-cgb-acid2-eden-linear`, known-red)
