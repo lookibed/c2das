@@ -21,8 +21,11 @@
 //! - `T` has no bitfield.
 //!
 //! The record of a library call (other than `free`) or of `va_arg` never
-//! qualifies.  `--module-layout source` is refused with the flag for now: the
-//! rule needs every unit of the program.
+//! qualifies.  Under `--module-layout source` the decision is the whole
+//! program's: `lib.rs` collects every unit's [`TypedVerdict`] before any unit
+//! is translated, and a struct qualifies only when it qualifies in every unit
+//! ([`typed_records_program`]); a function another unit defines counts as
+//! one "this unit defines".
 //!
 //! Lowering: `malloc`/`calloc` of the pattern is `new T()` (daslang
 //! zero-initialises every field, which is `calloc`'s contract and a valid
@@ -49,6 +52,61 @@ pub(super) fn reset() {
     TYPED.with(|t| t.borrow_mut().clear());
     ALLOC_CASTS.with(|t| t.borrow_mut().clear());
     FREE_CASTS.with(|t| t.borrow_mut().clear());
+}
+
+/// One unit's part of the whole-program `--records typed` decision under
+/// `--module-layout source` (`lib.rs typed_records_program`).  Records are
+/// named by `Translation::record_key`.
+#[derive(Clone, Debug, Default)]
+pub struct TypedVerdict {
+    /// Every complete struct of the unit.
+    pub candidates: std::collections::BTreeSet<String>,
+    /// The structs the unit's own rule disqualifies.
+    pub out: std::collections::BTreeSet<String>,
+    /// A `T *` field of record `U`, as (`U`, `T`): `T` needs `U` typed.
+    pub edges: Vec<(String, String)>,
+    /// Struct names the unit sees only as an incomplete `struct S;`.
+    pub opaque_names: std::collections::BTreeSet<String>,
+}
+
+/// The whole-program decision: a struct qualifies only when every unit's
+/// rule lets it, no unit sees it opaque, no other C struct shares its name,
+/// and every record holding a `T *` field of it qualifies too.
+pub fn typed_records_program(verdicts: &[TypedVerdict]) -> std::collections::BTreeSet<String> {
+    use std::collections::BTreeSet;
+    let name_of = |k: &str| k.split('@').next().unwrap_or("").to_owned();
+    let mut candidates: BTreeSet<String> = BTreeSet::new();
+    let mut out: BTreeSet<String> = BTreeSet::new();
+    let mut opaque: BTreeSet<String> = BTreeSet::new();
+    for v in verdicts {
+        candidates.extend(v.candidates.iter().cloned());
+        out.extend(v.out.iter().cloned());
+        opaque.extend(v.opaque_names.iter().cloned());
+    }
+    let mut sites: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for k in &candidates {
+        *sites.entry(name_of(k)).or_default() += 1;
+    }
+    for k in &candidates {
+        let name = name_of(k);
+        if !name.is_empty() && (opaque.contains(&name) || sites[&name] > 1) {
+            out.insert(k.clone());
+        }
+    }
+    loop {
+        let before = out.len();
+        for v in verdicts {
+            for (u, t) in &v.edges {
+                if out.contains(u) || !candidates.contains(u) {
+                    out.insert(t.clone());
+                }
+            }
+        }
+        if out.len() == before {
+            break;
+        }
+    }
+    candidates.difference(&out).cloned().collect()
 }
 
 fn is_typed(r: CRecordId) -> bool {
@@ -147,18 +205,87 @@ impl<'c> Translation<'c> {
         }
     }
 
+    /// The program-wide identity of struct `r` under the source layout: its
+    /// name and the place of its definition, the way `lib.rs link_units`
+    /// tells two C types of one name apart.  `None` for a record with no
+    /// place, which never qualifies across units.
+    fn record_key(&self, r: CRecordId) -> Option<String> {
+        let decl = &self.ast_context[r];
+        let CDeclKind::Struct { name, .. } = &decl.kind else { return None };
+        let site = self.ast_context.display_loc(&decl.loc)?;
+        Some(format!("{}@{site}", name.as_deref().unwrap_or("")))
+    }
+
+    /// This unit's verdict for the whole-program rule (`--module-layout
+    /// source`): the rule of [`Self::typed_plan`] applied to this unit alone,
+    /// with records named by [`Self::record_key`].
+    pub(crate) fn typed_verdict(&self) -> TranslationResult<TypedVerdict> {
+        let (candidates, out, edges) = self.typed_local()?;
+        let key = |r: &CRecordId| self.record_key(*r);
+        let mut verdict = TypedVerdict::default();
+        for r in &candidates {
+            match key(r) {
+                Some(k) if !out.contains(r) => {
+                    verdict.candidates.insert(k);
+                }
+                Some(k) => {
+                    verdict.candidates.insert(k.clone());
+                    verdict.out.insert(k);
+                }
+                None => {}
+            }
+        }
+        for r in &out {
+            verdict.out.extend(key(r));
+        }
+        for (u, t) in &edges {
+            if let (Some(u), Some(t)) = (key(u), key(t)) {
+                verdict.edges.push((u, t));
+            } else {
+                verdict.out.extend(key(t));
+            }
+        }
+        // A record this unit sees only as `struct S;` is a different C
+        // declaration here: it never qualifies, wherever it is complete.
+        let mut complete = HashSet::new();
+        let mut opaque = HashSet::new();
+        for (_, d) in self.ast_context.iter_decls() {
+            if let CDeclKind::Struct { name: Some(name), fields, .. } = &d.kind {
+                if fields.is_some() {
+                    complete.insert(name.clone());
+                } else {
+                    opaque.insert(name.clone());
+                }
+            }
+        }
+        verdict.opaque_names = opaque.difference(&complete).cloned().collect();
+        Ok(verdict)
+    }
+
     /// Decides the typed records of this unit (see the module comment).
+    /// Under the source layout the decision is the program's
+    /// (`UnitLink::typed_records`, made by `lib.rs` from every unit's
+    /// [`Self::typed_verdict`]); this unit's rule still has to hold.
     pub(crate) fn typed_plan(&self) -> TranslationResult<()> {
         reset();
         if !self.records_typed() {
             return Ok(());
         }
-        if self.link.is_some() {
-            return Err(format_translation_err!(
-                None,
-                "--records typed with --module-layout source is not supported yet (the rule needs every unit of the program)"
-            ));
+        let (candidates, out, _) = self.typed_local()?;
+        let mut typed: HashSet<CRecordId> = candidates.difference(&out).copied().collect();
+        if let Some(link) = &self.link {
+            typed.retain(|r| self.record_key(*r).map_or(false, |k| link.typed_records.contains(&k)));
         }
+        TYPED.with(|t| *t.borrow_mut() = typed);
+        Ok(())
+    }
+
+    /// The rule over this unit: the candidate structs, the disqualified
+    /// ones (after the field fixpoint) and the `T *` field edges (`U`, `T`).
+    #[allow(clippy::type_complexity)]
+    fn typed_local(
+        &self,
+    ) -> TranslationResult<(HashSet<CRecordId>, HashSet<CRecordId>, Vec<(CRecordId, CRecordId)>)> {
         let mut candidates: HashSet<CRecordId> = HashSet::new();
         let mut out: HashSet<CRecordId> = HashSet::new();
         // A `T *` field of record `U`: `T` needs `U` typed.
@@ -286,10 +413,9 @@ impl<'c> Translation<'c> {
                 break;
             }
         }
-        TYPED.with(|t| *t.borrow_mut() = candidates.difference(&out).copied().collect());
         ALLOC_CASTS.with(|t| *t.borrow_mut() = alloc_casts);
         FREE_CASTS.with(|t| *t.borrow_mut() = free_casts);
-        Ok(())
+        Ok((candidates, out, edges))
     }
 
     /// A type a declaration or expression has: `T *` itself is allowed; a
@@ -432,12 +558,19 @@ impl<'c> Translation<'c> {
                 let callee = self.strip(func);
                 let (library, fixed) = match self.ast_context[callee].kind {
                     CExprKind::DeclRef(_, d, _) => match &self.ast_context[d].kind {
-                        CDeclKind::Function { body, parameters, typ, .. } => {
-                            let variadic = matches!(
-                                self.ast_context.resolve_type(*typ).kind,
-                                CTypeKind::Function(_, _, true, _, _)
-                            );
-                            (body.is_none(), if variadic { parameters.len() } else { usize::MAX })
+                        CDeclKind::Function { body, parameters, typ, name, .. } => {
+                            let (variadic, prototyped) = match self.ast_context.resolve_type(*typ).kind {
+                                CTypeKind::Function(_, _, v, _, p) => (v, p),
+                                _ => (false, false),
+                            };
+                            // Source layout: a prototyped function another
+                            // unit defines is translated under the same
+                            // program-wide decision.
+                            let elsewhere = prototyped && self.link_owner(name).is_some();
+                            (
+                                body.is_none() && !elsewhere,
+                                if variadic { parameters.len() } else { usize::MAX },
+                            )
                         }
                         _ => (false, usize::MAX),
                     },

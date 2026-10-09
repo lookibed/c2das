@@ -683,11 +683,34 @@ fn transpile_source_layout(
         .runtime_module
         .clone()
         .unwrap_or_else(|| DEFAULT_RUNTIME_MODULE.to_owned());
-    let (links, clusters) = link_units(inputs, &contexts, &runtime_module)?;
+    let (mut links, clusters) = link_units(inputs, &contexts, &runtime_module)?;
     let shared_tcfg = TranspilerConfig {
         runtime_module: Some(runtime_module.clone()),
         ..tcfg.clone()
     };
+    // `--records typed`: a struct is a typed `new T` object only when the
+    // rule holds in every unit (`linear/typed_records.rs`), decided before
+    // any unit is translated and given to each.
+    if tcfg.target.records == target::RecordsModel::Typed
+        && tcfg.target.memory_model == target::MemoryModel::Linear
+    {
+        let mut verdicts = Vec::with_capacity(inputs.len());
+        for (unit, context) in contexts.iter().enumerate() {
+            verdicts.push(
+                translator::typed_records_verdict(
+                    context.clone(),
+                    &shared_tcfg,
+                    &inputs[unit],
+                    links[unit].clone(),
+                )
+                .map_err(TranspileError::Translation)?,
+            );
+        }
+        let typed = translator::typed_records_program(&verdicts);
+        for link in &mut links {
+            link.typed_records = typed.clone();
+        }
+    }
     let output_dir = tcfg.output_dir.clone().unwrap_or_else(|| PathBuf::from("."));
     let mut cluster_of: HashMap<usize, usize> = HashMap::new();
     for (index, cluster) in clusters.iter().enumerate() {
@@ -1325,6 +1348,7 @@ fn link_units(
             reserved_types: std::mem::take(&mut reserved_types[unit]),
             foreign_refs: HashMap::new(),
             linear: Default::default(),
+            typed_records: Default::default(),
         });
     }
     Ok((links, clusters))

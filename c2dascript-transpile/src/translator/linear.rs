@@ -25,6 +25,7 @@ use crate::translator::layout::NaturalMember;
 use std::collections::HashMap as StdHashMap;
 
 mod typed_records;
+pub use typed_records::{typed_records_program, TypedVerdict};
 mod va_heap;
 
 /// The heap: one module global.

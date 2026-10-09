@@ -2368,7 +2368,7 @@
       "translation_entry": "src/doom_all.c",
       "c_graph": "doomgeneric",
       "libc": "eden",
-      "translator_flags": ["--memory-model", "linear", "--fnptr-model", "table", "--entry", "eden", "--dialect", "eden-0.6.4", "--no-unsafe", "--heap-reserve", "16777216"],
+      "translator_flags": ["--memory-model", "linear", "--records", "typed", "--fnptr-model", "table", "--entry", "eden", "--dialect", "eden-0.6.4", "--no-unsafe", "--heap-reserve", "16777216"],
       "das_options": ["stack = 4194304"],
       "clang": { "compiler": "clang-18", "flags": ["-std=c11", "-Iinclude", "-Iupstream/doomgeneric/doomgeneric", "-Isrc"] },
       "c_reference": { "sources": ["src/doom_all.c"] },
@@ -2518,6 +2518,24 @@
       "das_entrypoint": "main",
       "expected": {
         "stdout": "end=24 left=240 right=313 count=7 own=5 left_only=3\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "m05-module-layout-typed-records",
+      "status": "ready",
+      "source_root": "tests/syntax/m05_module_layout_typed_records",
+      "translation_entry": "main.c",
+      "translation_units": ["build.c", "walk.c", "main.c"],
+      "c_graph": "multi-tu-source",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--records", "typed", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "list count=10 sum=285 first=81\nlist empty=1\ntree walk=72477\ncells=546\n",
         "exit_code": 0
       },
       "runtime": "required"
