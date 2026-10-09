@@ -691,16 +691,19 @@ impl<'c> Translation<'c> {
             });
         }
         let mut order: Vec<CDeclId> = Vec::new();
-        let bodies: Vec<CStmtId> = self
+        // Function bodies, and the initializers of static-duration objects
+        // (`&g[k]` in a global's initializer puts `g` in the heap too).
+        let bodies: Vec<SomeId> = self
             .ast_context
             .iter_decls()
             .filter_map(|(_, d)| match d.kind {
-                CDeclKind::Function { body: Some(b), .. } => Some(b),
+                CDeclKind::Function { body: Some(b), .. } => Some(SomeId::Stmt(b)),
+                CDeclKind::Variable { has_static_duration: true, initializer: Some(i), .. } => Some(SomeId::Expr(i)),
                 _ => None,
             })
             .collect();
         for body in bodies {
-            let nodes: Vec<CExprId> = DFExpr::new(&self.ast_context, SomeId::Stmt(body))
+            let nodes: Vec<CExprId> = DFExpr::new(&self.ast_context, body)
                 .filter_map(|n| match n {
                     SomeId::Expr(e) => Some(e),
                     _ => None,
@@ -738,6 +741,7 @@ impl<'c> Translation<'c> {
                 }
             }
         }
+        let mut inits: Vec<(CExprId, CTypeId, i64, usize)> = Vec::new();
         for decl in order {
             // The definition carries the initializer; `extern` redeclarations
             // share the object.
@@ -767,18 +771,154 @@ impl<'c> Translation<'c> {
                     "not supported under --memory-model linear yet: a global of this type in the heap"
                 )
             })?;
-            let mut bytes = vec![0u8; size as usize];
-            if let Some(init) = initializer {
-                self.static_init_bytes(init, typ.ctype, &mut bytes, 0)?;
+            // An `extern` declaration and its definition are one object.
+            if let Some(at) = global_offset(src) {
+                GLOBALS.with(|g| g.borrow_mut().insert(decl, at));
+                continue;
             }
-            let at = place_static(&bytes);
+            let at = place_static(&vec![0u8; size as usize]);
             GLOBALS.with(|g| {
                 let mut g = g.borrow_mut();
                 g.insert(decl, at);
                 g.insert(src, at);
             });
+            if let Some(init) = initializer {
+                inits.push((init, typ.ctype, at, size as usize));
+            }
+        }
+        // Every heap global is placed before any initializer is written, so
+        // an initializer may hold the address of any of them.
+        for (init, ty, at, size) in inits {
+            let mut bytes = vec![0u8; size];
+            self.static_init_bytes(init, ty, &mut bytes, 0)?;
+            STATIC.with(|s| s.borrow_mut().0[at as usize..at as usize + size].copy_from_slice(&bytes));
         }
         Ok(())
+    }
+
+    /// The constant heap address (or `--fnptr-model table` function index) a
+    /// static initializer of pointer type denotes: NULL, a string literal, the
+    /// address of (an element or field of) a heap global, a decayed heap
+    /// array, such an address plus or minus a constant, or a function.
+    fn static_address(&self, e: CExprId) -> TranslationResult<Option<i64>> {
+        match self.ast_context[e].kind {
+            CExprKind::Paren(_, i) | CExprKind::ConstantExpr(_, i, _) => self.static_address(i),
+            CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _) => self.static_lvalue_address(inner),
+            CExprKind::ImplicitCast(_, inner, CastKind::FunctionToPointerDecay, _, _) if fn_table() => {
+                self.static_fn_index(inner)
+            }
+            CExprKind::ImplicitCast(ty, inner, _, _, _) | CExprKind::ExplicitCast(ty, inner, _, _, _)
+                if self.ast_context.resolve_type(ty.ctype).kind.is_pointer() =>
+            {
+                match self.static_int(inner) {
+                    Some(0) => Ok(Some(0)),
+                    Some(_) => Ok(None),
+                    None => self.static_address(inner),
+                }
+            }
+            CExprKind::Unary(_, CUnOp::AddressOf, arg, _) => {
+                let mut a = arg;
+                while let CExprKind::Paren(_, i) = self.ast_context[a].kind {
+                    a = i;
+                }
+                if let CExprKind::DeclRef(_, d, _) = self.ast_context[a].kind {
+                    if matches!(self.ast_context[d].kind, CDeclKind::Function { .. }) {
+                        return if fn_table() { self.static_fn_index(a) } else { Ok(None) };
+                    }
+                }
+                self.static_lvalue_address(arg)
+            }
+            CExprKind::Binary(ty, op @ (CBinOp::Add | CBinOp::Subtract), l, r, _, _) => {
+                let CTypeKind::Pointer(p) = self.ast_context.resolve_type(ty.ctype).kind else { return Ok(None) };
+                let Ok(scale) = self.sizeof_type(p.ctype) else { return Ok(None) };
+                let (ptr, k) = match (self.static_int(l), self.static_int(r)) {
+                    (None, Some(k)) => (l, k),
+                    (Some(k), None) if op == CBinOp::Add => (r, k),
+                    _ => return Ok(None),
+                };
+                let k = if op == CBinOp::Subtract { -k } else { k };
+                Ok(self.static_address(ptr)?.map(|a| a + k * scale as i64))
+            }
+            _ => Ok(self.static_int(e).filter(|&v| v == 0)),
+        }
+    }
+
+    /// The constant heap address of an lvalue: a string literal, a heap
+    /// global, or a constant-index element or field of one.
+    fn static_lvalue_address(&self, e: CExprId) -> TranslationResult<Option<i64>> {
+        match self.ast_context[e].kind {
+            CExprKind::Paren(_, i) => self.static_lvalue_address(i),
+            CExprKind::Literal(_, CLiteral::String(..)) => match self.array_address(ExprContext::default(), e)? {
+                Some(WithStmts { val: DaExpr::ConstInt(at), .. }) => Ok(Some(at)),
+                _ => Ok(None),
+            },
+            CExprKind::DeclRef(_, d, _) => Ok(global_offset(d)),
+            CExprKind::Member(_, base, field, kind, _) => {
+                let base_at = match kind {
+                    MemberKind::Dot => self.static_lvalue_address(base)?,
+                    MemberKind::Arrow => self.static_address(base)?,
+                };
+                let off = self.field_offset(field)? as i64;
+                Ok(base_at.map(|a| a + off))
+            }
+            CExprKind::ArraySubscript(ty, lhs, rhs, _) => {
+                let (ptr, idx) = match (self.static_int(lhs), self.static_int(rhs)) {
+                    (None, Some(k)) => (lhs, k),
+                    (Some(k), None) => (rhs, k),
+                    _ => return Ok(None),
+                };
+                let Ok(scale) = self.sizeof_type(ty.ctype) else { return Ok(None) };
+                Ok(self.static_address(ptr)?.map(|a| a + idx * scale as i64))
+            }
+            CExprKind::Unary(_, CUnOp::Deref, p, _) => self.static_address(p),
+            _ => Ok(None),
+        }
+    }
+
+    /// `--fnptr-model table`: the table index of function designator `f`.
+    fn static_fn_index(&self, f: CExprId) -> TranslationResult<Option<i64>> {
+        match self.fn_index_of(f, f) {
+            Ok(DaExpr::ConstInt(k)) => Ok(Some(k)),
+            Ok(_) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// The constant value of a floating static initializer element.
+    fn static_float(&self, e: CExprId) -> Option<f64> {
+        match &self.ast_context[e].kind {
+            CExprKind::Literal(_, CLiteral::Floating(v, _)) => Some(*v),
+            CExprKind::ConstantExpr(_, inner, _) | CExprKind::Paren(_, inner) => self.static_float(*inner),
+            CExprKind::ImplicitCast(ty, inner, _, _, _) | CExprKind::ExplicitCast(ty, inner, _, _, _) => {
+                let v = self.static_float(*inner)?;
+                Some(match self.ast_context.resolve_type(ty.ctype).kind {
+                    CTypeKind::Float => v as f32 as f64,
+                    _ => v,
+                })
+            }
+            CExprKind::Unary(_, CUnOp::Negate, inner, _) => self.static_float(*inner).map(|v| -v),
+            CExprKind::Binary(ty, op, l, r, _, _)
+                if matches!(
+                    self.ast_context.resolve_type(ty.ctype).kind,
+                    CTypeKind::Float | CTypeKind::Double
+                ) =>
+            {
+                let (a, b) = (self.static_float(*l)?, self.static_float(*r)?);
+                let v = match op {
+                    CBinOp::Add => a + b,
+                    CBinOp::Subtract => a - b,
+                    CBinOp::Multiply => a * b,
+                    CBinOp::Divide => a / b,
+                    _ => return None,
+                };
+                // A `float` operation rounds to single precision.
+                Some(match self.ast_context.resolve_type(ty.ctype).kind {
+                    CTypeKind::Float => v as f32 as f64,
+                    _ => v,
+                })
+            }
+            _ => self.static_int(e).map(|v| v as f64),
+        }
     }
 
     /// The constant integer value of a static initializer element.
@@ -788,11 +928,57 @@ impl<'c> Translation<'c> {
             CExprKind::Literal(_, CLiteral::Character(v)) => Some(*v as i64),
             CExprKind::ConstantExpr(_, _, Some(ConstIntExpr::I(v))) => Some(*v),
             CExprKind::ConstantExpr(_, _, Some(ConstIntExpr::U(v))) => Some(*v as i64),
+            // C converts a floating value to an integer by truncation.
+            CExprKind::ImplicitCast(_, inner, CastKind::FloatingToIntegral, _, _)
+            | CExprKind::ExplicitCast(_, inner, CastKind::FloatingToIntegral, _, _) => {
+                let v = self.static_float(*inner)?.trunc();
+                (v >= i64::MIN as f64 && v <= i64::MAX as f64).then_some(v as i64)
+            }
             CExprKind::ConstantExpr(_, inner, None)
             | CExprKind::Paren(_, inner)
             | CExprKind::ImplicitCast(_, inner, _, _, _)
             | CExprKind::ExplicitCast(_, inner, _, _, _) => self.static_int(*inner),
             CExprKind::Unary(_, CUnOp::Negate, inner, _) => self.static_int(*inner).map(|v| v.wrapping_neg()),
+            CExprKind::Unary(_, CUnOp::Plus, inner, _) => self.static_int(*inner),
+            CExprKind::Unary(_, CUnOp::Complement, inner, _) => self.static_int(*inner).map(|v| !v),
+            CExprKind::Unary(_, CUnOp::Not, inner, _) => self.static_int(*inner).map(|v| (v == 0) as i64),
+            CExprKind::UnaryType(_, CUnTypeOp::SizeOf, _, arg) => self.sizeof_type(arg.ctype).ok().map(|v| v as i64),
+            CExprKind::OffsetOf(_, OffsetOfKind::Constant(v)) => Some(*v as i64),
+            CExprKind::Conditional(_, c, t, f) => {
+                if self.static_int(*c)? != 0 {
+                    self.static_int(*t)
+                } else {
+                    self.static_int(*f)
+                }
+            }
+            // Integer arithmetic on constants.  Division, remainder and right
+            // shift are folded only on non-negative operands, where signed and
+            // unsigned C agree; the store truncates to the element width.
+            CExprKind::Binary(_, op, l, r, _, _) => {
+                let (a, b) = (self.static_int(*l)?, self.static_int(*r)?);
+                let nonneg = a >= 0 && b >= 0;
+                Some(match op {
+                    CBinOp::Add => a.wrapping_add(b),
+                    CBinOp::Subtract => a.wrapping_sub(b),
+                    CBinOp::Multiply => a.wrapping_mul(b),
+                    CBinOp::Divide if nonneg && b != 0 => a / b,
+                    CBinOp::Modulus if nonneg && b != 0 => a % b,
+                    CBinOp::ShiftLeft if (0..63).contains(&b) => a.wrapping_shl(b as u32),
+                    CBinOp::ShiftRight if nonneg && b < 63 => a >> b,
+                    CBinOp::BitAnd => a & b,
+                    CBinOp::BitOr => a | b,
+                    CBinOp::BitXor => a ^ b,
+                    CBinOp::EqualEqual => (a == b) as i64,
+                    CBinOp::NotEqual => (a != b) as i64,
+                    CBinOp::Less if nonneg => (a < b) as i64,
+                    CBinOp::Greater if nonneg => (a > b) as i64,
+                    CBinOp::LessEqual if nonneg => (a <= b) as i64,
+                    CBinOp::GreaterEqual if nonneg => (a >= b) as i64,
+                    CBinOp::And => (a != 0 && b != 0) as i64,
+                    CBinOp::Or => (a != 0 || b != 0) as i64,
+                    _ => return None,
+                })
+            }
             CExprKind::DeclRef(_, d, _) => match self.ast_context[*d].kind {
                 CDeclKind::EnumConstant { value: ConstIntExpr::I(v), .. } => Some(v),
                 CDeclKind::EnumConstant { value: ConstIntExpr::U(v), .. } => Some(v as i64),
@@ -841,6 +1027,27 @@ impl<'c> Translation<'c> {
                     _ => Err(refuse()),
                 }
             }
+            // A union: the one initialized member, at offset 0.
+            CTypeKind::Union(_) => {
+                let mut e = init;
+                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) = self.ast_context[e].kind {
+                    e = i;
+                }
+                match &self.ast_context[e].kind {
+                    CExprKind::InitList(_, items, _, _) if items.is_empty() => Ok(()),
+                    CExprKind::InitList(_, items, Some(field), _) if items.len() == 1 => {
+                        let CDeclKind::Field { typ: fty, bitfield_width: None, .. } = self.ast_context[*field].kind
+                        else {
+                            return Err(refuse());
+                        };
+                        if matches!(self.ast_context[items[0]].kind, CExprKind::ImplicitValueInit(_)) {
+                            return Ok(());
+                        }
+                        self.static_init_bytes(items[0], fty.ctype, out, at)
+                    }
+                    _ => Err(refuse()),
+                }
+            }
             CTypeKind::Struct(rec) => {
                 let CDeclKind::Struct { fields: Some(ref fields), .. } = self.ast_context[rec].kind else {
                     return Err(refuse());
@@ -869,25 +1076,12 @@ impl<'c> Translation<'c> {
             }
             _ => {
                 let Some(scalar) = self.scalar_of(ty) else { return Err(refuse()) };
-                if matches!(scalar, Scalar::F32 | Scalar::F64) {
-                    return Err(refuse());
-                }
-                // A pointer element: NULL, or a string literal's static offset.
-                let literal = match scalar {
-                    Scalar::Ptr => self.decayed_array(init).filter(|a| {
-                        matches!(self.ast_context[*a].kind, CExprKind::Literal(_, CLiteral::String(..)))
-                    }),
-                    _ => None,
-                };
-                let v = match literal {
-                    Some(array) => match self.array_address(ExprContext::default(), array)? {
-                        Some(WithStmts { val: DaExpr::ConstInt(at), .. }) => at,
-                        _ => return Err(refuse()),
-                    },
-                    None => match self.static_int(init) {
-                        Some(v) if scalar != Scalar::Ptr || v == 0 => v,
-                        _ => return Err(refuse()),
-                    },
+                let v = match scalar {
+                    Scalar::F32 => (self.static_float(init).ok_or_else(refuse)? as f32).to_bits() as i64,
+                    Scalar::F64 => self.static_float(init).ok_or_else(refuse)?.to_bits() as i64,
+                    // A pointer element: a constant address (or function index).
+                    Scalar::Ptr | Scalar::Fn(_) => self.static_address(init)?.ok_or_else(refuse)?,
+                    _ => self.static_int(init).ok_or_else(refuse)?,
                 };
                 let width = self.sizeof_type(ty).map_err(|_| refuse())? as usize;
                 for k in 0..width {
@@ -1406,14 +1600,12 @@ impl<'c> Translation<'c> {
                     ));
                 }
                 CastKind::BitCast | CastKind::NoOp | CastKind::ConstCast if to_fn && from_fn => {
-                    // Each signature has its own table, so an index means
-                    // nothing under another signature.
-                    if self.fn_sig(ty.ctype)? != self.fn_sig(inner_ty.ctype)? {
-                        return Err(self.linear_refuse(
-                            expr_id,
-                            "a cast between function pointer types of different signatures under --fnptr-model table",
-                        ));
-                    }
+                    // Indices are program-wide and every signature's table
+                    // spans all of them (a slot is empty where the function
+                    // has another signature), so a cast keeps the index: a
+                    // round trip back to the function's own type calls it, as
+                    // in C, and a call through a mismatched type finds an
+                    // empty slot and panics.
                     return Ok(Some(self.convert_expr(ctx.used(), inner, None)?));
                 }
                 CastKind::BitCast if to_fn && from_ptr && self.ast_context.is_null_expr(inner) => {
