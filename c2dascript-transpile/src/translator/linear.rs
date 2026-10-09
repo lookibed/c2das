@@ -684,7 +684,7 @@ impl<'c> Translation<'c> {
             // A function another unit of a source-layout program defines is
             // numbered here too (this module requires its owner); one
             // numbered by both units has two slots holding the same value.
-            let CDeclKind::Function { ref name, ref body, .. } = self.ast_context[decl].kind else { continue };
+            let CDeclKind::Function { ref name, ref body, typ: fn_typ, .. } = self.ast_context[decl].kind else { continue };
             let foreign = self.link.as_ref().map_or(false, |link| link.owners.contains_key(name));
             if body.is_none() && !foreign {
                 continue;
@@ -693,7 +693,10 @@ impl<'c> Translation<'c> {
                 continue;
             }
             seen.push(decl);
-            let sig = self.fn_sig(ty.ctype)?;
+            // The definition's own signature: a decay through an unprototyped
+            // declaration (`void A_Light0();`) has the type `void (*)()`.
+            let _ = ty;
+            let sig = self.fn_sig(fn_typ)?;
             sig_id(&sig);
             let da_name = self.declare_value_name(decl, name);
             FUNCS.with(|fs| {
