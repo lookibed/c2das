@@ -24,6 +24,8 @@ use crate::target::MemoryModel;
 use crate::translator::layout::NaturalMember;
 use std::collections::HashMap as StdHashMap;
 
+mod va_heap;
+
 /// The heap: one module global.
 pub(crate) const MEM: &str = "c2da_mem";
 /// Bytes at the bottom of the heap that no object occupies, so 0 is NULL.
@@ -70,6 +72,7 @@ pub fn reset() {
     FILE_USED.with(|u| u.set(false));
     ARGV_USED.with(|u| u.set(false));
     IN_LINK.with(|l| *l.borrow_mut() = None);
+    va_heap::reset();
 }
 
 /// The first conversion of a printf format the linear formatter does not
@@ -607,6 +610,7 @@ impl<'c> Translation<'c> {
             map.insert(decl, size);
             size += (bytes + 15) & !15;
         }
+        let size = self.va_heap_plan_areas(&nodes, size);
         Ok((map, size))
     }
 
@@ -1871,7 +1875,15 @@ impl<'c> Translation<'c> {
         if roles == "DF" {
             out.val.insert(1, cast(DaType::uint64(), DaExpr::ConstInt(0x7fff_ffff)));
         }
-        if va_list {
+        let runtime = if self.va_heap() { va_heap::heap_format_runtime(runtime) } else { runtime };
+        if va_list && self.va_heap() {
+            let cursor = self.va_list_call_argument(args[fixed])?;
+            self.mark_format_heap_used();
+            out = out.map(|mut list| {
+                list.push(cursor);
+                list
+            });
+        } else if va_list {
             let cursor = self.va_list_call_argument(args[fixed])?;
             let forwarded = self.forwarded_va_args(expr_id)?;
             out = out.map(|mut list| {
@@ -1881,17 +1893,31 @@ impl<'c> Translation<'c> {
             });
         } else {
             let mut tail = Vec::new();
+            let mut heap_tail = Vec::new();
             for arg in &args[fixed..] {
                 let v = self.convert_expr(ctx.used(), *arg, None)?;
                 let ty = self.ast_context[*arg].kind.get_qual_type();
                 out.stmts.extend(v.stmts);
                 out.is_unsafe |= v.is_unsafe;
-                tail.push(self.pack_variadic_argument(*arg, v.val, ty)?);
+                if self.va_heap() {
+                    heap_tail.push((*arg, v.val));
+                } else {
+                    tail.push(self.pack_variadic_argument(*arg, v.val, ty)?);
+                }
             }
-            out = out.map(|mut list| {
-                list.push(DaExpr::MakeArray(tail));
-                list
-            });
+            if self.va_heap() {
+                let area = self.va_heap_format_tail(expr_id, heap_tail)?;
+                out.stmts.extend(area.stmts);
+                out = out.map(|mut list| {
+                    list.push(area.val);
+                    list
+                });
+            } else {
+                out = out.map(|mut list| {
+                    list.push(DaExpr::MakeArray(tail));
+                    list
+                });
+            }
         }
         libc::require_write();
         FORMAT_USED.with(|u| u.set(true));
@@ -2127,6 +2153,7 @@ pub fn runtime_source(reserve: u64) -> String {
     let stack_top = stack_base + STACK_BYTES;
     let brk = stack_top;
     let format_section = if FORMAT_USED.with(|u| u.get()) { FORMAT_RUNTIME } else { "" };
+    let format_section = format!("{format_section}{}", va_heap::runtime_section(va_heap::format_heap_used()));
     let file_section = if FILE_USED.with(|u| u.get()) { FILE_RUNTIME } else { "" };
     let argv_section = if ARGV_USED.with(|u| u.get()) { ARGV_RUNTIME } else { "" };
     let fn_section = function_tables_source();
@@ -2163,6 +2190,8 @@ pub struct LinearLink {
     pub sigs: Vec<DaType>,
     pub fn_count: usize,
     pub format: bool,
+    /// The `--varargs-model heap` printf family (`va_heap.rs`).
+    pub format_heap: bool,
     pub file: bool,
     pub argv: bool,
 }
@@ -2202,6 +2231,7 @@ pub fn linked_state() -> LinearLink {
         sigs: SIGS.with(|s| s.borrow().clone()),
         fn_count: input.fn_count + FUNCS.with(|f| f.borrow().len()),
         format: input.format || FORMAT_USED.with(|u| u.get()),
+        format_heap: input.format_heap || va_heap::format_heap_used(),
         file: input.file || FILE_USED.with(|u| u.get()),
         argv: input.argv || ARGV_USED.with(|u| u.get()),
     }
@@ -2275,6 +2305,7 @@ pub fn shared_runtime_source(reserve: u64, link: &LinearLink) -> String {
     let stack_top = stack_base + STACK_BYTES;
     let brk = stack_top;
     let format_section = if link.format { FORMAT_RUNTIME } else { "" };
+    let format_section = format!("{format_section}{}", va_heap::runtime_section(link.format_heap));
     let file_section = if link.file { FILE_RUNTIME } else { "" };
     let argv_section = if link.argv { ARGV_RUNTIME } else { "" };
     let mut tables = String::new();

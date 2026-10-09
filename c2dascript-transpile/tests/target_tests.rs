@@ -109,9 +109,17 @@ fn eden_preset_lists_every_unimplemented_switch() {
     assert_eq!(
         missing,
         [
-            "--varargs-model heap",
             "--records typed",
         ]
     );
     assert!(TargetOptions::default().unimplemented().is_empty());
+    // `--varargs-model heap` writes into the linear heap's C stack.
+    let alone = TargetOptions {
+        varargs_model: c2dascript_transpile::target::VarargsModel::Heap,
+        ..Default::default()
+    };
+    assert_eq!(
+        alone.unimplemented(),
+        ["--varargs-model heap (needs --memory-model linear)"]
+    );
 }

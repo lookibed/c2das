@@ -284,6 +284,15 @@ impl<'c> Translation<'c> {
             // "measure, then format" shape depends on exactly that.  The
             // declaration-site initialiser covers only the first `va_start`,
             // so every one of them rewinds the cursor here.
+            // `--varargs-model heap`: the cursor is the address of the first
+            // slot, the area `c2da_va_args` names (`linear/va_heap.rs`).
+            VaPart::Start(id) if self.va_heap() => Ok(WithStmts::new(
+                vec![DaStmt::Expr(DaExpr::Assign(
+                    Box::new(DaExpr::Field(Box::new(self.cursor_expr(id)?), "index".into())),
+                    Box::new(DaExpr::Var(VA_ARGS_PARAM.into())),
+                ))],
+                DaExpr::ConstInt(0),
+            )),
             VaPart::Start(id) => Ok(WithStmts::new(
                 vec![self.set_cursor_index(id, VA_CURSOR_FIRST)?],
                 DaExpr::ConstInt(0),
@@ -320,6 +329,9 @@ impl<'c> Translation<'c> {
                 self.ast_context.display_loc(&self.ast_context[val_id].loc),
                 "va_arg uses a va_list without va_start"
             ));
+        }
+        if self.va_heap() {
+            return self.va_heap_vaarg(self.cursor_expr(id)?, ty, val_id);
         }
         let kind = &self.ast_context.resolve_type(ty.ctype).kind;
         let (field, output) = if kind.is_integral_type() || kind.is_enum() {

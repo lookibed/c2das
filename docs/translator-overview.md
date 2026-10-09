@@ -220,10 +220,11 @@ is unchanged.
   output, naming the first ten sites with the C declaration that owns each.
   `--no-unsafe=report` prints a per-construct census (C-owned vs translator-generated) and
   the ten declarations with the most sites to stderr, and writes the module.
-- `--memory-model linear`, `--fnptr-model table`, `--varargs-model heap`, `--heap-reserve`,
-  `--entry eden`, `--records typed` and `--libc eden` are parsed and refused by name
-  (`... is not implemented yet`, exit 2) before any output is written. `--target eden` sets
-  all of the above, so it is refused too until they land.
+- `--records typed` is parsed and refused by name (`... is not implemented yet`, exit 2)
+  before any output is written, and so are `--fnptr-model table`, `--varargs-model heap`,
+  `--heap-reserve` and `--entry eden` without `--memory-model linear` (`... (needs
+  --memory-model linear)`). `--target eden` sets all of them, so it is refused too until
+  `--records typed` lands. Status per switch: `docs/eden-flags.md`.
 - `scripts/eden_check.py <generated dir>` compiles every generated module under a local
   sandbox model (`EDEN_SANDBOX_PROJECT=<sandbox.das_project>`) and prints a text census.
 

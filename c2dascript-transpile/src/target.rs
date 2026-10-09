@@ -66,7 +66,8 @@ switch!(
 );
 switch!(
     /// `--varargs-model`: an array literal per variadic call (today) or a C
-    /// stack region in the heap.  `heap` is not implemented yet.
+    /// stack region of the `--memory-model linear` heap
+    /// (`translator/linear/va_heap.rs`; refused without that model).
     VarargsModel { Array = "array", Heap = "heap" }
 );
 switch!(
@@ -142,8 +143,10 @@ impl TargetOptions {
         if let (FnPtrModel::Table, MemoryModel::Raw) = (self.fnptr_model, self.memory_model) {
             missing.push(format!("--fnptr-model {} (needs --memory-model linear)", self.fnptr_model));
         }
-        if self.varargs_model != VarargsModel::default() {
-            missing.push(format!("--varargs-model {}", self.varargs_model));
+        // `--varargs-model heap` writes the arguments into the linear heap's
+        // C stack.
+        if let (VarargsModel::Heap, MemoryModel::Raw) = (self.varargs_model, self.memory_model) {
+            missing.push(format!("--varargs-model {} (needs --memory-model linear)", self.varargs_model));
         }
         // `--heap-reserve` sizes the linear heap; without that model there is
         // no heap it could size.

@@ -6014,7 +6014,7 @@
       "expected": {
         "kind": "translation-error",
         "value": {
-          "cause": "--varargs-model heap is not implemented yet"
+          "cause": "--records typed is not implemented yet"
         }
       },
       "family": "syntax-pointer-legacy",
@@ -6498,6 +6498,34 @@
       "owner": "abi.rs / object_memory.rs",
       "runtime": "required",
       "source": "tests/syntax/p207_linear_fnptr_table.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p208-linear-varargs-heap",
+      "canonical_cases": [
+        "p208-linear-varargs-heap"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_varargs_heap",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "sum=40\nmixed=4000003016\nforward=55\ndescribe=tag:-12:ff:z len=12\ndepth=31\nloop 0 1 2 3 4 5 6 7 8 9 abcdef 4000000000 -1234567890123    xy|\nloop 1 2 3 4 5 6 7 8 9 10 abcdef 4000000000 -1234567890123    xy|\nloop 2 3 4 5 6 7 8 9 10 11 abcdef 4000000000 -1234567890123    xy|\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p208_linear_varargs_heap",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p208_linear_varargs_heap.c",
       "status": "supported"
     },
     {
