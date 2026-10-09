@@ -568,7 +568,67 @@ fn float_repr(value: f64) -> String {
     }
 }
 
+/// `unsafe { p += n }` / `unsafe { p -= n }` whose step `n` holds no operation
+/// that needs `unsafe` itself, so the block's one unsafe operation is the
+/// pointer `op=` (the exact shape daslang's STYLE025 reports; a step with an
+/// unsafe operand of its own is not reported and gets no suppression, which
+/// would otherwise be a stale `nolint`, LINT019).
+fn is_pointer_step_block(block: &DaBlock) -> bool {
+    match block.stmts.as_slice() {
+        [DaStmt::Expr(DaExpr::AssignOp { op, left, right })] => {
+            matches!(*op, "+=" | "-=")
+                && matches!(**left, DaExpr::Var(_))
+                && is_safe_operand(right)
+        }
+        _ => false,
+    }
+}
+
+/// An operand built only of names, literals, numeric conversions, fields and
+/// operators: nothing in it needs `unsafe`.
+fn is_safe_operand(expr: &DaExpr) -> bool {
+    match expr {
+        DaExpr::Var(_)
+        | DaExpr::ConstInt(_)
+        | DaExpr::ConstUInt(_)
+        | DaExpr::ConstFloat(_)
+        | DaExpr::ConstDouble(_)
+        | DaExpr::ConstBool(_) => true,
+        DaExpr::Cast {
+            kind: CastKind::Cast | CastKind::Value,
+            expr,
+            ..
+        } => is_safe_operand(expr),
+        DaExpr::Field(base, _) => is_safe_operand(base),
+        DaExpr::Op1 { expr, .. } => is_safe_operand(expr),
+        DaExpr::Op2 { left, right, .. } => is_safe_operand(left) && is_safe_operand(right),
+        _ => false,
+    }
+}
+
 impl DaExpr {
+    /// The daslang lint rule a statement made of this expression trips on
+    /// purpose, as an interpreter-speed device: `place = T(value)` with a
+    /// [`CastKind::Value`] cast is PERF020's "redundant cast" (`fold`, "Value
+    /// stores").  The statement printer writes it as a trailing
+    /// `// nolint:` comment, which costs nothing at run time.
+    pub(crate) fn intentional_lint_code(&self) -> Option<&'static str> {
+        match self {
+            DaExpr::Assign(_, value)
+                if matches!(
+                    **value,
+                    DaExpr::Cast {
+                        kind: CastKind::Value,
+                        ..
+                    }
+                ) =>
+            {
+                Some("PERF020")
+            }
+            _ => None,
+        }
+    }
+
     pub(crate) fn fmt_with_indent(&self, f: &mut fmt::Formatter, indent: usize) -> fmt::Result {
         use DaExpr::*;
         match self {
@@ -834,8 +894,18 @@ impl DaExpr {
             Unsafe(expr) => {
                 match &**expr {
                     DaExpr::Block(b) => {
-                        // Block form: unsafe { stmts }
-                        writeln!(f, "unsafe {{")?;
+                        // Block form: unsafe { stmts }.  A pointer step
+                        // `unsafe { p += n }` is the fold's one-node spelling
+                        // of `p = unsafe(p + n)` (`fold`, "Compound
+                        // assignments"); daslang's STYLE025 asks to narrow it
+                        // to `unsafe(…)`, which takes no assignment, so the
+                        // line carries its suppression (a comment: nothing
+                        // at run time).
+                        if is_pointer_step_block(b) {
+                            writeln!(f, "unsafe {{  // nolint:STYLE025")?;
+                        } else {
+                            writeln!(f, "unsafe {{")?;
+                        }
                         for stmt in &b.stmts {
                             write_indent(f, indent + 1)?;
                             stmt.fmt_with_indent(f, indent + 1)?;

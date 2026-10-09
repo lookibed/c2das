@@ -4630,6 +4630,7 @@ fn translate_impl(
     // daScript types of its globals, locals, functions and structures tell it
     // when a non-constant operand already has the target type.
     das_ast::fold::fold_module_conversions(&mut module_decls);
+    crate::cfg::labels::let_bind_site_temporaries(&mut module_decls);
 
     // `--runtime-module <name>`: the program-wide prelude lives in the shared
     // module `<name>.das` (`runtime_module_source`), so this unit drops its
@@ -4926,6 +4927,7 @@ pub fn shared_module_source(
     }
     apply_side_effects(&mut decls);
     das_ast::fold::fold_module_conversions(&mut decls);
+    crate::cfg::labels::let_bind_site_temporaries(&mut decls);
     let options = module_options(tcfg);
     target_check::check_shared_module(
         &tcfg.target,

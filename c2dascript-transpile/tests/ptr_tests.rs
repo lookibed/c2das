@@ -300,7 +300,7 @@ fn p99_conditionals_without_statements_are_daslang_expressions() {
     // A right operand or an arm with statements keeps the guarded flag, so
     // `i++` runs only when C evaluates it.
     assert!(d.contains(
-        "if (x > y) {\n        var c2da_postinc_1 : int = i_0\n        i_0++\n        if (c2da_postinc_1 != 0) {"
+        "if (x > y) {\n        let c2da_postinc_1 : int = i_0\n        i_0++\n        if (c2da_postinc_1 != 0) {"
     ));
     assert!(d.contains(" = note(10, i_0)\n    }\n    value_0 = c2da_fresh"));
     // A pointer arm whose conversion to the result type the lowering spells
@@ -366,7 +366,7 @@ fn p102_locals_are_declared_bare_and_initialised_in_place() {
     // straight after, are single-use temporaries substituted into the return.
     assert!(d.contains("def first_store(var k_2 : int) : int {\n    return (k_2 + 1) * 2\n"));
     assert!(d.contains("def two_stores(var k_3 : int) : int {\n    return k_3 * 2 + 1\n"));
-    assert!(d.contains("var c2da_fresh0 : int = int(op) + 1\n"));
+    assert!(d.contains("let c2da_fresh0 : int = int(op) + 1\n"));
     assert!(d.contains("    var self : uint8?\n    self = unsafe(addr<uint8?>(self))\n"));
     // One `return` closes a void function whose early `return` was laid out
     // after the closing one.
@@ -963,26 +963,26 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
         "{body}"
     );
     assert!(
-        body.contains("    unsafe {\n        p += 1\n    }\n"),
+        body.contains("    unsafe {  // nolint:STYLE025\n        p += 1\n    }\n"),
         "{body}"
     );
     // Used values keep the old value: `a[i++]`, `y = i--`, `*q++ = 5`,
     // `while (n--)`.
     assert!(
         body.contains(
-            "var c2da_postinc_2 : int = i\n    i++\n    a[c2da_postinc_2] = 7"
+            "let c2da_postinc_2 : int = i\n    i++\n    a[c2da_postinc_2] = 7"
         ),
         "{body}"
     );
     assert!(
-        body.contains("var c2da_postinc_4 : int = i\n    i--\n    y = c2da_postinc_4"),
+        body.contains("let c2da_postinc_4 : int = i\n    i--\n    y = c2da_postinc_4"),
         "{body}"
     );
     // `*q++ = 5` with a value that cannot observe `q`: store, then step.
-    assert!(body.contains("    *q = 5\n    unsafe {\n        q += 1\n    }\n"), "{body}");
+    assert!(body.contains("    *q = 5\n    unsafe {  // nolint:STYLE025\n        q += 1\n    }\n"), "{body}");
     assert!(
         body.contains(
-            "var c2da_postinc_6 : int = n\n        n--\n        if (c2da_postinc_6 == 0) {\n            break\n"
+            "let c2da_postinc_6 : int = n\n        n--\n        if (c2da_postinc_6 == 0) {\n            break\n"
         ),
         "{body}"
     );
@@ -1041,7 +1041,7 @@ fn p153_self_updates_are_compound_assignments() {
     // into the step).
     assert!(
         body.contains(
-            "    unsafe {\n        walk += 1\n    }\n    unsafe {\n        walk += 2l\n    }\n"
+            "    unsafe {  // nolint:STYLE025\n        walk += 1\n    }\n    unsafe {  // nolint:STYLE025\n        walk += 2l\n    }\n"
         ),
         "{body}"
     );
@@ -1178,41 +1178,41 @@ fn p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer
     // (`cfg/structured.rs`, `p181`): the store through its `uint64` mirror,
     // then the mirror's step.
     assert!(
-        main.contains("        *unsafe(reinterpret<uint8?>(c2da_dest_addr)) = uint8(table_0[i_0 & 15])\n        c2da_dest_addr++\n"),
+        main.contains("        *unsafe(reinterpret<uint8?>(c2da_dest_addr)) = uint8(table_0[i_0 & 15])  // nolint:PERF020\n        c2da_dest_addr++\n"),
         "{main}"
     );
     assert!(
         main.contains(
-            "        *unsafe(reinterpret<uint8?>(c2da_dest_addr_0)) = uint8(*unsafe(reinterpret<uint8 const?>(c2da_src_addr)))\n        c2da_dest_addr_0++\n        c2da_src_addr++\n"
+            "        *unsafe(reinterpret<uint8?>(c2da_dest_addr_0)) = uint8(*unsafe(reinterpret<uint8 const?>(c2da_src_addr)))  // nolint:PERF020\n        c2da_dest_addr_0++\n        c2da_src_addr++\n"
         ),
         "{main}"
     );
     assert!(
-        main.contains("    *mark = uint8(level)\n    unsafe {\n        mark += 1\n    }\n"),
+        main.contains("    *mark = uint8(level)\n    unsafe {  // nolint:STYLE025\n        mark += 1\n    }\n"),
         "{main}"
     );
     // A global pointer with a value that reads no memory.
     assert!(
-        main.contains("    *out = 42u8\n    unsafe {\n        out += 1\n    }\n"),
+        main.contains("    *out = 42u8\n    unsafe {  // nolint:STYLE025\n        out += 1\n    }\n"),
         "{main}"
     );
     assert!(
-        main.contains("    *out = uint8(level + 1)\n    unsafe {\n        out += 1\n    }\n"),
+        main.contains("    *out = uint8(level + 1)\n    unsafe {  // nolint:STYLE025\n        out += 1\n    }\n"),
         "{main}"
     );
     // The post-decrement form.
     assert!(
-        main.contains("    *back = 1u8\n    unsafe {\n        back -= 1\n    }\n    *back = 2u8\n    unsafe {\n        back -= 1\n    }\n    *back = 3u8\n"),
+        main.contains("    *back = 1u8\n    unsafe {  // nolint:STYLE025\n        back -= 1\n    }\n    *back = 2u8\n    unsafe {  // nolint:STYLE025\n        back -= 1\n    }\n    *back = 3u8\n"),
         "{main}"
     );
     // The copy stays when the value names the pointer, reads memory while
     // the pointer is a global, or calls a function.
     assert!(
-        main.contains("    var c2da_postinc : uint8? = mark\n    unsafe {\n        mark += 1\n    }\n    *c2da_postinc = uint8(mark != null ? 1 : 0)\n"),
+        main.contains("    var c2da_postinc : uint8? = mark\n    unsafe {  // nolint:STYLE025\n        mark += 1\n    }\n    *c2da_postinc = uint8(mark != null ? 1 : 0)\n"),
         "{main}"
     );
     assert!(
-        main.contains("    var c2da_postinc_1 : uint8? = out\n    unsafe {\n        out += 1\n    }\n    var c2da_postinc_2 : uint8 const? = in_0\n    unsafe {\n        in_0 += 1\n    }\n    *c2da_postinc_1 = uint8(*c2da_postinc_2)\n"),
+        main.contains("    var c2da_postinc_1 : uint8? = out\n    unsafe {  // nolint:STYLE025\n        out += 1\n    }\n    var c2da_postinc_2 : uint8 const? = in_0\n    unsafe {  // nolint:STYLE025\n        in_0 += 1\n    }\n    *c2da_postinc_1 = uint8(*c2da_postinc_2)  // nolint:PERF020\n"),
         "{main}"
     );
     assert!(
@@ -1477,7 +1477,7 @@ fn p161_switch_is_a_label_region_or_a_chain() {
     let body = function_body(&d, "temporaries");
     assert!(!body.contains("label"), "{body}");
     assert!(
-        body.contains("        } else {\n            var c2da_postinc_1 : int = y\n"),
+        body.contains("        } else {\n            let c2da_postinc_1 : int = y\n"),
         "{body}"
     );
     let body = function_body(&d, "no_cases");
@@ -1612,10 +1612,10 @@ fn p181_pointer_inductions_are_mirrored_addresses() {
     // after the loop is on the pointer again.
     let body = function_body(&d, "backwards");
     assert!(body.contains("        c2da_p_0_addr -= 8ul\n"), "{body}");
-    assert!(body.contains("    p_0 = unsafe(reinterpret<int?>(c2da_p_0_addr))\n    unsafe {\n        p_0 -= 1\n    }\n"), "{body}");
+    assert!(body.contains("    p_0 = unsafe(reinterpret<int?>(c2da_p_0_addr))\n    unsafe {  // nolint:STYLE025\n        p_0 -= 1\n    }\n"), "{body}");
     // Two pointers in one statement, a field through the pointer.
     let body = function_body(&d, "copy_pairs");
-    assert!(body.contains("        *unsafe(reinterpret<int?>(c2da_d_addr)) = int(*unsafe(reinterpret<int const?>(c2da_s_0_addr)))\n        c2da_d_addr += 4ul\n        c2da_s_0_addr += 4ul\n        sum += unsafe(reinterpret<cell?>(c2da_c_addr)).v\n        c2da_c_addr += 8ul\n"), "{body}");
+    assert!(body.contains("        *unsafe(reinterpret<int?>(c2da_d_addr)) = int(*unsafe(reinterpret<int const?>(c2da_s_0_addr)))  // nolint:PERF020\n        c2da_d_addr += 4ul\n        c2da_s_0_addr += 4ul\n        sum += unsafe(reinterpret<cell?>(c2da_c_addr)).v\n        c2da_c_addr += 8ul\n"), "{body}");
     assert!(!body.contains("c2da_c_addr))\n    c = "), "{body}");
     // `*d++ = (uint8_t)(*s++)`: the cast walks the `s++` node twice; one
     // step each, both stored back.
@@ -1625,7 +1625,7 @@ fn p181_pointer_inductions_are_mirrored_addresses() {
     // through the mirror's initialiser, so it is stored back each pass
     // (h264bsd's `Intra16x16HorizontalPrediction`).
     let body = function_body(&d, "rows");
-    assert!(body.contains("        var c2da_data_addr : uint64 = unsafe(reinterpret<uint64>(data))\n        for (j in urange(0u, 4u)) {\n            *unsafe(reinterpret<uint8?>(c2da_data_addr)) = uint8(unsafe(left[int(i)]))\n            c2da_data_addr++\n        }\n        data = unsafe(reinterpret<uint8?>(c2da_data_addr))\n    }\n"), "{body}");
+    assert!(body.contains("        var c2da_data_addr : uint64 = unsafe(reinterpret<uint64>(data))\n        for (j in urange(0u, 4u)) {\n            *unsafe(reinterpret<uint8?>(c2da_data_addr)) = uint8(unsafe(left[int(i)]))  // nolint:PERF020\n            c2da_data_addr++\n        }\n        data = unsafe(reinterpret<uint8?>(c2da_data_addr))\n    }\n"), "{body}");
     // A `for` step through a comma.
     let body = function_body(&d, "comma_step");
     assert!(body.contains("        i_0++\n        c2da_p_1_addr += 2ul\n"), "{body}");
@@ -1634,7 +1634,7 @@ fn p181_pointer_inductions_are_mirrored_addresses() {
     for name in ["passed", "compared", "conditional", "variable_step"] {
         let body = function_body(&d, name);
         assert!(!body.contains("_addr"), "{name}: {body}");
-        assert!(body.contains("    unsafe {\n"), "{name}: {body}");
+        assert!(body.contains("    unsafe {  // nolint:STYLE025\n"), "{name}: {body}");
     }
     // Nested: the inner loop owns `p` (stored back each outer pass), the
     // outer owns `q`, read through its mirror inside the inner body.
@@ -1654,7 +1654,7 @@ fn p182_single_use_temporaries_are_substituted() {
     // assignment: the chain is one subscript and the three locals have no
     // declaration left (`cfg/structured.rs`, "Single-use temporaries").
     let body = function_body(&d, "span");
-    assert!(body.contains("        *unsafe(reinterpret<uint8?>(c2da_dest_addr)) = uint8(colormap[int(source[int(position >> 26u | position >> 4u & 0xfc0u)])])\n        c2da_dest_addr++\n"), "{body}");
+    assert!(body.contains("        *unsafe(reinterpret<uint8?>(c2da_dest_addr)) = uint8(colormap[int(source[int(position >> 26u | position >> 4u & 0xfc0u)])])  // nolint:PERF020\n        c2da_dest_addr++\n"), "{body}");
     assert!(!body.contains("temp") && !body.contains("spot"), "{body}");
     // A pointer, a `float`, a store's index.
     let body = function_body(&d, "pointer_temp");
@@ -1662,7 +1662,7 @@ fn p182_single_use_temporaries_are_substituted() {
     let body = function_body(&d, "float_temp");
     assert!(body.ends_with(" {\n    return x * 0.5 + 1.0"), "{body}");
     let body = function_body(&d, "index_temp");
-    assert!(body.ends_with(" {\n    unsafe(a[i_0 + 1]) = int(v)\n    return"), "{body}");
+    assert!(body.ends_with(" {\n    unsafe(a[i_0 + 1]) = int(v)  // nolint:PERF020\n    return"), "{body}");
     // An `if` scrutinee (the division runs where C's did), a declaration's
     // initializer as the assignment and as the read, `x = x + 1`, and a
     // temporary reassigned later in the list.
@@ -1703,23 +1703,25 @@ fn p180_scalar_stores_of_references_read_values() {
     );
     // A store through a pointer of an element, a global or a parameter reads
     // the value: `T(ref)`, which daslang stores with `Set_TT<T>`
-    // (`das_ast::fold`, "Value stores").
+    // (`das_ast::fold`, "Value stores").  The statement carries the
+    // suppression of daslang's PERF020, which reports the device as a
+    // redundant cast.
     let body = function_body(&d, "through_pointer");
-    assert!(body.contains("    *dest = int(unsafe(src[i]))\n"), "{body}");
-    assert!(body.contains("    unsafe(dest[1]) = int(unsafe(src[i + 1]))\n"), "{body}");
-    assert!(body.contains("    unsafe(dest[2]) = int(g)\n"), "{body}");
-    assert!(body.contains("    unsafe(dest[3]) = int(param_0)\n"), "{body}");
+    assert!(body.contains("    *dest = int(unsafe(src[i]))  // nolint:PERF020\n"), "{body}");
+    assert!(body.contains("    unsafe(dest[1]) = int(unsafe(src[i + 1]))  // nolint:PERF020\n"), "{body}");
+    assert!(body.contains("    unsafe(dest[2]) = int(g)  // nolint:PERF020\n"), "{body}");
+    assert!(body.contains("    unsafe(dest[3]) = int(param_0)  // nolint:PERF020\n"), "{body}");
     // Into a global or a global element.
     let body = function_body(&d, "into_global");
-    assert!(body.contains("    g = int(unsafe(src_0[i_0]))\n"), "{body}");
-    assert!(body.contains("    garr[0] = int(param_1)\n"), "{body}");
-    assert!(body.contains("    garr[1] = int(*src_0)\n"), "{body}");
+    assert!(body.contains("    g = int(unsafe(src_0[i_0]))  // nolint:PERF020\n"), "{body}");
+    assert!(body.contains("    garr[0] = int(param_1)  // nolint:PERF020\n"), "{body}");
+    assert!(body.contains("    garr[1] = int(*src_0)  // nolint:PERF020\n"), "{body}");
     // Fields through pointers; the narrow and real types.
     let body = function_body(&d, "fields");
-    assert!(body.contains("    p.a = int(q.b)\n    q.a = int(p.b)\n"), "{body}");
+    assert!(body.contains("    p.a = int(q.b)  // nolint:PERF020\n    q.a = int(p.b)  // nolint:PERF020\n"), "{body}");
     let body = function_body(&d, "narrow");
-    assert!(body.contains("    *dest_0 = uint8(unsafe(src_1[i_1]))\n"), "{body}");
-    assert!(body.contains("    *fd = float(unsafe(fs[i_1]))\n"), "{body}");
+    assert!(body.contains("    *dest_0 = uint8(unsafe(src_1[i_1]))  // nolint:PERF020\n"), "{body}");
+    assert!(body.contains("    *fd = float(unsafe(fs[i_1]))  // nolint:PERF020\n"), "{body}");
     // A local on either side, a field of a local structure and a local's
     // initialiser keep the plain copy: the interpreter fuses those.
     let body = function_body(&d, "locals");
@@ -1782,14 +1784,14 @@ fn p97_constant_conversions_print_as_literals_of_their_target_type() {
         "failures += 44l == 44l ? 0 : 1\n",
         "int64(4294967295u == 4294967295u ? 1 : 0)\n",
         "int64(0xfffffffffffffffful == 0xfffffffffffffffful ? 1 : 0)\n",
-        "var c2da_fresh8 : int64 = int64(-2147483647 - 1)\n",
+        "let c2da_fresh8 : int64 = int64(-2147483647 - 1)\n",
         "int64((-9223372036854775807l - 1l) == -9223372036854775807l - 1l ? 1 : 0)\n",
         "failures += 4464l == 4464l ? 0 : 1\n",
-        "var c2da_fresh14 : int64 = 65534l\n",
+        "let c2da_fresh14 : int64 = 65534l\n",
         "failures += 171l == 171l ? 0 : 1\n",
-        "var c2da_fresh16 : int64 = int64(0xff000000u >> 24u)\n",
+        "let c2da_fresh16 : int64 = int64(0xff000000u >> 24u)\n",
         "int64(0xfful << 8ul == 65280ul ? 1 : 0)\n",
-        "var c2da_fresh20 : int64 = -5l\n",
+        "let c2da_fresh20 : int64 = -5l\n",
         "int64(3.0lf == 3.0lf ? 1 : 0)\n",
         "failures = 0\n",
     ] {
@@ -1799,7 +1801,7 @@ fn p97_constant_conversions_print_as_literals_of_their_target_type() {
     // check's `int64(int8(-1))` folds to `-1l` once `negative_byte` is
     // substituted into it).
     assert!(d.contains("float(16777217) == 16777216.0 ? 1 : 0"));
-    assert!(d.contains("var c2da_fresh26 : int64 = -1l\n    var c2da_fresh27 : int64 = -1l\n"));
+    assert!(d.contains("let c2da_fresh26 : int64 = -1l\n    let c2da_fresh27 : int64 = -1l\n"));
     // The narrowing of a size argument is part of the C value.
     assert!(d.contains(", 0u8, 4ul)"));
     assert!(!d.contains("int(int(") && !d.contains("uint64(int("));

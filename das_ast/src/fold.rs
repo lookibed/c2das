@@ -81,7 +81,9 @@
 //! typed pointer `T?` by an `int` or `int64` is `unsafe { p += n }`, under the
 //! same conditions: daScript's pointer `+=` moves by the same `n` elements, and
 //! needs the `unsafe` block because the call-shaped `unsafe(…)` does not take
-//! an assignment.
+//! an assignment.  daslang's lint reports that one-statement block as too
+//! broad (STYLE025); the printer writes its `unsafe {` line with
+//! `// nolint:STYLE025` (`expr.rs`, `is_pointer_step_block`).
 //!
 //! # Value stores
 //!
@@ -109,7 +111,10 @@
 //! that type; and neither `place` nor `value` is a local name or a field of
 //! one (a parameter is not a local: it is read through `GetArgumentRef`,
 //! which fuses on neither side).  Initialisers of locals are never rewritten.
-//! The identity fold does not touch a `Value` cast.
+//! The identity fold does not touch a `Value` cast.  daslang's lint reports
+//! the cast as redundant (PERF020); the printer ends the statement with
+//! `// nolint:PERF020` (`DaExpr::intentional_lint_code`), a comment that
+//! costs nothing at run time.
 //!
 //! # Increments
 //!

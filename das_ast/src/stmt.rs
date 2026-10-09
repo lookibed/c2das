@@ -170,6 +170,9 @@ impl DaStmt {
             }
             DaStmt::Expr(expr) => {
                 expr.fmt_with_indent(f, indent)?;
+                if let Some(code) = expr.intentional_lint_code() {
+                    write!(f, "  // nolint:{}", code)?;
+                }
                 writeln!(f)
             }
             DaStmt::Decl(decl) => {

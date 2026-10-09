@@ -865,6 +865,117 @@ fn rename_vars(expr: &mut DaExpr, renamed: &HashMap<String, String>) {
     for_each_child(expr, &mut |child| rename_vars(child, renamed));
 }
 
+/// A numeric site temporary (`c2da_postinc*`, `c2da_fresh*`) declared with its
+/// value and never written again is declared `let`.
+///
+/// The translator binds such a temporary to hold one value — the old value of
+/// a post-increment, an operand evaluated once — and reads it afterwards; it
+/// declares it `var` because the flat back end may still hoist it (a hoisted
+/// declaration has no initializer and keeps `var`).  Run over the finished
+/// module, after hoisting and coalescing: a temporary that still carries its
+/// initializer, whose name is never the root of an assigned, compound-assigned,
+/// stepped or piped place and never appears under `addr`, is read-only, and
+/// daslang's lint (LINT003) asks for it to be `let`.  A `let` of a builtin
+/// number is the same stack slot read the same way.
+pub(crate) fn let_bind_site_temporaries(decls: &mut [das_ast::DaDecl]) {
+    for decl in decls.iter_mut() {
+        let function = match decl {
+            das_ast::DaDecl::Function(function) => function,
+            das_ast::DaDecl::Private(inner) => match &mut **inner {
+                das_ast::DaDecl::Function(function) => function,
+                _ => continue,
+            },
+            _ => continue,
+        };
+        let Some(body) = &mut function.body else {
+            continue;
+        };
+        let mut written = HashSet::new();
+        collect_written(body, &mut written);
+        let_bind_in(body, &written);
+    }
+}
+
+fn is_site_temporary(name: &str) -> bool {
+    name.starts_with("c2da_postinc") || name.starts_with("c2da_fresh")
+}
+
+/// The variable a place expression is rooted at (`x`, `x.f`, `x[i]`).
+fn place_root(expr: &DaExpr) -> Option<&str> {
+    match expr {
+        DaExpr::Var(name) => Some(name),
+        DaExpr::Field(e, _) | DaExpr::Index(e, _) | DaExpr::Unsafe(e) => place_root(e),
+        _ => None,
+    }
+}
+
+fn collect_written(expr: &mut DaExpr, written: &mut HashSet<String>) {
+    match &*expr {
+        DaExpr::Assign(place, _)
+        | DaExpr::AssignOp { left: place, .. }
+        | DaExpr::IncDec { place, .. }
+        | DaExpr::Pipe(place, _) => {
+            if let Some(root) = place_root(place) {
+                written.insert(root.to_owned());
+            }
+        }
+        DaExpr::Addr(inner) => {
+            let mut names = Vec::new();
+            crate::translator::collect_names(inner, &mut names);
+            written.extend(names);
+        }
+        _ => {}
+    }
+    for_each_child(expr, &mut |child| collect_written(child, written));
+}
+
+fn let_bind_in(expr: &mut DaExpr, written: &HashSet<String>) {
+    if let DaExpr::Block(block) | DaExpr::MakeBlock { body: block, .. } = expr {
+        for stmt in &mut block.stmts {
+            let DaStmt::Var {
+                name,
+                var_type,
+                init: Some(_),
+            } = stmt
+            else {
+                continue;
+            };
+            if !is_site_temporary(name)
+                || written.contains(name.as_str())
+                || !matches!(
+                    var_type.kind,
+                    DaTypeKind::Int
+                        | DaTypeKind::Int8
+                        | DaTypeKind::Int16
+                        | DaTypeKind::Int64
+                        | DaTypeKind::UInt
+                        | DaTypeKind::UInt8
+                        | DaTypeKind::UInt16
+                        | DaTypeKind::UInt64
+                        | DaTypeKind::Float
+                        | DaTypeKind::Double
+                )
+            {
+                continue;
+            }
+            let DaStmt::Var {
+                name,
+                var_type,
+                init,
+            } = std::mem::replace(stmt, DaStmt::Expr(DaExpr::Break))
+            else {
+                unreachable!("matched above");
+            };
+            *stmt = DaStmt::Let {
+                name,
+                var_type: Some(var_type),
+                init,
+            };
+        }
+    }
+    for_each_child(expr, &mut |child| let_bind_in(child, written));
+}
+
 /// Call `f` on every direct sub-expression of `expr`, statements of nested
 /// blocks included.
 fn for_each_child(expr: &mut DaExpr, f: &mut dyn FnMut(&mut DaExpr)) {
