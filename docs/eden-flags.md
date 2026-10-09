@@ -159,6 +159,28 @@ double interpretation.
 `dge_init` takes about 125 ms and the heap is 8 MB. The menu and a new game (E1M1) were
 reached through key input.
 
+**Direct measurement of the potential** with `doom_bench <n>`: n ticks in one call, with and
+without the frame copy. Each line is the median of 3 runs.
+
+| measurement | tics/s |
+|---|---|
+| engine only, demo tics 1–700 | 142 (7.0 ms/tick) |
+| engine only, demo tics 701–1400 | 110 (9.1 ms/tick) |
+| engine + frame copy | 123 / 100 |
+| `doom_play turbo` (4 tics per editor update) | 112, with an editor frame of 36 ms |
+| rerun after the two translator fixes below | 101 engine only, 92 with the copy |
+
+The Doom tick dominates. The frame copy costs about 1.1 ms and the upload 0.2 ms.
+
+**Fixed in the translator while playing**, never in C:
+- `dbcd05622`: bitfield records in the linear heap. `dge_palette` returns Doom's own
+  `colors[]`.
+- `2c39cf96b`: a block-scope `extern` names the file-scope object. Before this, Doom's
+  `forwardmove`/`sidemove` were zeroed copies and the player could not walk. The demo
+  replays recorded commands, so the frame hashes never saw it.
+
+After the fixes, walking, strafing and turning are verified in the editor.
+
 For comparison, the same Doom through wasm3das in the editor runs a few frames per second.
 
 **To start it:** run the game, then the cheat `doom_play`, or `doom_play fast` for uncapped
