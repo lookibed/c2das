@@ -5,7 +5,9 @@ EdenSpark editor's daslang. Written 2026-10-09. Step 1 of the order of work is i
 CLI switches (`src/target.rs`), `--float-compare nan-safe`, the `--dialect eden-0.6.4` and
 `--no-unsafe` checkers, and `scripts/eden_check.py`. Step 2 adds `--libc eden` and runs the
 checkers on the shared runtime module too. Step 3 adds the core of `--memory-model linear`
-and `--heap-reserve` (see "`--memory-model linear` as built" below). The Status column says
+and `--heap-reserve` (see "`--memory-model linear` as built" below). Step 6 runs the
+linear model under `--module-layout source` (one shared heap module) and adds
+`--fnptr-model table` and `--entry eden`. The Status column says
 which flag is implemented; every other flag, and so the `--target eden` preset, is refused
 by name.
 
@@ -217,7 +219,7 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   every table and runs from `[init]`; a host calls it again after a hot reload, since the
   indices in the heap survive one and daslang function values do not. Function pointers
   held in daslang locals, parameters and record values stay `function<…>` values as in
-  the default model, so the `--fnptr-model table` switch itself is still refused by name.
+  the default model unless `--fnptr-model table` is given (see its "as built" below).
   Storing a function that is in no table of that signature (a library function, a
   pointer cast to another signature) panics with `c2da: a function pointer outside the
   function table`. Case `p204-linear-function-pointers` (a record of callbacks in
