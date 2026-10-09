@@ -29,6 +29,20 @@ static const char *result_string(int value)
 	return s_strings[value];
 }
 
+/* Two function-scope statics of one name, both decayed to pointers, as
+ * binjgb's get_*_string tables are: two distinct objects. */
+static const char *pick(const char **table, int i) { return table[i]; }
+static const char *flag_string(int i)
+{
+	static const char *s_strings[] = {"none", "supported", "required"};
+	return pick(s_strings, i);
+}
+static const char *size_string(int i)
+{
+	static const char *s_strings[] = {"32k", "64k"};
+	return pick(s_strings, i);
+}
+
 static int next_id(void)
 {
 	static int id = 100;
@@ -62,5 +76,7 @@ int linear_globals(void)
 	if (strcmp(result_string(2), "ERROR") != 0) return 10;
 
 	if (next_id() != 100 || next_id() != 101) return 11;
+	if (strcmp(flag_string(2), "required") != 0) return 12;
+	if (strcmp(size_string(1), "64k") != 0) return 13;
 	return 0;
 }
