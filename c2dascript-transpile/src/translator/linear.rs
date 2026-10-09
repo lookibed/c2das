@@ -3051,19 +3051,57 @@ def c2da_lin_atoi(s : int) : int {{
     return neg ? -v : v
 }}
 
-// atof: the text up to the NUL, read by daslang's `to_double`.
+// atof: decimal digits, a fraction and an exponent.  Exact (correctly
+// rounded) while the digits fit 2^53 and the decimal exponent is within 22;
+// beyond that the scaling rounds more than once.
 def c2da_lin_atof(s : int) : double {{
-    let text = build_string() $(var w) {{
-        var i = s
-        while (c2da_lin_isspace(int(c2da_mem[i]))) {{
-            i++
-        }}
-        while (c2da_mem[i] != uint8(0)) {{
-            write_char(w, int(c2da_mem[i]))
+    var i = s
+    while (c2da_lin_isspace(int(c2da_mem[i]))) {{
+        i++
+    }}
+    var neg = false
+    if (int(c2da_mem[i]) == 45 || int(c2da_mem[i]) == 43) {{
+        neg = int(c2da_mem[i]) == 45
+        i++
+    }}
+    var m = 0.0lf
+    var e = 0
+    while (int(c2da_mem[i]) >= 48 && int(c2da_mem[i]) <= 57) {{
+        m = m * 10.0lf + double(int(c2da_mem[i]) - 48)
+        i++
+    }}
+    if (int(c2da_mem[i]) == 46) {{
+        i++
+        while (int(c2da_mem[i]) >= 48 && int(c2da_mem[i]) <= 57) {{
+            m = m * 10.0lf + double(int(c2da_mem[i]) - 48)
+            e--
             i++
         }}
     }}
-    return to_double(text)
+    if (int(c2da_mem[i]) == 101 || int(c2da_mem[i]) == 69) {{
+        var j = i + 1
+        var eneg = false
+        if (int(c2da_mem[j]) == 45 || int(c2da_mem[j]) == 43) {{
+            eneg = int(c2da_mem[j]) == 45
+            j++
+        }}
+        if (int(c2da_mem[j]) >= 48 && int(c2da_mem[j]) <= 57) {{
+            var x = 0
+            while (int(c2da_mem[j]) >= 48 && int(c2da_mem[j]) <= 57) {{
+                if (x < 100000) {{
+                    x = x * 10 + int(c2da_mem[j]) - 48
+                }}
+                j++
+            }}
+            e += eneg ? -x : x
+        }}
+    }}
+    var p = 1.0lf
+    for (_ in range(e < 0 ? -e : e)) {{
+        p *= 10.0lf
+    }}
+    let v = e < 0 ? m / p : m * p
+    return neg ? -v : v
 }}
 
 def c2da_lin_strstr(h : int; n : int) : int {{
