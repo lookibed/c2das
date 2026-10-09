@@ -207,6 +207,9 @@ impl<'c> Translation<'c> {
         storage: &DaType,
     ) -> TranslationResult<DaExpr> {
         if let CTypeKind::Enum(enum_id) = kind {
+            if storage.is_numeric() {
+                return Ok(self.narrow_arith_to_storage(value, arith, storage));
+            }
             let underlying = self.enum_underlying_type(*enum_id)?;
             let integer = self.narrow_arith_to_storage(value, arith, &underlying);
             return Ok(DaExpr::reinterpret(integer, writable_type(storage.clone())));

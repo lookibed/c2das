@@ -272,6 +272,11 @@ impl<'c> Translation<'c> {
                         if scalar_builtin_datype(&base.kind).is_some() {
                             break;
                         }
+                        // `--memory-model linear`: an enumeration typedef is
+                        // the enumeration's integer type (`convert_type_raw`).
+                        if self.is_linear() && matches!(base.kind, CTypeKind::Enum(_)) {
+                            break;
+                        }
                         // For struct/enum typedefs, register under the struct's record ID
                         // rather than the typedef's decl_id. The typedef handler's
                         // ensure_decl_name(rec_id, &name) searches by the record ID;
@@ -357,6 +362,11 @@ impl<'c> Translation<'c> {
                 let params = params.clone();
                 self.function_value_type(ret, &params, is_variadic)
             }
+            // `--memory-model linear`: an enumeration object is its compatible
+            // integer type.  A daScript `enum` has no numeric conversion but
+            // `reinterpret`, which the EdenSpark sandbox refuses, and a C
+            // enumeration in the heap is that integer anyway.
+            Enum(decl_id) if self.is_linear() => self.enum_underlying_type(decl_id),
             Struct(decl_id) | Union(decl_id) | Enum(decl_id) => {
                 let decl = &self.ast_context[decl_id];
                 if let Some(name) = decl.kind.get_name() {

@@ -6331,6 +6331,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p202-linear-enums",
+      "canonical_cases": [
+        "p202-linear-enums"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "linear_enums",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": ""
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p202_linear_enums",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p202_linear_enums.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p20-pointer-abi-edges",
       "canonical_cases": [
         "p20-pointer-abi-edges"

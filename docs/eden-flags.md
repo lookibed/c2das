@@ -187,6 +187,13 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   `argv[argc]` NULL). `errno` is 4 bytes at heap offset 8, inside the reserved first 16.
   `fopen` does not set `errno` under the model. Case `p201-linear-stdio` (C == daslang;
   `--no-unsafe --dialect eden-0.6.4` and `eden_check.py` ok).
+- **Enumerations (step 5).** Under the model a C enumeration object (and a typedef of
+  one) is its compatible integer type, not a daslang `enum`: a daslang `enum` has no
+  numeric conversion except `reinterpret`, which the sandbox refuses. Enumeration
+  constants were already integer literals; casts to an enumeration are integer
+  conversions; in the heap an enumeration is that integer's bytes. The `enum` declaration
+  is still emitted for a hand-written caller. Case `p202-linear-enums` (C == daslang;
+  `--no-unsafe --dialect eden-0.6.4` and `eden_check.py` ok).
 - **Fails closed** with "not supported under --memory-model linear yet: …", located at the
   C source:
   - `&` of a global or a parameter, and a global array (or an array in a parameter or a
@@ -273,8 +280,9 @@ Things the target cannot fix and has to document:
        `c2da_mem`: done in step 5 (p200). binjgb under `--libc eden --memory-model linear
        --dialect eden-0.6.4 --no-unsafe` (case `binjgb-cgb-acid2-eden-linear`, known-red)
        then stopped at `fopen`; the `<stdio.h>` file functions, argv and errno over the
-       heap: done in step 5 (p201). binjgb next stops at `e->cart_info->cgb_flag`
-       (`emulator.c:4776`): an enumeration read through a pointer;
+       heap: done in step 5 (p201); enumerations through pointers: done in step 5
+       (p202). binjgb next stops at a global array used as a pointer
+       (`emulator.c:4800`, in `init_emulator`);
      - by-value struct parameters with pointer fields;
      - then binjgb.
 3. **`--fnptr-model table`, `--float-compare nan-safe`, `--libc eden`, `--varargs-model heap`,

@@ -1220,6 +1220,23 @@
       "runtime": "required"
     },
     {
+      "id": "p202-linear-enums",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p202_linear_enums.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "linear_enums", "return_type": "int" },
+      "das_entrypoint": "linear_enums",
+      "expected": {
+        "stdout": "",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p201-linear-stdio",
       "status": "ready",
       "source_root": "tests/syntax",

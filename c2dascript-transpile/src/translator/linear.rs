@@ -371,6 +371,17 @@ impl<'c> Translation<'c> {
             UInt64 | ULong | ULongLong | UIntPtr | Size | WChar | UIntMax => Scalar::U64,
             Float => Scalar::F32,
             Double => Scalar::F64,
+            // An enumeration is its compatible integer type under the model.
+            Enum(id) => {
+                let integral = match self.ast_context[id].kind {
+                    CDeclKind::Enum { integral_type, .. } => integral_type,
+                    _ => None,
+                };
+                return match integral {
+                    Some(q) => self.scalar_of(q.ctype),
+                    None => Some(Scalar::I32),
+                };
+            }
             _ => return None,
         })
     }
