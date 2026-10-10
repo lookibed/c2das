@@ -1,3 +1,6 @@
 *.wad
 *.WAD
 *.wad.data
+# daslang's module and JIT caches written next to the scripts
+.cache/
+.jitted_scripts/
