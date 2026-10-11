@@ -1254,6 +1254,44 @@
       "runtime": "required"
     },
     {
+      "id": "p220-std-setjmp",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p220_std_setjmp.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "frame 0: done local=0\nframe 1: done local=10\nerror: frame aborted\nframe 2: recovered at depth 3\nframe 3: done local=30\nframe 4: done local=40\nerror: frame aborted\nframe 5: recovered at depth 3\nframes=4\n0 2 -1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p220-std-setjmp-linear",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p220_std_setjmp.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "frame 0: done local=0\nframe 1: done local=10\nerror: frame aborted\nframe 2: recovered at depth 3\nframe 3: done local=30\nframe 4: done local=40\nerror: frame aborted\nframe 5: recovered at depth 3\nframes=4\n0 2 -1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p221-std-setjmp-unsupported", "status": "negative", "source_root": "tests/syntax", "translation_entry": "p221_std_setjmp_unsupported.c", "c_graph": "single-tu", "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] }, "c_reference": { "entrypoint": "not-applicable", "return_type": "int" }, "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "p221_std_setjmp_unsupported.c:8:13", "cause": "unsupported setjmp: only `if (setjmp(buf)) return…;` at the top level" }, "runtime": "not-applicable"
+    },
+    {
       "id": "p219-std-rand",
       "status": "ready",
       "source_root": "tests/syntax",

@@ -424,6 +424,24 @@ impl<'c> Translation<'c> {
                 return self.convert_builtin_call(ctx, *fexp, args);
             }
         }
+        if let Some(kind) = self.jmp_call(func) {
+            let value = match args.get(1) {
+                Some(&v) if kind == super::libc::JmpCall::Longjmp => {
+                    Some(self.convert_expr(ctx.used(), v, None)?)
+                }
+                _ => None,
+            };
+            let (stmts, value, is_unsafe) = match value {
+                Some(v) => (v.stmts, Some(v.val), v.is_unsafe),
+                None => (vec![], None, false),
+            };
+            let val = self.lower_jmp_call(kind, func, args, value)?;
+            return Ok(WithStmts {
+                stmts,
+                val,
+                is_unsafe,
+            });
+        }
         self.reject_unknown_external_call(func)?;
         // A call through a function pointer is `invoke(f, args…)` in daScript,
         // and the callee expression is the function value itself: C's

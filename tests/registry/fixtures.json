@@ -6909,6 +6909,65 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p220-std-setjmp",
+      "canonical_cases": [
+        "p220-std-setjmp",
+        "p220-std-setjmp-linear"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "frame 0: done local=0\nframe 1: done local=10\nerror: frame aborted\nframe 2: recovered at depth 3\nframe 3: done local=30\nframe 4: done local=40\nerror: frame aborted\nframe 5: recovered at depth 3\nframes=4\n0 2 -1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p220_std_setjmp",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p220_std_setjmp.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "p221-std-setjmp-unsupported",
+      "canonical_cases": [
+        "p221-std-setjmp-unsupported"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "unsupported setjmp: only `if (setjmp(buf)) return\u2026;` at the top level",
+          "location": "p221_std_setjmp_unsupported.c:8:13",
+          "operation": "top-level declaration lowering",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p221_std_setjmp_unsupported",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/p221_std_setjmp_unsupported.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p22-typed-literals",
       "canonical_cases": [
         "p22-typed-literals"

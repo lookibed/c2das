@@ -535,6 +535,35 @@ impl Builder<'_> {
     /// single-use temporaries are planned first (see "Single-use
     /// temporaries"), then the statements are converted in order.
     fn list(&mut self, kids: &[CStmtId], out: &mut Vec<Node>) -> TranslationResult<()> {
+        // `if (setjmp(buf)) <return>` at the top level of the function body:
+        // the statements after it run under `try`, and a `longjmp(buf, v)`
+        // from anywhere below them is a panic its `recover` takes, which
+        // then runs the guarded statement (`Translation::setjmp_guard`).
+        if std::ptr::eq(kids, self.body) {
+            if let Some(at) = kids.iter().position(|&k| self.tr.setjmp_guard(k).is_some()) {
+                let (target, then) = self.tr.setjmp_guard(kids[at]).expect("matched above");
+                self.list(&kids[..at], out)?;
+                let ret = match self.ret_ty {
+                    Some(ty)
+                        if !matches!(
+                            self.tr.ast_context.resolve_type(ty.ctype).kind,
+                            CTypeKind::Void
+                        ) =>
+                    {
+                        ImplicitReturnType::NoImplicitReturnType
+                    }
+                    _ => ImplicitReturnType::Void,
+                };
+                let body = convert(self.tr, &kids[at + 1..], ret.clone(), self.ret_ty)?;
+                let mut handler = vec![self.tr.setjmp_catch(&target)];
+                handler.extend(convert(self.tr, &[then], ret, self.ret_ty)?);
+                out.push(Node::Stmt(DaStmt::Expr(DaExpr::TryRecover(
+                    Box::new(DaExpr::Block(DaBlock { stmts: body })),
+                    Box::new(DaExpr::Block(DaBlock { stmts: handler })),
+                ))));
+                return Ok(());
+            }
+        }
         self.plan_substitutions(kids);
         for &kid in kids {
             self.stmt(kid, out)?;

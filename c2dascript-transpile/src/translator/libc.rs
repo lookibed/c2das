@@ -442,6 +442,11 @@ const RAND_FRONT: &str = "c2da_std_rand_front";
 const RAND_REAR: &str = "c2da_std_rand_rear";
 const RAND_SEEDED: &str = "c2da_std_rand_seeded";
 const RAND_DEGREE: i64 = 31;
+// `setjmp`/`longjmp` (`Translation::setjmp_guard`): the jump target in
+// flight, the `longjmp` that panics and the `recover` check.
+const JMP_TARGET: &str = "c2da_std_jmp_target";
+const JMP_LONGJMP: &str = "c2da_std_longjmp";
+const JMP_CATCH: &str = "c2da_std_setjmp_catch";
 const RAND_SEP: i64 = 3;
 
 /// A C library entry point the `std` policy replaces.
@@ -953,6 +958,13 @@ pub(crate) struct LibmFunction {
     pub(crate) float: bool,
 }
 
+/// A call of the `<setjmp.h>` family (`Translation::jmp_call`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum JmpCall {
+    Setjmp,
+    Longjmp,
+}
+
 /// The `<math.h>` lowering for a C entry point, or `None`.
 pub(crate) fn libm_function(name: &str) -> Option<LibmFunction> {
     fn stem(name: &str) -> Option<(&'static str, usize)> {
@@ -1172,6 +1184,7 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         RAND_STEP => &[RAND_STATE, RAND_FRONT, RAND_REAR],
         SRAND => &[RAND_STEP, RAND_SEEDED],
         RAND => &[SRAND],
+        JMP_LONGJMP | JMP_CATCH => &[JMP_TARGET],
         _ => &[],
     }
 }
@@ -1307,6 +1320,34 @@ fn build(name: &str) -> DaDecl {
         RAND_STEP => build_rand_step(),
         SRAND => build_srand(),
         RAND => build_rand(),
+        JMP_TARGET => global(JMP_TARGET, DaType::string(), Some(text(""))),
+        JMP_LONGJMP => helper(
+            JMP_LONGJMP,
+            vec![
+                param("target", DaType::string()),
+                param("value", DaType::int()),
+            ],
+            DaType::void(),
+            vec![
+                assign(var(JMP_TARGET), var("target")),
+                DaStmt::Expr(call("panic", vec![text("c2da_std_longjmp")])),
+            ],
+        ),
+        JMP_CATCH => helper(
+            JMP_CATCH,
+            vec![param("target", DaType::string())],
+            DaType::void(),
+            vec![
+                if_then(
+                    op2("!=", var(JMP_TARGET), var("target")),
+                    vec![DaStmt::Expr(call(
+                        "panic",
+                        vec![text("c2da_std_setjmp_catch: not a longjmp to this jmp_buf")],
+                    ))],
+                ),
+                assign(var(JMP_TARGET), text("")),
+            ],
+        ),
         SYSTEM => build_system(),
         MKDIR => build_mkdir(),
         SSCANF => build_sscanf(),
@@ -1490,6 +1531,129 @@ impl<'c> Translation<'c> {
             return None;
         }
         libm_function(&name)
+    }
+
+    /// The `jmp_buf` a `setjmp`/`longjmp` argument names: a file-scope (or
+    /// `extern`) object reached directly, through array decay.  Its C name
+    /// is the jump target's identity, the same in every unit of a program.
+    fn jmp_buf_name(&self, arg: CExprId) -> Option<String> {
+        let mut e = arg;
+        loop {
+            match &self.ast_context[e].kind {
+                CExprKind::ImplicitCast(_, inner, _, _, _) | CExprKind::Paren(_, inner) => {
+                    e = *inner
+                }
+                CExprKind::DeclRef(_, decl, _) => {
+                    return match &self.ast_context[*decl].kind {
+                        CDeclKind::Variable {
+                            has_static_duration: true,
+                            ident,
+                            ..
+                        } => Some(ident.clone()),
+                        _ => None,
+                    };
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    /// `setjmp(buf)` / `_setjmp(buf)` (glibc's `setjmp` macro), a library call
+    /// under `--libc std`/`eden`; the `jmp_buf`'s name when it names one.
+    fn setjmp_call(&self, e: CExprId) -> Option<Option<String>> {
+        let mut e = e;
+        while let CExprKind::ImplicitCast(_, inner, _, _, _) | CExprKind::Paren(_, inner) =
+            &self.ast_context[e].kind
+        {
+            e = *inner;
+        }
+        let CExprKind::Call(_, func, ref args) = self.ast_context[e].kind else {
+            return None;
+        };
+        let name = self.libc_callee_name(func)?;
+        if !matches!(name.as_str(), "setjmp" | "_setjmp") || args.len() != 1 {
+            return None;
+        }
+        Some(self.jmp_buf_name(args[0]))
+    }
+
+    /// The one `setjmp` shape `--libc std`/`eden` lowers: the statement
+    /// `if (setjmp(buf)) S` with no `else`, `buf` a named static-duration
+    /// `jmp_buf` and `S` a `return` (alone or as the last statement of a
+    /// block), at the top level of a function body (`cfg/structured.rs`
+    /// `Builder::list`).  The statements after it run in `try`; a
+    /// `longjmp(buf, v)` below them panics, `recover` checks the target and
+    /// runs `S`.  Because `S` returns, nothing re-enters the code after the
+    /// `setjmp`, so `v` itself is never observed (only that it is a jump).
+    /// Every other `setjmp` is refused at the call (`refuse_setjmp`).
+    pub(crate) fn setjmp_guard(&self, stmt: CStmtId) -> Option<(String, CStmtId)> {
+        let CStmtKind::If {
+            scrutinee,
+            true_variant,
+            false_variant: None,
+        } = self.ast_context[stmt].kind
+        else {
+            return None;
+        };
+        let target = self.setjmp_call(scrutinee)??;
+        let last = match &self.ast_context[true_variant].kind {
+            CStmtKind::Compound(kids) => *kids.last()?,
+            _ => true_variant,
+        };
+        matches!(self.ast_context[last].kind, CStmtKind::Return(_))
+            .then_some((target, true_variant))
+    }
+
+    /// The first statement of the `recover` a `setjmp` guard lowers to: a
+    /// panic that is not a `longjmp` to `target` passes on.
+    pub(crate) fn setjmp_catch(&self, target: &str) -> DaStmt {
+        require(JMP_CATCH);
+        DaStmt::Expr(call(JMP_CATCH, vec![text(target)]))
+    }
+
+    /// The `setjmp`/`longjmp` family a call reaches under `--libc std`/`eden`.
+    pub(crate) fn jmp_call(&self, func: CExprId) -> Option<JmpCall> {
+        match self.libc_callee_name(func)?.as_str() {
+            "setjmp" | "_setjmp" => Some(JmpCall::Setjmp),
+            "longjmp" | "_longjmp" => Some(JmpCall::Longjmp),
+            _ => None,
+        }
+    }
+
+    /// A `setjmp` the guard shape did not take is a located refusal;
+    /// `longjmp(buf, v)` is `c2da_std_longjmp("buf", v)`, which panics to
+    /// the guard of `buf` (`v` is evaluated as the argument, and unused).
+    pub(crate) fn lower_jmp_call(
+        &self,
+        kind: JmpCall,
+        func: CExprId,
+        args: &[CExprId],
+        value: Option<DaExpr>,
+    ) -> TranslationResult<DaExpr> {
+        let loc = self.ast_context.display_loc(&self.ast_context[func].loc);
+        if kind == JmpCall::Setjmp {
+            return Err(format_translation_err!(
+                loc,
+                "unsupported setjmp: only `if (setjmp(buf)) return…;` at the top level of a \
+                 function body without goto, with `buf` a named static jmp_buf, is lowered"
+            ));
+        }
+        let target = args
+            .first()
+            .and_then(|&a| self.jmp_buf_name(a))
+            .filter(|_| args.len() == 2)
+            .zip(value)
+            .ok_or_else(|| {
+                format_translation_err!(
+                    loc,
+                    "unsupported longjmp: the jmp_buf must be a named static-duration object"
+                )
+            })?;
+        require(JMP_LONGJMP);
+        Ok(call(
+            JMP_LONGJMP,
+            vec![text(&target.0), cast(target.1, DaType::int())],
+        ))
     }
 
     /// The name of a library function the call reaches: `--libc std`/`eden`

@@ -557,7 +557,18 @@ impl<'c> Translation<'c> {
                 ..
             } => {
                 // Skip __-prefixed builtin typedefs (__int128_t, __builtin_va_list, etc.)
-                if name.starts_with("__") {
+                // — but not one that names an anonymous record (glibc's
+                // `__sigset_t`, a field of `jmp_buf`'s record): the typedef
+                // is that record's only name, and a field of its type is
+                // spelled with it.
+                let names_anonymous_record = match self.ast_context.resolve_type(typ.ctype).kind {
+                    CTypeKind::Struct(rec) | CTypeKind::Union(rec) => self.ast_context[rec]
+                        .kind
+                        .get_name()
+                        .map_or(true, |n| n.trim().is_empty() || n.trim().starts_with('(')),
+                    _ => false,
+                };
+                if name.starts_with("__") && (*is_implicit || !names_anonymous_record) {
                     return Err(TranslationError::generic("skipping implicit typedef"));
                 }
                 // Check if this typedef is for a struct/union/enum (named or anonymous).

@@ -3091,6 +3091,11 @@ impl<'c> Translation<'c> {
             return Ok(None);
         }
         let base = name.strip_prefix("__builtin_").unwrap_or(&name);
+        // `setjmp`/`longjmp` name the `jmp_buf`, they do not read it: the
+        // general call path lowers them (`libc.rs setjmp_guard`).
+        if self.jmp_call(func).is_some() {
+            return Ok(None);
+        }
         if base == "free" {
             if let Some(lowered) = self.typed_free(ctx, args)? {
                 return Ok(Some(lowered));
