@@ -1354,18 +1354,27 @@ fn build(name: &str) -> DaDecl {
         SRAND => build_srand(),
         RAND => build_rand(),
         JMP_TARGET => global(JMP_TARGET, DaType::string(), Some(text(""))),
-        JMP_LONGJMP => helper(
-            JMP_LONGJMP,
-            vec![
-                param("target", DaType::string()),
-                param("value", DaType::int()),
-            ],
-            DaType::void(),
-            vec![
-                assign(var(JMP_TARGET), var("target")),
-                DaStmt::Expr(call("panic", vec![text("c2da_std_longjmp")])),
-            ],
-        ),
+        JMP_LONGJMP => {
+            // `value` is kept so the C argument is still evaluated.
+            let mut decl = helper(
+                JMP_LONGJMP,
+                vec![
+                    param("target", DaType::string()),
+                    param("value", DaType::int()),
+                ],
+                DaType::void(),
+                vec![
+                    assign(var(JMP_TARGET), var("target")),
+                    DaStmt::Expr(call("panic", vec![text("c2da_std_longjmp")])),
+                ],
+            );
+            if let DaDecl::Function(function) = &mut decl {
+                function
+                    .annotations
+                    .push("unused_argument(value)".to_owned());
+            }
+            decl
+        }
         JMP_CATCH => helper(
             JMP_CATCH,
             vec![param("target", DaType::string())],
