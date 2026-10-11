@@ -4,17 +4,23 @@ options indenting = 4
 module c2das_doom_player shared public
 
 require engine.core
-require modules/c2das/doom/doom_eden_play_all
+require modules/c2das/doom/am_map_cluster
+require modules/c2das/doom/c2da_runtime
 require strings
 require math
 
 /*
     c2das_doom_player.das: plays the c2das-translated doomgeneric
-    (src/doom_eden_play_all.c translated with the eden flags, installed in an
-    EdenSpark project as modules/c2das/doom/doom_eden_play_all.das) in the
-    scene. Hand-written host, not translated output; it mirrors the wasm3das
-    DgvPlayer (eden/abi_dgv_player.das), without the wasm interpreter: the
-    engine is daslang code and its memory is the module's heap `c2da_mem`.
+    (the translation units of src/doom_eden_play_all.c translated with the
+    eden flags and --module-layout source, installed in an EdenSpark project
+    under modules/c2das/doom/) in the scene. The dge_* entry functions of
+    dg_eden_play.c and dg_eden_sound.c live in the cluster module
+    am_map_cluster (the engine's include cycle, which the harness joins); the
+    heap c2da_mem and c2da_eden_add_file live in the shared runtime module
+    c2da_runtime. Hand-written host, not translated output; it mirrors the
+    wasm3das DgvPlayer (eden/abi_dgv_player.das), without the wasm
+    interpreter: the engine is daslang code and its memory is the heap
+    `c2da_mem`.
 
     c2das_doom_start registers the WAD with c2da_eden_add_file, runs dge_init
     (the WAD load and R_Init) and creates a node with a C2dasDoomPlayer

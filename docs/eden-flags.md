@@ -146,7 +146,7 @@ double interpretation.
 | piece | file | what it does |
 |---|---|---|
 | C play entry | `tests/manual/doomgeneric/src/doom_eden_play_all.c`, platform `dg_eden_play.c` | `dge_init`, `dge_tick(ms)`, `dge_key`, `dge_screen`, `dge_palette`, `dge_frames`; `DG_SleepMs` advances the clock, because the screen wipe busy-waits on it |
-| translation | — | the flags of `doomgeneric-demo1-eden-linear` plus `--public-module` and `-Isrc/eden_play_include` |
+| translation | `scripts/export_dasdoom.py` (`eden/`) | the translation units of `doom_eden_play_all.c` (the engine files of `all.c`, then `dg_eden_sound.c` and `dg_eden_play.c`, which share `dg_eden.h`) with `--module-layout source`, the flags of `doomgeneric-demo1-eden-linear` plus `--public-module`, `-Isrc/eden_play_include`, `-include engine_config.h` and `-DFEATURE_SOUND=1`; the harness joins the cluster module `am_map_cluster`, which the host requires with `c2da_runtime`. The single-module translation of `doom_eden_play_all.c` gives the same screen and audio (900 tics compared on master daslang) |
 | host | `tests/manual/doomgeneric/eden/c2das_doom_player.das`, hand-written, mirrors the wasm3das `DgvPlayer` | one `dge_tick` per update; the 8-bit screen goes through the palette into a `Bitmap` and `update_texture` on a quad; keys come through an action set |
 
 **Measured in the editor:**
@@ -158,6 +158,11 @@ double interpretation.
 
 `dge_init` takes about 125 ms and the heap is 8 MB. The menu and a new game (E1M1) were
 reached through key input.
+
+The per-file build (2026-10-12, one run) plays the demo at 35.0 tics/s with sound effects;
+`doom_bench 700` started after tic 1040 measured 101.8 tics/s engine-only for tics 1041–1740
+and 104.0 for tics 1741–2440. Those tic ranges differ from the table below, so the numbers do
+not compare the two layouts.
 
 **Direct measurement of the potential** with `doom_bench <n>`: n ticks in one call, with and
 without the frame copy. Each line is the median of 3 runs.
