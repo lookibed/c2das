@@ -163,7 +163,11 @@ pub(super) fn check_module(
 /// `--memory-model linear` fails closed: a construct of the finished module
 /// that needs `unsafe` is a raw-pointer form the linear lowering does not
 /// cover yet, refused at its owning C declaration.
-pub(super) fn check_linear(t: &Translation, main_file: &Path, decls: &[DaDecl]) -> TranslationResult<()> {
+pub(super) fn check_linear(
+    t: &Translation,
+    main_file: &Path,
+    decls: &[DaDecl],
+) -> TranslationResult<()> {
     let c_locs = c_declaration_locations(t);
     let mut sites = Vec::new();
     for decl in decls {
@@ -175,7 +179,9 @@ pub(super) fn check_linear(t: &Translation, main_file: &Path, decls: &[DaDecl]) 
                 });
             }
         }
-        walk_decl(decl, &mut |owner, expr| unsafe_sites(owner, expr, &mut sites));
+        walk_decl(decl, &mut |owner, expr| {
+            unsafe_sites(owner, expr, &mut sites)
+        });
     }
     if let Some(site) = sites.first() {
         let loc = c_locs.get(&site.owner).cloned().flatten();
@@ -216,7 +222,14 @@ pub(super) fn check_shared_module(
     if target.dialect == Dialect::Master && target.no_unsafe == NoUnsafe::Off {
         return Ok(());
     }
-    check_decls(target, module_file, requires, options, decls, &HashMap::new())
+    check_decls(
+        target,
+        module_file,
+        requires,
+        options,
+        decls,
+        &HashMap::new(),
+    )
 }
 
 fn check_decls(

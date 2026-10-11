@@ -245,7 +245,11 @@ impl<'c> Translation<'c> {
             // every function that receives it declares it read-only too.
             // `--varargs-model heap`: the address of the caller's argument
             // area in the C stack (`linear/va_heap.rs`).
-            let va_args_ty = if self.va_heap() { DaType::int() } else { DaType::array(self.va_arg_type()) };
+            let va_args_ty = if self.va_heap() {
+                DaType::int()
+            } else {
+                DaType::array(self.va_arg_type())
+            };
             params.push(mk().param(arg_name, va_args_ty, None));
         }
         if let Some(body_id) = body {

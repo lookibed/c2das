@@ -288,7 +288,10 @@ impl<'c> Translation<'c> {
             // slot, the area `c2da_va_args` names (`linear/va_heap.rs`).
             VaPart::Start(id) if self.va_heap() => Ok(WithStmts::new(
                 vec![DaStmt::Expr(DaExpr::Assign(
-                    Box::new(DaExpr::Field(Box::new(self.cursor_expr(id)?), "index".into())),
+                    Box::new(DaExpr::Field(
+                        Box::new(self.cursor_expr(id)?),
+                        "index".into(),
+                    )),
                     Box::new(DaExpr::Var(VA_ARGS_PARAM.into())),
                 ))],
                 DaExpr::ConstInt(0),

@@ -157,7 +157,10 @@ impl<'c> Translation<'c> {
                     var_type: Some(s.da_type()),
                     init: Some(load(s, &index)),
                 },
-                DaStmt::Expr(DaExpr::Assign(Box::new(index.clone()), Box::new(plus(&index, SLOT)))),
+                DaStmt::Expr(DaExpr::Assign(
+                    Box::new(index.clone()),
+                    Box::new(plus(&index, SLOT)),
+                )),
             ],
             value,
         ))

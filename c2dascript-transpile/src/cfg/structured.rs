@@ -607,8 +607,7 @@ impl Builder<'_> {
                 increment,
                 body,
             } => {
-                if let Some(counted) = self.counted_for(sid, *init, *condition, *increment, *body)
-                {
+                if let Some(counted) = self.counted_for(sid, *init, *condition, *increment, *body) {
                     return self.range_loop(counted, *body, out);
                 }
                 if let Some(init) = init {
@@ -849,11 +848,20 @@ impl Builder<'_> {
             CExprKind::Literal(..) | CExprKind::UnaryType(..) => true,
             CExprKind::Paren(_, inner)
             | CExprKind::ConstantExpr(_, inner, _)
-            | CExprKind::ImplicitCast(_, inner, CastKind::IntegralCast | CastKind::NoOp | CastKind::LValueToRValue, _, _)
+            | CExprKind::ImplicitCast(
+                _,
+                inner,
+                CastKind::IntegralCast | CastKind::NoOp | CastKind::LValueToRValue,
+                _,
+                _,
+            )
             | CExprKind::ExplicitCast(_, inner, CastKind::IntegralCast | CastKind::NoOp, _, _)
-            | CExprKind::Unary(_, CUnOp::Plus | CUnOp::Negate | CUnOp::Complement | CUnOp::Extension, inner, _) => {
-                self.invariant(*inner, body)
-            }
+            | CExprKind::Unary(
+                _,
+                CUnOp::Plus | CUnOp::Negate | CUnOp::Complement | CUnOp::Extension,
+                inner,
+                _,
+            ) => self.invariant(*inner, body),
             CExprKind::Binary(
                 _,
                 CBinOp::Multiply
@@ -1104,17 +1112,16 @@ impl Builder<'_> {
                         (c_name, start, None)
                     }
                     None => {
-                        let name = tr
-                            .renamer
-                            .borrow_mut()
-                            .pick_name(&format!("c2da_{c_name}"));
+                        let name = tr.renamer.borrow_mut().pick_name(&format!("c2da_{c_name}"));
                         let former = tr.renamer.borrow_mut().rebind(var, name.clone());
                         (name, DaExpr::Var(c_name), Some((var, former)))
                     }
                 };
                 let end = tr.convert_expr(ctx().used(), end, None)?;
                 if !end.stmts.is_empty() {
-                    return Err(internal("a loop bound with statements was taken as invariant"));
+                    return Err(internal(
+                        "a loop bound with statements was taken as invariant",
+                    ));
                 }
                 let (range, args) = match (unsigned, &start) {
                     (false, DaExpr::ConstInt(0)) => ("range", vec![end.val]),
@@ -1415,7 +1422,14 @@ impl Builder<'_> {
                     .into_iter()
                     .collect();
             }
-            CExprKind::Binary(_, op @ (CBinOp::AssignAdd | CBinOp::AssignSubtract), lhs, rhs, _, _) => {
+            CExprKind::Binary(
+                _,
+                op @ (CBinOp::AssignAdd | CBinOp::AssignSubtract),
+                lhs,
+                rhs,
+                _,
+                _,
+            ) => {
                 let Some((decl, size)) = self.induction_pointer(lhs) else {
                     return vec![];
                 };
@@ -1521,9 +1535,7 @@ impl Builder<'_> {
                     StepPlace::After(inner) | StepPlace::Before(inner) => *inner,
                 })
                 .collect();
-            let names = |place: CExprId| {
-                matches!(tr.ast_context[peel(tr, place)].kind, CExprKind::DeclRef(_, d, _) if d == decl)
-            };
+            let names = |place: CExprId| matches!(tr.ast_context[peel(tr, place)].kind, CExprKind::DeclRef(_, d, _) if d == decl);
             let allowed = DFExpr::new(&tr.ast_context, SomeId::Stmt(sid))
                 .filter(|node| {
                     let SomeId::Expr(x) = node else { return false };
@@ -1612,7 +1624,9 @@ impl Builder<'_> {
                 .insert(induction.decl, mirrored.clone());
             for (eid, step) in &induction.steps {
                 if let StepPlace::After(inner) | StepPlace::Before(inner) = step.place {
-                    tr.expr_overrides.borrow_mut().insert(inner, mirrored.clone());
+                    tr.expr_overrides
+                        .borrow_mut()
+                        .insert(inner, mirrored.clone());
                 }
                 self.steps.entry(*eid).or_default().push(step.clone());
             }
@@ -2078,9 +2092,7 @@ impl Builder<'_> {
         let planned = &self.substitutions[&sid];
         let name = tr.renamer.borrow().get(&planned.decl);
         let value = match (&stmts[..], name) {
-            ([DaStmt::Expr(DaExpr::Assign(place, value))], Some(name))
-                if matches!(&**place, DaExpr::Var(v) if *v == name) =>
-            {
+            ([DaStmt::Expr(DaExpr::Assign(place, value))], Some(name)) if matches!(&**place, DaExpr::Var(v) if *v == name) => {
                 Some((**value).clone())
             }
             _ => None,
@@ -2114,9 +2126,7 @@ impl Builder<'_> {
             return;
         };
         let value = match info.assign.as_deref() {
-            Some([DaStmt::Expr(DaExpr::Assign(place, value))])
-                if matches!(&**place, DaExpr::Var(v) if *v == name) =>
-            {
+            Some([DaStmt::Expr(DaExpr::Assign(place, value))]) if matches!(&**place, DaExpr::Var(v) if *v == name) => {
                 (**value).clone()
             }
             _ => return,
@@ -2254,9 +2264,7 @@ fn count_references(tr: &Translation, root: SomeId, decl: CDeclId) -> usize {
 /// assignment to it, `++`/`--` on it, or `&decl`.  A local whose address is
 /// never taken is written by nothing else.
 fn writes(tr: &Translation, root: SomeId, decl: CDeclId) -> bool {
-    let names = |place: CExprId| {
-        matches!(tr.ast_context[peel(tr, place)].kind, CExprKind::DeclRef(_, d, _) if d == decl)
-    };
+    let names = |place: CExprId| matches!(tr.ast_context[peel(tr, place)].kind, CExprKind::DeclRef(_, d, _) if d == decl);
     DFExpr::new(&tr.ast_context, root).any(|node| {
         let SomeId::Expr(e) = node else { return false };
         match tr.ast_context[e].kind {

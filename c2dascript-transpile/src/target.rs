@@ -141,26 +141,40 @@ impl TargetOptions {
         let mut missing = Vec::new();
         // `--fnptr-model table` indexes the tables of the linear heap model.
         if let (FnPtrModel::Table, MemoryModel::Raw) = (self.fnptr_model, self.memory_model) {
-            missing.push(format!("--fnptr-model {} (needs --memory-model linear)", self.fnptr_model));
+            missing.push(format!(
+                "--fnptr-model {} (needs --memory-model linear)",
+                self.fnptr_model
+            ));
         }
         // `--varargs-model heap` writes the arguments into the linear heap's
         // C stack.
         if let (VarargsModel::Heap, MemoryModel::Raw) = (self.varargs_model, self.memory_model) {
-            missing.push(format!("--varargs-model {} (needs --memory-model linear)", self.varargs_model));
+            missing.push(format!(
+                "--varargs-model {} (needs --memory-model linear)",
+                self.varargs_model
+            ));
         }
         // `--heap-reserve` sizes the linear heap; without that model there is
         // no heap it could size.
         if let (Some(bytes), MemoryModel::Raw) = (self.heap_reserve, self.memory_model) {
-            missing.push(format!("--heap-reserve {bytes} (needs --memory-model linear)"));
+            missing.push(format!(
+                "--heap-reserve {bytes} (needs --memory-model linear)"
+            ));
         }
         // `--entry eden` builds argv in the linear heap.
         if let (EntryModel::Eden, MemoryModel::Raw) = (self.entry, self.memory_model) {
-            missing.push(format!("--entry {} (needs --memory-model linear)", self.entry));
+            missing.push(format!(
+                "--entry {} (needs --memory-model linear)",
+                self.entry
+            ));
         }
         // `--records typed` chooses between the linear heap's byte form and
         // a typed object; without that model there is no byte form.
         if let (RecordsModel::Typed, MemoryModel::Raw) = (self.records, self.memory_model) {
-            missing.push(format!("--records {} (needs --memory-model linear)", self.records));
+            missing.push(format!(
+                "--records {} (needs --memory-model linear)",
+                self.records
+            ));
         }
         missing
     }

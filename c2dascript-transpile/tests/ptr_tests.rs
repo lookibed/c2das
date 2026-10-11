@@ -47,7 +47,11 @@ fn transpile_unsafe_deref(name: &str) -> String {
     };
     let outputs = c2dascript_transpile::transpile_checked(config, &cc_path, &["-w"])
         .unwrap_or_else(|error| panic!("{name}: strict AST/render translation failed: {error}"));
-    assert_eq!(outputs.len(), 1, "{name}: one input must produce one output");
+    assert_eq!(
+        outputs.len(),
+        1,
+        "{name}: one input must produce one output"
+    );
     let s = std::fs::read_to_string(&outputs[0]).expect("fresh temporary daScript output");
     eprintln!("=== {} (unsafe_deref) ===\n{}", name, s);
     s
@@ -923,25 +927,39 @@ fn p151_bitfields_go_through_their_aligned_storage_unit() {
     // `color.r` is bits 16..23 of the four-byte unit at offset 0, the
     // record's one field (p177): a shift and a mask on it, never a
     // four-byte copy from byte 2 (two bytes past the record).
-    assert!(d.contains("struct color {\n    c2da_bits_0 : uint\n}\n"), "{d}");
+    assert!(
+        d.contains("struct color {\n    c2da_bits_0 : uint\n}\n"),
+        "{d}"
+    );
     assert!(body.contains("last.c2da_bits_0 >> 16 & 0xff"), "{body}");
     assert!(
         !body.contains("unsafe(reinterpret<uint64>(last)) + 2ul"),
         "{body}"
     );
     // The read-modify-write keeps the other fields of the unit.
-    assert!(body.contains("last.c2da_bits_0 = last.c2da_bits_0 & 0xff00ffffu | "), "{body}");
+    assert!(
+        body.contains("last.c2da_bits_0 = last.c2da_bits_0 & 0xff00ffffu | "),
+        "{body}"
+    );
     // A 40-bit field of a `long long` is the eight-byte unit.
-    assert!(d.contains("struct wide {\n    c2da_bits_0 : uint64\n}\n"), "{d}");
+    assert!(
+        d.contains("struct wide {\n    c2da_bits_0 : uint64\n}\n"),
+        "{d}"
+    );
     assert!(body.contains("(0x123456ul & 0xfffffful) << 40ul"), "{body}");
     // An ordinary field sharing a unit's bytes (`tagged.tag`), and a packed
     // record, keep the storage-backed form; the packed record's field that
     // straddles its unit keeps the byte path, and a bitfield record inside
     // a union goes through the union's bytes.
-    assert!(d.contains("struct tagged {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"), "{d}");
+    assert!(
+        d.contains("struct tagged {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"),
+        "{d}"
+    );
     assert!(body.contains(".c2da_storage + 3ul)), 4ul))"), "{body}");
     assert!(
-        body.contains("unsafe(unsafe(reinterpret<uint?>(e.c2da_storage))[0]) & 0xfffff000u | 0xabcu & 0xfffu"),
+        body.contains(
+            "unsafe(unsafe(reinterpret<uint?>(e.c2da_storage))[0]) & 0xfffff000u | 0xabcu & 0xfffu"
+        ),
         "{body}"
     );
 }
@@ -969,9 +987,7 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
     // Used values keep the old value: `a[i++]`, `y = i--`, `*q++ = 5`,
     // `while (n--)`.
     assert!(
-        body.contains(
-            "let c2da_postinc_2 : int = i\n    i++\n    a[c2da_postinc_2] = 7"
-        ),
+        body.contains("let c2da_postinc_2 : int = i\n    i++\n    a[c2da_postinc_2] = 7"),
         "{body}"
     );
     assert!(
@@ -979,7 +995,10 @@ fn p152_discarded_postfix_increments_save_no_old_value() {
         "{body}"
     );
     // `*q++ = 5` with a value that cannot observe `q`: store, then step.
-    assert!(body.contains("    *q = 5\n    unsafe {  // nolint:STYLE025\n        q += 1\n    }\n"), "{body}");
+    assert!(
+        body.contains("    *q = 5\n    unsafe {  // nolint:STYLE025\n        q += 1\n    }\n"),
+        "{body}"
+    );
     assert!(
         body.contains(
             "let c2da_postinc_6 : int = n\n        n--\n        if (c2da_postinc_6 == 0) {\n            break\n"
@@ -1193,7 +1212,9 @@ fn p174_post_step_store_is_store_then_step_when_the_value_cannot_see_the_pointer
     );
     // A global pointer with a value that reads no memory.
     assert!(
-        main.contains("    *out = 42u8\n    unsafe {  // nolint:STYLE025\n        out += 1\n    }\n"),
+        main.contains(
+            "    *out = 42u8\n    unsafe {  // nolint:STYLE025\n        out += 1\n    }\n"
+        ),
         "{main}"
     );
     assert!(
@@ -1306,7 +1327,8 @@ fn p175_counted_loops_are_range_loops() {
     // has no hoisted `var`; a declaration before the loop is dropped too.
     let body = function_body(&d, "index_sum");
     assert!(
-        body.contains("    for (i in range(0, n)) {\n        total_6 += i * i\n    }\n") && !body.contains("var i"),
+        body.contains("    for (i in range(0, n)) {\n        total_6 += i * i\n    }\n")
+            && !body.contains("var i"),
         "{body}"
     );
     let body = function_body(&d, "index_declared_before");
@@ -1323,14 +1345,20 @@ fn p175_counted_loops_are_range_loops() {
     );
     // Unsigned, nested, `continue` and `break` in the body.
     let body = function_body(&d, "index_unsigned");
-    assert!(body.contains("    for (i_6 in urange(2u, n_6)) {\n"), "{body}");
+    assert!(
+        body.contains("    for (i_6 in urange(2u, n_6)) {\n"),
+        "{body}"
+    );
     let body = function_body(&d, "nested");
     assert!(
         body.contains("    for (r_0 in range(0, rows_0)) {\n        for (c in range(0, cols_0)) {\n            if (c == r_0) {\n                continue\n            }\n"),
         "{body}"
     );
     let body = function_body(&d, "index_continue_and_break");
-    assert!(body.contains("    for (i_7 in range(0, n_7)) {\n"), "{body}");
+    assert!(
+        body.contains("    for (i_7 in range(0, n_7)) {\n"),
+        "{body}"
+    );
     // Fallbacks: `i` live after the loop (with and without `break`), `i`
     // written in the body, the bound written in the body or read through
     // a pointer.
@@ -1455,7 +1483,10 @@ fn p161_switch_is_a_label_region_or_a_chain() {
     // A switch that ends the body of a range loop (p175) sends its `break`
     // and its holes to the end, which is the loop's own `continue`.
     let body = function_body(&d, "tally");
-    assert!(body.contains("    for (i_0 in range(0, n_0)) {\n"), "{body}");
+    assert!(
+        body.contains("    for (i_0 in range(0, n_0)) {\n"),
+        "{body}"
+    );
     assert!(
         body.contains("        continue\n        label 5:\n        label 6:\n        label 8:\n        continue\n        label 0:\n"),
         "{body}"
@@ -1517,7 +1548,10 @@ fn p162_bodies_with_goto_or_nested_cases_stay_flat() {
         );
     }
     let body = function_body(&d, "structured");
-    assert!(body.contains("    for (i_0 in range(0, n_1)) {\n"), "{body}");
+    assert!(
+        body.contains("    for (i_0 in range(0, n_1)) {\n"),
+        "{body}"
+    );
     assert!(!body.contains("label"), "{body}");
 }
 
@@ -1534,11 +1568,17 @@ fn p179_small_switches_are_inline_chains() {
         body.contains("    if (c2da_fresh0 == 0x0u || c2da_fresh0 == 0x1u) {\n        return "),
         "{body}"
     );
-    assert!(body.contains("    } elif (c2da_fresh0 == 0x2u) {\n"), "{body}");
+    assert!(
+        body.contains("    } elif (c2da_fresh0 == 0x2u) {\n"),
+        "{body}"
+    );
     assert!(body.contains("    } else {\n        return "), "{body}");
     for name in ["default_first", "default_middle", "default_last"] {
         let body = function_body(&d, name);
-        assert!(body.contains("    } else {\n        r") && !body.contains("label"), "{name}: {body}");
+        assert!(
+            body.contains("    } else {\n        r") && !body.contains("label"),
+            "{name}: {body}"
+        );
     }
     let body = function_body(&d, "default_middle");
     assert!(body.contains("    } elif (x_0 == 2 || x_0 == 3) {\n        r_0 = 23\n    } else {\n        r_0 = 100\n    }\n"), "{body}");
@@ -1566,27 +1606,52 @@ fn p179_small_switches_are_inline_chains() {
     );
     // char, unsigned and negative case values in the promoted type.
     let body = function_body(&d, "on_char");
-    assert!(body.contains("    if (c2da_fresh2 == 97 || c2da_fresh2 == 101) {\n"), "{body}");
+    assert!(
+        body.contains("    if (c2da_fresh2 == 97 || c2da_fresh2 == 101) {\n"),
+        "{body}"
+    );
     let body = function_body(&d, "on_unsigned");
     assert!(body.contains("    } elif (u == 0xffffffffu) {\n"), "{body}");
     let body = function_body(&d, "on_negative");
-    assert!(body.contains("    if (x_") && body.contains(" == -1) {\n") && body.contains(" == -100) {\n"), "{body}");
+    assert!(
+        body.contains("    if (x_")
+            && body.contains(" == -1) {\n")
+            && body.contains(" == -100) {\n"),
+        "{body}"
+    );
     // Loops inside an arm keep their own `break`.
     let body = function_body(&d, "break_in_loop");
-    assert!(!body.contains("label") && body.contains("            if (r_5 == 4) {\n                break\n"), "{body}");
+    assert!(
+        !body.contains("label")
+            && body.contains("            if (r_5 == 4) {\n                break\n"),
+        "{body}"
+    );
     // Eight values are a chain; nine keep the region (a jump table here).
     let body = function_body(&d, "eight");
-    assert!(!body.contains("label") && body.contains("    } elif (x_6 == 7) {\n        return 17\n    }\n    return -1"), "{body}");
+    assert!(
+        !body.contains("label")
+            && body.contains("    } elif (x_6 == 7) {\n        return 17\n    }\n    return -1"),
+        "{body}"
+    );
     let body = function_body(&d, "nine");
-    assert!(body.contains("    if (x_5 >= 0 && x_5 <= 8) {\n        goto x_5 + 1\n    }\n"), "{body}");
+    assert!(
+        body.contains("    if (x_5 >= 0 && x_5 <= 8) {\n        goto x_5 + 1\n    }\n"),
+        "{body}"
+    );
     // Fall-through and a `break` deeper in an `if` that statements follow
     // keep the region; Duff's device is flat.
     let body = function_body(&d, "fallthrough");
-    assert!(body.contains("    label 0:\n    r_4++\n    label 1:\n    r_4 += 2\n    goto label 3\n"), "{body}");
+    assert!(
+        body.contains("    label 0:\n    r_4++\n    label 1:\n    r_4 += 2\n    goto label 3\n"),
+        "{body}"
+    );
     let body = function_body(&d, "deep_break");
     assert!(body.contains("    label 0:\n    if (y_0 != 0) {\n        if (y_0 > 2) {\n            goto label 2\n        }\n"), "{body}");
     let body = function_body(&d, "duff");
-    assert!(body.contains("    label 1:\n    label 2:\n    r_7++\n    label 3:\n"), "{body}");
+    assert!(
+        body.contains("    label 1:\n    label 2:\n    r_7++\n    label 3:\n"),
+        "{body}"
+    );
 }
 
 #[test]
@@ -1628,20 +1693,34 @@ fn p181_pointer_inductions_are_mirrored_addresses() {
     assert!(body.contains("        var c2da_data_addr : uint64 = unsafe(reinterpret<uint64>(data))\n        for (j in urange(0u, 4u)) {\n            *unsafe(reinterpret<uint8?>(c2da_data_addr)) = uint8(unsafe(left[int(i)]))  // nolint:PERF020\n            c2da_data_addr++\n        }\n        data = unsafe(reinterpret<uint8?>(c2da_data_addr))\n    }\n"), "{body}");
     // A `for` step through a comma.
     let body = function_body(&d, "comma_step");
-    assert!(body.contains("        i_0++\n        c2da_p_1_addr += 2ul\n"), "{body}");
+    assert!(
+        body.contains("        i_0++\n        c2da_p_1_addr += 2ul\n"),
+        "{body}"
+    );
     // Fallbacks keep today's `unsafe { p += n }`: passed to a call,
     // compared, stepped under an `if`, stepped by a variable.
     for name in ["passed", "compared", "conditional", "variable_step"] {
         let body = function_body(&d, name);
         assert!(!body.contains("_addr"), "{name}: {body}");
-        assert!(body.contains("    unsafe {  // nolint:STYLE025\n"), "{name}: {body}");
+        assert!(
+            body.contains("    unsafe {  // nolint:STYLE025\n"),
+            "{name}: {body}"
+        );
     }
     // Nested: the inner loop owns `p` (stored back each outer pass), the
     // outer owns `q`, read through its mirror inside the inner body.
     let body = function_body(&d, "nested");
     assert!(body.contains("            *unsafe(reinterpret<uint8?>(c2da_p_7_addr)) = uint8(int(*unsafe(reinterpret<uint8 const?>(c2da_q_0_addr))) + 1)\n            c2da_p_7_addr++\n"), "{body}");
-    assert!(body.contains("        p_7 = unsafe(reinterpret<uint8?>(c2da_p_7_addr))\n        c2da_q_0_addr++\n"), "{body}");
-    assert!(body.contains("    q_0 = unsafe(reinterpret<uint8 const?>(c2da_q_0_addr))\n    return"), "{body}");
+    assert!(
+        body.contains(
+            "        p_7 = unsafe(reinterpret<uint8?>(c2da_p_7_addr))\n        c2da_q_0_addr++\n"
+        ),
+        "{body}"
+    );
+    assert!(
+        body.contains("    q_0 = unsafe(reinterpret<uint8 const?>(c2da_q_0_addr))\n    return"),
+        "{body}"
+    );
 }
 
 #[test]
@@ -1658,70 +1737,140 @@ fn p182_single_use_temporaries_are_substituted() {
     assert!(!body.contains("temp") && !body.contains("spot"), "{body}");
     // A pointer, a `float`, a store's index.
     let body = function_body(&d, "pointer_temp");
-    assert!(body.ends_with(" {\n    return *unsafe(reinterpret<int?>(unsafe(base + i)))"), "{body}");
+    assert!(
+        body.ends_with(" {\n    return *unsafe(reinterpret<int?>(unsafe(base + i)))"),
+        "{body}"
+    );
     let body = function_body(&d, "float_temp");
     assert!(body.ends_with(" {\n    return x * 0.5 + 1.0"), "{body}");
     let body = function_body(&d, "index_temp");
-    assert!(body.ends_with(" {\n    unsafe(a[i_0 + 1]) = int(v)  // nolint:PERF020\n    return"), "{body}");
+    assert!(
+        body.ends_with(" {\n    unsafe(a[i_0 + 1]) = int(v)  // nolint:PERF020\n    return"),
+        "{body}"
+    );
     // An `if` scrutinee (the division runs where C's did), a declaration's
     // initializer as the assignment and as the read, `x = x + 1`, and a
     // temporary reassigned later in the list.
     let body = function_body(&d, "scrutinee");
-    assert!(body.ends_with(" {\n    if (a_0 / b > 1) {\n        return 1\n    }\n    return (a_0 + b) * 2 + 1"), "{body}");
+    assert!(
+        body.ends_with(
+            " {\n    if (a_0 / b > 1) {\n        return 1\n    }\n    return (a_0 + b) * 2 + 1"
+        ),
+        "{body}"
+    );
     // A memory read with only local writes between.
     let body = function_body(&d, "local_writes_between");
-    assert!(body.ends_with(" {\n    return g[i_1] + (i_1 + 1)"), "{body}");
+    assert!(
+        body.ends_with(" {\n    return g[i_1] + (i_1 + 1)"),
+        "{body}"
+    );
     // Kept: read twice; live after the read through the loop's exit and
     // through its back edge; an operand written between; a memory read
     // with a store or a call between; read inside a nested loop; a
     // division read under an `if`; read on one arm of `?:`.
     let body = function_body(&d, "read_twice");
-    assert!(body.ends_with("    var t_1 : int = a_1 + b_0\n    return t_1 * t_1"), "{body}");
+    assert!(
+        body.ends_with("    var t_1 : int = a_1 + b_0\n    return t_1 * t_1"),
+        "{body}"
+    );
     let body = function_body(&d, "live_after_exit");
-    assert!(body.ends_with("        t_2 = values[n]\n        s += t_2\n    }\n    return s + t_2"), "{body}");
+    assert!(
+        body.ends_with("        t_2 = values[n]\n        s += t_2\n    }\n    return s + t_2"),
+        "{body}"
+    );
     let body = function_body(&d, "live_on_back_edge");
-    assert!(body.contains("        s_0 += t_3\n        t_3 = values[n_0] + 1\n        x_1 = t_3\n"), "{body}");
+    assert!(
+        body.contains("        s_0 += t_3\n        t_3 = values[n_0] + 1\n        x_1 = t_3\n"),
+        "{body}"
+    );
     let body = function_body(&d, "operand_written");
-    assert!(body.ends_with("    var t_4 : int = a_2 + 1\n    a_2 = 5\n    return t_4 + a_2"), "{body}");
+    assert!(
+        body.ends_with("    var t_4 : int = a_2 + 1\n    a_2 = 5\n    return t_4 + a_2"),
+        "{body}"
+    );
     let body = function_body(&d, "store_between");
-    assert!(body.ends_with("    var t_5 : int = g[i_2]\n    g[i_2] = 7\n    return t_5"), "{body}");
+    assert!(
+        body.ends_with("    var t_5 : int = g[i_2]\n    g[i_2] = 7\n    return t_5"),
+        "{body}"
+    );
     let body = function_body(&d, "call_between");
-    assert!(body.ends_with("    var t_6 : int = g[i_3]\n    bump()\n    return t_6"), "{body}");
+    assert!(
+        body.ends_with("    var t_6 : int = g[i_3]\n    bump()\n    return t_6"),
+        "{body}"
+    );
     let body = function_body(&d, "nested_loop");
-    assert!(body.contains("    t_7 = a_3 + b_1\n    while (i_4 < n_1) {\n        s_1 += t_7\n"), "{body}");
+    assert!(
+        body.contains("    t_7 = a_3 + b_1\n    while (i_4 < n_1) {\n        s_1 += t_7\n"),
+        "{body}"
+    );
     let body = function_body(&d, "division_under_if");
-    assert!(body.contains("    var t_8 : int = a_4 / b_2\n    if (b_2 != 0) {\n        return t_8\n"), "{body}");
+    assert!(
+        body.contains("    var t_8 : int = a_4 / b_2\n    if (b_2 != 0) {\n        return t_8\n"),
+        "{body}"
+    );
     let body = function_body(&d, "conditional_arm");
-    assert!(body.ends_with("    var t_9 : int = a_5 + b_3\n    return b_3 != 0 ? t_9 : 0"), "{body}");
+    assert!(
+        body.ends_with("    var t_9 : int = a_5 + b_3\n    return b_3 != 0 ? t_9 : 0"),
+        "{body}"
+    );
 }
 
 #[test]
 fn p180_scalar_stores_of_references_read_values() {
-    let d = transpile_with_libc(
-        "p180_value_stores",
-        c2dascript_transpile::LibcMode::Std,
-    );
+    let d = transpile_with_libc("p180_value_stores", c2dascript_transpile::LibcMode::Std);
     // A store through a pointer of an element, a global or a parameter reads
     // the value: `T(ref)`, which daslang stores with `Set_TT<T>`
     // (`das_ast::fold`, "Value stores").  The statement carries the
     // suppression of daslang's PERF020, which reports the device as a
     // redundant cast.
     let body = function_body(&d, "through_pointer");
-    assert!(body.contains("    *dest = int(unsafe(src[i]))  // nolint:PERF020\n"), "{body}");
-    assert!(body.contains("    unsafe(dest[1]) = int(unsafe(src[i + 1]))  // nolint:PERF020\n"), "{body}");
-    assert!(body.contains("    unsafe(dest[2]) = int(g)  // nolint:PERF020\n"), "{body}");
-    assert!(body.contains("    unsafe(dest[3]) = int(param_0)  // nolint:PERF020\n"), "{body}");
+    assert!(
+        body.contains("    *dest = int(unsafe(src[i]))  // nolint:PERF020\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    unsafe(dest[1]) = int(unsafe(src[i + 1]))  // nolint:PERF020\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    unsafe(dest[2]) = int(g)  // nolint:PERF020\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    unsafe(dest[3]) = int(param_0)  // nolint:PERF020\n"),
+        "{body}"
+    );
     // Into a global or a global element.
     let body = function_body(&d, "into_global");
-    assert!(body.contains("    g = int(unsafe(src_0[i_0]))  // nolint:PERF020\n"), "{body}");
-    assert!(body.contains("    garr[0] = int(param_1)  // nolint:PERF020\n"), "{body}");
-    assert!(body.contains("    garr[1] = int(*src_0)  // nolint:PERF020\n"), "{body}");
+    assert!(
+        body.contains("    g = int(unsafe(src_0[i_0]))  // nolint:PERF020\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    garr[0] = int(param_1)  // nolint:PERF020\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    garr[1] = int(*src_0)  // nolint:PERF020\n"),
+        "{body}"
+    );
     // Fields through pointers; the narrow and real types.
     let body = function_body(&d, "fields");
-    assert!(body.contains("    p.a = int(q.b)  // nolint:PERF020\n    q.a = int(p.b)  // nolint:PERF020\n"), "{body}");
+    assert!(
+        body.contains(
+            "    p.a = int(q.b)  // nolint:PERF020\n    q.a = int(p.b)  // nolint:PERF020\n"
+        ),
+        "{body}"
+    );
     let body = function_body(&d, "narrow");
-    assert!(body.contains("    *dest_0 = uint8(unsafe(src_1[i_1]))  // nolint:PERF020\n"), "{body}");
-    assert!(body.contains("    *fd = float(unsafe(fs[i_1]))  // nolint:PERF020\n"), "{body}");
+    assert!(
+        body.contains("    *dest_0 = uint8(unsafe(src_1[i_1]))  // nolint:PERF020\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    *fd = float(unsafe(fs[i_1]))  // nolint:PERF020\n"),
+        "{body}"
+    );
     // A local on either side, a field of a local structure and a local's
     // initialiser keep the plain copy: the interpreter fuses those.
     let body = function_body(&d, "locals");
@@ -1729,11 +1878,19 @@ fn p180_scalar_stores_of_references_read_values() {
     // `loc = g` and `other = src[i]`, each read once straight after, are
     // single-use temporaries substituted into the return
     // (`cfg/structured.rs`).
-    assert!(body.contains("    other = loc\n    *src_2 = loc\n    g = lp.a\n    return g + unsafe(src_2[i_2])"), "{body}");
+    assert!(
+        body.contains(
+            "    other = loc\n    *src_2 = loc\n    g = lp.a\n    return g + unsafe(src_2[i_2])"
+        ),
+        "{body}"
+    );
     assert!(!body.contains("int("), "{body}");
     // A pointer store is not rewritten.
     let body = function_body(&d, "pointers");
-    assert!(body.contains("    gp = unsafe(reinterpret<int?>(unsafe(slots[i_3])))\n"), "{body}");
+    assert!(
+        body.contains("    gp = unsafe(reinterpret<int?>(unsafe(slots[i_3])))\n"),
+        "{body}"
+    );
     // `x += 1` / `x -= 1` statements are the fused `x++` / `x--`; a dereferenced
     // place is parenthesised; another step stays a compound assignment.
     let body = function_body(&d, "steps");
@@ -1742,7 +1899,10 @@ fn p180_scalar_stores_of_references_read_values() {
         "{body}"
     );
     let body = function_body(&d, "main_0");
-    assert!(body.contains("    local++\n    local--\n    local++\n"), "{body}");
+    assert!(
+        body.contains("    local++\n    local--\n    local++\n"),
+        "{body}"
+    );
 }
 
 #[test]
@@ -2262,7 +2422,9 @@ fn p176_union_fields_lie_inline_in_natural_records() {
     assert!(d.contains("struct sample {\n    id : int\n    bits : uint\n    tail : int\n}\n"));
     assert!(d.contains("struct mixed {\n    tag : int8\n    w : uint64\n}\n"));
     assert!(d.contains("struct bytes3 {\n    u : uint8[3]\n    end : int8\n}\n"));
-    assert!(d.contains("struct actionf_t {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 8ul)\n}\n"));
+    assert!(
+        d.contains("struct actionf_t {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 8ul)\n}\n")
+    );
     assert!(d.contains("static_assert(typeinfo offsetof<function_0>(type<thinker_s>) == 16, \"C layout of thinker_s: offsetof function_0\")"));
     assert!(d.contains("static_assert(typeinfo offsetof<bits>(type<sample>) == 4, \"C layout of sample: offsetof bits\")"));
     // A union aligned beyond eight bytes has no inline storage: the record
@@ -2273,16 +2435,23 @@ fn p176_union_fields_lie_inline_in_natural_records() {
     // field's offset, and the record's other fields go by name.  A bitfield
     // record is natural (p177) and an ordinary field.
     assert!(d.contains("struct actor {\n    id : int\n    spawn : uint8[10]\n    tint : color\n    after : int\n}\n"));
-    assert!(d.contains("struct mapthing {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 10ul)\n}\n"));
+    assert!(
+        d.contains("struct mapthing {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 10ul)\n}\n")
+    );
     let body = function_body(&d, "main_0");
     assert!(
         body.contains("unsafe(unsafe(reinterpret<int16?>(unsafe(reinterpret<uint64>(unsafe(addr(ac.spawn))))))[3]) = int16(int(unsafe(unsafe(reinterpret<int16?>(unsafe(reinterpret<uint64>(ap))))[5])) + 1)"),
         "{body}"
     );
     assert!(body.contains("i64 = int64(ap.after)"), "{body}");
-    assert!(body.contains("int(ap.tint.c2da_bits_0 >> 16 & 0xff)"), "{body}");
     assert!(
-        body.contains("    ap.tint.c2da_bits_0 = ap.tint.c2da_bits_0 & 0xff00ffffu | (200u & 0xffu) << 16u\n"),
+        body.contains("int(ap.tint.c2da_bits_0 >> 16 & 0xff)"),
+        "{body}"
+    );
+    assert!(
+        body.contains(
+            "    ap.tint.c2da_bits_0 = ap.tint.c2da_bits_0 & 0xff00ffffu | (200u & 0xffu) << 16u\n"
+        ),
         "{body}"
     );
     // The other fields of the record are reached by name, through the
@@ -2300,7 +2469,10 @@ fn p176_union_fields_lie_inline_in_natural_records() {
         body.contains("invoke(unsafe(unsafe(reinterpret<actionf_p1?>(unsafe(reinterpret<uint64>(t_0))))[2]), unsafe(reinterpret<uint8?>(t_0)))"),
         "{body}"
     );
-    assert!(body.contains("        t_0 = unsafe(reinterpret<thinker_s?>(t_0.next))\n"), "{body}");
+    assert!(
+        body.contains("        t_0 = unsafe(reinterpret<thinker_s?>(t_0.next))\n"),
+        "{body}"
+    );
     // A malloc'd record is the raw heap block typed as the record; a store
     // into the union member of the embedded thinker is at Clang's offset.
     let body = function_body(&d, "spawn");
@@ -2321,7 +2493,10 @@ fn p176_union_fields_lie_inline_in_natural_records() {
         body.contains("unsafe(unsafe(reinterpret<uint8?>(unsafe(reinterpret<uint64>(unsafe(addr(t_1.bits))))))[0]) = 0xffu8\n"),
         "{body}"
     );
-    assert!(body.contains("    var c2da_fresh9 : uint = make_sample(3, 0.5).bits\n"), "{body}");
+    assert!(
+        body.contains("    var c2da_fresh9 : uint = make_sample(3, 0.5).bits\n"),
+        "{body}"
+    );
     // A union value assigned to the field, and the field assigned to a
     // union object, copy the union's bytes; the pointer to the member and
     // to the union are the field's address.
@@ -2356,21 +2531,38 @@ fn p177_bitfield_records_are_natural_with_unit_fields() {
     // Every run of bitfields sharing a storage unit is one unsigned integer
     // of the unit's size; the ordinary fields keep their own; the layout
     // proof asserts each unit's offset once.
-    assert!(d.contains("struct color {\n    c2da_bits_0 : uint\n}\n"), "{d}");
+    assert!(
+        d.contains("struct color {\n    c2da_bits_0 : uint\n}\n"),
+        "{d}"
+    );
     assert!(
         d.contains("struct packet {\n    kind : int\n    c2da_bits_0 : uint\n    c2da_bits_1 : uint16\n    c2da_bits_2 : uint8\n    tail : int16\n}\n"),
         "{d}"
     );
-    assert!(d.contains("struct pixel {\n    x : int\n    c : color\n    y : int\n}\n"), "{d}");
+    assert!(
+        d.contains("struct pixel {\n    x : int\n    c : color\n    y : int\n}\n"),
+        "{d}"
+    );
     assert!(d.contains("static_assert(typeinfo offsetof<c2da_bits_0>(type<color>) == 0, \"C layout of color: offsetof c2da_bits_0\")"));
     assert!(d.contains("static_assert(typeinfo offsetof<c2da_bits_1>(type<packet>) == 8, \"C layout of packet: offsetof c2da_bits_1\")"));
     assert!(d.contains("static_assert(typeinfo offsetof<c2da_bits_2>(type<packet>) == 10, \"C layout of packet: offsetof c2da_bits_2\")"));
     assert!(d.contains("static_assert(typeinfo offsetof<tail>(type<packet>) == 12, \"C layout of packet: offsetof tail\")"));
     // A packed record, overlapping units of different sizes and a unit an
     // ordinary field shares stay storage-backed.
-    assert!(d.contains("struct tight {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 5ul)\n}\n"), "{d}");
-    assert!(d.contains("struct mixed_units {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"), "{d}");
-    assert!(d.contains("struct tagged {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"), "{d}");
+    assert!(
+        d.contains("struct tight {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 5ul)\n}\n"),
+        "{d}"
+    );
+    assert!(
+        d.contains(
+            "struct mixed_units {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"
+        ),
+        "{d}"
+    );
+    assert!(
+        d.contains("struct tagged {\n    c2da_storage : uint64 = c2da_rt_calloc(1ul, 4ul)\n}\n"),
+        "{d}"
+    );
     // Doom's frame hash: the palette entry is a value copy, each field a
     // shift and a mask on the word; no allocation and no byte copy.
     let body = function_body(&d, "hash_frame");
@@ -2378,19 +2570,39 @@ fn p177_bitfield_records_are_natural_with_unit_fields() {
         body.contains("rgb = (c.c2da_bits_0 >> 16 & 0xff) << 16u | (c.c2da_bits_0 >> 8 & 0xff) << 8u | c.c2da_bits_0 & 0xff\n"),
         "{body}"
     );
-    assert!(!body.contains("calloc") && !body.contains("memcpy"), "{body}");
+    assert!(
+        !body.contains("calloc") && !body.contains("memcpy"),
+        "{body}"
+    );
     // Through a pointer: a read-modify-write of the unit by name.
     let body = function_body(&d, "set_color");
-    assert!(body.contains("    p.c2da_bits_0 = p.c2da_bits_0 & 0xff00ffffu | (r & 0xffu) << 16u\n"), "{body}");
-    assert!(body.contains("    p.c2da_bits_0 = p.c2da_bits_0 & 0xffffff00u | b & 0xffu\n"), "{body}");
+    assert!(
+        body.contains("    p.c2da_bits_0 = p.c2da_bits_0 & 0xff00ffffu | (r & 0xffu) << 16u\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    p.c2da_bits_0 = p.c2da_bits_0 & 0xffffff00u | b & 0xffu\n"),
+        "{body}"
+    );
     assert!(!body.contains("memcpy"), "{body}");
     // Signed fields are sign-extended, a field as wide as its unit is the
     // unit, a one-byte unit computes in `uint`.
     let body = function_body(&d, "sum_packet");
-    assert!(body.contains("var c2da_fresh0 : int = int(unsafe(reinterpret<packet?>(p_0)).c2da_bits_0 & 0x3f)\n"), "{body}");
+    assert!(
+        body.contains(
+            "var c2da_fresh0 : int = int(unsafe(reinterpret<packet?>(p_0)).c2da_bits_0 & 0x3f)\n"
+        ),
+        "{body}"
+    );
     assert!(body.contains("        c2da_fresh0 |= -64\n"), "{body}");
-    assert!(body.contains("int(unsafe(reinterpret<packet?>(p_0)).c2da_bits_1)"), "{body}");
-    assert!(body.contains("uint8(uint(unsafe(reinterpret<packet?>(p_0)).c2da_bits_2) >> 4 & 0xf)"), "{body}");
+    assert!(
+        body.contains("int(unsafe(reinterpret<packet?>(p_0)).c2da_bits_1)"),
+        "{body}"
+    );
+    assert!(
+        body.contains("uint8(uint(unsafe(reinterpret<packet?>(p_0)).c2da_bits_2) >> 4 & 0xf)"),
+        "{body}"
+    );
     // Initializers compose the units; constant ones fold into one word.
     assert!(
         d.contains("var palette : color[4] = fixed_array<color>(color(c2da_bits_0 = 0xff030201u), color(c2da_bits_0 = 0x0u), color(c2da_bits_0 = 0x1c80000u), color(c2da_bits_0 = 0x70707u))\n"),
@@ -2401,24 +2613,51 @@ fn p177_bitfield_records_are_natural_with_unit_fields() {
         body.contains("    pk = packet(kind = 1, c2da_bits_0 = 0xfeee907bu, c2da_bits_1 = uint16(0xffff), c2da_bits_2 = 0xc9u8, tail = int16(-3))\n"),
         "{body}"
     );
-    assert!(body.contains("    px = pixel(x = 4, c = color(c2da_bits_0 = 0x4030201u), y = 5)\n"), "{body}");
+    assert!(
+        body.contains("    px = pixel(x = 4, c = color(c2da_bits_0 = 0x4030201u), y = 5)\n"),
+        "{body}"
+    );
     // A copy is a value copy; stores go directly to the object, an array
     // element, an embedded record, a malloc'd record.
     assert!(body.contains("    d = c_0\n"), "{body}");
     assert!(body.contains("    pks[1] = pk\n"), "{body}");
-    assert!(body.contains("    d.c2da_bits_0 = d.c2da_bits_0 & 0xff00ffffu | (99u & 0xffu) << 16u\n"), "{body}");
     assert!(
-        body.contains("    palette[1].c2da_bits_0 = palette[1].c2da_bits_0 & 0xffffff00u | 100u & 0xffu\n"),
+        body.contains("    d.c2da_bits_0 = d.c2da_bits_0 & 0xff00ffffu | (99u & 0xffu) << 16u\n"),
         "{body}"
     );
-    assert!(body.contains("    px.c.c2da_bits_0 = px.c.c2da_bits_0 & 0xff00ffffu | (77u & 0xffu) << 16u\n"), "{body}");
-    assert!(body.contains("    heap.c2da_bits_0 = heap.c2da_bits_0 & 0xffffffu | (255u & 0xffu) << 24u\n"), "{body}");
+    assert!(
+        body.contains(
+            "    palette[1].c2da_bits_0 = palette[1].c2da_bits_0 & 0xffffff00u | 100u & 0xffu\n"
+        ),
+        "{body}"
+    );
+    assert!(
+        body.contains(
+            "    px.c.c2da_bits_0 = px.c.c2da_bits_0 & 0xff00ffffu | (77u & 0xffu) << 16u\n"
+        ),
+        "{body}"
+    );
+    assert!(
+        body.contains(
+            "    heap.c2da_bits_0 = heap.c2da_bits_0 & 0xffffffu | (255u & 0xffu) << 24u\n"
+        ),
+        "{body}"
+    );
     // A narrow unit computes in `uint` and is narrowed back; a field as
     // wide as its unit replaces the unit.
-    assert!(body.contains("    pk.c2da_bits_2 = uint8(uint(pk.c2da_bits_2) & 0xf0u | 15u & 0xfu)\n"), "{body}");
-    assert!(body.contains("    pk.c2da_bits_1 = uint16(0u & 0xffffu)\n"), "{body}");
+    assert!(
+        body.contains("    pk.c2da_bits_2 = uint8(uint(pk.c2da_bits_2) & 0xf0u | 15u & 0xfu)\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains("    pk.c2da_bits_1 = uint16(0u & 0xffffu)\n"),
+        "{body}"
+    );
     // The bytes are Clang's: `&s` as `uint8*`, `*(uint32_t *)&s`.
-    assert!(body.contains("    word = *unsafe(addr<uint?>(c_0))\n"), "{body}");
+    assert!(
+        body.contains("    word = *unsafe(addr<uint?>(c_0))\n"),
+        "{body}"
+    );
     // The packed fallback keeps the byte path.
     assert!(body.contains("t.c2da_storage + 3ul)), 4ul))"), "{body}");
 }
@@ -2433,24 +2672,51 @@ fn p178_declared_array_subscripts_are_fixed_array_indexes() {
     // A global, a static, a local: the array indexed itself, read, written,
     // compound-assigned and stepped in place (`mid = 3`, read once straight
     // after, is a single-use temporary substituted into the store).
-    assert!(main.contains("    ceilingclip[rw_x] = int16(3)\n"), "{main}");
+    assert!(
+        main.contains("    ceilingclip[rw_x] = int16(3)\n"),
+        "{main}"
+    );
     assert!(
         main.contains("    floorclip[rw_x] = int16(int(ceilingclip[rw_x]) + 1)\n"),
         "{main}"
     );
-    assert!(main.contains("    main__counter[1]++\n    main__counter[1] += local[2]\n"), "{main}");
-    assert!(main.contains("    local[rw_x] = local[rw_x - 1] * 2\n    local[0] <<= 3\n"), "{main}");
+    assert!(
+        main.contains("    main__counter[1]++\n    main__counter[1] += local[2]\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("    local[rw_x] = local[rw_x - 1] * 2\n    local[0] <<= 3\n"),
+        "{main}"
+    );
     // An array of arrays is indexed twice; an array of natural records
     // reaches the element's field by name.
-    assert!(main.contains("            grid[i_3][j_0] = i_3 * 10 + j_0\n"), "{main}");
-    assert!(main.contains("    grid[1][2] += grid[2][3]\n    grid[2][0]++\n"), "{main}");
-    assert!(main.contains("        points[i_4].x = i_4\n        points[i_4].y = i_4 * i_4\n"), "{main}");
-    assert!(main.contains("    points[2].y += points[3].x\n    points[1].x++\n"), "{main}");
-    assert!(main.contains("    v_0 = by_value(planes[1], 2)\n"), "{main}");
+    assert!(
+        main.contains("            grid[i_3][j_0] = i_3 * 10 + j_0\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("    grid[1][2] += grid[2][3]\n    grid[2][0]++\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("        points[i_4].x = i_4\n        points[i_4].y = i_4 * i_4\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("    points[2].y += points[3].x\n    points[1].x++\n"),
+        "{main}"
+    );
+    assert!(
+        main.contains("    v_0 = by_value(planes[1], 2)\n"),
+        "{main}"
+    );
     // The address of an element is the decayed pointer stepped by the index:
     // `&table[5]` is the one-past-the-end pointer a fixed-array index would
     // refuse.
-    assert!(main.contains("    p = unsafe(addr<int?>(unsafe(unsafe(addr(local[0]))[2])))\n"), "{main}");
+    assert!(
+        main.contains("    p = unsafe(addr<int?>(unsafe(unsafe(addr(local[0]))[2])))\n"),
+        "{main}"
+    );
     assert!(
         main.contains("    end = unsafe(addr<int const?>(unsafe(unsafe(addr(table_0[0]))[5])))\n"),
         "{main}"
@@ -2462,7 +2728,10 @@ fn p178_declared_array_subscripts_are_fixed_array_indexes() {
     let body = function_body(&d, "row_sum");
     assert!(body.contains("        s_0 += grid[row][j]\n"), "{body}");
     // Nothing indexes a declared array variable through its decayed address.
-    assert!(!main.contains("addr(ceilingclip[0])") && !main.contains("addr(grid[0])"), "{main}");
+    assert!(
+        !main.contains("addr(ceilingclip[0])") && !main.contains("addr(grid[0])"),
+        "{main}"
+    );
     // An array *field* keeps its bytes at the Clang offset: C indexes past a
     // field array into the fields beside it (Doom's visplane pads, with
     // `-1` among the indexes), which a fixed-array index refuses and
@@ -2474,7 +2743,10 @@ fn p178_declared_array_subscripts_are_fixed_array_indexes() {
     );
     assert!(!body.contains("plane.top["), "{body}");
     let body = function_body(&d, "by_value");
-    assert!(body.contains("    unsafe(unsafe(addr(plane_1.top[0]))[x_1]) = uint16(7)\n"), "{body}");
+    assert!(
+        body.contains("    unsafe(unsafe(addr(plane_1.top[0]))[x_1]) = uint16(7)\n"),
+        "{body}"
+    );
     // An array member of a union is bytes at its Clang offset.
     let body = function_body(&d, "tagged_bytes");
     assert!(
@@ -2497,7 +2769,9 @@ fn p178_declared_array_subscripts_are_fixed_array_indexes() {
     // both builds — the field arrays stay on offsets there too.
     let u = transpile_unsafe_deref("p178_direct_array_subscripts");
     assert!(
-        u.contains("[export, unsafe_deref, hint(unsafe_range_check), sideeffects]\ndef fill_plane("),
+        u.contains(
+            "[export, unsafe_deref, hint(unsafe_range_check), sideeffects]\ndef fill_plane("
+        ),
         "{u}"
     );
     let body = function_body(&u, "fill_plane");
@@ -2507,7 +2781,10 @@ fn p178_declared_array_subscripts_are_fixed_array_indexes() {
     );
     assert!(!body.contains("plane.top["), "{body}");
     let umain = function_body(&u, "main_0");
-    assert!(umain.contains("    ceilingclip[rw_x] = int16(3)\n"), "{umain}");
+    assert!(
+        umain.contains("    ceilingclip[rw_x] = int16(3)\n"),
+        "{umain}"
+    );
     assert!(
         umain.contains("    end = unsafe(addr<int const?>(unsafe(unsafe(addr(table_0[0]))[5])))\n"),
         "{umain}"

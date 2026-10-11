@@ -130,7 +130,11 @@ fn address_taken_statics(ctx: &TypedAstContext) -> Vec<CDeclId> {
         .iter_decls()
         .filter_map(|(_, d)| match d.kind {
             CDeclKind::Function { body: Some(b), .. } => Some(SomeId::Stmt(b)),
-            CDeclKind::Variable { has_static_duration: true, initializer: Some(i), .. } => Some(SomeId::Expr(i)),
+            CDeclKind::Variable {
+                has_static_duration: true,
+                initializer: Some(i),
+                ..
+            } => Some(SomeId::Expr(i)),
             _ => None,
         })
         .collect();
@@ -166,7 +170,11 @@ fn address_taken_statics(ctx: &TypedAstContext) -> Vec<CDeclId> {
             let Some(decl) = root else { continue };
             if matches!(
                 ctx[decl].kind,
-                CDeclKind::Variable { has_static_duration: true, has_thread_duration: false, .. }
+                CDeclKind::Variable {
+                    has_static_duration: true,
+                    has_thread_duration: false,
+                    ..
+                }
             ) && !order.contains(&decl)
             {
                 order.push(decl);
@@ -184,7 +192,10 @@ fn address_taken_functions(ctx: &TypedAstContext) -> Vec<CDeclId> {
         .iter_decls()
         .filter_map(|(_, d)| match d.kind {
             CDeclKind::Function { body: Some(b), .. } => Some(SomeId::Stmt(b)),
-            CDeclKind::Variable { initializer: Some(i), .. } => Some(SomeId::Expr(i)),
+            CDeclKind::Variable {
+                initializer: Some(i),
+                ..
+            } => Some(SomeId::Expr(i)),
             _ => None,
         })
         .flat_map(|root| {
@@ -275,9 +286,9 @@ pub fn plan_shared_externs(contexts: &[TypedAstContext]) -> TranslationResult<Li
     for name in names {
         let def = contexts.iter().find_map(|ctx| {
             ctx.iter_decls().find_map(|(&id, d)| match d.kind {
-                CDeclKind::Variable { is_defn: true, typ, .. } if shared_extern_name(ctx, id) == Some(name.as_str()) => {
-                    Some((ctx, id, typ))
-                }
+                CDeclKind::Variable {
+                    is_defn: true, typ, ..
+                } if shared_extern_name(ctx, id) == Some(name.as_str()) => Some((ctx, id, typ)),
                 _ => None,
             })
         });
@@ -302,7 +313,12 @@ pub fn plan_shared_externs(contexts: &[TypedAstContext]) -> TranslationResult<Li
         .iter()
         .flat_map(|ctx| {
             ctx.iter_decls().filter_map(|(_, d)| match &d.kind {
-                CDeclKind::Function { is_global: true, name, body: Some(_), .. } => Some(name.as_str()),
+                CDeclKind::Function {
+                    is_global: true,
+                    name,
+                    body: Some(_),
+                    ..
+                } => Some(name.as_str()),
                 _ => None,
             })
         })
@@ -310,7 +326,12 @@ pub fn plan_shared_externs(contexts: &[TypedAstContext]) -> TranslationResult<Li
     let mut fn_externs = BTreeMap::new();
     for ctx in contexts {
         for decl in address_taken_functions(ctx) {
-            if let CDeclKind::Function { is_global: true, name, .. } = &ctx[decl].kind {
+            if let CDeclKind::Function {
+                is_global: true,
+                name,
+                ..
+            } = &ctx[decl].kind
+            {
                 if defined.contains(name.as_str()) && !fn_externs.contains_key(name) {
                     let index = fn_externs.len() + 1;
                     fn_externs.insert(name.clone(), index);
@@ -504,7 +525,11 @@ fn plus(a: &DaExpr, k: i64) -> DaExpr {
     }
     match a {
         DaExpr::ConstInt(base) => DaExpr::ConstInt(base + k),
-        DaExpr::Op2 { op: "+", left, right } => match &**right {
+        DaExpr::Op2 {
+            op: "+",
+            left,
+            right,
+        } => match &**right {
             DaExpr::ConstInt(c) => op2("+", (**left).clone(), DaExpr::ConstInt(c + k)),
             _ => op2("+", a.clone(), DaExpr::ConstInt(k)),
         },
@@ -535,7 +560,11 @@ fn load(s: Scalar, a: &DaExpr) -> DaExpr {
     match s {
         Scalar::U8 => byte_at(a, 0),
         Scalar::I8 => cast(DaType::int8(), byte_at(a, 0)),
-        Scalar::Bool => op2("!=", byte_at(a, 0), cast(DaType::uint8(), DaExpr::ConstInt(0))),
+        Scalar::Bool => op2(
+            "!=",
+            byte_at(a, 0),
+            cast(DaType::uint8(), DaExpr::ConstInt(0)),
+        ),
         Scalar::U16 => cast(DaType::uint16(), assemble32(a, 0, 2)),
         Scalar::I16 => cast(DaType::int16(), assemble32(a, 0, 2)),
         Scalar::U32 => assemble32(a, 0, 4),
@@ -581,9 +610,16 @@ fn store(s: Scalar, a: &DaExpr, v: &DaExpr, fresh: &mut dyn FnMut() -> String) -
     match s {
         Scalar::Fn(_) if fn_table() => store(Scalar::Ptr, a, v, fresh),
         Scalar::Fn(n) => {
-            let index = DaExpr::Call(Box::new(DaExpr::Var(format!("c2da_fn_index{n}"))), vec![v.clone()]);
+            let index = DaExpr::Call(
+                Box::new(DaExpr::Var(format!("c2da_fn_index{n}"))),
+                vec![v.clone()],
+            );
             let name = fresh();
-            let mut out = vec![DaStmt::Let { name: name.clone(), var_type: Some(DaType::int()), init: Some(index) }];
+            let mut out = vec![DaStmt::Let {
+                name: name.clone(),
+                var_type: Some(DaType::int()),
+                init: Some(index),
+            }];
             out.extend(store(Scalar::Ptr, a, &DaExpr::Var(name), fresh));
             out
         }
@@ -604,7 +640,10 @@ fn store(s: Scalar, a: &DaExpr, v: &DaExpr, fresh: &mut dyn FnMut() -> String) -
                 Scalar::I32 | Scalar::Ptr => (DaType::uint(), cast(DaType::uint(), v.clone()), 4),
                 Scalar::F32 => (
                     DaType::uint(),
-                    DaExpr::Call(Box::new(DaExpr::Var("float_bits_to_uint".into())), vec![v.clone()]),
+                    DaExpr::Call(
+                        Box::new(DaExpr::Var("float_bits_to_uint".into())),
+                        vec![v.clone()],
+                    ),
                     4,
                 ),
                 Scalar::U64 => (DaType::uint64(), v.clone(), 8),
@@ -629,7 +668,11 @@ fn store(s: Scalar, a: &DaExpr, v: &DaExpr, fresh: &mut dyn FnMut() -> String) -
                 let shifted = if k == 0 {
                     DaExpr::Var(name.clone())
                 } else {
-                    op2(">>", DaExpr::Var(name.clone()), DaExpr::ConstUInt((8 * k) as u64))
+                    op2(
+                        ">>",
+                        DaExpr::Var(name.clone()),
+                        DaExpr::ConstUInt((8 * k) as u64),
+                    )
                 };
                 out.push(set(k, u8_of(shifted)));
             }
@@ -686,7 +729,11 @@ impl HeapBits {
     }
 
     fn konst(self, v: u64) -> DaExpr {
-        let v = if self.bits() == 64 { v } else { v & 0xffff_ffff };
+        let v = if self.bits() == 64 {
+            v
+        } else {
+            v & 0xffff_ffff
+        };
         cast(self.compute(), DaExpr::ConstUInt(v))
     }
 
@@ -712,14 +759,29 @@ impl HeapBits {
     fn extract(self, word: DaExpr) -> DaExpr {
         let w = self.widen(word);
         let bits = self.bits();
-        let signed = matches!(self.field, Scalar::I8 | Scalar::I16 | Scalar::I32 | Scalar::I64);
+        let signed = matches!(
+            self.field,
+            Scalar::I8 | Scalar::I16 | Scalar::I32 | Scalar::I64
+        );
         if signed {
             let left = bits - self.bit_offset - self.width;
             let right = bits - self.width;
-            let w = if left == 0 { w } else { op2("<<", w, DaExpr::ConstInt(left as i64)) };
-            let sty = if bits == 64 { DaType::int64() } else { DaType::int() };
+            let w = if left == 0 {
+                w
+            } else {
+                op2("<<", w, DaExpr::ConstInt(left as i64))
+            };
+            let sty = if bits == 64 {
+                DaType::int64()
+            } else {
+                DaType::int()
+            };
             let s = cast(sty.clone(), w);
-            let s = if right == 0 { s } else { op2(">>", s, DaExpr::ConstInt(right as i64)) };
+            let s = if right == 0 {
+                s
+            } else {
+                op2(">>", s, DaExpr::ConstInt(right as i64))
+            };
             let to = self.field.da_type();
             return if to == sty { s } else { cast(to, s) };
         }
@@ -779,7 +841,11 @@ impl HeapBits {
         let new = if self.width == unit_bits {
             placed
         } else {
-            let unit_mask = if unit_bits == 64 { u64::MAX } else { (1u64 << unit_bits) - 1 };
+            let unit_mask = if unit_bits == 64 {
+                u64::MAX
+            } else {
+                (1u64 << unit_bits) - 1
+            };
             let keep = !(self.mask() << self.bit_offset) & unit_mask;
             op2("|", op2("&", self.widen(word), self.konst(keep)), placed)
         };
@@ -794,7 +860,11 @@ impl HeapBits {
 fn is_stable(e: &DaExpr) -> bool {
     match e {
         DaExpr::Var(_) | DaExpr::ConstInt(_) => true,
-        DaExpr::Op2 { op: "+" | "-" | "*", left, right } => is_stable(left) && is_stable(right),
+        DaExpr::Op2 {
+            op: "+" | "-" | "*",
+            left,
+            right,
+        } => is_stable(left) && is_stable(right),
         DaExpr::Cast { expr, .. } => is_stable(expr),
         _ => false,
     }
@@ -847,7 +917,10 @@ impl<'c> Translation<'c> {
 
     /// Clang's step for pointer arithmetic over `pointee` (`void *` steps by 1).
     fn step_size(&self, pointee: CQualTypeId) -> TranslationResult<i64> {
-        if matches!(self.ast_context.resolve_type(pointee.ctype).kind, CTypeKind::Void) {
+        if matches!(
+            self.ast_context.resolve_type(pointee.ctype).kind,
+            CTypeKind::Void
+        ) {
             return Ok(1);
         }
         self.sizeof_type(pointee.ctype)
@@ -858,7 +931,9 @@ impl<'c> Translation<'c> {
     /// function pointers follow the model, as the functions' own do).
     fn fn_sig(&self, ptr: CTypeId) -> TranslationResult<DaType> {
         match self.ast_context.resolve_type(ptr).kind {
-            CTypeKind::Pointer(inner) => self.convert_type_inner(self.ast_context.resolve_type_id(inner.ctype)),
+            CTypeKind::Pointer(inner) => {
+                self.convert_type_inner(self.ast_context.resolve_type_id(inner.ctype))
+            }
             _ => self.convert_type_inner(self.ast_context.resolve_type_id(ptr)),
         }
     }
@@ -886,7 +961,11 @@ impl<'c> Translation<'c> {
 
     /// `--fnptr-model table`: the callee of an indirect call, `value` being
     /// the converted pointer (an index), as the table element `invoke` takes.
-    pub(crate) fn linear_fn_callee(&self, callee: CExprId, value: DaExpr) -> TranslationResult<DaExpr> {
+    pub(crate) fn linear_fn_callee(
+        &self,
+        callee: CExprId,
+        value: DaExpr,
+    ) -> TranslationResult<DaExpr> {
         let ty = self.qual_of(callee)?;
         let n = sig_id(&self.fn_sig(ty.ctype)?);
         Ok(DaExpr::Index(
@@ -906,7 +985,10 @@ impl<'c> Translation<'c> {
             return Some(Scalar::Ptr);
         }
         if let CTypeKind::Pointer(inner) = self.ast_context.resolve_type(ty).kind {
-            if matches!(self.ast_context.resolve_type(inner.ctype).kind, CTypeKind::Function(..)) {
+            if matches!(
+                self.ast_context.resolve_type(inner.ctype).kind,
+                CTypeKind::Function(..)
+            ) {
                 return self.fn_sig(ty).ok().map(|t| Scalar::Fn(sig_id(&t)));
             }
         }
@@ -1063,7 +1145,10 @@ impl<'c> Translation<'c> {
             // numbered here too (this module requires its owner); one
             // numbered by both units has two slots holding the same value.
             let CDeclKind::Function { ref name, ref body, typ: fn_typ, .. } = self.ast_context[decl].kind else { continue };
-            let foreign = self.link.as_ref().map_or(false, |link| link.owners.contains_key(name));
+            let foreign = self
+                .link
+                .as_ref()
+                .map_or(false, |link| link.owners.contains_key(name));
             if body.is_none() && !foreign {
                 continue;
             }
@@ -1096,31 +1181,48 @@ impl<'c> Translation<'c> {
         let mut inits: Vec<(CExprId, CTypeId, i64, usize)> = Vec::new();
         let mut extern_inits: Vec<(CExprId, CTypeId, i64, usize)> = Vec::new();
         for decl in order {
-            if let Some(&(at, size)) = shared_extern_name(&self.ast_context, decl).and_then(|n| externs.get(n)) {
+            if let Some(&(at, size)) =
+                shared_extern_name(&self.ast_context, decl).and_then(|n| externs.get(n))
+            {
                 GLOBALS.with(|g| g.borrow_mut().insert(decl, at));
                 // The defining unit writes the initial bytes from its `[init]`.
-                if let CDeclKind::Variable { is_defn: true, typ, initializer: Some(init), .. } = self.ast_context[decl].kind {
+                if let CDeclKind::Variable {
+                    is_defn: true,
+                    typ,
+                    initializer: Some(init),
+                    ..
+                } = self.ast_context[decl].kind
+                {
                     extern_inits.push((init, typ.ctype, at, size));
                 }
                 continue;
             }
             // The definition carries the initializer; `extern` redeclarations
             // share the object.
-            let is_defn = matches!(self.ast_context[decl].kind, CDeclKind::Variable { is_defn: true, .. });
+            let is_defn = matches!(
+                self.ast_context[decl].kind,
+                CDeclKind::Variable { is_defn: true, .. }
+            );
             let def = if is_defn {
                 Some(decl)
             } else {
                 // An `extern` declaration: the file-scope definition of that
                 // name (function-scope statics are always definitions).
-                self.ast_context.iter_decls().find_map(|(&id, d)| match &d.kind {
-                    CDeclKind::Variable { is_defn: true, has_static_duration: true, ident, .. }
-                        if Some(ident) == self.ast_context[decl].kind.get_name()
+                self.ast_context
+                    .iter_decls()
+                    .find_map(|(&id, d)| match &d.kind {
+                        CDeclKind::Variable {
+                            is_defn: true,
+                            has_static_duration: true,
+                            ident,
+                            ..
+                        } if Some(ident) == self.ast_context[decl].kind.get_name()
                             && self.ast_context.parents.get(&id).is_none() =>
-                    {
-                        Some(id)
-                    }
-                    _ => None,
-                })
+                        {
+                            Some(id)
+                        }
+                        _ => None,
+                    })
             };
             let src = def.unwrap_or(decl);
             let CDeclKind::Variable { typ, initializer, .. } = self.ast_context[src].kind else {
@@ -1152,7 +1254,9 @@ impl<'c> Translation<'c> {
         for (init, ty, at, size) in inits {
             let mut bytes = vec![0u8; size];
             self.static_init_bytes(init, ty, &mut bytes, 0)?;
-            STATIC.with(|s| s.borrow_mut().0[at as usize..at as usize + size].copy_from_slice(&bytes));
+            STATIC.with(|s| {
+                s.borrow_mut().0[at as usize..at as usize + size].copy_from_slice(&bytes)
+            });
         }
         for (init, ty, at, size) in extern_inits {
             let mut bytes = vec![0u8; size];
@@ -1169,11 +1273,16 @@ impl<'c> Translation<'c> {
     fn static_address(&self, e: CExprId) -> TranslationResult<Option<i64>> {
         match self.ast_context[e].kind {
             CExprKind::Paren(_, i) | CExprKind::ConstantExpr(_, i, _) => self.static_address(i),
-            CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _) => self.static_lvalue_address(inner),
-            CExprKind::ImplicitCast(_, inner, CastKind::FunctionToPointerDecay, _, _) if fn_table() => {
+            CExprKind::ImplicitCast(_, inner, CastKind::ArrayToPointerDecay, _, _) => {
+                self.static_lvalue_address(inner)
+            }
+            CExprKind::ImplicitCast(_, inner, CastKind::FunctionToPointerDecay, _, _)
+                if fn_table() =>
+            {
                 self.static_fn_index(inner)
             }
-            CExprKind::ImplicitCast(ty, inner, _, _, _) | CExprKind::ExplicitCast(ty, inner, _, _, _)
+            CExprKind::ImplicitCast(ty, inner, _, _, _)
+            | CExprKind::ExplicitCast(ty, inner, _, _, _)
                 if self.ast_context.resolve_type(ty.ctype).kind.is_pointer() =>
             {
                 match self.static_int(inner) {
@@ -1189,7 +1298,11 @@ impl<'c> Translation<'c> {
                 }
                 if let CExprKind::DeclRef(_, d, _) = self.ast_context[a].kind {
                     if matches!(self.ast_context[d].kind, CDeclKind::Function { .. }) {
-                        return if fn_table() { self.static_fn_index(a) } else { Ok(None) };
+                        return if fn_table() {
+                            self.static_fn_index(a)
+                        } else {
+                            Ok(None)
+                        };
                     }
                 }
                 self.static_lvalue_address(arg)
@@ -1214,10 +1327,15 @@ impl<'c> Translation<'c> {
     fn static_lvalue_address(&self, e: CExprId) -> TranslationResult<Option<i64>> {
         match self.ast_context[e].kind {
             CExprKind::Paren(_, i) => self.static_lvalue_address(i),
-            CExprKind::Literal(_, CLiteral::String(..)) => match self.array_address(ExprContext::default(), e)? {
-                Some(WithStmts { val: DaExpr::ConstInt(at), .. }) => Ok(Some(at)),
-                _ => Ok(None),
-            },
+            CExprKind::Literal(_, CLiteral::String(..)) => {
+                match self.array_address(ExprContext::default(), e)? {
+                    Some(WithStmts {
+                        val: DaExpr::ConstInt(at),
+                        ..
+                    }) => Ok(Some(at)),
+                    _ => Ok(None),
+                }
+            }
             CExprKind::DeclRef(_, d, _) => Ok(global_offset(d)),
             CExprKind::Member(_, base, field, kind, _) => {
                 let base_at = match kind {
@@ -1254,8 +1372,11 @@ impl<'c> Translation<'c> {
     fn static_float(&self, e: CExprId) -> Option<f64> {
         match &self.ast_context[e].kind {
             CExprKind::Literal(_, CLiteral::Floating(v, _)) => Some(*v),
-            CExprKind::ConstantExpr(_, inner, _) | CExprKind::Paren(_, inner) => self.static_float(*inner),
-            CExprKind::ImplicitCast(ty, inner, _, _, _) | CExprKind::ExplicitCast(ty, inner, _, _, _) => {
+            CExprKind::ConstantExpr(_, inner, _) | CExprKind::Paren(_, inner) => {
+                self.static_float(*inner)
+            }
+            CExprKind::ImplicitCast(ty, inner, _, _, _)
+            | CExprKind::ExplicitCast(ty, inner, _, _, _) => {
                 let v = self.static_float(*inner)?;
                 Some(match self.ast_context.resolve_type(ty.ctype).kind {
                     CTypeKind::Float => v as f32 as f64,
@@ -1304,11 +1425,17 @@ impl<'c> Translation<'c> {
             | CExprKind::Paren(_, inner)
             | CExprKind::ImplicitCast(_, inner, _, _, _)
             | CExprKind::ExplicitCast(_, inner, _, _, _) => self.static_int(*inner),
-            CExprKind::Unary(_, CUnOp::Negate, inner, _) => self.static_int(*inner).map(|v| v.wrapping_neg()),
+            CExprKind::Unary(_, CUnOp::Negate, inner, _) => {
+                self.static_int(*inner).map(|v| v.wrapping_neg())
+            }
             CExprKind::Unary(_, CUnOp::Plus, inner, _) => self.static_int(*inner),
             CExprKind::Unary(_, CUnOp::Complement, inner, _) => self.static_int(*inner).map(|v| !v),
-            CExprKind::Unary(_, CUnOp::Not, inner, _) => self.static_int(*inner).map(|v| (v == 0) as i64),
-            CExprKind::UnaryType(_, CUnTypeOp::SizeOf, _, arg) => self.sizeof_type(arg.ctype).ok().map(|v| v as i64),
+            CExprKind::Unary(_, CUnOp::Not, inner, _) => {
+                self.static_int(*inner).map(|v| (v == 0) as i64)
+            }
+            CExprKind::UnaryType(_, CUnTypeOp::SizeOf, _, arg) => {
+                self.sizeof_type(arg.ctype).ok().map(|v| v as i64)
+            }
             CExprKind::OffsetOf(_, OffsetOfKind::Constant(v)) => Some(*v as i64),
             CExprKind::Conditional(_, c, t, f) => {
                 if self.static_int(*c)? != 0 {
@@ -1324,10 +1451,12 @@ impl<'c> Translation<'c> {
             // element width.
             CExprKind::Binary(_, op, l, r, _, _) => {
                 let (a, b) = (self.static_int(*l)?, self.static_int(*r)?);
-                let signed = self.ast_context[*l]
-                    .kind
-                    .get_type()
-                    .map_or(false, |t| self.ast_context.resolve_type(t).kind.is_signed_integral_type());
+                let signed = self.ast_context[*l].kind.get_type().map_or(false, |t| {
+                    self.ast_context
+                        .resolve_type(t)
+                        .kind
+                        .is_signed_integral_type()
+                });
                 let nonneg = signed || (a >= 0 && b >= 0);
                 Some(match op {
                     CBinOp::Add => a.wrapping_add(b),
@@ -1352,8 +1481,14 @@ impl<'c> Translation<'c> {
                 })
             }
             CExprKind::DeclRef(_, d, _) => match self.ast_context[*d].kind {
-                CDeclKind::EnumConstant { value: ConstIntExpr::I(v), .. } => Some(v),
-                CDeclKind::EnumConstant { value: ConstIntExpr::U(v), .. } => Some(v as i64),
+                CDeclKind::EnumConstant {
+                    value: ConstIntExpr::I(v),
+                    ..
+                } => Some(v),
+                CDeclKind::EnumConstant {
+                    value: ConstIntExpr::U(v),
+                    ..
+                } => Some(v as i64),
                 _ => None,
             },
             _ => None,
@@ -1363,7 +1498,13 @@ impl<'c> Translation<'c> {
     /// Writes the bytes of a static initializer of C type `ty` at `at`:
     /// integer scalars and arrays of them (also from a string literal);
     /// anything else is refused, located.
-    fn static_init_bytes(&self, init: CExprId, ty: CTypeId, out: &mut [u8], at: usize) -> TranslationResult<()> {
+    fn static_init_bytes(
+        &self,
+        init: CExprId,
+        ty: CTypeId,
+        out: &mut [u8],
+        at: usize,
+    ) -> TranslationResult<()> {
         let refuse = || {
             format_translation_err!(
                 self.ast_context.display_loc(&self.ast_context[init].loc),
@@ -1374,7 +1515,9 @@ impl<'c> Translation<'c> {
             CTypeKind::ConstantArray(elem, n) => {
                 let esize = self.sizeof_type(elem).map_err(|_| refuse())? as usize;
                 let mut e = init;
-                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) = self.ast_context[e].kind {
+                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) =
+                    self.ast_context[e].kind
+                {
                     e = i;
                 }
                 match &self.ast_context[e].kind {
@@ -1383,7 +1526,10 @@ impl<'c> Translation<'c> {
                             return Err(refuse());
                         }
                         for (k, item) in items.iter().enumerate() {
-                            if matches!(self.ast_context[*item].kind, CExprKind::ImplicitValueInit(_)) {
+                            if matches!(
+                                self.ast_context[*item].kind,
+                                CExprKind::ImplicitValueInit(_)
+                            ) {
                                 continue;
                             }
                             self.static_init_bytes(*item, elem, out, at + k * esize)?;
@@ -1402,7 +1548,9 @@ impl<'c> Translation<'c> {
             // A union: the one initialized member, at offset 0.
             CTypeKind::Union(_) => {
                 let mut e = init;
-                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) = self.ast_context[e].kind {
+                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) =
+                    self.ast_context[e].kind
+                {
                     e = i;
                 }
                 match &self.ast_context[e].kind {
@@ -1412,7 +1560,10 @@ impl<'c> Translation<'c> {
                         else {
                             return Err(refuse());
                         };
-                        if matches!(self.ast_context[items[0]].kind, CExprKind::ImplicitValueInit(_)) {
+                        if matches!(
+                            self.ast_context[items[0]].kind,
+                            CExprKind::ImplicitValueInit(_)
+                        ) {
                             return Ok(());
                         }
                         self.static_init_bytes(items[0], fty.ctype, out, at)
@@ -1425,7 +1576,9 @@ impl<'c> Translation<'c> {
                     return Err(refuse());
                 };
                 let mut e = init;
-                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) = self.ast_context[e].kind {
+                while let CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) =
+                    self.ast_context[e].kind
+                {
                     e = i;
                 }
                 let CExprKind::InitList(_, items, None, _) = &self.ast_context[e].kind else {
@@ -1442,7 +1595,10 @@ impl<'c> Translation<'c> {
                     return Err(refuse());
                 }
                 for (item, field) in items.iter().zip(fields.iter()) {
-                    if matches!(self.ast_context[*item].kind, CExprKind::ImplicitValueInit(_)) {
+                    if matches!(
+                        self.ast_context[*item].kind,
+                        CExprKind::ImplicitValueInit(_)
+                    ) {
                         continue;
                     }
                     let CDeclKind::Field { typ: fty, bitfield_width, platform_bit_offset, .. } =
@@ -1470,7 +1626,9 @@ impl<'c> Translation<'c> {
             _ => {
                 let Some(scalar) = self.scalar_of(ty) else { return Err(refuse()) };
                 let v = match scalar {
-                    Scalar::F32 => (self.static_float(init).ok_or_else(refuse)? as f32).to_bits() as i64,
+                    Scalar::F32 => {
+                        (self.static_float(init).ok_or_else(refuse)? as f32).to_bits() as i64
+                    }
                     Scalar::F64 => self.static_float(init).ok_or_else(refuse)?.to_bits() as i64,
                     // A pointer element: a constant address (or function index).
                     Scalar::Ptr | Scalar::Fn(_) => self.static_address(init)?.ok_or_else(refuse)?,
@@ -1497,7 +1655,11 @@ impl<'c> Translation<'c> {
             let Some(off) = frame_offset(*decl) else { continue };
             let Some(s) = self.scalar_of(typ.ctype) else { continue };
             let a = plus(&DaExpr::Var(FP.into()), off);
-            let stored = self.emit_store(s, WithStmts::new_val(a), WithStmts::new_val(DaExpr::Var(pname.clone())));
+            let stored = self.emit_store(
+                s,
+                WithStmts::new_val(a),
+                WithStmts::new_val(DaExpr::Var(pname.clone())),
+            );
             let (stmts, _) = stored.into_stmts_and_val();
             out.extend(stmts);
         }
@@ -1530,7 +1692,11 @@ impl<'c> Translation<'c> {
         if self.is_aggregate(typ.ctype) {
             if let Ok(size) = self.sizeof_type(typ.ctype) {
                 let mut bytes = vec![0u8; size as usize];
-                if size <= 1024 && self.static_init_bytes(init, typ.ctype, &mut bytes, 0).is_ok() {
+                if size <= 1024
+                    && self
+                        .static_init_bytes(init, typ.ctype, &mut bytes, 0)
+                        .is_ok()
+                {
                     let stmts: Vec<DaStmt> = bytes
                         .iter()
                         .enumerate()
@@ -1544,7 +1710,11 @@ impl<'c> Translation<'c> {
                             ))
                         })
                         .collect();
-                    return Ok(Some(crate::cfg::DeclStmtInfo::new(vec![], stmts.clone(), stmts)));
+                    return Ok(Some(crate::cfg::DeclStmtInfo::new(
+                        vec![],
+                        stmts.clone(),
+                        stmts,
+                    )));
                 }
             }
         }
@@ -1557,14 +1727,22 @@ impl<'c> Translation<'c> {
             self.emit_store(s, WithStmts::new_val(a), value)
         };
         let (stmts, _) = stored.into_stmts_and_val();
-        Ok(Some(crate::cfg::DeclStmtInfo::new(vec![], stmts.clone(), stmts)))
+        Ok(Some(crate::cfg::DeclStmtInfo::new(
+            vec![],
+            stmts.clone(),
+            stmts,
+        )))
     }
 
     /// Splits a function with a C stack frame into the body, which takes the
     /// frame pointer as its last parameter, and a wrapper under the C name
     /// that pushes the frame, calls the body and pops the frame, so every
     /// return path of the body restores the stack pointer.
-    pub(crate) fn linear_frame_wrap(&self, func: DaDecl, frame: i64) -> TranslationResult<(DaDecl, DaDecl)> {
+    pub(crate) fn linear_frame_wrap(
+        &self,
+        func: DaDecl,
+        frame: i64,
+    ) -> TranslationResult<(DaDecl, DaDecl)> {
         let DaDecl::Function(f) = func else {
             return Err(TranslationError::generic("a C stack frame on a non-function"));
         };
@@ -1611,7 +1789,9 @@ impl<'c> Translation<'c> {
                 init: Some(call),
             });
             stmts.push(restore);
-            stmts.push(DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Var("c2da_result".into()))))));
+            stmts.push(DaStmt::Expr(DaExpr::Return(Some(Box::new(DaExpr::Var(
+                "c2da_result".into(),
+            ))))));
         }
         let mut outer = f;
         outer.body = Some(DaExpr::Block(DaBlock { stmts }));
@@ -1641,7 +1821,10 @@ impl<'c> Translation<'c> {
         /// More leaves than this are refused rather than unrolled.
         const MAX_LEAVES: usize = 4096;
         if out.len() > MAX_LEAVES {
-            return Err(self.linear_refuse(at, "a record or array value of more than 4096 scalars through a pointer"));
+            return Err(self.linear_refuse(
+                at,
+                "a record or array value of more than 4096 scalars through a pointer",
+            ));
         }
         if let Some(s) = self.scalar_of(ty) {
             out.push((s, place, offset));
@@ -1700,7 +1883,12 @@ impl<'c> Translation<'c> {
 
     /// The whole aggregate at the stable heap address `a`, read into a
     /// fresh daScript value field by field.
-    fn load_aggregate(&self, at: CExprId, ty: CQualTypeId, a: &DaExpr) -> TranslationResult<WithStmts<DaExpr>> {
+    fn load_aggregate(
+        &self,
+        at: CExprId,
+        ty: CQualTypeId,
+        a: &DaExpr,
+    ) -> TranslationResult<WithStmts<DaExpr>> {
         let name = self.fresh_name();
         let mut leaves = vec![];
         self.aggregate_leaves(at, ty.ctype, DaExpr::Var(name.clone()), 0, &mut leaves)?;
@@ -1710,7 +1898,10 @@ impl<'c> Translation<'c> {
             init: None,
         }];
         for (s, place, off) in leaves {
-            stmts.push(DaStmt::Expr(DaExpr::Assign(Box::new(place), Box::new(load(s, &plus(a, off))))));
+            stmts.push(DaStmt::Expr(DaExpr::Assign(
+                Box::new(place),
+                Box::new(load(s, &plus(a, off))),
+            )));
         }
         Ok(WithStmts::new(stmts, DaExpr::Var(name)))
     }
@@ -1748,7 +1939,11 @@ impl<'c> Translation<'c> {
 
     /// The heap address of `expr_id` when it is an lvalue-to-rvalue read of
     /// a heap place (parentheses stripped).
-    fn heap_read_source(&self, ctx: ExprContext, expr_id: CExprId) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+    fn heap_read_source(
+        &self,
+        ctx: ExprContext,
+        expr_id: CExprId,
+    ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
         let mut e = expr_id;
         loop {
             match &self.ast_context[e].kind {
@@ -1829,7 +2024,9 @@ impl<'c> Translation<'c> {
             Paren(_, inner) => self.heap_place(ctx, *inner),
             DeclRef(_, decl, _) => Ok(frame_offset(*decl)
                 .map(|off| WithStmts::new_val(plus(&DaExpr::Var(FP.into()), off)))
-                .or_else(|| global_offset(*decl).map(|at| WithStmts::new_val(DaExpr::ConstInt(at))))),
+                .or_else(|| {
+                    global_offset(*decl).map(|at| WithStmts::new_val(DaExpr::ConstInt(at)))
+                })),
             Unary(_, CUnOp::Deref, ptr, _) => {
                 let ptr_ty = self.qual_of(*ptr)?;
                 if !self.is_data_pointer(ptr_ty.ctype) {
@@ -1859,12 +2056,17 @@ impl<'c> Translation<'c> {
                     None => self.convert_expr(ctx.used(), ptr, None)?,
                 };
                 let index = self.convert_expr(ctx.used(), idx, None)?;
-                Ok(Some(base.zip(index).map(|(b, i)| Self::offset_by(b, i, size, false))))
+                Ok(Some(
+                    base.zip(index)
+                        .map(|(b, i)| Self::offset_by(b, i, size, false)),
+                ))
             }
             Member(_, base, field, kind, _) => {
                 let base_address = match kind {
                     // `p->f` of a typed record is daslang `p.f`.
-                    MemberKind::Arrow if self.typed_pointee(self.qual_of(*base)?.ctype).is_some() => {
+                    MemberKind::Arrow
+                        if self.typed_pointee(self.qual_of(*base)?.ctype).is_some() =>
+                    {
                         return Ok(None)
                     }
                     MemberKind::Arrow => self.convert_expr(ctx.used(), *base, None)?,
@@ -1912,7 +2114,9 @@ impl<'c> Translation<'c> {
             return Ok(None);
         };
         let base_address = match kind {
-            MemberKind::Arrow if self.typed_pointee(self.qual_of(base)?.ctype).is_some() => return Ok(None),
+            MemberKind::Arrow if self.typed_pointee(self.qual_of(base)?.ctype).is_some() => {
+                return Ok(None)
+            }
             MemberKind::Arrow => self.convert_expr(ctx.used(), base, None)?,
             MemberKind::Dot => match self.heap_place(ctx, base)? {
                 Some(address) => address,
@@ -1924,7 +2128,10 @@ impl<'c> Translation<'c> {
             return Err(self.linear_refuse(expr_id, "a bitfield whose storage unit is not 1, 2, 4 or 8 bytes"));
         };
         if width == 0 || unit.bit_offset + width > unit.size_bytes * 8 {
-            return Err(self.linear_refuse(expr_id, "a bitfield that straddles its storage unit (a packed record)"));
+            return Err(self.linear_refuse(
+                expr_id,
+                "a bitfield that straddles its storage unit (a packed record)",
+            ));
         }
         let field_kind = match self.scalar_of(typ.ctype) {
             Some(
@@ -2010,7 +2217,8 @@ impl<'c> Translation<'c> {
         ctx: ExprContext,
         array: CExprId,
     ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
-        if let CExprKind::Literal(_, CLiteral::String(bytes, width)) = &self.ast_context[array].kind {
+        if let CExprKind::Literal(_, CLiteral::String(bytes, width)) = &self.ast_context[array].kind
+        {
             if *width != 1 {
                 return Err(self.linear_refuse(array, "a wide string literal"));
             }
@@ -2143,7 +2351,13 @@ impl<'c> Translation<'c> {
                 // such as `(actionf_v)(-1)` is in no table; calling it panics).
                 CastKind::IntegralToPointer if to_fn => {
                     let v = self.convert_expr(ctx.used(), inner, None)?;
-                    return Ok(Some(v.map(|v| if Self::infer_type(&v) == Some(DaType::int()) { v } else { cast(DaType::int(), v) })));
+                    return Ok(Some(v.map(|v| {
+                        if Self::infer_type(&v) == Some(DaType::int()) {
+                            v
+                        } else {
+                            cast(DaType::int(), v)
+                        }
+                    })));
                 }
                 CastKind::BitCast if to_fn && from_ptr && self.ast_context.is_null_expr(inner) => {
                     return Ok(Some(WithStmts::new_val(DaExpr::ConstInt(0))));
@@ -2174,7 +2388,9 @@ impl<'c> Translation<'c> {
                 Ok(Some(WithStmts::new_val(DaExpr::ConstInt(0))))
             }
             CastKind::NullToPointer if matches!(self.scalar_of(ty.ctype), Some(Scalar::Fn(_))) => {
-                Ok(Some(WithStmts::new_val(DaExpr::DefaultValue(self.convert_type(ty)?))))
+                Ok(Some(WithStmts::new_val(DaExpr::DefaultValue(
+                    self.convert_type(ty)?,
+                ))))
             }
             CastKind::LValueToRValue => {
                 if let Some((address, bits)) = self.heap_bitfield(ctx, inner)? {
@@ -2211,7 +2427,9 @@ impl<'c> Translation<'c> {
                 // `(ReadFn)NULL` (`NULL` is `(void *)0`): the null function value.
                 if from_ptr && !to_ptr && self.ast_context.is_null_expr(inner) {
                     if let Some(Scalar::Fn(_)) = self.scalar_of(ty.ctype) {
-                        return Ok(Some(WithStmts::new_val(DaExpr::DefaultValue(self.convert_type(ty)?))));
+                        return Ok(Some(WithStmts::new_val(DaExpr::DefaultValue(
+                            self.convert_type(ty)?,
+                        ))));
                     }
                 }
                 if to_ptr && from_ptr {
@@ -2219,16 +2437,23 @@ impl<'c> Translation<'c> {
                 } else if matches!(ck, CastKind::NoOp | CastKind::ConstCast) {
                     Ok(None)
                 } else {
-                    Err(self.linear_refuse(expr_id, "a cast between a data pointer and a function pointer"))
+                    Err(self.linear_refuse(
+                        expr_id,
+                        "a cast between a data pointer and a function pointer",
+                    ))
                 }
             }
             CastKind::PointerToIntegral if from_ptr => {
                 let to = self.convert_type(ty)?;
-                Ok(Some(self.convert_expr(ctx.used(), inner, None)?.map(|v| cast(to, v))))
+                Ok(Some(
+                    self.convert_expr(ctx.used(), inner, None)?
+                        .map(|v| cast(to, v)),
+                ))
             }
-            CastKind::IntegralToPointer if to_ptr => {
-                Ok(Some(self.convert_expr(ctx.used(), inner, None)?.map(|v| cast(DaType::int(), v))))
-            }
+            CastKind::IntegralToPointer if to_ptr => Ok(Some(
+                self.convert_expr(ctx.used(), inner, None)?
+                    .map(|v| cast(DaType::int(), v)),
+            )),
             CastKind::PointerToBoolean if from_ptr => Ok(Some(
                 self.convert_expr(ctx.used(), inner, None)?
                     .map(|v| op2("!=", v, DaExpr::ConstInt(0))),
@@ -2236,7 +2461,10 @@ impl<'c> Translation<'c> {
             // `(void)p` discards an `int` offset like any other value.
             CastKind::ToVoid => Ok(None),
             _ if to_ptr || from_ptr => {
-                if matches!(ck, CastKind::FunctionToPointerDecay | CastKind::BuiltinFnToFnPtr) {
+                if matches!(
+                    ck,
+                    CastKind::FunctionToPointerDecay | CastKind::BuiltinFnToFnPtr
+                ) {
                     return Ok(None);
                 }
                 Err(self.linear_refuse(expr_id, &format!("pointer cast {ck:?}")))
@@ -2265,10 +2493,18 @@ impl<'c> Translation<'c> {
             CBinOp::AssignBitAnd => "&",
             CBinOp::AssignShiftLeft => "<<",
             CBinOp::AssignShiftRight => ">>",
-            _ => return Err(TranslationError::generic("not an arithmetic compound operator")),
+            _ => {
+                return Err(TranslationError::generic(
+                    "not an arithmetic compound operator",
+                ))
+            }
         };
         let same = result == compute;
-        let left = if same { old } else { cast(compute.clone(), old) };
+        let left = if same {
+            old
+        } else {
+            cast(compute.clone(), old)
+        };
         let value = op2(das_op, left, cast(compute.clone(), rhs));
         Ok(if same { value } else { cast(result, value) })
     }
@@ -2296,7 +2532,9 @@ impl<'c> Translation<'c> {
                     let value = self.convert_expr(ctx.used(), rhs, Some(lhs_ty))?;
                     let value = self.force_temp(value, bits.field.da_type());
                     let (mut stmts, (a, v)) = address.zip(value).into_stmts_and_val();
-                    let (sstmts, result) = self.bits_store(bits, &a, v, ctx.is_used()).into_stmts_and_val();
+                    let (sstmts, result) = self
+                        .bits_store(bits, &a, v, ctx.is_used())
+                        .into_stmts_and_val();
                     stmts.extend(sstmts);
                     return Ok(Some(WithStmts::new(stmts, result)));
                 }
@@ -2313,18 +2551,26 @@ impl<'c> Translation<'c> {
                         let size = self.sizeof_type(lhs_ty.ctype)?;
                         let copy = DaExpr::Call(
                             Box::new(DaExpr::Var("c2da_lin_memmove".into())),
-                            vec![a.clone(), src, cast(DaType::uint64(), DaExpr::ConstInt(size))],
+                            vec![
+                                a.clone(),
+                                src,
+                                cast(DaType::uint64(), DaExpr::ConstInt(size)),
+                            ],
                         );
                         if !ctx.is_used() {
                             return Ok(Some(WithStmts::new(stmts, copy)));
                         }
                         stmts.push(DaStmt::Expr(copy));
-                        let (vstmts, v) = self.load_aggregate(expr_id, lhs_ty, &a)?.into_stmts_and_val();
+                        let (vstmts, v) = self
+                            .load_aggregate(expr_id, lhs_ty, &a)?
+                            .into_stmts_and_val();
                         stmts.extend(vstmts);
                         return Ok(Some(WithStmts::new(stmts, v)));
                     }
                     let value = self.convert_expr(ctx.used(), rhs, Some(lhs_ty))?;
-                    let (vstmts, v) = self.store_aggregate(expr_id, lhs_ty, &a, value)?.into_stmts_and_val();
+                    let (vstmts, v) = self
+                        .store_aggregate(expr_id, lhs_ty, &a, value)?
+                        .into_stmts_and_val();
                     stmts.extend(vstmts);
                     return Ok(Some(WithStmts::new(stmts, v)));
                 }
@@ -2346,7 +2592,11 @@ impl<'c> Translation<'c> {
                         .map(|(a, n)| (Self::offset_by(load(Scalar::Ptr, &a), n, size, negate), a));
                     let (stmts, (new, a)) = new.into_stmts_and_val();
                     let value = self.force_temp(WithStmts::new(stmts, new), DaType::int());
-                    return Ok(Some(self.emit_store(Scalar::Ptr, WithStmts::new_val(a), value)));
+                    return Ok(Some(self.emit_store(
+                        Scalar::Ptr,
+                        WithStmts::new_val(a),
+                        value,
+                    )));
                 }
                 let place = self.convert_expr(ctx.used(), lhs, None)?;
                 let n = self.convert_expr(ctx.used(), rhs, None)?;
@@ -2371,16 +2621,23 @@ impl<'c> Translation<'c> {
                         None => bits.field.da_type(),
                     };
                     if matches!(bits.field, Scalar::Bool) {
-                        return Err(self.linear_refuse(expr_id, "compound assignment to a `_Bool` in the heap"));
+                        return Err(self.linear_refuse(
+                            expr_id,
+                            "compound assignment to a `_Bool` in the heap",
+                        ));
                     }
                     let address = self.stable(address, DaType::int());
                     let n = self.convert_expr(ctx.used(), rhs, None)?;
                     let (mut stmts, (a, n)) = address.zip(n).into_stmts_and_val();
                     let old = bits.extract(load(bits.unit, &a));
                     let new = self.arith(op, old, n, bits.field.da_type(), compute)?;
-                    let (vstmts, v) = self.force_temp(WithStmts::new_val(new), bits.field.da_type()).into_stmts_and_val();
+                    let (vstmts, v) = self
+                        .force_temp(WithStmts::new_val(new), bits.field.da_type())
+                        .into_stmts_and_val();
                     stmts.extend(vstmts);
-                    let (sstmts, result) = self.bits_store(bits, &a, v, ctx.is_used()).into_stmts_and_val();
+                    let (sstmts, result) = self
+                        .bits_store(bits, &a, v, ctx.is_used())
+                        .into_stmts_and_val();
                     stmts.extend(sstmts);
                     return Ok(Some(WithStmts::new(stmts, result)));
                 }
@@ -2389,7 +2646,9 @@ impl<'c> Translation<'c> {
                 };
                 let s = self.scalar_or_refuse(lhs, lhs_ty.ctype)?;
                 if matches!(s, Scalar::Bool) {
-                    return Err(self.linear_refuse(expr_id, "compound assignment to a `_Bool` in the heap"));
+                    return Err(
+                        self.linear_refuse(expr_id, "compound assignment to a `_Bool` in the heap")
+                    );
                 }
                 let compute = match lty {
                     Some(t) => self.convert_type(t)?,
@@ -2413,17 +2672,27 @@ impl<'c> Translation<'c> {
                     let to = self.convert_type(ty)?;
                     return Ok(Some(l.zip(r).map(|(l, r)| {
                         let diff = op2("-", l, r);
-                        let diff = if size == 1 { diff } else { op2("/", diff, DaExpr::ConstInt(size)) };
+                        let diff = if size == 1 {
+                            diff
+                        } else {
+                            op2("/", diff, DaExpr::ConstInt(size))
+                        };
                         cast(to, diff)
                     })));
                 }
-                let (ptr, idx, ptr_ty) = if lp { (lhs, rhs, lhs_ty) } else { (rhs, lhs, rhs_ty) };
+                let (ptr, idx, ptr_ty) = if lp {
+                    (lhs, rhs, lhs_ty)
+                } else {
+                    (rhs, lhs, rhs_ty)
+                };
                 let pointee = self.linear_pointee(ptr_ty.ctype).unwrap();
                 let size = self.step_size(pointee)?;
                 let p = self.convert_expr(ctx.used(), ptr, None)?;
                 let i = self.convert_expr(ctx.used(), idx, None)?;
                 let negate = op == CBinOp::Subtract;
-                Ok(Some(p.zip(i).map(|(p, i)| Self::offset_by(p, i, size, negate))))
+                Ok(Some(
+                    p.zip(i).map(|(p, i)| Self::offset_by(p, i, size, negate)),
+                ))
             }
             CBinOp::Less
             | CBinOp::Greater
@@ -2524,13 +2793,20 @@ impl<'c> Translation<'c> {
         if let Some((address, bits)) = bitfield {
             let (mut stmts, a) = self.stable(address, DaType::int()).into_stmts_and_val();
             let (ostmts, old) = self
-                .force_temp(WithStmts::new_val(bits.extract(load(bits.unit, &a))), ty.clone())
+                .force_temp(
+                    WithStmts::new_val(bits.extract(load(bits.unit, &a))),
+                    ty.clone(),
+                )
                 .into_stmts_and_val();
             stmts.extend(ostmts);
-            let (nstmts, new) = self.force_temp(WithStmts::new_val(step(old.clone())?), ty.clone()).into_stmts_and_val();
+            let (nstmts, new) = self
+                .force_temp(WithStmts::new_val(step(old.clone())?), ty.clone())
+                .into_stmts_and_val();
             stmts.extend(nstmts);
             let used = ctx.is_used();
-            let (sstmts, result) = self.bits_store(bits, &a, new, used && pre).into_stmts_and_val();
+            let (sstmts, result) = self
+                .bits_store(bits, &a, new, used && pre)
+                .into_stmts_and_val();
             stmts.extend(sstmts);
             return Ok(Some(WithStmts::new(stmts, if pre { result } else { old })));
         }
@@ -2562,7 +2838,10 @@ impl<'c> Translation<'c> {
                     return Err(self.linear_refuse(expr_id, "`++`/`--` on this pointer lvalue"));
                 }
                 if pre {
-                    stmts.push(DaStmt::Expr(DaExpr::Assign(Box::new(p.clone()), Box::new(step(p.clone())?))));
+                    stmts.push(DaStmt::Expr(DaExpr::Assign(
+                        Box::new(p.clone()),
+                        Box::new(step(p.clone())?),
+                    )));
                     return Ok(Some(WithStmts::new(stmts, p)));
                 }
                 let old = self.fresh_name();
@@ -2571,7 +2850,10 @@ impl<'c> Translation<'c> {
                     var_type: Some(DaType::int()),
                     init: Some(p.clone()),
                 });
-                stmts.push(DaStmt::Expr(DaExpr::Assign(Box::new(p.clone()), Box::new(step(p)?))));
+                stmts.push(DaStmt::Expr(DaExpr::Assign(
+                    Box::new(p.clone()),
+                    Box::new(step(p)?),
+                )));
                 Ok(Some(WithStmts::new(stmts, DaExpr::Var(old))))
             }
         }
@@ -2584,7 +2866,9 @@ impl<'c> Translation<'c> {
                 CExprKind::Paren(_, i) | CExprKind::ImplicitCast(_, i, _, _, _) => e = *i,
                 CExprKind::DeclRef(_, decl, _) => {
                     return match &self.ast_context[*decl].kind {
-                        CDeclKind::Function { name, body, .. } => Some((name.clone(), body.is_some())),
+                        CDeclKind::Function { name, body, .. } => {
+                            Some((name.clone(), body.is_some()))
+                        }
                         _ => None,
                     };
                 }
@@ -2628,7 +2912,9 @@ impl<'c> Translation<'c> {
         };
         let fixed = roles.len();
         if args.len() < fixed || (va_list && args.len() != fixed + 1) {
-            return Err(self.linear_refuse(expr_id, &format!("`{base}` with {} arguments", args.len())));
+            return Err(
+                self.linear_refuse(expr_id, &format!("`{base}` with {} arguments", args.len()))
+            );
         }
         let format_arg = args[fixed - 1];
         if let Some(lit) = self.decayed_array(format_arg) {
@@ -2647,16 +2933,29 @@ impl<'c> Translation<'c> {
         }
         for (arg, role) in args.iter().zip(roles.chars()) {
             let v = self.convert_expr(ctx.used(), *arg, None)?;
-            let t = if role == 'H' || role == 'N' { DaType::uint64() } else { DaType::int() };
+            let t = if role == 'H' || role == 'N' {
+                DaType::uint64()
+            } else {
+                DaType::int()
+            };
             out = out.zip(v).map(|(mut list, v)| {
-                list.push(if Self::infer_type(&v).as_ref() == Some(&t) { v } else { cast(t, v) });
+                list.push(if Self::infer_type(&v).as_ref() == Some(&t) {
+                    v
+                } else {
+                    cast(t, v)
+                });
                 list
             });
         }
         if roles == "DF" {
-            out.val.insert(1, cast(DaType::uint64(), DaExpr::ConstInt(0x7fff_ffff)));
+            out.val
+                .insert(1, cast(DaType::uint64(), DaExpr::ConstInt(0x7fff_ffff)));
         }
-        let runtime = if self.va_heap() { va_heap::heap_format_runtime(runtime) } else { runtime };
+        let runtime = if self.va_heap() {
+            va_heap::heap_format_runtime(runtime)
+        } else {
+            runtime
+        };
         if va_list && self.va_heap() {
             let cursor = self.va_list_call_argument(args[fixed])?;
             self.mark_format_heap_used();
@@ -2702,7 +3001,9 @@ impl<'c> Translation<'c> {
         }
         libc::require_write();
         FORMAT_USED.with(|u| u.set(true));
-        Ok(Some(out.map(|list| DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list))))
+        Ok(Some(out.map(|list| {
+            DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list)
+        })))
     }
 
     /// `<stdio.h>` files under `--libc eden`: a `FILE *` is its handle as an
@@ -2736,7 +3037,9 @@ impl<'c> Translation<'c> {
         };
         let fixed = types.trim_end_matches('*').len();
         if args.len() < fixed || args.len() > types.len() {
-            return Err(self.linear_refuse(expr_id, &format!("`{base}` with {} arguments", args.len())));
+            return Err(
+                self.linear_refuse(expr_id, &format!("`{base}` with {} arguments", args.len()))
+            );
         }
         if runtime.starts_with("c2da_lin_") {
             libc::require_eden_files();
@@ -2759,7 +3062,9 @@ impl<'c> Translation<'c> {
                 list
             });
         }
-        Ok(Some(out.map(|list| DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list))))
+        Ok(Some(out.map(|list| {
+            DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list)
+        })))
     }
 
     fn linear_call(
@@ -2778,7 +3083,11 @@ impl<'c> Translation<'c> {
         }
         // A function another unit of a source-layout program defines is
         // translated C like this unit's own, not a library function.
-        if self.link.as_ref().map_or(false, |link| link.owners.contains_key(&name)) {
+        if self
+            .link
+            .as_ref()
+            .map_or(false, |link| link.owners.contains_key(&name))
+        {
             return Ok(None);
         }
         let base = name.strip_prefix("__builtin_").unwrap_or(&name);
@@ -2797,7 +3106,9 @@ impl<'c> Translation<'c> {
         }
         // `errno` is the heap cell the helpers write (`libc.rs`).
         if base == "__errno_location" && args.is_empty() {
-            return Ok(Some(WithStmts::new_val(DaExpr::ConstInt(libc::LINEAR_ERRNO_AT as i64))));
+            return Ok(Some(WithStmts::new_val(DaExpr::ConstInt(
+                libc::LINEAR_ERRNO_AT as i64,
+            ))));
         }
         // `sscanf` with a literal format of up to four `%d %u %x %X %o`
         // conversions (no width, no length modifier) into `int`s.
@@ -2808,7 +3119,9 @@ impl<'c> Translation<'c> {
                     CExprKind::Literal(_, CLiteral::String(bytes, 1)) => Some(bytes.clone()),
                     _ => None,
                 })
-                .ok_or_else(|| self.linear_refuse(expr_id, "`sscanf` without a string literal format"))?;
+                .ok_or_else(|| {
+                    self.linear_refuse(expr_id, "`sscanf` without a string literal format")
+                })?;
             let mut convs = 0;
             let mut k = 0;
             while k < bytes.len() {
@@ -2830,13 +3143,20 @@ impl<'c> Translation<'c> {
                 k += 1;
             }
             if convs + 2 != args.len() || convs > 4 {
-                return Err(self.linear_refuse(expr_id, "`sscanf` with more than four conversions or a mismatched argument count"));
+                return Err(self.linear_refuse(
+                    expr_id,
+                    "`sscanf` with more than four conversions or a mismatched argument count",
+                ));
             }
             let mut out = WithStmts::new_val(Vec::new());
             for arg in args {
                 let v = self.convert_expr(ctx.used(), *arg, None)?;
                 out = out.zip(v).map(|(mut list, v)| {
-                    list.push(if Self::infer_type(&v) == Some(DaType::int()) { v } else { cast(DaType::int(), v) });
+                    list.push(if Self::infer_type(&v) == Some(DaType::int()) {
+                        v
+                    } else {
+                        cast(DaType::int(), v)
+                    });
                     list
                 });
             }
@@ -2876,20 +3196,32 @@ impl<'c> Translation<'c> {
             // `system(NULL)` answers 0 and every request fails with -1.
             "system" if self.tcfg.libc == crate::LibcMode::Eden => Some(("c2da_lin_system", "I")),
             "remove" if self.tcfg.libc == crate::LibcMode::Eden => Some(("c2da_lin_remove", "I")),
-            "mkdir" if self.tcfg.libc == crate::LibcMode::Eden && args.len() == 2 => Some(("c2da_lin_mkdir", "IU")),
+            "mkdir" if self.tcfg.libc == crate::LibcMode::Eden && args.len() == 2 => {
+                Some(("c2da_lin_mkdir", "IU"))
+            }
             "rename" if self.tcfg.libc == crate::LibcMode::Eden => Some(("c2da_lin_rename", "II")),
             _ => None,
         };
         if let Some((runtime, types)) = sig {
             if args.len() != types.len() {
-                return Err(self.linear_refuse(expr_id, &format!("`{name}` with {} arguments", args.len())));
+                return Err(
+                    self.linear_refuse(expr_id, &format!("`{name}` with {} arguments", args.len()))
+                );
             }
             let mut out = WithStmts::new_val(Vec::new());
             for (arg, t) in args.iter().zip(types.chars()) {
                 let v = self.convert_expr(ctx.used(), *arg, None)?;
-                let t = if t == 'I' { DaType::int() } else { DaType::uint64() };
+                let t = if t == 'I' {
+                    DaType::int()
+                } else {
+                    DaType::uint64()
+                };
                 out = out.zip(v).map(|(mut list, v)| {
-                    list.push(if Self::infer_type(&v).as_ref() == Some(&t) { v } else { cast(t, v) });
+                    list.push(if Self::infer_type(&v).as_ref() == Some(&t) {
+                        v
+                    } else {
+                        cast(t, v)
+                    });
                     list
                 });
             }
@@ -2915,10 +3247,9 @@ impl<'c> Translation<'c> {
                 && !self.is_string_literal_arg(*a)
         });
         if ret_ptr || ptr_arg {
-            return Err(self.linear_refuse(
-                expr_id,
-                &format!("library function `{name}` over C memory"),
-            ));
+            return Err(
+                self.linear_refuse(expr_id, &format!("library function `{name}` over C memory"))
+            );
         }
         Ok(None)
     }
@@ -3055,10 +3386,25 @@ pub fn runtime_source(reserve: u64) -> String {
     let stack_base = (n + 15) & !15;
     let stack_top = stack_base + STACK_BYTES;
     let brk = stack_top;
-    let format_section = if FORMAT_USED.with(|u| u.get()) { FORMAT_RUNTIME } else { "" };
-    let format_section = format!("{format_section}{}", va_heap::runtime_section(va_heap::format_heap_used()));
-    let file_section = if FILE_USED.with(|u| u.get()) { FILE_RUNTIME } else { "" };
-    let argv_section = if ARGV_USED.with(|u| u.get()) { ARGV_RUNTIME } else { "" };
+    let format_section = if FORMAT_USED.with(|u| u.get()) {
+        FORMAT_RUNTIME
+    } else {
+        ""
+    };
+    let format_section = format!(
+        "{format_section}{}",
+        va_heap::runtime_section(va_heap::format_heap_used())
+    );
+    let file_section = if FILE_USED.with(|u| u.get()) {
+        FILE_RUNTIME
+    } else {
+        ""
+    };
+    let argv_section = if ARGV_USED.with(|u| u.get()) {
+        ARGV_RUNTIME
+    } else {
+        ""
+    };
     let fn_section = function_tables_source();
     format!(
         r#"
@@ -3165,7 +3511,8 @@ pub fn unit_runtime_source(module: &str) -> String {
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
     let mut text = String::new();
-    let (decls, copy) = static_block_source(bytes.get(base..).unwrap_or(&[]), base, &format!("_{stem}"));
+    let (decls, copy) =
+        static_block_source(bytes.get(base..).unwrap_or(&[]), base, &format!("_{stem}"));
     if !decls.is_empty() {
         text.push_str(&format!(
             "\n// This unit's static data, at heap offset {base}.\n{decls}\n\
@@ -3206,14 +3553,19 @@ pub fn unit_runtime_source(module: &str) -> String {
     let fn_base = linked_fn_base();
     let mut funcs: Vec<(String, DaType, usize)> = OWN_EXTERN_FUNCS.with(|o| o.borrow().clone());
     funcs.extend(
-        FUNCS.with(|f| f.borrow().clone())
+        FUNCS
+            .with(|f| f.borrow().clone())
             .into_iter()
             .enumerate()
             .map(|(k, (name, sig))| (name, sig, fn_base + k + 1)),
     );
     if !funcs.is_empty() {
         let sigs = SIGS.with(|s| s.borrow().clone());
-        let count = funcs.iter().map(|(_, _, index)| index + 1).max().unwrap_or(1);
+        let count = funcs
+            .iter()
+            .map(|(_, _, index)| index + 1)
+            .max()
+            .unwrap_or(1);
         text.push_str(&format!(
             "\n// Fills this module's slots of the shared function tables (at start, and after a hot reload).\ndef c2da_relink_{stem}() {{\n"
         ));
@@ -3247,12 +3599,17 @@ pub fn shared_runtime_source(reserve: u64, link: &LinearLink) -> String {
     let stack_top = stack_base + STACK_BYTES;
     let brk = stack_top;
     let format_section = if link.format { FORMAT_RUNTIME } else { "" };
-    let format_section = format!("{format_section}{}", va_heap::runtime_section(link.format_heap));
+    let format_section = format!(
+        "{format_section}{}",
+        va_heap::runtime_section(link.format_heap)
+    );
     let file_section = if link.file { FILE_RUNTIME } else { "" };
     let argv_section = if link.argv { ARGV_RUNTIME } else { "" };
     let mut tables = String::new();
     if !link.sigs.is_empty() {
-        tables.push_str("\n// Function pointers in the heap are indices into these tables (0 is NULL).\n");
+        tables.push_str(
+            "\n// Function pointers in the heap are indices into these tables (0 is NULL).\n",
+        );
         for (n, t) in link.sigs.iter().enumerate() {
             tables.push_str(&function_table_decl(n, t));
         }
@@ -3777,11 +4134,15 @@ fn function_tables_source() -> String {
     }
     let funcs = FUNCS.with(|f| f.borrow().clone());
     let count = funcs.len() + 1;
-    let mut text = String::from("\n// Function pointers in the heap are indices into these tables (0 is NULL).\n");
+    let mut text = String::from(
+        "\n// Function pointers in the heap are indices into these tables (0 is NULL).\n",
+    );
     for (n, t) in sigs.iter().enumerate() {
         text.push_str(&function_table_decl(n, t));
     }
-    text.push_str("// Refills the function tables (at start, and after a hot reload).\ndef c2da_relink() {\n");
+    text.push_str(
+        "// Refills the function tables (at start, and after a hot reload).\ndef c2da_relink() {\n",
+    );
     for (n, t) in sigs.iter().enumerate() {
         text.push_str(&format!("    resize(c2da_fn_table{n}, {count})\n"));
         for (k, (name, sig)) in funcs.iter().enumerate() {

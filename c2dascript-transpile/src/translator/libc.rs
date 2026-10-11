@@ -69,7 +69,10 @@ fn entry_eden() -> bool {
 fn build_eden_start(translated_main: &str, arity: usize) -> DaDecl {
     let call_main = match arity {
         0 => ret(call(translated_main, vec![])),
-        1 => ret(call(translated_main, vec![call("length", vec![var("args")])])),
+        1 => ret(call(
+            translated_main,
+            vec![call("length", vec![var("args")])],
+        )),
         _ => {
             super::linear::note_argv();
             let mut stmts = vec![
@@ -101,7 +104,10 @@ fn build_eden_start(translated_main: &str, arity: usize) -> DaDecl {
                     ],
                 ),
             ];
-            stmts.push(ret(call(translated_main, vec![var("argc"), var("argv_at")])));
+            stmts.push(ret(call(
+                translated_main,
+                vec![var("argc"), var("argv_at")],
+            )));
             return eden_start_decl(stmts);
         }
     };
@@ -113,7 +119,9 @@ fn eden_start_decl(stmts: Vec<DaStmt>) -> DaDecl {
         name: "c2da_eden_start".to_owned(),
         params: vec![param("args", DaType::array(DaType::string()))],
         ret_type: DaType::int(),
-        body: Some(DaExpr::Block(DaBlock { stmts: eden_entry_body(stmts) })),
+        body: Some(DaExpr::Block(DaBlock {
+            stmts: eden_entry_body(stmts),
+        })),
         annotations: vec![],
         is_public: false,
         is_unsafe: false,
@@ -936,7 +944,13 @@ pub(crate) fn require_write() -> &'static str {
 /// Registers the `--libc eden` file table (open files, positions, data)
 /// and `c2da_eden_fopen`, which the linear `fopen`/`fread` read directly.
 pub(crate) fn require_eden_files() {
-    for name in [EDEN_FILE_DATA, EDEN_OPEN_FILE, EDEN_OPEN_POS, EDEN_FOPEN, EDEN_FCLOSE] {
+    for name in [
+        EDEN_FILE_DATA,
+        EDEN_OPEN_FILE,
+        EDEN_OPEN_POS,
+        EDEN_FOPEN,
+        EDEN_FCLOSE,
+    ] {
         require(name);
     }
 }
@@ -3114,7 +3128,10 @@ fn build_fclose() -> DaDecl {
                 op2("==", var("handle"), uint64_const(0)),
                 vec![set_errno(Errno::Ebadf), ret(DaExpr::ConstInt(-1))],
             ),
-            DaStmt::Expr(call(fio("fclose"), vec![call(FILE_OF, vec![var("handle")])])),
+            DaStmt::Expr(call(
+                fio("fclose"),
+                vec![call(FILE_OF, vec![var("handle")])],
+            )),
             let_("slot", call(STREAM_SLOT, vec![var("handle")])),
             assign(
                 DaExpr::Index(Box::new(var(STREAM_FLAGS)), Box::new(var("slot"))),
@@ -3745,11 +3762,7 @@ fn build_eden(name: &str) -> DaDecl {
     let handle = || u64_param("handle");
     match name {
         EDEN_FILE_NAMES => global(name, DaType::array(DaType::string()), None),
-        EDEN_FILE_DATA => global(
-            name,
-            DaType::array(DaType::array(DaType::uint8())),
-            None,
-        ),
+        EDEN_FILE_DATA => global(name, DaType::array(DaType::array(DaType::uint8())), None),
         EDEN_OPEN_FILE => global(name, DaType::array(DaType::int()), None),
         EDEN_OPEN_POS => global(name, DaType::array(DaType::int64()), None),
         EDEN_OUT | EDEN_ERR => global(name, DaType::string(), Some(text(""))),
@@ -3833,7 +3846,10 @@ fn build_eden(name: &str) -> DaDecl {
         // `c2da_std_fopen_errno` names the reason).
         EDEN_FOPEN => helper(
             name,
-            vec![param("path", DaType::string()), param("mode", DaType::string())],
+            vec![
+                param("path", DaType::string()),
+                param("mode", DaType::string()),
+            ],
             DaType::uint64(),
             vec![
                 if_then(
@@ -3863,12 +3879,18 @@ fn build_eden(name: &str) -> DaDecl {
         EDEN_FCLOSE => helper(name, vec![handle()], DaType::void(), {
             let mut body = vec![if_then(
                 op2("<", var("handle"), uint64_const(EDEN_FIRST_HANDLE)),
-                vec![DaStmt::Expr(call(EDEN_FFLUSH, vec![var("handle")])), ret_void()],
+                vec![
+                    DaStmt::Expr(call(EDEN_FFLUSH, vec![var("handle")])),
+                    ret_void(),
+                ],
             )];
             body.push(constant("slot", DaType::int(), eden_slot_of("handle")));
             body.push(if_then(
                 op2("<", var("slot"), call("length", vec![var(EDEN_OPEN_FILE)])),
-                vec![assign(at(EDEN_OPEN_FILE, var("slot")), DaExpr::ConstInt(-1))],
+                vec![assign(
+                    at(EDEN_OPEN_FILE, var("slot")),
+                    DaExpr::ConstInt(-1),
+                )],
             ));
             body
         }),
@@ -4117,7 +4139,12 @@ fn build_stream(name: &str, daslib_name: &str) -> DaDecl {
             STDERR => 2,
             _ => 3,
         };
-        return helper(name, vec![], DaType::uint64(), vec![ret(uint64_const(number))]);
+        return helper(
+            name,
+            vec![],
+            DaType::uint64(),
+            vec![ret(uint64_const(number))],
+        );
     }
     helper(
         name,
@@ -4328,7 +4355,11 @@ fn build_clearerr() -> DaDecl {
             assign(slot_entry(STREAM_FLAGS), DaExpr::ConstInt(0)),
             assign(slot_entry(STREAM_PUSH), DaExpr::ConstInt(-1)),
             let_("stream", call(FILE_OF, vec![var("handle")])),
-            constant("at", DaType::int64(), call(fio("ftell"), vec![var("stream")])),
+            constant(
+                "at",
+                DaType::int64(),
+                call(fio("ftell"), vec![var("stream")]),
+            ),
             if_then(
                 op2(">=", var("at"), int64_const(0)),
                 vec![DaStmt::Expr(call(
@@ -4613,7 +4644,10 @@ fn build_get_errno() -> DaDecl {
             GET_ERRNO,
             vec![],
             DaType::int(),
-            vec![ret(call("c2da_lin_ld32", vec![DaExpr::ConstInt(LINEAR_ERRNO_AT as i64)]))],
+            vec![ret(call(
+                "c2da_lin_ld32",
+                vec![DaExpr::ConstInt(LINEAR_ERRNO_AT as i64)],
+            ))],
         );
     }
     helper(
@@ -4847,18 +4881,18 @@ fn build_path_errno() -> DaDecl {
                 set_errno(Errno::Eacces),
             ]
         } else {
-        vec![
-            if_then(
-                not(call("fexist", vec![var("path")])),
-                vec![set_errno(Errno::Enoent), ret_void()],
-            ),
-            let_("info", call("stat", vec![var("path")])),
-            if_then(
-                DaExpr::Field(Box::new(var("info")), "is_dir".into()),
-                vec![set_errno(Errno::Eisdir), ret_void()],
-            ),
-            set_errno(Errno::Eacces),
-        ]
+            vec![
+                if_then(
+                    not(call("fexist", vec![var("path")])),
+                    vec![set_errno(Errno::Enoent), ret_void()],
+                ),
+                let_("info", call("stat", vec![var("path")])),
+                if_then(
+                    DaExpr::Field(Box::new(var("info")), "is_dir".into()),
+                    vec![set_errno(Errno::Eisdir), ret_void()],
+                ),
+                set_errno(Errno::Eacces),
+            ]
         },
     )
 }
@@ -5390,7 +5424,11 @@ fn build_main_wrapper(translated_main: &str, arity: usize) -> DaDecl {
                     translated_main,
                     vec![
                         DaExpr::ConstInt(0),
-                        if linear() { DaExpr::ConstInt(0) } else { DaExpr::ConstNull },
+                        if linear() {
+                            DaExpr::ConstInt(0)
+                        } else {
+                            DaExpr::ConstNull
+                        },
                     ],
                 ))
             }],
@@ -5484,7 +5522,10 @@ fn build_main_wrapper(translated_main: &str, arity: usize) -> DaDecl {
             while_(
                 op2("<", var("i"), call("length", vec![var("raw")])),
                 vec![
-                    put(var("at"), DaExpr::Index(Box::new(var("raw")), Box::new(var("i")))),
+                    put(
+                        var("at"),
+                        DaExpr::Index(Box::new(var("raw")), Box::new(var("i"))),
+                    ),
                     advance("at"),
                     advance("i"),
                 ],
@@ -5552,7 +5593,11 @@ fn build_main_wrapper(translated_main: &str, arity: usize) -> DaDecl {
 }
 
 fn main_wrapper_decl(stmts: Vec<DaStmt>) -> DaDecl {
-    let stmts = if eden() { eden_entry_body(stmts) } else { stmts };
+    let stmts = if eden() {
+        eden_entry_body(stmts)
+    } else {
+        stmts
+    };
     DaDecl::Function(DaFunction {
         name: "main".to_owned(),
         params: vec![],
@@ -6449,7 +6494,11 @@ fn build_errno_location() -> DaDecl {
         ERRNO_LOCATION,
         vec![],
         DaType::uint64(),
-        vec![ret(if linear() { uint64_const(LINEAR_ERRNO_AT) } else { var(ERRNO_CELL) })],
+        vec![ret(if linear() {
+            uint64_const(LINEAR_ERRNO_AT)
+        } else {
+            var(ERRNO_CELL)
+        })],
     )
 }
 
@@ -7728,7 +7777,14 @@ mod tests {
             .collect();
         let text = rendered.join("\n");
         assert_eq!(module_requires(), vec!["strings"]);
-        for refused in ["fopen(", "fprint(", "exit_now(", "funbuffered(", "FILE", "fstdout"] {
+        for refused in [
+            "fopen(",
+            "fprint(",
+            "exit_now(",
+            "funbuffered(",
+            "FILE",
+            "fstdout",
+        ] {
             assert!(
                 !text.contains(&format!(" {refused}")) && !text.contains(&format!("({refused}")),
                 "--libc eden prelude still names `{refused}`"

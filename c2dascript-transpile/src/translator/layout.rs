@@ -546,7 +546,9 @@ impl<'c> Translation<'c> {
                         continue;
                     }
                     // A unit of another size at the same bytes overlaps.
-                    Some((unit_offset, unit_size, _)) if byte_offset < *unit_offset + *unit_size => {
+                    Some((unit_offset, unit_size, _))
+                        if byte_offset < *unit_offset + *unit_size =>
+                    {
                         return None;
                     }
                     _ => {}

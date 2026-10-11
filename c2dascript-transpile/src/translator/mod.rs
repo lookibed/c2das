@@ -55,9 +55,9 @@ pub(crate) use self::global_order::collect_names;
 use self::value_lowering::ValueSite;
 
 pub use crate::diagnostics::{TranslationError, TranslationErrorKind};
+pub(crate) use linear::fn_table as linear_fn_table;
 pub use linear::{plan_shared_externs, LinearLink};
 pub use linear::{typed_records_program, TypedVerdict};
-pub(crate) use linear::fn_table as linear_fn_table;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct Import {
@@ -442,11 +442,13 @@ impl<'c> Translation<'c> {
             // A `--libc std` module `require`s daslib, whose value names the
             // std prelude spells unqualified; see
             // `DASCRIPT_STD_LIBC_VALUE_NAMESPACE`.
-            renamer: RefCell::new(if matches!(tcfg.libc, crate::LibcMode::Std | crate::LibcMode::Eden) {
-                Renamer::std_libc_global_value_namespace()
-            } else {
-                Renamer::global_value_namespace()
-            }),
+            renamer: RefCell::new(
+                if matches!(tcfg.libc, crate::LibcMode::Std | crate::LibcMode::Eden) {
+                    Renamer::std_libc_global_value_namespace()
+                } else {
+                    Renamer::global_value_namespace()
+                },
+            ),
             function_context: RefCell::new(FuncContext::new()),
             emitted_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
             emitted_anon_structs: std::cell::RefCell::new(std::collections::HashSet::new()),
@@ -3753,9 +3755,10 @@ impl<'c> Translation<'c> {
                     if parts.is_empty() {
                         continue;
                     }
-                    let unit_type = layout::NaturalMember::unit_type(size_bytes).ok_or_else(|| {
-                        TranslationError::generic("bitfield storage unit has no daScript type")
-                    })?;
+                    let unit_type =
+                        layout::NaturalMember::unit_type(size_bytes).ok_or_else(|| {
+                            TranslationError::generic("bitfield storage unit has no daScript type")
+                        })?;
                     values.push((
                         layout::NaturalMember::unit_name(index),
                         self.bitfield_unit_value(unit_type, size_bytes * 8, parts)?,
@@ -4889,7 +4892,10 @@ fn translate_impl(
         // appends to the fragment text.
         let (source, linear) = if t.is_linear() {
             let module = &t.link.as_ref().expect("a fragment is linked").module;
-            (linear::unit_runtime_source(module), Some(linear::linked_state()))
+            (
+                linear::unit_runtime_source(module),
+                Some(linear::linked_state()),
+            )
         } else {
             (String::new(), None)
         };

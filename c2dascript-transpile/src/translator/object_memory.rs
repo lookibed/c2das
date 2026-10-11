@@ -438,15 +438,14 @@ impl<'c> Translation<'c> {
         address.raw.clone().map(|raw| {
             let raw = if address.raw_is_address {
                 raw
-            } else if let Some(named) = address.named.as_ref().filter(|named| named.base_is_object) {
+            } else if let Some(named) = address.named.as_ref().filter(|named| named.base_is_object)
+            {
                 // A place below the record object itself: the address of
                 // the named field.
                 let place = named.path.iter().fold(raw, |base, field| {
                     DaExpr::Field(Box::new(base), field.clone())
                 });
-                self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(
-                    place,
-                )))))
+                self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(place)))))
             } else {
                 self.pointer_to_raw_address(raw)
             };
@@ -1021,7 +1020,11 @@ impl<'c> Translation<'c> {
         // own daScript type, or in `int` for a one- or two-byte field
         // (daslang has no operators on those), and is narrowed at the end.
         let value_type = bitfield_compute_type(&target);
-        let value_bits = if value_type == DaType::int64() { 64 } else { 32 };
+        let value_bits = if value_type == DaType::int64() {
+            64
+        } else {
+            32
+        };
         let type_mask = if value_bits >= 64 {
             u64::MAX
         } else {
@@ -1063,11 +1066,10 @@ impl<'c> Translation<'c> {
             elifs: vec![],
             else_: None,
         }));
-        Ok(WithStmts::new(
-            stmts,
-            cast_unless(DaExpr::Var(tmp), &value_type, &target),
+        Ok(
+            WithStmts::new(stmts, cast_unless(DaExpr::Var(tmp), &value_type, &target))
+                .merge_unsafe(is_unsafe),
         )
-        .merge_unsafe(is_unsafe))
     }
 
     /// The word of a bitfield storage unit composed from initializer values
@@ -1378,7 +1380,8 @@ impl<'c> Translation<'c> {
         }
         let named = address.named.as_ref()?;
         for &record in &named.records {
-            self.note_named_field_record(record);        }
+            self.note_named_field_record(record);
+        }
         Some(address.raw.clone().map(|raw| {
             let base = if named.base_converts {
                 self.named_field_base(raw, &named.base_type)

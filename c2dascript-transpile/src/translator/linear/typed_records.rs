@@ -194,7 +194,9 @@ impl<'c> Translation<'c> {
             return false;
         };
         match self.callee_name(func) {
-            Some((name, false)) if name == "malloc" && args.len() == 1 => self.is_sizeof_record(args[0], r),
+            Some((name, false)) if name == "malloc" && args.len() == 1 => {
+                self.is_sizeof_record(args[0], r)
+            }
             Some((name, false)) if name == "calloc" && args.len() == 2 => {
                 matches!(
                     self.ast_context[self.strip(args[0])].kind,
@@ -250,7 +252,12 @@ impl<'c> Translation<'c> {
         let mut complete = HashSet::new();
         let mut opaque = HashSet::new();
         for (_, d) in self.ast_context.iter_decls() {
-            if let CDeclKind::Struct { name: Some(name), fields, .. } = &d.kind {
+            if let CDeclKind::Struct {
+                name: Some(name),
+                fields,
+                ..
+            } = &d.kind
+            {
                 if fields.is_some() {
                     complete.insert(name.clone());
                 } else {
@@ -274,7 +281,10 @@ impl<'c> Translation<'c> {
         let (candidates, out, _) = self.typed_local()?;
         let mut typed: HashSet<CRecordId> = candidates.difference(&out).copied().collect();
         if let Some(link) = &self.link {
-            typed.retain(|r| self.record_key(*r).map_or(false, |k| link.typed_records.contains(&k)));
+            typed.retain(|r| {
+                self.record_key(*r)
+                    .map_or(false, |k| link.typed_records.contains(&k))
+            });
         }
         TYPED.with(|t| *t.borrow_mut() = typed);
         Ok(())
@@ -285,7 +295,11 @@ impl<'c> Translation<'c> {
     #[allow(clippy::type_complexity)]
     fn typed_local(
         &self,
-    ) -> TranslationResult<(HashSet<CRecordId>, HashSet<CRecordId>, Vec<(CRecordId, CRecordId)>)> {
+    ) -> TranslationResult<(
+        HashSet<CRecordId>,
+        HashSet<CRecordId>,
+        Vec<(CRecordId, CRecordId)>,
+    )> {
         let mut candidates: HashSet<CRecordId> = HashSet::new();
         let mut out: HashSet<CRecordId> = HashSet::new();
         // A `T *` field of record `U`: `T` needs `U` typed.
@@ -294,10 +308,18 @@ impl<'c> Translation<'c> {
         let mut decl_types = Vec::new();
         for (&id, d) in self.ast_context.iter_decls() {
             match &d.kind {
-                CDeclKind::Struct { fields: Some(fields), .. } => {
+                CDeclKind::Struct {
+                    fields: Some(fields),
+                    ..
+                } => {
                     candidates.insert(id);
                     for &f in fields {
-                        if let CDeclKind::Field { typ, bitfield_width, .. } = self.ast_context[f].kind {
+                        if let CDeclKind::Field {
+                            typ,
+                            bitfield_width,
+                            ..
+                        } = self.ast_context[f].kind
+                        {
                             if bitfield_width.is_some() {
                                 out.insert(id);
                             }
@@ -324,7 +346,10 @@ impl<'c> Translation<'c> {
                         }
                     }
                 }
-                CDeclKind::Union { fields: Some(fields), .. } => {
+                CDeclKind::Union {
+                    fields: Some(fields),
+                    ..
+                } => {
                     for &f in fields {
                         if let CDeclKind::Field { typ, .. } = self.ast_context[f].kind {
                             match self.ast_context.resolve_type(typ.ctype).kind {
@@ -341,7 +366,9 @@ impl<'c> Translation<'c> {
                         }
                     }
                 }
-                CDeclKind::Variable { typ, initializer, .. } => {
+                CDeclKind::Variable {
+                    typ, initializer, ..
+                } => {
                     decl_types.push(typ.ctype);
                     if let Some(i) = initializer {
                         roots.push(SomeId::Expr(*i));
@@ -384,7 +411,8 @@ impl<'c> Translation<'c> {
                     }
                 }
                 CExprKind::Call(_, func, ref args) => {
-                    if let (Some((name, false)), [arg]) = (self.callee_name(func), args.as_slice()) {
+                    if let (Some((name, false)), [arg]) = (self.callee_name(func), args.as_slice())
+                    {
                         if name == "free" {
                             let mut a = *arg;
                             while let CExprKind::Paren(_, i) = self.ast_context[a].kind {
@@ -516,7 +544,8 @@ impl<'c> Translation<'c> {
                 | CUnOp::PostDecrement => out.extend(ptr_of(arg)),
                 _ => {}
             },
-            CExprKind::ImplicitCast(ty, inner, ck, _, _) | CExprKind::ExplicitCast(ty, inner, ck, _, _) => {
+            CExprKind::ImplicitCast(ty, inner, ck, _, _)
+            | CExprKind::ExplicitCast(ty, inner, ck, _, _) => {
                 if matches!(ck, CastKind::ArrayToPointerDecay) {
                     self.typed_scan_lvalue(inner, out);
                 }
@@ -524,7 +553,9 @@ impl<'c> Translation<'c> {
                 let from = ptr_of(inner);
                 if to.is_some() || from.is_some() {
                     let allowed = match ck {
-                        CastKind::LValueToRValue | CastKind::NoOp | CastKind::ConstCast => to == from,
+                        CastKind::LValueToRValue | CastKind::NoOp | CastKind::ConstCast => {
+                            to == from
+                        }
                         CastKind::NullToPointer => from.is_none(),
                         CastKind::PointerToBoolean | CastKind::ToVoid => to.is_none(),
                         // `NULL` is `(void *)0`: a bit cast of a null constant.
@@ -546,7 +577,10 @@ impl<'c> Translation<'c> {
                 out.extend(ptr_of(rhs));
             }
             CExprKind::Binary(_, op, lhs, rhs, _, _) => {
-                if !matches!(op, CBinOp::Assign | CBinOp::EqualEqual | CBinOp::NotEqual | CBinOp::Comma) {
+                if !matches!(
+                    op,
+                    CBinOp::Assign | CBinOp::EqualEqual | CBinOp::NotEqual | CBinOp::Comma
+                ) {
                     out.extend(ptr_of(lhs));
                     out.extend(ptr_of(rhs));
                 }
@@ -558,18 +592,29 @@ impl<'c> Translation<'c> {
                 let callee = self.strip(func);
                 let (library, fixed) = match self.ast_context[callee].kind {
                     CExprKind::DeclRef(_, d, _) => match &self.ast_context[d].kind {
-                        CDeclKind::Function { body, parameters, typ, name, .. } => {
-                            let (variadic, prototyped) = match self.ast_context.resolve_type(*typ).kind {
-                                CTypeKind::Function(_, _, v, _, p) => (v, p),
-                                _ => (false, false),
-                            };
+                        CDeclKind::Function {
+                            body,
+                            parameters,
+                            typ,
+                            name,
+                            ..
+                        } => {
+                            let (variadic, prototyped) =
+                                match self.ast_context.resolve_type(*typ).kind {
+                                    CTypeKind::Function(_, _, v, _, p) => (v, p),
+                                    _ => (false, false),
+                                };
                             // Source layout: a prototyped function another
                             // unit defines is translated under the same
                             // program-wide decision.
                             let elsewhere = prototyped && self.link_owner(name).is_some();
                             (
                                 body.is_none() && !elsewhere,
-                                if variadic { parameters.len() } else { usize::MAX },
+                                if variadic {
+                                    parameters.len()
+                                } else {
+                                    usize::MAX
+                                },
                             )
                         }
                         _ => (false, usize::MAX),
@@ -602,7 +647,10 @@ impl<'c> Translation<'c> {
         ck: CastKind,
     ) -> TranslationResult<Option<Option<WithStmts<DaExpr>>>> {
         let to = self.typed_pointee(ty.ctype);
-        let from = self.qual_of(inner).ok().and_then(|q| self.typed_pointee(q.ctype));
+        let from = self
+            .qual_of(inner)
+            .ok()
+            .and_then(|q| self.typed_pointee(q.ctype));
         if to.is_none() && from.is_none() {
             return Ok(None);
         }
@@ -624,9 +672,17 @@ impl<'c> Translation<'c> {
                     return Err(self.linear_refuse(expr_id, "a typed record allocation"));
                 };
                 let t = self.convert_type(pointee)?;
-                Some(WithStmts::new_val(DaExpr::New(Box::new(DaExpr::Var(t.to_string())), vec![])))
+                Some(WithStmts::new_val(DaExpr::New(
+                    Box::new(DaExpr::Var(t.to_string())),
+                    vec![],
+                )))
             }
-            _ => return Err(self.linear_refuse(expr_id, &format!("cast {ck:?} of a --records typed pointer"))),
+            _ => {
+                return Err(self.linear_refuse(
+                    expr_id,
+                    &format!("cast {ck:?} of a --records typed pointer"),
+                ))
+            }
         };
         Ok(Some(lowered))
     }
@@ -676,7 +732,10 @@ impl<'c> Translation<'c> {
         else {
             return Ok(None);
         };
-        if !self.qual_of(inner).map_or(false, |q| self.typed_pointee(q.ctype).is_some()) {
+        if !self
+            .qual_of(inner)
+            .map_or(false, |q| self.typed_pointee(q.ctype).is_some())
+        {
             return Ok(None);
         }
         Ok(Some(self.convert_expr(ctx.unused(), inner, None)?))

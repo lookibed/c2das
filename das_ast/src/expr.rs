@@ -576,9 +576,7 @@ fn float_repr(value: f64) -> String {
 fn is_pointer_step_block(block: &DaBlock) -> bool {
     match block.stmts.as_slice() {
         [DaStmt::Expr(DaExpr::AssignOp { op, left, right })] => {
-            matches!(*op, "+=" | "-=")
-                && matches!(**left, DaExpr::Var(_))
-                && is_safe_operand(right)
+            matches!(*op, "+=" | "-=") && matches!(**left, DaExpr::Var(_)) && is_safe_operand(right)
         }
         _ => false,
     }

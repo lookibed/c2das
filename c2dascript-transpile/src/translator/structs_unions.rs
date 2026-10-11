@@ -1107,9 +1107,8 @@ impl<'c> Translation<'c> {
             });
             DaExpr::Var(tmp)
         };
-        let raw = self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(
-            place,
-        )))));
+        let raw =
+            self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(DaExpr::Addr(Box::new(place)))));
         Ok(Some(CObjectAddress {
             raw: WithStmts::new(stmts, raw).merge_unsafe(is_unsafe),
             raw_is_address: true,
@@ -1153,9 +1152,9 @@ impl<'c> Translation<'c> {
                 var_type: storage.clone(),
                 init: None,
             });
-            let tmp_address = self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(
-                DaExpr::Addr(Box::new(DaExpr::Var(tmp.clone()))),
-            )));
+            let tmp_address = self.pointer_to_raw_address(DaExpr::Unsafe(Box::new(DaExpr::Addr(
+                Box::new(DaExpr::Var(tmp.clone())),
+            ))));
             stmts.extend(self.object_byte_copy(tmp_address, raw, size, ObjectCopy::Disjoint)?);
             return Ok(WithStmts::new(stmts, DaExpr::Var(tmp)).merge_unsafe(is_unsafe));
         }

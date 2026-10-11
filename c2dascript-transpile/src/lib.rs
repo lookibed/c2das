@@ -467,7 +467,7 @@ pub fn transpile(
             cc_db,
             extra_clang_args,
         )
-            .map_err(|error| vec![error]);
+        .map_err(|error| vec![error]);
     }
 
     let mut outputs = Vec::new();
@@ -501,7 +501,10 @@ fn write_runtime_module(tcfg: &TranspilerConfig) -> Result<Option<PathBuf>, Tran
     let Some(name) = &tcfg.runtime_module else {
         return Ok(None);
     };
-    let output_dir = tcfg.output_dir.clone().unwrap_or_else(|| PathBuf::from("."));
+    let output_dir = tcfg
+        .output_dir
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("."));
     fs::create_dir_all(&output_dir).map_err(|error| TranspileError::Output {
         path: output_dir.clone(),
         error,
@@ -711,7 +714,10 @@ fn transpile_source_layout(
             link.typed_records = typed.clone();
         }
     }
-    let output_dir = tcfg.output_dir.clone().unwrap_or_else(|| PathBuf::from("."));
+    let output_dir = tcfg
+        .output_dir
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("."));
     let mut cluster_of: HashMap<usize, usize> = HashMap::new();
     for (index, cluster) in clusters.iter().enumerate() {
         for &member in &cluster.members {
@@ -822,9 +828,8 @@ fn transpile_source_layout(
             // A unit that only sees `struct S;` (an opaque handle, C11
             // 6.2.5p22) declares the record with no fields; the unit that
             // completes it owns the one shared declaration.
-            let is_opaque_record = |d: &DaDecl| {
-                matches!(d, DaDecl::Structure(s) if s.fields.is_empty())
-            };
+            let is_opaque_record =
+                |d: &DaDecl| matches!(d, DaDecl::Structure(s) if s.fields.is_empty());
             match shared_type_text.get(&key) {
                 None => {
                     shared_type_text.insert(key, (text, input_path.clone()));

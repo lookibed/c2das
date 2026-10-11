@@ -335,7 +335,9 @@ impl<'c> Translation<'c> {
                     if self.is_typed_record_pointer(typ) {
                         // `T?` whatever the pointee's qualifiers: a typed
                         // pointer has one daslang type.
-                        return Ok(DaType::pointer(self.convert_type(CQualTypeId::new(inner.ctype))?));
+                        return Ok(DaType::pointer(
+                            self.convert_type(CQualTypeId::new(inner.ctype))?,
+                        ));
                     }
                     return Ok(DaType::int());
                 }
