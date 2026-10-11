@@ -2043,13 +2043,14 @@ fn p28_variadic_multiple_types_pack_integer_double_and_raw_lanes() {
 }
 
 #[test]
-fn p29_variadic_function_pointer_is_diagnosed_before_printing() {
-    assert_precise_translation_error(
-        "p29_variadic_function_pointer_unsupported",
-        "operation=top-level declaration lowering",
-        "Function",
-        "unsupported variadic ABI boundary: variadic function pointer call",
-    );
+fn p29_variadic_function_pointer_passes_the_promoted_payload() {
+    // The canonical payload ABI types the pointer with the trailing
+    // `array<C2daVaArg>` and `invoke` packs the tail as a direct call does;
+    // only `--varargs-model heap` still refuses the call (canonical case
+    // `p29-variadic-function-pointer`).
+    let d = transpile("p29_variadic_function_pointer_unsupported");
+    assert!(d.contains("array<C2daVaArg>"), "{d}");
+    assert!(d.contains("invoke(callback, 1, [C2daVaArg(tag = 1"), "{d}");
 }
 
 #[test]

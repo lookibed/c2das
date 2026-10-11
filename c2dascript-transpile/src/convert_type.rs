@@ -193,18 +193,23 @@ impl<'c> Translation<'c> {
     /// Parameter names are mandatory in the type syntax but take no part in
     /// type identity, so they are synthesised.
     ///
-    /// A variadic function pointer keeps the untyped placeholder: the variadic
-    /// ABI boundary is diagnosed at the call site
-    /// (`is_variadic_function_pointer_callee`), and producing a
-    /// `TranslationError` here instead would replace that precise diagnostic
-    /// with a type-conversion one.
+    /// A variadic function type ends with the `array<C2daVaArg>` payload its
+    /// definition receives, so `@@Con_Printf` is a value of it and `invoke`
+    /// passes the packed tail exactly as a direct call does.  Under
+    /// `--varargs-model heap` it keeps the untyped placeholder: that boundary
+    /// is diagnosed at the call site (`is_variadic_function_pointer_callee`),
+    /// and producing a `TranslationError` here instead would replace that
+    /// precise diagnostic with a type-conversion one.
     pub fn function_value_type(
         &self,
         ret: CQualTypeId,
         params: &[CQualTypeId],
         is_variadic: bool,
     ) -> TranslationResult<DaType> {
-        if is_variadic {
+        // Under `--varargs-model heap` the variadic boundary is not a typed
+        // payload, so the pointer keeps the placeholder and the call site
+        // diagnoses it.
+        if is_variadic && self.va_heap() {
             return Ok(DaType::named(UNTYPED_FUNCTION));
         }
         let mut rendered = String::from("function<(");
@@ -228,6 +233,15 @@ impl<'c> Translation<'c> {
                 rendered.push_str("var ");
             }
             rendered.push_str(&format!("_arg{index}:{param_type}"));
+        }
+        // A variadic function's promoted arguments travel as the read-only
+        // payload array its definition declares last (`convert_function`).
+        if is_variadic {
+            if !params.is_empty() {
+                rendered.push(';');
+            }
+            let payload = DaType::array(self.va_arg_type());
+            rendered.push_str(&format!("_arg{}:{payload}", params.len()));
         }
         rendered.push(')');
         let ret_type = self.convert_type(ret)?;

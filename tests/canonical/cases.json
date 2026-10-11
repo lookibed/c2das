@@ -167,11 +167,13 @@
       "id": "p29-variadic-function-pointer",
       "status": "negative",
       "source_root": "tests/syntax", "translation_entry": "p29_variadic_function_pointer_unsupported.c", "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--varargs-model", "heap", "--dialect", "eden-0.6.4", "--no-unsafe"],
       "clang": { "compiler": "clang-18", "flags": ["-w"] },
       "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
       "das_entrypoint": "not-applicable", "expected": { "stdout": "", "exit_code": 0 },
       "expected_error": { "operation": "top-level declaration lowering", "type": "Function", "location": "p29_variadic_function_pointer_unsupported.c", "cause": "unsupported variadic ABI boundary: variadic function pointer call" },
-      "rust_assertion": "ptr_tests::p29_variadic_function_pointer_is_diagnosed_before_printing", "runtime": "not-applicable"
+      "runtime": "not-applicable"
     },
     {
       "id": "p30-macro-constant-expression", "status": "ready", "source_root": "tests/syntax", "translation_entry": "p30_macro_constant_expression.c", "c_graph": "single-tu",
@@ -1266,6 +1268,22 @@
       "das_entrypoint": "main",
       "expected": {
         "stdout": "[2.500000]\n[-1234.567800] [-1235] [ -1234.568] [-1234.57  ] [+3.2] [ 0.500000] [-0002.75]\n[-1.234568e+03] [-1.234568E+03] [1.00e-05] [-1234.57] [1E+20] [100000] [1.00000] [3.14]\n[ 72.2 fps] [    0.33]\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p227-variadic-function-pointer",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p227_variadic_function_pointer.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "whisper: host: quake\nwhisper: version: 1.09 42!\nSHOUT: host: quake\nSHOUT: version: 1.09 42!\nsum = 6 0\nSHOUT: x via a field\n",
         "exit_code": 0
       },
       "runtime": "required"

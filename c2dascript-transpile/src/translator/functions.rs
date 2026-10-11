@@ -401,7 +401,7 @@ impl<'c> Translation<'c> {
         if let Some(part) = self.match_vapart(func, args) {
             return self.convert_vapart(part);
         }
-        if self.is_variadic_function_pointer_callee(func) {
+        if self.va_heap() && self.is_variadic_function_pointer_callee(func) {
             return Err(format_translation_err!(
                 self.ast_context.display_loc(&self.ast_context[func].loc),
                 "unsupported variadic ABI boundary: variadic function pointer call",
@@ -592,9 +592,15 @@ impl<'c> Translation<'c> {
             all_stmts.extend(area.stmts);
             das_args.push(area.val);
         } else if is_variadic {
-            das_args.push(DaExpr::MakeArray(
-                self.pack_variadic_call_tail(0, variadic_tail)?,
-            ));
+            let tail = self.pack_variadic_call_tail(0, variadic_tail)?;
+            // `invoke` gives an empty `[]` no element type to infer, so an
+            // indirect call with no promoted arguments passes the typed empty
+            // payload.
+            das_args.push(if tail.is_empty() && indirect_callee.is_some() {
+                DaExpr::DefaultValue(DaType::array(self.va_arg_type()))
+            } else {
+                DaExpr::MakeArray(tail)
+            });
         } else if forwards_va_list {
             das_args.push(self.forwarded_va_args(func)?);
         }
@@ -699,6 +705,15 @@ impl<'c> Translation<'c> {
     }
 
     pub(crate) fn call_arg_types(&self, func: CExprId) -> Vec<CQualTypeId> {
+        // A call through a pointer to a variadic function takes its fixed
+        // parameters from the pointer's function type: they decide where the
+        // promoted tail starts.
+        if self.is_variadic_function_pointer_callee(func) {
+            return self
+                .variadic_pointee(func)
+                .map(|(params, _)| params)
+                .unwrap_or_default();
+        }
         let func = match &self.ast_context[func].kind {
             CExprKind::ImplicitCast(_, inner, _, _, _) => *inner,
             _ => func,
@@ -718,7 +733,25 @@ impl<'c> Translation<'c> {
             .collect()
     }
 
+    /// The fixed parameters and the variadic flag of the function type an
+    /// indirect callee points to.
+    fn variadic_pointee(&self, func: CExprId) -> Option<(Vec<CQualTypeId>, bool)> {
+        let ty = self.ast_context[func].kind.get_qual_type()?;
+        let CTypeKind::Pointer(pointee) = self.ast_context.resolve_type(ty.ctype).kind else {
+            return None;
+        };
+        match &self.ast_context.resolve_type(pointee.ctype).kind {
+            CTypeKind::Function(_, params, is_variadic, _, _) => {
+                Some((params.clone(), *is_variadic))
+            }
+            _ => None,
+        }
+    }
+
     pub(crate) fn is_variadic_callee(&self, func: CExprId) -> bool {
+        if self.is_variadic_function_pointer_callee(func) {
+            return true;
+        }
         let mut func = func;
         while let CExprKind::ImplicitCast(_, inner, _, _, _) = &self.ast_context[func].kind {
             func = *inner;
