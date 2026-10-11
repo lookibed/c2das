@@ -19,6 +19,7 @@
  *   dropped (counted by `dge_audio_dropped`). */
 #include <stdint.h>
 
+#include "dg_eden.h"
 #include "doomtype.h"
 #include "i_sound.h"
 #include "w_wad.h"
@@ -240,7 +241,7 @@ static int dge_audio_sum[DGE_AUDIO_MAX_FRAMES * 2];
 /* mixes the frames of `ms` milliseconds of game time.  Voice by voice, with
  * the voice's state in locals for the inner loop: the player runs this in an
  * interpreter, where every access to a static is a heap access. */
-static void dge_audio_mix(unsigned ms)
+void dge_audio_mix(unsigned ms)
 {
     int frames;
     int kept;
