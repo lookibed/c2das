@@ -366,7 +366,7 @@ fn unsupported_linear_conversion(format: &[u8]) -> Option<String> {
             return Some(String::from_utf8_lossy(&format[start..]).into_owned());
         };
         i += 1;
-        if !b"diuxXocsp%".contains(&conv) {
+        if !b"diuxXocsp%fFeEgG".contains(&conv) {
             return Some(String::from_utf8_lossy(&format[start..i]).into_owned());
         }
     }
@@ -4473,6 +4473,36 @@ def c2da_lin_vfmt(f : int; args : array<C2daVaArg>; start : int; var out : array
             }
             let base = conv == 117 ? 10ul : (conv == 111 ? 8ul : 16ul)
             c2da_lin_fmt_int(out, false, m, base, conv == 88, flags & ~6, width, prec)
+        } elif (conv == 102 || conv == 70 || conv == 101 || conv == 69 || conv == 103 || conv == 71) {
+            // %f %F %e %E %g %G: daslang's `fmt` spells these exactly as C
+            // does (the `--libc std` engine hands them over the same way).
+            var spec = ":"
+            if ((flags & 1) != 0) {
+                spec += "<"
+            }
+            if ((flags & 2) != 0) {
+                spec += "+"
+            } elif ((flags & 4) != 0) {
+                spec += " "
+            }
+            if ((flags & 8) != 0) {
+                spec += to_char(35)
+            }
+            if ((flags & 16) != 0 && (flags & 1) == 0) {
+                spec += "0"
+            }
+            if (width > 0) {
+                spec += "{width}"
+            }
+            if (prec >= 0) {
+                spec += ".{prec}"
+            }
+            spec += to_char(conv)
+            let text = fmt(spec, args[k].f64)
+            k++
+            for (j in range(length(text))) {
+                push(out, uint8(character_at(text, j)))
+            }
         } elif (conv == 99) {
             let b = int(args[k].i64 & 255l)
             k++

@@ -1254,6 +1254,39 @@
       "runtime": "required"
     },
     {
+      "id": "p225-printf-floats-linear",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p225_printf_floats.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "[2.500000]\n[-1234.567800] [-1235] [ -1234.568] [-1234.57  ] [+3.2] [ 0.500000] [-0002.75]\n[-1.234568e+03] [-1.234568E+03] [1.00e-05] [-1234.57] [1E+20] [100000] [1.00000] [3.14]\n[ 72.2 fps] [    0.33]\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p225-printf-floats",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p225_printf_floats.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "[2.500000]\n[-1234.567800] [-1235] [ -1234.568] [-1234.57  ] [+3.2] [ 0.500000] [-0002.75]\n[-1.234568e+03] [-1.234568E+03] [1.00e-05] [-1234.57] [1E+20] [100000] [1.00000] [3.14]\n[ 72.2 fps] [    0.33]\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p224-linear-local-union",
       "status": "ready",
       "source_root": "tests/syntax",

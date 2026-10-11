@@ -7053,6 +7053,35 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p225-printf-floats-linear",
+      "canonical_cases": [
+        "p225-printf-floats-linear",
+        "p225-printf-floats"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "[2.500000]\n[-1234.567800] [-1235] [ -1234.568] [-1234.57  ] [+3.2] [ 0.500000] [-0002.75]\n[-1.234568e+03] [-1.234568E+03] [1.00e-05] [-1234.57] [1E+20] [100000] [1.00000] [3.14]\n[ 72.2 fps] [    0.33]\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p225_printf_floats",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p225_printf_floats.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p22-typed-literals",
       "canonical_cases": [
         "p22-typed-literals"
