@@ -73,6 +73,12 @@ c2rust-transpile/dumps
 
 # daslang JIT cache created in the working directory
 .jitted_scripts/
+**/.jitted_scripts/
+# daslang module/compile cache, written next to the scripts it runs
+.cache/
+**/.cache/
+# Claude Code session transcripts exported into the checkout root
+/20*-*.txt
 
 # Local daslang toolchains (git worktrees + builds) used by the Claude Code MCP/LSP servers
 /tmp/
