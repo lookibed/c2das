@@ -16,8 +16,8 @@ vendored source directory from this repository).  Local graph wrappers, the plat
 generated outputs belong outside `upstream/`.
 
 The vendored `doomgeneric/` is byte-identical to upstream at the revision above (202 files,
-checked with `diff -r` against a fresh clone).  The copy in `lookibed/Spider`
-(`tests/manual/real-world-doomgeneric/upstream/`) that this corpus was first pointed at is
+checked with `diff -r` against a fresh clone).  The earlier, unpublished fixture
+copy that this corpus was first pointed at is
 *not* pristine: its `d_main.c` replaces upstream's
 `I_AtExit((atexit_func_t) G_CheckDemoStatus, true)` with a wrapper function for WebAssembly's
 typed `call_indirect`, so it was not used as the source of the import.
@@ -34,12 +34,25 @@ there and in `README.md`.
 
 | File | Bytes | sha256 | md5 | Content | Origin |
 |---|---|---|---|---|---|
-| `fixtures/doom1.wad` | 4196020 | `1d7d43be501e67d927e415e0b8f3e29c3bf33075e859721816f652a526cac771` | `f0cefca49926d00903cf57551d901abe` | the DOOM shareware IWAD, version 1.9: episode 1 (E1M1–E1M9) and three demo lumps | id Software's shareware release, copied unmodified from `lookibed/Spider` `tests/manual/real-world-doomgeneric/fixtures/doom1.wad`; the md5 is the one the shareware 1.9 IWAD is catalogued under, and doomgeneric identifies it as "DOOM Shareware" |
+| `fixtures/doom1.wad` | 4196020 | `1d7d43be501e67d927e415e0b8f3e29c3bf33075e859721816f652a526cac771` | `f0cefca49926d00903cf57551d901abe` | the DOOM shareware IWAD, version 1.9: episode 1 (E1M1–E1M9) and three demo lumps | id Software's shareware release, copied unmodified from an earlier, unpublished fixture copy; the md5 is the one the shareware 1.9 IWAD is catalogued under, and doomgeneric identifies it as "DOOM Shareware" |
 
-`doom1.wad` is game data, not part of doomgeneric and not covered by its GPL.  id Software
-released the shareware episode for free redistribution on the condition that it is distributed
-unmodified; the file is vendored byte for byte and must stay that way.  Its license text lives
-in the shareware release's own documentation, which is not vendored.
+`doom1.wad` is game data, not part of doomgeneric and not covered by its GPL or by this
+repository's BSD-3-Clause licence.  It remains copyright id Software.  Its terms:
+
+- The shareware release carries id Software's "LIMITED USE SOFTWARE LICENSE AGREEMENT", whose
+  grant reads in part: "ID grants to you the right to use the Id Software game program (the
+  "Software"), which is the shareware version or episode one of the game program. [...] You
+  may not: modify, translate, disassemble, decompile, reverse engineer, or create derivative
+  works based upon the Software."
+- Redistribution of the shareware IWAD was confirmed by John Carmack (id Software) in an email
+  of 23 October 1999 to the Debian packager: "The DOOM shareware wad is freely
+  distributable."  Debian's `doom-wad-shareware` package quotes both texts in full in its
+  copyright file
+  (https://tracker.debian.org/media/packages/d/doom-wad-shareware/copyright-1.9.fixed-4);
+  that is the reference for the wording above.
+
+So the file is vendored byte for byte and must stay that way: never edit, patch or regenerate
+it.  The shareware release's own documentation is not vendored.
 
 The corpus plays the IWAD's first demo lump.  Its 13-byte header, read from the file:
 

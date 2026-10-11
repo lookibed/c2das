@@ -29,8 +29,8 @@ the translation compiles and matches every pinned frame under `-jit`, but the da
   `DG_SleepMs` and the entries move), there are no keys, and `DG_DrawFrame` records a 32-bit
   FNV-1a hash of the frame's 64,000 pixels, each taken as its 24-bit RGB colour through the
   current palette `colors[256]`, so a palette change (damage and pickup flashes) changes the
-  hash as much as a pixel change does.  Written for this corpus; Spider's
-  `dg_voxelcore.c` (a WASI platform layer with an in-memory IWAD) was the starting point for
+  hash as much as a pixel change does.  Written for this corpus; an earlier
+  fixture's `dg_voxelcore.c` (a WASI platform layer with an in-memory IWAD) was the starting point for
   the virtual clock, nothing else of it is needed here because the engine reads the IWAD
   itself through `w_file_stdc.c`.
 - `src/doom_entry.c` — the C entry: starts the engine on the IWAD named by the last

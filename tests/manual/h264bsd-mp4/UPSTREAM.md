@@ -17,7 +17,7 @@ record the new revision here.  Local graph wrappers and generated outputs belong
 
 | File | Bytes | Content | Origin |
 |---|---|---|---|
-| `fixtures/sample.mp4` | 8044 | 96×64, 12 pictures, constrained baseline | imported with the directory in `48f0a23c5`; also embedded as `src/sample_mp4_data.h` for the entries that take no file |
+| `fixtures/sample.mp4` | 8044 | 96×64, 12 pictures, constrained baseline | **provenance unknown**: imported with the directory in `48f0a23c5` ("tests, transpile", 2026-08-09), the earliest commit that contains it, which records no source, tool or licence; also embedded as `src/sample_mp4_data.h` for the entries that take no file |
 | `fixtures/test_640x360.mp4` | 232093 | 640×360, 73 pictures, constrained baseline | h264bsd's own test vector `upstream/h264bsd/test/test_640x360.h264` (sha256 `efded563db87d062ff371b081649205302f89d8c74c5caaeff1a04ed508cd8b6`, same revision and license as the decoder), muxed into MP4 without re-encoding, see below |
 
 `test_640x360.mp4` (sha256 `50b3b50b77d4dab8b80dc2699bc78db599624cc550d31db7be20d675b3777fd6`)

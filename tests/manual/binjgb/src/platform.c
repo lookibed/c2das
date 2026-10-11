@@ -20,7 +20,7 @@
  *   framebuffer (R in the low byte) shifted right by 3, packed as
  *   `r << 10 | g << 5 | b`.  With `CGB_COLOR_CURVE_NONE` binjgb writes a
  *   5-bit CGB colour c as `c << 3`, so the packing recovers the CGB palette
- *   colour exactly.  It is the packing and hash of the Spider fixture this
+ *   colour exactly.  It is the packing and hash of the earlier fixture this
  *   corpus comes from, so its frame hashes are comparable (`README.md`).
  */
 #include <stddef.h>

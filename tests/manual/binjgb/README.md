@@ -42,7 +42,7 @@ The corpus is the canonical case `binjgb-cgb-acid2-std` in `tests/canonical/case
   (generated and discarded; the frame loop waits only for `EMULATOR_EVENT_NEW_FRAME`).
 - Scripted input: A held on frames 8 and 9, nothing otherwise.
 - Hash: 32-bit FNV-1a over the 160×144 framebuffer packed to RGB555, two bytes per pixel,
-  low byte first.  This is the packing and hash of the Spider fixture the corpus comes from,
+  low byte first.  This is the packing and hash of the earlier fixture the corpus comes from,
   and its published values agree: first frame `1015431621`, frame 15 `838717591`.
 
 cgb-acid2 draws its test image once and then idles, so every frame from frame 1 on hashes to

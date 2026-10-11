@@ -765,7 +765,7 @@ Interpreter micro-benchmarks and the local sandbox model, master daslang `c4e490
 - **Fused interpreter nodes for array memory.** What do `rt.mem[at]`-style byte loads cost in
   the 0.6.4 editor interpreter compared with master? Do `load_u32` helpers inline (`[inline]`
   exists in both)? Or does a `uint` word heap (`array<uint>`, 4 bytes per element, aligned
-  loads in one read) beat byte assembly for aligned 32-bit access? The Spider measurements
+  loads in one read) beat byte assembly for aligned 32-bit access? The earlier measurements
   that `PLAN.md` cites suggest memory layout matters as much as translation.
 - **Calls into engine modules.** A translated program that calls engine modules
   (`engine.core`) cannot be compiled locally. The host boundary has to stay a thin

@@ -6,8 +6,8 @@ Decision (2026-09-10): this repository's goal is to run two concrete C code base
 daslang interpreter, by translating them to `.das`. The current raw-byte memory model
 (`c2da_rt_*` heap, storage-backed records, Clang offsets) stays. The full C-To-DAS plan
 (native daScript memory model, C-IR interchange format, daslang-side backend with
-`[c_union]` / `[c_bitfields]` / `[c_function]` macros, see
-https://github.com/lookibed/C-To-DAS) is a future project, probably in another repository;
+`[c_union]` / `[c_bitfields]` / `[c_function]` macros, a separate unpublished design)
+is a future project, probably in another repository;
 it is not pursued here.
 
 ## Measured starting point
