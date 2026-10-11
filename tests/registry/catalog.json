@@ -201,6 +201,16 @@
       "status": "inventory-only"
     },
     {
+      "c_graph": "quakegeneric",
+      "entrypoint": "graph-member",
+      "expected_kind": "unregistered",
+      "glob": "tests/manual/quakegeneric/src/*.c",
+      "id": "quakegeneric",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "status": "inventory-only"
+    },
+    {
       "c_graph": "single-tu",
       "entrypoint": "unregistered",
       "expected_kind": "unregistered",
@@ -308,6 +318,19 @@
       "description": "doomgeneric engine plus the corpus platform layer, rooted at src/doom_all.c; src/doom_bench_all.c is the same graph with the timing entry.",
       "entry": "tests/manual/doomgeneric/src/doom_all.c",
       "id": "doomgeneric"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-Iupstream/quakegeneric/source",
+        "-Isrc",
+        "-include",
+        "engine_config.h",
+        "-lm"
+      ],
+      "description": "quakegeneric (WinQuake software renderer) plus the corpus platform layer, compiled unit by unit: the 68 engine units of upstream's makefile, src/qg_platform.c and the entry src/quake_entry.c.",
+      "entry": "tests/manual/quakegeneric/src/quake_entry.c",
+      "id": "quakegeneric"
     }
   ],
   "override": [
