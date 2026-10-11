@@ -15,13 +15,15 @@ files, which are rewritten (a `.git` directory there is left alone).
   module per C file or cluster, the `.das.inc` fragments and `c2da_runtime.das`.
   `run.sh` runs it on doom1.wad and compares the 70 frame hashes with
   `expected_frames.txt` (the case's expected stdout).
-- `eden/`: the EdenSpark play build, `src/doom_eden_play_all.c` translated with
-  the flags of the case `doomgeneric-demo1-eden-linear` plus `--public-module`
-  and `-Isrc/eden_play_include` (docs/eden-flags.md, "Doom played interactively
-  in the editor"), the hand-written host `eden/c2das_doom_player.das` and an
-  example project `main.das`.  The play build is one translation unit: the
-  harness `dg_eden_play.c` calls `dg_eden_sound.c`'s file-static functions, so
-  it has no `--module-layout source` form yet.
+- `eden/`: the EdenSpark play build in the per-file layout: the translation
+  units of `src/doom_eden_play_all.c` (the engine files `src/all.c` includes,
+  then the harness files `dg_eden_sound.c` and `dg_eden_play.c`) translated
+  with `--module-layout source` and the flags of the case
+  `doomgeneric-demo1-eden-linear` plus `--public-module`,
+  `-Isrc/eden_play_include`, `-include engine_config.h` (the configuration
+  `all.c` sets) and `-DFEATURE_SOUND=1` (docs/eden-flags.md, "Doom played
+  interactively in the editor"); the hand-written host
+  `eden/c2das_doom_player.das` and an example project `main.das`.
 - `harness/`: the c2das-authored C harness files the translations include.
 - `tools/get_wad.sh`, `LICENSE`, `NOTICE`, `README.md`, `GENERATED.json`.
 
@@ -47,14 +49,16 @@ DOOM = ROOT / "tests" / "manual" / "doomgeneric"
 STD_CASE = "doomgeneric-demo1-std-source"
 EDEN_CASE = "doomgeneric-demo1-eden-linear"
 PLAY_ENTRY = "src/doom_eden_play_all.c"
-PLAY_EXTRA_FLAGS = ["-Isrc/eden_play_include"]
+# `doom_eden_play_all.c` sets these for the unity build before `#include "all.c"`;
+# each separate unit gets them from the command line.
+PLAY_EXTRA_FLAGS = ["-Isrc/eden_play_include", "-include", "engine_config.h", "-DFEATURE_SOUND=1"]
 HOST = DOOM / "eden" / "c2das_doom_player.das"
 # The host is written for the c2das editor install (modules/c2das/doom/); in a
-# dasDOOM install the translated module sits next to it in modules/dasdoom/.
-HOST_REQUIRE_FROM = "require modules/c2das/doom/doom_eden_play_all"
-HOST_REQUIRE_TO = "require modules/dasdoom/doom_eden_play_all"
+# dasDOOM install the translated modules sit next to it in modules/dasdoom/.
+HOST_REQUIRE_FROM = "require modules/c2das/doom/"
+HOST_REQUIRE_TO = "require modules/dasdoom/"
 HARNESS = ["engine_config.h", "all.c", "doom_entry.c", "dg_platform.c",
-           "doom_eden_play_all.c", "dg_eden_play.c", "dg_eden_sound.c",
+           "doom_eden_play_all.c", "dg_eden.h", "dg_eden_play.c", "dg_eden_sound.c",
            "eden_play_include/SDL_mixer.h"]
 
 
@@ -116,35 +120,43 @@ def copy_generated(source: Path, destination: Path) -> list[str]:
     return names
 
 
-def translate_std(tool: Path, c: dict, work: Path) -> tuple[Path, list[str]]:
+def translate_source(tool: Path, c: dict, name: str, units: list[str], clang_flags: list[str],
+                     options: list[str], work: Path) -> tuple[Path, list[str]]:
+    """Translates `units` with `--module-layout source` into work/<name>."""
     src = ROOT / c["source_root"]
     compiler = c["clang"].get("compiler", "clang-18")
-    flags = c["clang"]["flags"]
-    database = work / "std-db" / "compile_commands.json"
+    database = work / (name + "-db") / "compile_commands.json"
     database.parent.mkdir()
     database.write_text(json.dumps([
-        {"directory": str(src), "file": str(src / unit), "arguments": [compiler, *flags, str(src / unit)]}
-        for unit in c["translation_units"]], indent=2))
-    out = work / "std"
+        {"directory": str(src), "file": str(src / unit), "arguments": [compiler, *clang_flags, str(src / unit)]}
+        for unit in units], indent=2))
+    out = work / name
     out.mkdir()
-    command = [str(tool), "--strict", *policy_flags(c), "--output-dir", str(out),
+    command = [str(tool), "--strict", *options, "--output-dir", str(out),
                "--module-layout", "source", str(database)]
     run(command, src)
-    shown = ["c2dascript-transpile", "--strict", *policy_flags(c), "--output-dir", "doom",
+    shown = ["c2dascript-transpile", "--strict", *options, "--output-dir", name,
              "--module-layout", "source", "compile_commands.json"]
     return out, shown
 
 
-def translate_play(tool: Path, c: dict, work: Path) -> tuple[Path, list[str]]:
-    src = ROOT / c["source_root"]
-    clang_flags = [*c["clang"]["flags"], *PLAY_EXTRA_FLAGS]
-    out = work / "eden"
-    out.mkdir()
-    tail = ["--strict", "--public-module", *policy_flags(c)]
-    command = [str(tool), *tail, "--output-dir", str(out), "--file", PLAY_ENTRY, *clang_flags]
-    run(command, src)
-    shown = ["c2dascript-transpile", *tail, "--output-dir", "eden", "--file", PLAY_ENTRY, *clang_flags]
-    return out, shown
+def included(path: Path) -> list[str]:
+    """The `#include "…"` names of a C file, in order."""
+    return re.findall(r'^#include "([^"]+)"', path.read_text(), re.MULTILINE)
+
+
+def play_units(std: dict) -> list[str]:
+    """The translation units of the play build: the files `doom_eden_play_all.c`
+    includes, with `all.c` expanded to the engine units (the upstream units of
+    the std case, checked against `all.c`'s includes)."""
+    engine = [u for u in std["translation_units"] if not u.startswith("src/")]
+    all_c = [n for n in included(DOOM / "src" / "all.c") if n != "dg_platform.c"]
+    if [Path(u).name for u in engine] != all_c:
+        fail(f"the engine units of {STD_CASE} differ from the includes of src/all.c")
+    units: list[str] = []
+    for name in included(DOOM / PLAY_ENTRY):
+        units += engine if name == "all.c" else ["src/" + name]
+    return units
 
 
 def write_template(name: str, destination: Path, values: dict[str, str]) -> None:
@@ -170,8 +182,12 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="dasdoom-") as scratch:
         work = Path(scratch)
-        std_out, std_command = translate_std(tool, std, work)
-        play_out, play_command = translate_play(tool, eden, work)
+        std_out, std_command = translate_source(tool, std, "doom", std["translation_units"],
+                                                std["clang"]["flags"], policy_flags(std), work)
+        units = play_units(std)
+        play_flags = [*eden["clang"]["flags"], *PLAY_EXTRA_FLAGS]
+        play_out, play_command = translate_source(tool, eden, "eden", units, play_flags,
+                                                  ["--public-module", *policy_flags(eden)], work)
         check_no_local_paths(std_out)
         check_no_local_paths(play_out)
         doom_files = copy_generated(std_out, out / "doom")
@@ -183,8 +199,8 @@ def main() -> int:
     (out / "doom" / "run.sh").chmod(0o755)
 
     host = HOST.read_text()
-    if host.count(HOST_REQUIRE_FROM) != 1:
-        fail(f"{HOST.relative_to(ROOT)}: expected one `{HOST_REQUIRE_FROM}`")
+    if host.count(HOST_REQUIRE_FROM) == 0:
+        fail(f"{HOST.relative_to(ROOT)}: expected `{HOST_REQUIRE_FROM}…` requires")
     (out / "eden" / HOST.name).write_text(host.replace(HOST_REQUIRE_FROM, HOST_REQUIRE_TO))
     shutil.copyfile(TEMPLATES / "main.das", out / "eden" / "main.das.example")
 
@@ -223,7 +239,9 @@ def main() -> int:
                      "translation_units": std["translation_units"],
                      "clang": std["clang"], "command": std_command, "files": doom_files},
             "eden": {"case": EDEN_CASE, "source_root": eden["source_root"],
-                     "entry": PLAY_ENTRY, "command": play_command, "files": eden_files},
+                     "entry": PLAY_ENTRY, "translation_units": units,
+                     "clang": {**eden["clang"], "flags": play_flags},
+                     "command": play_command, "files": eden_files},
         },
     }
     (out / "GENERATED.json").write_text(json.dumps(generated, indent=2) + "\n")

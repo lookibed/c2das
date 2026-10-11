@@ -19,6 +19,7 @@
  *   the tick covered (`dg_eden_sound.c`, `dge_audio_*`). */
 #include <stdint.h>
 
+#include "dg_eden.h"
 #include "doomgeneric.h"
 #include "i_video.h"
 
