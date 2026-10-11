@@ -6823,6 +6823,35 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p218-std-libm",
+      "canonical_cases": [
+        "p218-std-libm",
+        "p218-std-libm-linear"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "0 0 0\n1 8000000000000000 80000000\n2 3fec1528065b7d50 3f60a940\n3 c008139943e231a8 c0409cca\n4 3ff1b6e192ebbe44 3f8db70d\n5 3ff201634ac2828b 3f900b1a\n6 bf8453ae241348cc 47cbf84b\n7 406a54949477cbba 3ec88088\ndouble=52437e339b81aabe float=af4255fb\nfmod(-5.5,2)=bff8000000000000 floor(-0.5)=bff0000000000000\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p218_std_libm",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p218_std_libm.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p21-byte-numeric",
       "canonical_cases": [
         "p21-byte-numeric"

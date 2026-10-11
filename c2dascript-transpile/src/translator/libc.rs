@@ -34,6 +34,9 @@ thread_local! {
     static LAYOUT: Cell<StdLayout> = const { Cell::new(StdLayout::UNKNOWN) };
     static EDEN: Cell<bool> = const { Cell::new(false) };
     static LINEAR: Cell<bool> = const { Cell::new(false) };
+    // Whether a `<math.h>` call lowered to a daslang `math` builtin, which
+    // makes the module `require math`.
+    static MATH_USED: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Switches the helpers that own C memory (`errno`, the `main` wrapper's
@@ -857,6 +860,7 @@ pub(crate) fn reset() {
     REQUIRED_HELPERS.with(|helpers| helpers.borrow_mut().clear());
     ENTRY_DECLARATIONS.with(|entries| entries.borrow_mut().clear());
     PRELUDE_USED.with(|used| used.set(false));
+    MATH_USED.with(|used| used.set(false));
     LAYOUT.with(|facts| facts.set(StdLayout::UNKNOWN));
 }
 
@@ -889,7 +893,7 @@ pub(crate) fn take_entry_declarations() -> Vec<DaDecl> {
 /// The `require` lines the std prelude needs, or nothing when this translation
 /// unit emitted no std helper at all.
 pub(crate) fn module_requires() -> Vec<String> {
-    if PRELUDE_USED.with(|used| used.get()) {
+    let mut requires = if PRELUDE_USED.with(|used| used.get()) {
         // `--libc eden` has no `daslib/fio`: its stand-ins are emitted helpers.
         STD_MODULE_REQUIRES
             .iter()
@@ -898,6 +902,95 @@ pub(crate) fn module_requires() -> Vec<String> {
             .collect()
     } else {
         vec![]
+    };
+    if MATH_USED.with(|used| used.get()) {
+        requires.push("math".to_string());
+    }
+    requires
+}
+
+/// A `<math.h>` function `--libc std`/`eden` lowers to an expression over a
+/// daslang `math` builtin (`Translation::lower_libm_call`).
+///
+/// Every builtin is called on `double`: daslang's `double` overloads are the
+/// host C library's own functions (`aot_builtin_math.h`: `dsin(a)` is
+/// `sin(a)`), so the result is bit-equal to C's whenever daslang links the
+/// same libm.  daslang's `float` overloads are vector-math approximations, so
+/// a `float` variant (`sinf`) widens its arguments, calls the `double`
+/// builtin and rounds the result to `float`.  For `sqrtf`, `floorf`,
+/// `ceilf`, `fabsf` and `fmodf` that is exactly C's result (the `double`
+/// result is exact or correctly rounded, and rounding it again to `float` is
+/// correctly rounded); for the transcendental ones it is the correctly
+/// rounded `float` of the `double` result, which equals glibc's `sinf`
+/// wherever glibc's is correctly rounded (glibc documents up to 1 ulp;
+/// `log10f(3.0f)` is a measured case where glibc is one ulp off and the
+/// translation is not bit-equal to C).
+/// `fmod` keeps the sign of the dividend, as C's does (it is C's `fmod`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct LibmFunction {
+    /// The daslang `math` builtin, or the std `fabs` helper.
+    pub(crate) builtin: &'static str,
+    pub(crate) arity: usize,
+    /// The C function takes and returns `float` (`sinf`).
+    pub(crate) float: bool,
+}
+
+/// The `<math.h>` lowering for a C entry point, or `None`.
+pub(crate) fn libm_function(name: &str) -> Option<LibmFunction> {
+    fn stem(name: &str) -> Option<(&'static str, usize)> {
+        Some(match name {
+            "sqrt" => ("sqrt", 1),
+            "sin" => ("sin", 1),
+            "cos" => ("cos", 1),
+            "tan" => ("tan", 1),
+            "asin" => ("asin", 1),
+            "acos" => ("acos", 1),
+            "atan" => ("atan", 1),
+            "atan2" => ("atan2", 2),
+            "pow" => ("pow", 2),
+            "exp" => ("exp", 1),
+            "log" => ("log", 1),
+            "log10" => ("log10", 1),
+            "floor" => ("floor", 1),
+            "ceil" => ("ceil", 1),
+            "fmod" => ("fmod", 2),
+            "fabs" => (FABS, 1),
+            _ => return None,
+        })
+    }
+    let base = name.strip_prefix("__builtin_").unwrap_or(name);
+    if let Some((builtin, arity)) = stem(base) {
+        return Some(LibmFunction {
+            builtin,
+            arity,
+            float: false,
+        });
+    }
+    let (builtin, arity) = stem(base.strip_suffix('f')?)?;
+    Some(LibmFunction {
+        builtin,
+        arity,
+        float: true,
+    })
+}
+
+/// Lowers a `<math.h>` call whose arguments are already converted.
+pub(crate) fn lower_libm(function: LibmFunction, args: Vec<DaExpr>) -> DaExpr {
+    if function.builtin == FABS {
+        require(FABS);
+    } else {
+        MATH_USED.with(|used| used.set(true));
+    }
+    // The C call already converted each argument to its parameter type, so
+    // only a `float` variant's arguments need widening.
+    if function.float {
+        let args = args
+            .into_iter()
+            .map(|arg| cast(arg, DaType::double()))
+            .collect();
+        cast(call(function.builtin, args), DaType::float())
+    } else {
+        call(function.builtin, args)
     }
 }
 
@@ -1354,6 +1447,23 @@ impl<'c> Translation<'c> {
     /// names keeps its own definition: the policy replaces libc, never the
     /// program.
     pub(crate) fn std_libc_call(&self, func: CExprId) -> Option<StdFunction> {
+        std_function(&self.libc_callee_name(func)?)
+    }
+
+    /// The `<math.h>` lowering of a call, chosen exactly as
+    /// `std_libc_call` chooses its helper; `fabs` stays that table's.
+    pub(crate) fn libm_call(&self, func: CExprId) -> Option<LibmFunction> {
+        let name = self.libc_callee_name(func)?;
+        if std_function(&name).is_some() {
+            return None;
+        }
+        libm_function(&name)
+    }
+
+    /// The name of a library function the call reaches: `--libc std`/`eden`
+    /// is on, the callee is a declaration without a body, and the unit
+    /// defines no function by that name.
+    fn libc_callee_name(&self, func: CExprId) -> Option<String> {
         if !self.libc_std() {
             return None;
         }
@@ -1376,7 +1486,7 @@ impl<'c> Translation<'c> {
         }) {
             return None;
         }
-        std_function(name)
+        Some(name.clone())
     }
 
     /// Fails closed on a conversion `c2da_std_vformat` does not implement.

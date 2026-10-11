@@ -419,6 +419,7 @@ impl<'c> Translation<'c> {
                 .and_then(canonical_runtime_function)
                 .is_none()
                 && self.std_libc_call(*fexp).is_none()
+                && self.libm_call(*fexp).is_none()
             {
                 return self.convert_builtin_call(ctx, *fexp, args);
             }
@@ -603,6 +604,16 @@ impl<'c> Translation<'c> {
         } else if let Some(function) = std_libc {
             let helper = self.require_std_function(function, func)?;
             mk().call_expr(DaExpr::Var(helper.to_owned()), das_args)
+        } else if let Some(function) = self.libm_call(func) {
+            if das_args.len() != function.arity {
+                return Err(format_translation_err!(
+                    self.ast_context.display_loc(&self.ast_context[func].loc),
+                    "<math.h> call with {} argument(s), expected {}",
+                    das_args.len(),
+                    function.arity,
+                ));
+            }
+            super::libc::lower_libm(function, das_args)
         } else if indirect_callee.is_some() {
             // `invoke` is daScript's call-through-a-function-value operator.
             // `--fnptr-model table`: the value is an index into the table of
@@ -1033,7 +1044,7 @@ impl<'c> Translation<'c> {
         // `--libc std` replaces a fixed table of libc entry points with
         // translator-emitted daslang helpers. Everything outside that table is
         // still an unsupported external call, in every mode.
-        if self.std_libc_call(func).is_some() {
+        if self.std_libc_call(func).is_some() || self.libm_call(func).is_some() {
             return Ok(());
         }
         // The compiler-owned runtime is part of every generated module, so a

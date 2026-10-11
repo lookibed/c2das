@@ -1254,6 +1254,39 @@
       "runtime": "required"
     },
     {
+      "id": "p218-std-libm",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p218_std_libm.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w", "-lm"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "0 0 0\n1 8000000000000000 80000000\n2 3fec1528065b7d50 3f60a940\n3 c008139943e231a8 c0409cca\n4 3ff1b6e192ebbe44 3f8db70d\n5 3ff201634ac2828b 3f900b1a\n6 bf8453ae241348cc 47cbf84b\n7 406a54949477cbba 3ec88088\ndouble=52437e339b81aabe float=af4255fb\nfmod(-5.5,2)=bff8000000000000 floor(-0.5)=bff0000000000000\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p218-std-libm-linear",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p218_std_libm.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w", "-lm"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "0 0 0\n1 8000000000000000 80000000\n2 3fec1528065b7d50 3f60a940\n3 c008139943e231a8 c0409cca\n4 3ff1b6e192ebbe44 3f8db70d\n5 3ff201634ac2828b 3f900b1a\n6 bf8453ae241348cc 47cbf84b\n7 406a54949477cbba 3ec88088\ndouble=52437e339b81aabe float=af4255fb\nfmod(-5.5,2)=bff8000000000000 floor(-0.5)=bff0000000000000\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p217-block-scope-extern-same-tu",
       "status": "ready",
       "source_root": "tests/syntax",
