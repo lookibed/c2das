@@ -7,12 +7,13 @@ description: Stateful step debugging of .das programs through the daslang-dap MC
 
 Read first:
 
-- `/root/daScript/utils/dap/README.md` (bridge contract, launch and attach workflows)
-- `/root/daScript/doc/source/reference/utils/dap.rst` (tool-by-tool reference)
+- `$DASROOT/utils/dap/README.md` (bridge contract, launch and attach workflows)
+- `$DASROOT/doc/source/reference/utils/dap.rst` (tool-by-tool reference)
 
-The `daslang-dap` server in `.mcp.json` runs `/root/daScript/utils/dap/main.das` on the
-local daScript build with `--repo-root /root/c2das` and that build's `bin/daslang` as the
-debuggee executable. Compile, lint and test gates use the same `/root/daScript/bin/daslang`.
+The `daslang-dap` server in `.mcp.json` runs `$DASROOT/utils/dap/main.das` on the
+local daScript build (`$DASROOT`, default `../daScript`) with `--repo-root` set to the
+c2das checkout and that build's `bin/daslang` as the
+debuggee executable. Compile, lint and test gates use the same `$DASROOT/bin/daslang`.
 
 Canonical launch lifecycle:
 
@@ -30,7 +31,7 @@ finish:      debug_terminate or debug_disconnect (idempotent; already_disconnect
 Rules: never pick ports by hand, never `pkill daslang` broadly, always `debug_disconnect`
 before a new `debug_launch`, and record `session` fields (`return_code`, `close_reason`,
 `last_dap_termination`, `process_output_tail`) when a session dies unexpectedly. Use
-`/root/daScript/utils/dap/_fixture.das` for connection smoke tests. In c2das the debuggee
+`$DASROOT/utils/dap/_fixture.das` for connection smoke tests. In c2das the debuggee
 is usually a transpiler output (`tests/syntax/*.das`, `tests/unit/*/src/*.das`, or a file
 written by `scripts/run_c2das_cases.py --keep-workdir`), so debug the generated daScript, then fix
 the translator that produced it, never the generated file by hand.

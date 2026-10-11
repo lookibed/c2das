@@ -4,7 +4,7 @@
 #
 #   bench.sh [--markdown <path>] <work-dir> [variant ...]
 #
-# <work-dir> is the Windows scratch directory (as a WSL path, e.g. /mnt/d/...) where
+# <work-dir> is the Windows scratch directory (as a WSL path, under the drive mount) where
 # build_c.bat and build_aot.bat ran; every run executes there (`.savegame\`, `.jitted_scripts\`).
 # Variants: c:msvc_O2 c:msvc_avx2 c:clang_O2 c:clang_native interp jit aot
 # (default: the C builds present in <work-dir>, plus interp/jit when DOOM_SDL_GEN is set and aot
@@ -29,7 +29,7 @@
 #   DASLANG, DASSDL3_PROJ, DASSDL3_AOT_PROJ, VCVARS, DOOM_WAD   see run.bat
 #   REPS (default 3), FRAMES (default 1000), MODES (default "window dummy nopresent")
 #   CASES_JSON (default: this checkout's tests/canonical/cases.json), CMD_EXE (default
-#   /mnt/c/Windows/System32/cmd.exe)
+#   the cmd.exe found on PATH through WSL interop)
 #   MD_OUT, DASLANG_COMMIT, DASROOT, SDL3_DIR, CLANG_CL   the Markdown snapshot (see above)
 set -euo pipefail
 
@@ -55,7 +55,7 @@ shift
 reps="${REPS:-3}"
 frames="${FRAMES:-1000}"
 modes="${MODES:-window dummy nopresent}"
-cmd_exe="${CMD_EXE:-/mnt/c/Windows/System32/cmd.exe}"
+cmd_exe="${CMD_EXE:-$(command -v cmd.exe || echo cmd.exe)}"
 run_bat="$(wslpath -w "$here/run.bat")"
 
 variants=("$@")

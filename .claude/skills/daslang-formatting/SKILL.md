@@ -6,7 +6,7 @@ description: Formatting rules for .das files (gen2 layout, MCP format_file, .lin
 # daslang formatting (c2das)
 
 Read the local daScript tree's instructions in full before formatting:
-`/root/daScript/skills/das_formatting.md`.
+`$DASROOT/skills/das_formatting.md`.
 
 c2das rules on top of it:
 

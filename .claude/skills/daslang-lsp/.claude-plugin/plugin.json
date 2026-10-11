@@ -1,9 +1,9 @@
 {
   "name": "daslang-lsp",
-  "description": "daslang language server from the daScript checkout at /root/daScript - compiler diagnostics after every edit, plus definition/hover/references/symbols",
+  "description": "daslang language server from the daScript checkout next to this checkout (../daScript) - compiler diagnostics after every edit, plus definition/hover/references/symbols",
   "lspServers": {
     "daslang": {
-      "command": "/root/daScript/bin/watchdog",
+      "command": "${CLAUDE_PLUGIN_ROOT}/../../../../daScript/bin/watchdog",
       "args": [
         "--lsp"
       ],

@@ -10,7 +10,7 @@ document come from no other build.
 
 | Tool | Version / location |
 |---|---|
-| daslang | 0.6.4, `/root/daScript/bin/daslang` (`<das_root>` = `/root/daScript`, the parent of `bin/`) |
+| daslang | 0.6.4, `<das_root>/bin/daslang` (`<das_root>` = the daScript checkout, `$DASROOT`, the parent of `bin/`) |
 | daslang runtime libraries | `<das_root>/lib/liblibDaScriptDyn.so`, `<das_root>/lib/liblibDaScriptDyn_runtime.so` |
 | C compiler | `clang-18`, Ubuntu clang 18.1.8 |
 | C++ compiler (AOT objects, AOT host) | `clang++-18`, same release |
@@ -264,13 +264,13 @@ clang++-18 -DDAS_ENABLE_DYN_INCLUDES=1 -DDAS_FUSION=2 \
     -DSQLITE_ENABLE_COLUMN_METADATA=1 -DSQLITE_ENABLE_FTS5=1 -DSQLITE_ENABLE_SNAPSHOT=1 \
     -DSQLITE_ENABLE_STMT_SCANSTATUS=1 -DSQLITE_THREADSAFE=1 \
     -DURIPARSER_BUILD_CHAR -DURI_STATIC_BUILD \
-    -I/root/daScript/include -I/root/daScript/3rdparty/fmt/include \
-    -I/root/daScript/build/include -I/root/daScript/3rdparty/uriparser/include \
+    -I$DASROOT/include -I$DASROOT/3rdparty/fmt/include \
+    -I$DASROOT/build/include -I$DASROOT/3rdparty/uriparser/include \
     -Wno-invalid-offsetof -O3 -fno-rtti -fomit-frame-pointer -fno-stack-protector \
     -DNDEBUG=1 -std=gnu++17 -fno-strict-aliasing -fwrapv \
     -c all.das.cpp -o all.das.o
 clang++-18 <same flags> -c plmpeg_file_bench_entry.das.cpp -o plmpeg_file_bench_entry.das.o
-clang++-18 <same flags> -c /root/c2das/scripts/corpus/aot_host.cpp -o aot_host.o
+clang++-18 <same flags> -c <c2das checkout>/scripts/corpus/aot_host.cpp -o aot_host.o
 ```
 
 (When a toolchain has no `build/compile_commands.json`, the driver falls back to
@@ -282,9 +282,9 @@ plus the three include directories.)
 
 ```sh
 clang++-18 aot_host.o all.das.o plmpeg_file_bench_entry.das.o \
-    -L/root/daScript/lib -llibDaScriptDyn -llibDaScriptDyn_runtime \
-    -Wl,-rpath,/root/daScript/lib -o aot_host
-./aot_host /root/daScript <work>/bench_aot/plmpeg_file_bench_entry.das main <fixture>
+    -L$DASROOT/lib -llibDaScriptDyn -llibDaScriptDyn_runtime \
+    -Wl,-rpath,$DASROOT/lib -o aot_host
+./aot_host "$DASROOT" <work>/bench_aot/plmpeg_file_bench_entry.das main <fixture>
 ```
 
 `scripts/corpus/aot_host.cpp` sets the daslang root, hands its whole argv to

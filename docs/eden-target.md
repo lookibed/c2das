@@ -2,7 +2,7 @@
 
 Measured 2026-10-03 to 2026-10-06 on EdenSpark **1.0.0.12 and 1.0.0.19**
 (`eden.exe` of 2026-10-01 and 2026-10-05) against daslang master in
-`/root/daScript` (**v0.6.4-481**, commit 69a589623). Every row below comes
+a local daScript checkout (**v0.6.4-481**, commit 69a589623). Every row below comes
 from a probe compiled and run in both: in the editor as a `[cheat]` of a
 throwaway project file, locally with `daslang` on the command line. The
 harness and the probe sources live in
@@ -17,7 +17,7 @@ the editor (`modules/wasm3das/docs/eden-port/DESIGN.md` section 1,
 |---|---|
 | `get_das_version()` | **0.6.4** in Eden 1.0 (it was 0.6.3 in Eden 0.9.0.34) |
 | Position inside 0.6.4 | **older than master v0.6.4-481**: it has #3410 (bare named calls), #3420 (call-style casts), #3424 (distinct types), #3430 (`float16`), #3345 (64-bit fixed-array indexes), #3724 (`max_unreserved_size`, `ensure_capacity`), #3389 (`[inline]`); it lacks #3684 (the `!` original-operator family: `a!.x` is a syntax error) and #3783 (`@` metadata on locals: `var @exact_size x` is a syntax error) and #3980 (`memmove` builtin) |
-| Bundled daslib | the editor's own copy (`D:/Prog/EdenSpark/daslib/builtin.das` in stack traces), inside its vromfs; not readable from disk |
+| Bundled daslib | the editor's own copy (`<EdenSpark build root>/daslib/builtin.das` in stack traces), inside its vromfs; not readable from disk |
 | Engine modules | `engine.core` and friends exist only in the editor; a file that requires them cannot be compiled locally |
 
 ## 2. The sandbox: what the editor refuses (master accepts all of it)
@@ -120,7 +120,7 @@ build show only `internal error` (`cross_context` is reported as
 ## 5. What this means for c2das
 
 The current output cannot run in the editor at all: across 303 generated
-files under `/root/c2das` there are 16 675 `unsafe`, 5 853 `reinterpret`,
+files in the c2das checkout there are 16 675 `unsafe`, 5 853 `reinterpret`,
 1 492 `addr`, 884 `void?` and 232 `intptr`, and the runtime's address model
 is the host address of `c2da_rt_heap[i]` (`intptr(addr(heap[start]))`),
 every load and store a `reinterpret<uint8?>(address)[i]`. All of that is

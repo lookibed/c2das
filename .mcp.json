@@ -1,41 +1,41 @@
 {
   "mcpServers": {
     "daslang": {
-      "command": "/root/daScript/bin/watchdog",
+      "command": "${DASROOT:-../daScript}/bin/watchdog",
       "args": [
         "--stdio",
         "--name",
         "daslang-mcp",
         "--cwd",
-        "/root/c2das",
+        "${C2DAS_ROOT:-.}",
         "--program",
-        "/root/daScript/bin/daslang",
+        "${DASROOT:-../daScript}/bin/daslang",
         "--",
         "-ignore-manifest",
-        "/root/daScript/utils/mcp/main.das"
+        "${DASROOT:-../daScript}/utils/mcp/main.das"
       ],
       "env": {
-        "DAS_LINT_CONFIG_PATH": "/root/c2das/.lint_config"
+        "DAS_LINT_CONFIG_PATH": "${C2DAS_ROOT:-.}/.lint_config"
       },
       "defer_loading": false
     },
     "daslang-dap": {
-      "command": "/root/daScript/bin/watchdog",
+      "command": "${DASROOT:-../daScript}/bin/watchdog",
       "args": [
         "--stdio",
         "--name",
         "daslang-dap",
         "--cwd",
-        "/root/c2das",
+        "${C2DAS_ROOT:-.}",
         "--program",
-        "/root/daScript/bin/daslang",
+        "${DASROOT:-../daScript}/bin/daslang",
         "--",
-        "/root/daScript/utils/dap/main.das",
+        "${DASROOT:-../daScript}/utils/dap/main.das",
         "--",
         "--repo-root",
-        "/root/c2das",
+        "${C2DAS_ROOT:-.}",
         "--executable",
-        "/root/daScript/bin/daslang"
+        "${DASROOT:-../daScript}/bin/daslang"
       ]
     }
   }

@@ -97,7 +97,7 @@ set SDL_VIDEODRIVER=dummy & run.bat c msvc_O2
 daslang. Translate on Linux/WSL, run on Windows:
 
 ```sh
-tests/manual/doomgeneric/sdl/translate.sh /mnt/d/<scratch>/gen     # never inside the checkout
+tests/manual/doomgeneric/sdl/translate.sh <wsl-scratch>/gen     # never inside the checkout
 ```
 
 ```bat
@@ -125,8 +125,8 @@ its first line. Every listed function must show `AOT=0x...`.
 All variants, hash-checked (WSL; the Windows paths are passed through to `run.bat`):
 
 ```sh
-DOOM_SDL_GEN='D:\<scratch>\gen' DASLANG=... DASSDL3_PROJ=... DOOM_WAD='D:\...\doom1.wad' \
-    REPS=5 FRAMES=1000 tests/manual/doomgeneric/sdl/bench.sh /mnt/d/<scratch>
+DOOM_SDL_GEN='<win-scratch>\gen' DASLANG=... DASSDL3_PROJ=... DOOM_WAD='<win-path>\doom1.wad' \
+    REPS=5 FRAMES=1000 tests/manual/doomgeneric/sdl/bench.sh <wsl-scratch>
 ```
 
 On every run, `bench.sh` requires the first 70 hashes to equal the oracle of
@@ -134,7 +134,7 @@ On every run, `bench.sh` requires the first 70 hashes to equal the oracle of
 variant's run in the same mode (the C build). A run that fails either check is reported as
 FAIL with no number.
 
-`bench.sh --markdown <path> /mnt/d/<scratch>` (or `MD_OUT=<path>`) additionally writes the run
+`bench.sh --markdown <path> <wsl-scratch>` (or `MD_OUT=<path>`) additionally writes the run
 as a Markdown snapshot in the layout of the Linux one in `docs/corpus-benchmark.md`
 (`bench_markdown.py`): platform information — Windows version, CPU, MSVC and clang-cl
 versions, `daslang --version` with the daScript checkout's commit (`DASLANG_COMMIT`, or

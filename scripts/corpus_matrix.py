@@ -196,7 +196,8 @@ def environment_facts(daslang: Path) -> dict[str, str]:
         "cpu": cpu_model(),
         "os": first_line(["bash", "-c", ". /etc/os-release && echo \"$PRETTY_NAME\""]),
         "kernel": platform.release(),
-        "daslang": f"{daslang_version} ({daslang})",
+        # The version only: the binary's path is machine-local and stays out of the docs.
+        "daslang": daslang_version,
         "daslang_version": daslang_version,
         "das_root": str(das_root),
         "clang": first_line(["clang-18", "--version"]),
