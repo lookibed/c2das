@@ -2817,69 +2817,6 @@
       "status": "inventory-only"
     },
     {
-      "c_graph": "archive-secret",
-      "checked_in_das": "tests/production/real-archive-secret/src/all.das",
-      "clang": {
-        "compile_commands": "tests/production/real-archive-secret/cc_all.json",
-        "flags": [
-          "from-compile-commands"
-        ]
-      },
-      "entrypoint": "graph-member",
-      "expected": {
-        "kind": "unregistered",
-        "value": "unregistered"
-      },
-      "family": "production-archive",
-      "id": "tests--production--real-archive-secret--src--all",
-      "owner": "historical production corpus inventory",
-      "runtime": "unverified",
-      "source": "tests/production/real-archive-secret/src/all.c",
-      "status": "historical"
-    },
-    {
-      "c_graph": "archive-secret",
-      "checked_in_das": "tests/production/real-archive-secret/src/module.das",
-      "clang": {
-        "compile_commands": "tests/production/real-archive-secret/cc_all.json",
-        "flags": [
-          "from-compile-commands"
-        ]
-      },
-      "entrypoint": "graph-member",
-      "expected": {
-        "kind": "unregistered",
-        "value": "unregistered"
-      },
-      "family": "production-archive",
-      "id": "tests--production--real-archive-secret--src--module",
-      "owner": "historical production corpus inventory",
-      "runtime": "unverified",
-      "source": "tests/production/real-archive-secret/src/module.c",
-      "status": "historical"
-    },
-    {
-      "c_graph": "archive-secret",
-      "checked_in_das": null,
-      "clang": {
-        "compile_commands": "tests/production/real-archive-secret/cc_all.json",
-        "flags": [
-          "from-compile-commands"
-        ]
-      },
-      "entrypoint": "graph-member",
-      "expected": {
-        "kind": "unregistered",
-        "value": "unregistered"
-      },
-      "family": "production-archive",
-      "id": "tests--production--real-archive-secret--src--shim",
-      "owner": "historical production corpus inventory",
-      "runtime": "unverified",
-      "source": "tests/production/real-archive-secret/src/shim.c",
-      "status": "historical"
-    },
-    {
       "c_graph": "single-tu",
       "canonical_case": "legacy-c01-complex",
       "canonical_cases": [
@@ -12014,12 +11951,6 @@
       "description": "doomgeneric engine plus the corpus platform layer, rooted at src/doom_all.c; src/doom_bench_all.c is the same graph with the timing entry.",
       "entry": "tests/manual/doomgeneric/src/doom_all.c",
       "id": "doomgeneric"
-    },
-    {
-      "compile_commands": "tests/production/real-archive-secret/cc_all.json",
-      "description": "Historical production archive graph; not a current acceptance target.",
-      "entry": "tests/production/real-archive-secret/src/all.c",
-      "id": "archive-secret"
     }
   ],
   "purpose": "Frozen inventory; statuses are facts, never a compatibility claim.",
