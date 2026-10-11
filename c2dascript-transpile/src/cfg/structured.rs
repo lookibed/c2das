@@ -2647,8 +2647,16 @@ pub(crate) fn convert(
     // returning (`exprReturns`, `src/ast/ast_lint.cpp`); a C function that
     // only leaves through a `return` inside an endless loop does not look
     // like one.  The value after the trap is never produced.
+    // A `try`/`recover` whose arms both return (the `setjmp` guard) never
+    // falls through, but daslang's `exprReturns` does not look inside it:
+    // the `return` stays, the trap before it does not.
     if top == Ctx::TopValue && !stmts_return(&out) {
-        if !matches!(out.last(), Some(DaStmt::Expr(DaExpr::Call(..)))) {
+        let arms_return = matches!(
+            out.last(),
+            Some(DaStmt::Expr(DaExpr::TryRecover(body, handler)))
+                if expr_returns(body) && expr_returns(handler)
+        );
+        if !arms_return && !matches!(out.last(), Some(DaStmt::Expr(DaExpr::Call(..)))) {
             out.push(implicit_return(&ret));
         }
         let ret_da = match ret_ty {
@@ -2738,6 +2746,10 @@ fn is_return(node: &Node) -> bool {
 fn terminates(node: &Node) -> bool {
     match node {
         Node::Break | Node::Continue | Node::Goto(_) | Node::Dispatch { .. } => true,
+        // The `setjmp` guard: `try` and `recover` both return.
+        Node::Stmt(DaStmt::Expr(DaExpr::TryRecover(body, handler))) => {
+            expr_returns(body) && expr_returns(handler)
+        }
         Node::Stmt(_) => is_return(node),
         Node::If { then, else_, .. } => !else_.is_empty() && ends(then) && ends(else_),
         Node::Loop { cond: None, body } => !breaks_loop(body),
