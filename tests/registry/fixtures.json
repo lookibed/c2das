@@ -6968,6 +6968,35 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p222-linear-getc",
+      "canonical_cases": [
+        "p222-linear-getc",
+        "p222-std-getc"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "first=99 count=320 sum=4231379540 eof=1 again=-1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p222_linear_getc",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p222_linear_getc.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p22-typed-literals",
       "canonical_cases": [
         "p22-typed-literals"

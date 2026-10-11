@@ -3027,6 +3027,7 @@ impl<'c> Translation<'c> {
                 None => return Ok(None),
             },
             "fputc" | "putc" => ("c2da_lin_fputc", "IH"),
+            "fgetc" | "getc" => ("c2da_lin_fgetc", "H"),
             // The buffer is only tested against NULL: `--libc eden` streams
             // are line buffers whatever the program supplies.
             "setvbuf" => match libc::std_function(base) {
@@ -4229,6 +4230,25 @@ def c2da_lin_fread(d : int; size : uint64; count : uint64; handle : uint64) : ui
     }
     c2da_eden_open_pos[slot] = pos
     return uint64(n) / size
+}
+
+// getc/fgetc: the next byte of a registered file as an unsigned char, -1 (EOF)
+// past its end or on a handle that reads nothing (stdin has no input here).
+def c2da_lin_fgetc(handle : uint64) : int {
+    if (handle < 16ul) {
+        return -1
+    }
+    let slot = int(handle - 16ul)
+    if (slot >= length(c2da_eden_open_file) || c2da_eden_open_file[slot] < 0) {
+        return -1
+    }
+    let file = c2da_eden_open_file[slot]
+    let pos = c2da_eden_open_pos[slot]
+    if (pos >= int64(length(c2da_eden_file_data[file]))) {
+        return -1
+    }
+    c2da_eden_open_pos[slot] = pos + 1l
+    return int(c2da_eden_file_data[file][pos])
 }
 
 // Only stdout and stderr are writable (--libc eden): any other handle writes nothing.

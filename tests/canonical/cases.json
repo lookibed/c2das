@@ -1254,6 +1254,41 @@
       "runtime": "required"
     },
     {
+      "id": "p222-linear-getc",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p222_linear_getc.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p72_std_file_io.bin"],
+      "expected": {
+        "stdout": "first=99 count=320 sum=4231379540 eof=1 again=-1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p222-std-getc",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p222_linear_getc.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "program_args": ["p72_std_file_io.bin"],
+      "expected": {
+        "stdout": "first=99 count=320 sum=4231379540 eof=1 again=-1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p220-std-setjmp",
       "status": "ready",
       "source_root": "tests/syntax",
