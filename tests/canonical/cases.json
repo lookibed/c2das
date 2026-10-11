@@ -1254,6 +1254,22 @@
       "runtime": "required"
     },
     {
+      "id": "p223-std-sprintf",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p223_std_sprintf.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "[map e1m1 skill 2  0.50] 22\n[id1/demo.007]\n[ok] 2\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p222-linear-getc",
       "status": "ready",
       "source_root": "tests/syntax",

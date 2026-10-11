@@ -6997,6 +6997,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p223-std-sprintf",
+      "canonical_cases": [
+        "p223-std-sprintf"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "[map e1m1 skill 2  0.50] 22\n[id1/demo.007]\n[ok] 2\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p223_std_sprintf",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p223_std_sprintf.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p22-typed-literals",
       "canonical_cases": [
         "p22-typed-literals"

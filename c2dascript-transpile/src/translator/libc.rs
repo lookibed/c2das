@@ -357,6 +357,8 @@ const FPUTS: &str = "c2da_std_fputs";
 const PUTCHAR: &str = "c2da_std_putchar";
 const FPRINTF: &str = "c2da_std_fprintf";
 const SNPRINTF: &str = "c2da_std_snprintf";
+const SPRINTF: &str = "c2da_std_sprintf";
+const VSPRINTF: &str = "c2da_std_vsprintf";
 const VSNPRINTF: &str = "c2da_std_vsnprintf";
 const VPRINTF: &str = "c2da_std_vprintf";
 const VFPRINTF: &str = "c2da_std_vfprintf";
@@ -486,6 +488,8 @@ pub(crate) enum StdFunction {
     Putchar,
     Fprintf,
     Snprintf,
+    Sprintf,
+    Vsprintf,
     Vsnprintf,
     Vprintf,
     Vfprintf,
@@ -564,6 +568,8 @@ impl StdFunction {
             Self::Putchar => PUTCHAR,
             Self::Fprintf => FPRINTF,
             Self::Snprintf => SNPRINTF,
+            Self::Sprintf => SPRINTF,
+            Self::Vsprintf => VSPRINTF,
             Self::Vsnprintf => VSNPRINTF,
             Self::Vprintf => VPRINTF,
             Self::Vfprintf => VFPRINTF,
@@ -657,7 +663,7 @@ impl StdFunction {
             // The format string itself stays a typed C pointer, as `printf`'s
             // does; only the stream handle and the output buffer are addresses.
             Self::Fprintf => &[0][..],
-            Self::Snprintf | Self::Vsnprintf => &[0][..],
+            Self::Snprintf | Self::Vsnprintf | Self::Sprintf | Self::Vsprintf => &[0][..],
             Self::Strdup | Self::Atof | Self::System => &[0][..],
             // `mkdir`'s `mode_t` is an integer.
             Self::Mkdir => &[0][..],
@@ -746,6 +752,7 @@ impl StdFunction {
             Self::Printf | Self::Vprintf => Some(0),
             Self::Fprintf | Self::Vfprintf => Some(1),
             Self::Snprintf | Self::Vsnprintf => Some(2),
+            Self::Sprintf | Self::Vsprintf => Some(1),
             _ => None,
         }
     }
@@ -808,6 +815,8 @@ pub(crate) fn std_function(name: &str) -> Option<StdFunction> {
         "putchar" | "__builtin_putchar" => Some(StdFunction::Putchar),
         "fprintf" | "__builtin_fprintf" => Some(StdFunction::Fprintf),
         "snprintf" | "__builtin_snprintf" => Some(StdFunction::Snprintf),
+        "sprintf" | "__builtin_sprintf" => Some(StdFunction::Sprintf),
+        "vsprintf" | "__builtin_vsprintf" => Some(StdFunction::Vsprintf),
         "vsnprintf" | "__builtin_vsnprintf" => Some(StdFunction::Vsnprintf),
         "vprintf" | "__builtin_vprintf" => Some(StdFunction::Vprintf),
         "vfprintf" | "__builtin_vfprintf" => Some(StdFunction::Vfprintf),
@@ -1172,6 +1181,8 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         FPUTS => &[RAW_STRING, WRITE],
         FPRINTF => &[FORMAT, WRITE, LOST_CELL],
         SNPRINTF => &[FORMAT, PLACE, LOST_CELL],
+        SPRINTF => &[SNPRINTF],
+        VSPRINTF => &[VSNPRINTF],
         VSNPRINTF => &[VFORMAT, PLACE, LOST_CELL],
         VPRINTF => &[VFORMAT, LOST_CELL],
         VFPRINTF => &[VFORMAT, WRITE, LOST_CELL],
@@ -1252,6 +1263,8 @@ fn build(name: &str) -> DaDecl {
         PUTCHAR => build_putchar(),
         FPRINTF => build_fprintf(),
         SNPRINTF => build_snprintf(),
+        SPRINTF => build_sprintf(false),
+        VSPRINTF => build_sprintf(true),
         VSNPRINTF => build_vsnprintf(),
         VPRINTF => build_vprintf(),
         VFPRINTF => build_vfprintf(),
@@ -6963,6 +6976,26 @@ fn build_snprintf() -> DaDecl {
             ret(op2("+", var("placed"), var(LOST_CELL))),
         ],
     )
+}
+
+/// `def c2da_std_sprintf(dst : uint64; f : int8 const?; args : array<C2daVaArg>) : int`
+/// and `c2da_std_vsprintf` (with the `va_list` cursor): `snprintf` and
+/// `vsnprintf` with no limit — the largest size `c2da_std_place` takes.
+fn build_sprintf(forwards_va_list: bool) -> DaDecl {
+    let (name, target) = if forwards_va_list {
+        (VSPRINTF, VSNPRINTF)
+    } else {
+        (SPRINTF, SNPRINTF)
+    };
+    let mut params = vec![u64_param("dst"), param("f", c_string_type())];
+    let mut args = vec![var("dst"), uint64_const(i32::MAX as u64), var("f")];
+    if forwards_va_list {
+        params.push(va_cursor_param());
+        args.push(var("ap"));
+    }
+    params.push(param("args", va_args_type()));
+    args.push(var("args"));
+    helper(name, params, DaType::int(), vec![ret(call(target, args))])
 }
 
 /// The cursor parameter of a std `v*` shim, and the two statements that walk
