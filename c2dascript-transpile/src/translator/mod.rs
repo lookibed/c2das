@@ -1595,11 +1595,29 @@ impl<'c> Translation<'c> {
                 ) {
                     let inner = self.convert_expr(ctx, *expr, None)?;
                     let target_type = self.convert_type(ty.clone())?;
-                    return Ok(
-                        WithStmts::new_val(self.cast_to_type(inner.val, target_type))
-                            .prepend_stmts(inner.stmts)
-                            .merge_unsafe(inner.is_unsafe),
-                    );
+                    // A C enumeration converts through its integer type:
+                    // daScript has no `float(E)` for an enumeration `E`.
+                    let source_enum = self.ast_context[*expr]
+                        .kind
+                        .get_qual_type()
+                        .map(|q| self.ast_context.resolve_type(q.ctype).kind.clone())
+                        .filter(|kind| matches!(kind, CTypeKind::Enum(_)));
+                    let value = match source_enum.and_then(|kind| self.arith_type_of_kind(&kind)) {
+                        Some(arith)
+                            if Self::infer_type(&inner.val)
+                                .map_or(true, |actual| !actual.is_numeric()) =>
+                        {
+                            DaExpr::Cast {
+                                kind: das_ast::CastKind::Cast,
+                                expr: Box::new(inner.val),
+                                to: arith.da_type(),
+                            }
+                        }
+                        _ => inner.val,
+                    };
+                    return Ok(WithStmts::new_val(self.cast_to_type(value, target_type))
+                        .prepend_stmts(inner.stmts)
+                        .merge_unsafe(inner.is_unsafe));
                 }
                 let inner = self.convert_expr(ctx, *expr, Some(*ty))?;
                 // Reading a record object drops the qualifiers of the place
@@ -2178,11 +2196,9 @@ impl<'c> Translation<'c> {
                 expr: Box::new(index),
                 to: DaType::int64(),
             },
-            _ => DaExpr::Cast {
-                kind: das_ast::CastKind::Cast,
-                expr: Box::new(index),
-                to: DaType::int(),
-            },
+            // `children[!side]`: C's `int` 0/1 of a comparison, which
+            // daScript holds as a `bool` (`abi.rs cast_to_type`).
+            _ => self.cast_to_type(index, DaType::int()),
         }
     }
 

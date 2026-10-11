@@ -1273,6 +1273,22 @@
       "runtime": "required"
     },
     {
+      "id": "p228-bool-enum-conversions",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p228_bool_enum_conversions.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "1.0 0.0 1.0 0.0\n1.0 0.0 1.0 0.0\nchild 20\nchild 10\nfree 1 0\ncalls 6\npoll_two 7 0.50\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p227-variadic-function-pointer",
       "status": "ready",
       "source_root": "tests/syntax",

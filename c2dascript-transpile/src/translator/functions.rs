@@ -644,6 +644,8 @@ impl<'c> Translation<'c> {
             // its signature.
             let callee_value = if self.is_linear() && super::linear::fn_table() {
                 self.linear_fn_callee(callee_expr_id, func_expr.val)?
+            } else if let Some(real) = self.unprototyped_call_type(func, args)? {
+                self.abi_pointer_cast(func_expr.val, real)
             } else {
                 func_expr.val
             };
@@ -731,6 +733,49 @@ impl<'c> Translation<'c> {
                 _ => None,
             })
             .collect()
+    }
+
+    /// The function type a call through an unprototyped pointer
+    /// (`void (*procedure)()`, called `procedure(arg)`) gives its callee.
+    ///
+    /// C11 6.5.2.2p6: the arguments undergo the default argument promotions
+    /// — which Clang has already spelled as conversions on each argument — and
+    /// the callee is called as a function of exactly those promoted types.
+    /// The slot's daScript type, `function<void>`, has no parameters, so the
+    /// value is converted to that type for the `invoke`, as a call through a
+    /// prototyped pointer converts a slot back to the callee's real type
+    /// (`function_designator_value`).  `None` when the call needs no such
+    /// conversion: a prototyped pointer, or no arguments.
+    fn unprototyped_call_type(
+        &self,
+        func: CExprId,
+        args: &[CExprId],
+    ) -> TranslationResult<Option<DaType>> {
+        if args.is_empty() {
+            return Ok(None);
+        }
+        let Some(ty) = self.ast_context[func].kind.get_qual_type() else {
+            return Ok(None);
+        };
+        let CTypeKind::Pointer(pointee) = self.ast_context.resolve_type(ty.ctype).kind else {
+            return Ok(None);
+        };
+        let CTypeKind::Function(ret, _, false, _, false) =
+            self.ast_context.resolve_type(pointee.ctype).kind
+        else {
+            return Ok(None);
+        };
+        let mut promoted = Vec::with_capacity(args.len());
+        for &arg in args {
+            let Some(arg_ty) = self.ast_context[arg].kind.get_qual_type() else {
+                return Err(format_translation_err!(
+                    self.ast_context.display_loc(&self.ast_context[arg].loc),
+                    "call through an unprototyped function pointer: argument without a C type",
+                ));
+            };
+            promoted.push(arg_ty);
+        }
+        self.function_value_type(ret, &promoted, false).map(Some)
     }
 
     /// The fixed parameters and the variadic flag of the function type an

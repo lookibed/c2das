@@ -223,6 +223,15 @@ impl<'c> Translation<'c> {
         if matches!(target.kind, DaTypeKind::Named(_)) && !target.is_numeric() {
             return DaExpr::reinterpret(expr, target);
         }
+        // C types `!x`, `a == b` and `a && b` as `int`, but daScript holds
+        // them as a `bool`, which no numeric conversion accepts: C's 0/1 is
+        // spelled as the conditional instead.
+        if target.is_numeric()
+            && (super::is_boolean_expression(&expr)
+                || Self::infer_type(&expr).map_or(false, |ty| matches!(ty.kind, DaTypeKind::Bool)))
+        {
+            return self.bool_as_number(expr, target);
+        }
         DaExpr::Cast {
             kind: das_ast::CastKind::Cast,
             expr: Box::new(expr),

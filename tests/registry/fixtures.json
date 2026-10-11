@@ -7224,6 +7224,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p228-bool-enum-conversions",
+      "canonical_cases": [
+        "p228-bool-enum-conversions"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "1.0 0.0 1.0 0.0\n1.0 0.0 1.0 0.0\nchild 20\nchild 10\nfree 1 0\ncalls 6\npoll_two 7 0.50\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p228_bool_enum_conversions",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p228_bool_enum_conversions.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p22-typed-literals",
       "canonical_cases": [
         "p22-typed-literals"
