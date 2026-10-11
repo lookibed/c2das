@@ -43,6 +43,20 @@ literal format is a source-located translation error (`unsupported_scan_conversi
 computed one panics in the helper.  `p110-std-string-extras`, `p111-std-sscanf` and
 `p112-std-sscanf-unsupported` are the fixtures.
 
+`<math.h>` (`sqrt sin cos tan asin acos atan atan2 pow exp log log10 floor ceil fmod` and
+their `f` forms, `fabsf`) is not a helper but an expression over daslang's `math` builtins
+(`libc.rs libm_function`), under `--libc std` and `eden` alike.  The `double` builtins are
+the host libm's own functions, so they are bit-equal to C; the `float` forms widen, call the
+`double` builtin and round, which is exact for `sqrtf floorf ceilf fabsf fmodf` and equal to
+glibc wherever glibc's `float` function is correctly rounded (`log10f(3.0f)` is a measured
+one-ulp exception).  `rand`/`srand` are glibc's TYPE_3 additive generator, so the numbers
+equal glibc's.  `setjmp` is lowered in one shape only — `if (setjmp(buf)) return…;` at the top
+level of a structured function body, `buf` a named static-duration `jmp_buf`: the statements
+after it run in `try`, `longjmp(buf, v)` records the target name and panics, and the `recover`
+re-panics unless the target is `buf`, then runs the guarded `return` (`cfg/structured.rs
+Builder::list`, `libc.rs setjmp_guard`).  Any other `setjmp` is a located refusal.
+`p218`–`p221` are the fixtures, each `-linear` variant under the eden flags.
+
 ## Natural records and storage-backed records
 
 A C struct is emitted as a daScript struct with its fields only when `layout.rs`
