@@ -6852,6 +6852,35 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p219-std-rand",
+      "canonical_cases": [
+        "p219-std-rand",
+        "p219-std-rand-linear"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "default: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\n42: 71876166 708592740 1483128881 907283241 442951012 sum=2510429718\n0: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\n1: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\nmax: 254925627 1205188300 366127624 1401405153 76053476 sum=1299349546\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p219_std_rand",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p219_std_rand.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p21-byte-numeric",
       "canonical_cases": [
         "p21-byte-numeric"

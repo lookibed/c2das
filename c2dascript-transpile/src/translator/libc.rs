@@ -432,6 +432,17 @@ const FABS: &str = "c2da_std_fabs";
 const SYSTEM: &str = "c2da_std_system";
 const MKDIR: &str = "c2da_std_mkdir";
 const SSCANF: &str = "c2da_std_sscanf";
+// glibc's `rand`: `random`'s default TYPE_3 additive generator
+// (`r[i] = r[i-3] + r[i-31]`, 31 words of state, separation 3).
+const RAND: &str = "c2da_std_rand";
+const SRAND: &str = "c2da_std_srand";
+const RAND_STEP: &str = "c2da_std_rand_step";
+const RAND_STATE: &str = "c2da_std_rand_state";
+const RAND_FRONT: &str = "c2da_std_rand_front";
+const RAND_REAR: &str = "c2da_std_rand_rear";
+const RAND_SEEDED: &str = "c2da_std_rand_seeded";
+const RAND_DEGREE: i64 = 31;
+const RAND_SEP: i64 = 3;
 
 /// A C library entry point the `std` policy replaces.
 ///
@@ -513,6 +524,8 @@ pub(crate) enum StdFunction {
     Mkdir,
     /// `sscanf`, which glibc's headers redirect to `__isoc99_sscanf`.
     Sscanf,
+    Rand,
+    Srand,
 }
 
 impl StdFunction {
@@ -586,6 +599,8 @@ impl StdFunction {
             Self::System => SYSTEM,
             Self::Mkdir => MKDIR,
             Self::Sscanf => SSCANF,
+            Self::Rand => RAND,
+            Self::Srand => SRAND,
         }
     }
 
@@ -648,6 +663,7 @@ impl StdFunction {
             // memory; the pointers the conversions store through travel in
             // the variadic payload, as raw lanes.
             Self::Sscanf => &[0, 1][..],
+            Self::Rand | Self::Srand => &[][..],
         };
         raw.contains(&index).then_some(RuntimeArgKind::RawAddress)
     }
@@ -840,6 +856,8 @@ pub(crate) fn std_function(name: &str) -> Option<StdFunction> {
         // glibc's `<stdio.h>` gives `sscanf` the assembler name
         // `__isoc99_sscanf`; Clang's declaration keeps the C name.
         "sscanf" | "__isoc99_sscanf" | "__builtin_sscanf" => Some(StdFunction::Sscanf),
+        "rand" => Some(StdFunction::Rand),
+        "srand" => Some(StdFunction::Srand),
         _ => None,
     }
 }
@@ -1151,6 +1169,9 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         ATOF => &[STRTOD],
         SYSTEM | MKDIR => &[SET_ERRNO],
         SSCANF => &[RAW_BYTE, ISSPACE, DIGIT, STRTO, ARG_U64],
+        RAND_STEP => &[RAND_STATE, RAND_FRONT, RAND_REAR],
+        SRAND => &[RAND_STEP, RAND_SEEDED],
+        RAND => &[SRAND],
         _ => &[],
     }
 }
@@ -1275,6 +1296,17 @@ fn build(name: &str) -> DaDecl {
         ATOF => build_atof(),
         ABS => build_abs(),
         FABS => build_fabs(),
+        RAND_STATE => global(
+            RAND_STATE,
+            DaType::fixed_array(DaType::uint(), RAND_DEGREE as usize),
+            None,
+        ),
+        RAND_FRONT => global(RAND_FRONT, DaType::int(), Some(DaExpr::ConstInt(RAND_SEP))),
+        RAND_REAR => global(RAND_REAR, DaType::int(), Some(DaExpr::ConstInt(0))),
+        RAND_SEEDED => global(RAND_SEEDED, DaType::bool(), Some(DaExpr::ConstBool(false))),
+        RAND_STEP => build_rand_step(),
+        SRAND => build_srand(),
+        RAND => build_rand(),
         SYSTEM => build_system(),
         MKDIR => build_mkdir(),
         SSCANF => build_sscanf(),
@@ -7147,6 +7179,121 @@ fn build_abs() -> DaDecl {
                 vec![ret(op2("-", DaExpr::ConstInt(0), var("x")))],
             ),
             ret(var("x")),
+        ],
+    )
+}
+
+/// `def c2da_std_rand_step() : int` — one output of glibc's `random_r` for
+/// the TYPE_3 state: `*fptr += *rptr`, the result is that word shifted
+/// right by one, and both pointers advance around the 31-word ring.
+fn build_rand_step() -> DaDecl {
+    let front = || var(RAND_FRONT);
+    let rear = || var(RAND_REAR);
+    let degree = || DaExpr::ConstInt(RAND_DEGREE);
+    helper(
+        RAND_STEP,
+        vec![],
+        DaType::int(),
+        vec![
+            assign(
+                at(RAND_STATE, front()),
+                op2("+", at(RAND_STATE, front()), at(RAND_STATE, rear())),
+            ),
+            let_(
+                "result",
+                cast(
+                    op2(">>", at(RAND_STATE, front()), DaExpr::ConstUInt(1)),
+                    DaType::int(),
+                ),
+            ),
+            assign(front(), op2("+", front(), DaExpr::ConstInt(1))),
+            assign(rear(), op2("+", rear(), DaExpr::ConstInt(1))),
+            if_then(
+                op2(">=", front(), degree()),
+                vec![assign(front(), DaExpr::ConstInt(0))],
+            ),
+            if_then(
+                op2(">=", rear(), degree()),
+                vec![assign(rear(), DaExpr::ConstInt(0))],
+            ),
+            ret(var("result")),
+        ],
+    )
+}
+
+/// `def c2da_std_srand(seed : uint)` — glibc's `srandom_r`: a zero seed is
+/// 1, the 31 words are the Park–Miller sequence of the seed (Schrage's
+/// method, `16807 * lo - 2836 * hi`), the front pointer starts 3 words
+/// ahead, and the first 310 outputs are discarded.
+fn build_srand() -> DaDecl {
+    let word = || var("word");
+    helper(
+        SRAND,
+        vec![param("seed", DaType::uint())],
+        DaType::void(),
+        vec![
+            assign(var(RAND_SEEDED), DaExpr::ConstBool(true)),
+            local("word", DaType::int(), cast(var("seed"), DaType::int())),
+            if_then(
+                op2("==", word(), DaExpr::ConstInt(0)),
+                vec![assign(word(), DaExpr::ConstInt(1))],
+            ),
+            assign(
+                at(RAND_STATE, DaExpr::ConstInt(0)),
+                cast(word(), DaType::uint()),
+            ),
+            local("i", DaType::int(), DaExpr::ConstInt(1)),
+            while_(
+                op2("<", var("i"), DaExpr::ConstInt(RAND_DEGREE)),
+                vec![
+                    let_("hi", op2("/", word(), DaExpr::ConstInt(127773))),
+                    let_("lo", op2("%", word(), DaExpr::ConstInt(127773))),
+                    assign(
+                        word(),
+                        op2(
+                            "-",
+                            op2("*", DaExpr::ConstInt(16807), var("lo")),
+                            op2("*", DaExpr::ConstInt(2836), var("hi")),
+                        ),
+                    ),
+                    if_then(
+                        op2("<", word(), DaExpr::ConstInt(0)),
+                        vec![assign(
+                            word(),
+                            op2("+", word(), DaExpr::ConstInt(2147483647)),
+                        )],
+                    ),
+                    assign(at(RAND_STATE, var("i")), cast(word(), DaType::uint())),
+                    assign(var("i"), op2("+", var("i"), DaExpr::ConstInt(1))),
+                ],
+            ),
+            assign(var(RAND_FRONT), DaExpr::ConstInt(RAND_SEP)),
+            assign(var(RAND_REAR), DaExpr::ConstInt(0)),
+            assign(var("i"), DaExpr::ConstInt(0)),
+            while_(
+                op2("<", var("i"), DaExpr::ConstInt(RAND_DEGREE * 10)),
+                vec![
+                    DaStmt::Expr(call(RAND_STEP, vec![])),
+                    assign(var("i"), op2("+", var("i"), DaExpr::ConstInt(1))),
+                ],
+            ),
+        ],
+    )
+}
+
+/// `def c2da_std_rand() : int` — a program that never called `srand` runs
+/// as if it had called `srand(1)` (C11 7.22.2.2).
+fn build_rand() -> DaDecl {
+    helper(
+        RAND,
+        vec![],
+        DaType::int(),
+        vec![
+            if_then(
+                not(var(RAND_SEEDED)),
+                vec![DaStmt::Expr(call(SRAND, vec![DaExpr::ConstUInt(1)]))],
+            ),
+            ret(call(RAND_STEP, vec![])),
         ],
     )
 }

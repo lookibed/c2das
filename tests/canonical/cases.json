@@ -1254,6 +1254,39 @@
       "runtime": "required"
     },
     {
+      "id": "p219-std-rand",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p219_std_rand.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "default: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\n42: 71876166 708592740 1483128881 907283241 442951012 sum=2510429718\n0: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\n1: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\nmax: 254925627 1205188300 366127624 1401405153 76053476 sum=1299349546\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "p219-std-rand-linear",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p219_std_rand.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "default: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\n42: 71876166 708592740 1483128881 907283241 442951012 sum=2510429718\n0: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\n1: 1804289383 846930886 1681692777 1714636915 1957747793 sum=4225253806\nmax: 254925627 1205188300 366127624 1401405153 76053476 sum=1299349546\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p218-std-libm",
       "status": "ready",
       "source_root": "tests/syntax",
