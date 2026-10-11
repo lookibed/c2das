@@ -1,8 +1,11 @@
 [package]
 name = "c2dascript"
 version.workspace = true
-authors.workspace = true
+authors = ["The c2das contributors"]
 edition.workspace = true
+license = "BSD-3-Clause"
+homepage = "https://github.com/lookibed/c2das"
+repository = "https://github.com/lookibed/c2das"
 description = "C to daScript transpiler — subcommand CLI"
 
 [dependencies]

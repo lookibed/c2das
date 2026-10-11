@@ -92,5 +92,21 @@ python3 scripts/lint_translated.py                  # daslang lint of every late
 
 ## License
 
-BSD-3-Clause, see [LICENSE](LICENSE); C2Rust-derived components keep their notices. Each corpus
-keeps its own licence in `tests/manual/<corpus>/`.
+The translator (the Rust workspace, `scripts/`, the runtime and the docs) is BSD-3-Clause, see
+[LICENSE](LICENSE). c2das is a fork of [C2Rust](https://github.com/immunant/c2rust); the
+C2Rust-derived crates (`c2rust-*`) keep their original notices and metadata.
+
+Everything under `tests/manual/<corpus>/` keeps its own licence, recorded in that corpus's
+`UPSTREAM.md` next to the vendored `upstream/` copy:
+
+- binjgb (MIT), h264bsd and minimp4, pl_mpeg (MIT) and wasm3 (MIT) carry their upstream
+  licence files under `upstream/`.
+- doomgeneric is **GPL-2.0**. The translated Doom output, the EdenSpark player
+  (`tests/manual/doomgeneric/eden/`) and the SDL players (`tests/manual/doomgeneric/sdl/`) are
+  derivative works of it and are GPL-2.0 as well.
+- Media and game data: `doomgeneric/fixtures/doom1.wad` is id Software's DOOM shareware IWAD,
+  redistributed unmodified under id's shareware terms (quoted in
+  `tests/manual/doomgeneric/UPSTREAM.md`); it is not covered by BSD-3-Clause or the GPL. The
+  cgb-acid2 ROM is MIT. The synthesized test streams are described in each `UPSTREAM.md`;
+  `plmpeg-stream/fixtures/sample.m1v` and `h264bsd-mp4/fixtures/sample.mp4` have unknown
+  provenance.
