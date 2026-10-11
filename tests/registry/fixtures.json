@@ -7168,6 +7168,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p226-std-fscanf",
+      "canonical_cases": [
+        "p226-std-fscanf"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "%i: 1 version=5\n%s: 1 word=kills:0\n%4s: 1 small=long\n%79s: 1 word=word\nints: 4 a=-12 b=31 c=15 x=255\nfloats: 3 3.5 -0.25 1000\nfloats: 3 0.00150000001 0.5 -7\nlf g: 2 250 0.100000001\n%d before letters: 1 a=12\n%d on letters: 0 a=12 next=a\n%2s: 1 small=bc next=!\nmismatch: 0 next=10\nlast: 1 word=end\nat end: -1\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p226_std_fscanf",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p226_std_fscanf.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p22-typed-literals",
       "canonical_cases": [
         "p22-typed-literals"

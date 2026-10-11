@@ -434,6 +434,7 @@ const FABS: &str = "c2da_std_fabs";
 const SYSTEM: &str = "c2da_std_system";
 const MKDIR: &str = "c2da_std_mkdir";
 const SSCANF: &str = "c2da_std_sscanf";
+const FSCANF: &str = "c2da_std_fscanf";
 // glibc's `rand`: `random`'s default TYPE_3 additive generator
 // (`r[i] = r[i-3] + r[i-31]`, 31 words of state, separation 3).
 const RAND: &str = "c2da_std_rand";
@@ -533,6 +534,8 @@ pub(crate) enum StdFunction {
     Mkdir,
     /// `sscanf`, which glibc's headers redirect to `__isoc99_sscanf`.
     Sscanf,
+    /// `fscanf`, which glibc's headers redirect to `__isoc99_fscanf`.
+    Fscanf,
     Rand,
     Srand,
 }
@@ -610,6 +613,7 @@ impl StdFunction {
             Self::System => SYSTEM,
             Self::Mkdir => MKDIR,
             Self::Sscanf => SSCANF,
+            Self::Fscanf => FSCANF,
             Self::Rand => RAND,
             Self::Srand => SRAND,
         }
@@ -674,6 +678,8 @@ impl StdFunction {
             // memory; the pointers the conversions store through travel in
             // the variadic payload, as raw lanes.
             Self::Sscanf => &[0, 1][..],
+            // The stream handle and the format.
+            Self::Fscanf => &[0, 1][..],
             Self::Rand | Self::Srand => &[][..],
         };
         raw.contains(&index).then_some(RuntimeArgKind::RawAddress)
@@ -711,6 +717,7 @@ impl StdFunction {
                 | Self::System
                 | Self::Mkdir
                 | Self::Sscanf
+                | Self::Fscanf
         )
     }
 
@@ -742,6 +749,7 @@ impl StdFunction {
                 | Self::System
                 | Self::Mkdir
                 | Self::Sscanf
+                | Self::Fscanf
         )
     }
 
@@ -870,6 +878,7 @@ pub(crate) fn std_function(name: &str) -> Option<StdFunction> {
         // glibc's `<stdio.h>` gives `sscanf` the assembler name
         // `__isoc99_sscanf`; Clang's declaration keeps the C name.
         "sscanf" | "__isoc99_sscanf" | "__builtin_sscanf" => Some(StdFunction::Sscanf),
+        "fscanf" | "__isoc99_fscanf" | "__builtin_fscanf" => Some(StdFunction::Fscanf),
         "rand" => Some(StdFunction::Rand),
         "srand" => Some(StdFunction::Srand),
         _ => None,
@@ -1192,6 +1201,9 @@ fn dependencies(name: &str) -> &'static [&'static str] {
         ATOF => &[STRTOD],
         SYSTEM | MKDIR => &[SET_ERRNO],
         SSCANF => &[RAW_BYTE, ISSPACE, DIGIT, STRTO, ARG_U64],
+        FSCANF => &[
+            RAW_BYTE, RAW_PUT, ISSPACE, DIGIT, STRTO, STRTOD, ARG_U64, FGETC, UNGETC,
+        ],
         RAND_STEP => &[RAND_STATE, RAND_FRONT, RAND_REAR],
         SRAND => &[RAND_STEP, RAND_SEEDED],
         RAND => &[SRAND],
@@ -1364,6 +1376,7 @@ fn build(name: &str) -> DaDecl {
         SYSTEM => build_system(),
         MKDIR => build_mkdir(),
         SSCANF => build_sscanf(),
+        FSCANF => build_fscanf(),
         other => unreachable!("unregistered std helper: {other}"),
     }
 }
@@ -1780,21 +1793,24 @@ impl<'c> Translation<'c> {
         function: Option<StdFunction>,
         args: &[CExprId],
     ) -> TranslationResult<()> {
-        if function != Some(StdFunction::Sscanf) {
-            return Ok(());
-        }
+        let (name, check): (&str, fn(&[u8]) -> Option<String>) = match function {
+            Some(StdFunction::Sscanf) => ("sscanf", unsupported_scan_conversion),
+            Some(StdFunction::Fscanf) => ("fscanf", unsupported_stream_scan_conversion),
+            _ => return Ok(()),
+        };
         let Some(&arg) = args.get(1) else {
             return Ok(());
         };
         let Some(bytes) = self.string_literal_bytes(arg) else {
             return Ok(());
         };
-        let Some(spelled) = unsupported_scan_conversion(&bytes) else {
+        let Some(spelled) = check(&bytes) else {
             return Ok(());
         };
         Err(format_translation_err!(
             self.ast_context.display_loc(&self.ast_context[arg].loc),
-            "--libc std: sscanf conversion `{}` is not implemented",
+            "--libc std: {} conversion `{}` is not implemented",
+            name,
             spelled
         ))
     }
@@ -2014,6 +2030,56 @@ fn unsupported_scan_conversion(format: &[u8]) -> Option<String> {
         i += 1;
         let accepted =
             !has_prefix && matches!(conversion, b'd' | b'i' | b'o' | b'u' | b'x' | b'X' | b'%');
+        if !accepted {
+            return Some(String::from_utf8_lossy(&format[start..i]).into_owned());
+        }
+    }
+    None
+}
+
+/// The first conversion specification in an `fscanf` format that
+/// `c2da_std_fscanf` does not implement, spelled as the C source spells it.
+///
+/// The grammar the engine implements, in full (C11 7.21.6.2):
+///
+/// ```text
+/// white-space   skips any amount of input white space, none included
+/// ordinary byte must match the next input byte
+/// %%            matches one `%`, after skipping input white space
+/// %[w]d %[w]i %[w]o %[w]u %[w]x %[w]X   into an `int` / `unsigned int`
+/// %[w]s                                 a run of non-white-space bytes
+/// %[w]e %[w]f %[w]g %[w]E %[w]G         into a `float`; with `l`, a `double`
+/// ```
+///
+/// Assignment suppression, every other length modifier and every other
+/// conversion (`%c %[ %n %p %a`…) is reported here.
+fn unsupported_stream_scan_conversion(format: &[u8]) -> Option<String> {
+    let mut i = 0;
+    while i < format.len() {
+        if format[i] != b'%' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        while i < format.len() && format[i].is_ascii_digit() {
+            i += 1;
+        }
+        let long = format.get(i) == Some(&b'l');
+        if long {
+            i += 1;
+        }
+        let Some(&conversion) = format.get(i) else {
+            return Some(String::from_utf8_lossy(&format[start..]).into_owned());
+        };
+        i += 1;
+        let bare = i == start + 2;
+        let accepted = match conversion {
+            b'%' => bare,
+            b'd' | b'i' | b'o' | b'u' | b'x' | b'X' | b's' => !long,
+            b'e' | b'f' | b'g' | b'E' | b'G' => true,
+            _ => false,
+        };
         if !accepted {
             return Some(String::from_utf8_lossy(&format[start..i]).into_owned());
         }
@@ -7854,6 +7920,477 @@ fn build_sscanf() -> DaDecl {
         ],
     )
 }
+
+/// `def c2da_std_fscanf(handle : uint64; f : uint64; args : array<C2daVaArg>) : int`
+///
+/// C11 7.21.6.2 over a stream, for the directives
+/// [`unsupported_stream_scan_conversion`] accepts, read with glibc's rules:
+///
+/// * the engine holds one byte of lookahead (`fgetc`) and pushes it back with
+///   `ungetc` when it returns, so the stream is left at the first byte no
+///   directive consumed, as glibc leaves it;
+/// * a white-space directive skips any amount of input white space; an
+///   ordinary byte must match the next input byte; `%%` skips input white
+///   space and matches one `%`;
+/// * every other conversion skips input white space first. `%s` stores the
+///   run of non-white-space bytes (at most the field width) and a NUL; the
+///   integer conversions collect the subject `sscanf` reads (sign, `0`/`0x`
+///   prefix, digits of the base) and store the low 32 bits of `strtol`'s or
+///   `strtoul`'s conversion of it; `%e %f %g %E %G` collect a sign, digits, a
+///   `.`, digits and an `e` exponent and store `strtod`'s conversion as a
+///   `float` (`double` under `l`);
+/// * the answer is the number of stored items, or `EOF` when the input ends
+///   before the first conversion; a matching failure stops the scan.
+///
+/// `inf`/`nan` and hexadecimal floating input, and a computed format with any
+/// other directive, panic rather than convert to something else; a literal
+/// format never reaches the helper with one (`check_std_scan_format`).
+fn build_fscanf() -> DaDecl {
+    let fmt_byte = |at: DaExpr| call(RAW_BYTE, vec![var("f"), at]);
+    let is_c = |code: i64| op2("==", var("c"), DaExpr::ConstInt(code));
+    let c_space = || {
+        op2(
+            "&&",
+            op2(">=", var("c"), DaExpr::ConstInt(0)),
+            op2("!=", call(ISSPACE, vec![var("c")]), DaExpr::ConstInt(0)),
+        )
+    };
+    let next = || assign(var("c"), call(FGETC, vec![var("handle")]));
+    let finish = |value: DaExpr| {
+        vec![
+            if_then(
+                op2(">=", var("c"), DaExpr::ConstInt(0)),
+                vec![DaStmt::Expr(call(UNGETC, vec![var("c"), var("handle")]))],
+            ),
+            DaStmt::Expr(call("c2da_rt_free", vec![var("buf")])),
+            ret(value),
+        ]
+    };
+    let input_failure = || {
+        [
+            vec![if_then(
+                op2("==", var("done"), DaExpr::ConstInt(0)),
+                finish(DaExpr::ConstInt(-1)),
+            )],
+            finish(var("done")),
+        ]
+        .concat()
+    };
+    let skip_input_space = || while_(c_space(), vec![next()]);
+    let continue_ = || DaStmt::Expr(DaExpr::Continue);
+    let room = || op2("<", var("n"), var("limit"));
+    let take = || {
+        vec![
+            DaStmt::Expr(call(
+                RAW_PUT,
+                vec![var("buf"), cast(var("n"), DaType::uint64()), var("c")],
+            )),
+            advance("n"),
+            next(),
+        ]
+    };
+    let take_digits = |digit: DaExpr| {
+        while_(
+            op2("&&", room(), digit),
+            [vec![assign(var("any"), DaExpr::ConstBool(true))], take()].concat(),
+        )
+    };
+    let decimal = || call("is_number", vec![var("c")]);
+    let take_sign = || if_then(op2("&&", room(), op2("||", is_c(45), is_c(43))), take());
+    let conv_is = |code: i64| op2("==", var("conv"), DaExpr::ConstInt(code));
+    let set_base = |value: i64, signed: bool| {
+        vec![
+            assign(var("base"), DaExpr::ConstInt(value)),
+            assign(var("signed_conv"), DaExpr::ConstBool(signed)),
+        ]
+    };
+    let panic_ = |message: &str| DaStmt::Expr(call("panic", vec![text(message)]));
+    let strto = |pos: u64, neg: u64| {
+        call(
+            STRTO,
+            vec![
+                var("buf"),
+                uint64_const(0),
+                var("base"),
+                uint64_const(pos),
+                uint64_const(neg),
+            ],
+        )
+    };
+    let store = |ty: DaType, value: DaExpr| {
+        assign(
+            DaExpr::Unsafe(Box::new(DaExpr::Index(
+                Box::new(reinterpret(var("cell"), DaType::pointer(ty))),
+                Box::new(DaExpr::ConstInt(0)),
+            ))),
+            value,
+        )
+    };
+    let terminate = || {
+        DaStmt::Expr(call(
+            RAW_PUT,
+            vec![
+                var("buf"),
+                cast(var("n"), DaType::uint64()),
+                DaExpr::ConstInt(0),
+            ],
+        ))
+    };
+    let integer = vec![
+        local("radix", DaType::int(), var("base")),
+        take_sign(),
+        if_chain(
+            op2("&&", room(), is_c(48)),
+            [
+                vec![assign(var("any"), DaExpr::ConstBool(true))],
+                take(),
+                vec![if_chain(
+                    op2(
+                        "&&",
+                        room(),
+                        op2(
+                            "==",
+                            op2("|", var("c"), DaExpr::ConstInt(32)),
+                            DaExpr::ConstInt(120),
+                        ),
+                    ),
+                    vec![if_then(
+                        op2(
+                            "||",
+                            op2("==", var("radix"), DaExpr::ConstInt(0)),
+                            op2("==", var("radix"), DaExpr::ConstInt(16)),
+                        ),
+                        [vec![assign(var("radix"), DaExpr::ConstInt(16))], take()].concat(),
+                    )],
+                    vec![(
+                        op2("==", var("radix"), DaExpr::ConstInt(0)),
+                        vec![assign(var("radix"), DaExpr::ConstInt(8))],
+                    )],
+                    None,
+                )],
+            ]
+            .concat(),
+            vec![(
+                op2("==", var("radix"), DaExpr::ConstInt(0)),
+                vec![assign(var("radix"), DaExpr::ConstInt(10))],
+            )],
+            None,
+        ),
+        take_digits(op2(
+            ">=",
+            call(DIGIT, vec![var("c"), var("radix")]),
+            DaExpr::ConstInt(0),
+        )),
+        if_then(not(var("any")), finish(var("done"))),
+        terminate(),
+        local("value", DaType::uint64(), uint64_const(0)),
+        if_chain(
+            var("signed_conv"),
+            vec![assign(
+                var("value"),
+                strto(INT64_MAX_MAGNITUDE, INT64_MIN_MAGNITUDE),
+            )],
+            vec![],
+            Some(vec![assign(
+                var("value"),
+                strto(UINT64_MAX_MAGNITUDE, UINT64_MAX_MAGNITUDE),
+            )]),
+        ),
+        store(
+            DaType::uint(),
+            cast(
+                op2("&", var("value"), uint64_const(0xffff_ffff)),
+                DaType::uint(),
+            ),
+        ),
+    ];
+    let floating = vec![
+        take_sign(),
+        if_then(
+            op2(
+                "||",
+                op2(
+                    "==",
+                    op2("|", var("c"), DaExpr::ConstInt(32)),
+                    DaExpr::ConstInt(105),
+                ),
+                op2(
+                    "==",
+                    op2("|", var("c"), DaExpr::ConstInt(32)),
+                    DaExpr::ConstInt(110),
+                ),
+            ),
+            vec![panic_(
+                "--libc std: fscanf does not implement `inf`/`nan` input",
+            )],
+        ),
+        take_digits(decimal()),
+        if_then(
+            op2(
+                "&&",
+                var("any"),
+                op2(
+                    "==",
+                    op2("|", var("c"), DaExpr::ConstInt(32)),
+                    DaExpr::ConstInt(120),
+                ),
+            ),
+            vec![panic_(
+                "--libc std: fscanf does not implement hexadecimal floating input",
+            )],
+        ),
+        if_then(
+            op2("&&", room(), is_c(46)),
+            [take(), vec![take_digits(decimal())]].concat(),
+        ),
+        if_then(
+            op2(
+                "&&",
+                op2("&&", var("any"), room()),
+                op2(
+                    "==",
+                    op2("|", var("c"), DaExpr::ConstInt(32)),
+                    DaExpr::ConstInt(101),
+                ),
+            ),
+            [
+                take(),
+                vec![take_sign(), while_(op2("&&", room(), decimal()), take())],
+            ]
+            .concat(),
+        ),
+        if_then(not(var("any")), finish(var("done"))),
+        terminate(),
+        constant(
+            "number",
+            DaType::double(),
+            call(STRTOD, vec![var("buf"), uint64_const(0)]),
+        ),
+        if_chain(
+            var("wide"),
+            vec![store(DaType::double(), var("number"))],
+            vec![],
+            Some(vec![store(
+                DaType::float(),
+                cast(var("number"), DaType::float()),
+            )]),
+        ),
+    ];
+    let loop_body = vec![
+        let_("fc", fmt_byte(var("i"))),
+        if_then(
+            op2("==", var("fc"), DaExpr::ConstInt(0)),
+            vec![DaStmt::Expr(DaExpr::Break)],
+        ),
+        // A white-space directive.
+        if_then(
+            op2("!=", call(ISSPACE, vec![var("fc")]), DaExpr::ConstInt(0)),
+            vec![
+                while_(
+                    op2(
+                        "!=",
+                        call(ISSPACE, vec![fmt_byte(var("i"))]),
+                        DaExpr::ConstInt(0),
+                    ),
+                    vec![advance_u64("i")],
+                ),
+                skip_input_space(),
+                continue_(),
+            ],
+        ),
+        // An ordinary byte.
+        if_then(
+            op2("!=", var("fc"), DaExpr::ConstInt(37)),
+            [
+                vec![if_then(
+                    op2("<", var("c"), DaExpr::ConstInt(0)),
+                    input_failure(),
+                )],
+                vec![if_then(op2("!=", var("c"), var("fc")), finish(var("done")))],
+                vec![next(), advance_u64("i"), continue_()],
+            ]
+            .concat(),
+        ),
+        local("j", DaType::uint64(), op2("+", var("i"), uint64_const(1))),
+        local("width", DaType::int(), DaExpr::ConstInt(0)),
+        while_(
+            call("is_number", vec![fmt_byte(var("j"))]),
+            vec![
+                assign(
+                    var("width"),
+                    op2(
+                        "-",
+                        op2(
+                            "+",
+                            op2("*", var("width"), DaExpr::ConstInt(10)),
+                            fmt_byte(var("j")),
+                        ),
+                        DaExpr::ConstInt(48),
+                    ),
+                ),
+                advance_u64("j"),
+            ],
+        ),
+        local("wide", DaType::bool(), DaExpr::ConstBool(false)),
+        if_then(
+            op2("==", fmt_byte(var("j")), DaExpr::ConstInt(108)),
+            vec![
+                assign(var("wide"), DaExpr::ConstBool(true)),
+                advance_u64("j"),
+            ],
+        ),
+        let_("conv", fmt_byte(var("j"))),
+        assign(var("i"), op2("+", var("j"), uint64_const(1))),
+        // `%%`.
+        if_then(
+            conv_is(37),
+            [
+                vec![skip_input_space()],
+                vec![if_then(
+                    op2("<", var("c"), DaExpr::ConstInt(0)),
+                    input_failure(),
+                )],
+                vec![if_then(not(is_c(37)), finish(var("done")))],
+                vec![next(), continue_()],
+            ]
+            .concat(),
+        ),
+        local("base", DaType::int(), DaExpr::ConstInt(-1)),
+        local("signed_conv", DaType::bool(), DaExpr::ConstBool(false)),
+        local("floating", DaType::bool(), DaExpr::ConstBool(false)),
+        if_chain(
+            conv_is(100),
+            set_base(10, true),
+            vec![
+                (conv_is(105), set_base(0, true)),
+                (conv_is(111), set_base(8, false)),
+                (conv_is(117), set_base(10, false)),
+                (op2("||", conv_is(120), conv_is(88)), set_base(16, false)),
+                (
+                    [101, 102, 103, 69, 71]
+                        .into_iter()
+                        .map(conv_is)
+                        .reduce(|left, right| op2("||", left, right))
+                        .expect("float conversions"),
+                    vec![assign(var("floating"), DaExpr::ConstBool(true))],
+                ),
+            ],
+            None,
+        ),
+        if_then(
+            op2(
+                "&&",
+                op2(
+                    "||",
+                    op2("<", var("base"), DaExpr::ConstInt(0)),
+                    var("wide"),
+                ),
+                op2("&&", not(var("floating")), not(conv_is(115))),
+            ),
+            vec![panic_("--libc std: fscanf conversion is not implemented")],
+        ),
+        skip_input_space(),
+        if_then(op2("<", var("c"), DaExpr::ConstInt(0)), input_failure()),
+        constant(
+            "cell",
+            DaType::uint64(),
+            call(ARG_U64, vec![var("args"), var("arg")]),
+        ),
+        if_then(
+            op2("==", var("cell"), uint64_const(0)),
+            vec![panic_(
+                "--libc std: fscanf has no pointer argument to store a conversion through",
+            )],
+        ),
+        if_chain(
+            conv_is(115),
+            vec![
+                local("k", DaType::int(), DaExpr::ConstInt(0)),
+                while_(
+                    op2(
+                        "&&",
+                        op2(">=", var("c"), DaExpr::ConstInt(0)),
+                        op2(
+                            "&&",
+                            op2("==", call(ISSPACE, vec![var("c")]), DaExpr::ConstInt(0)),
+                            op2(
+                                "||",
+                                op2("==", var("width"), DaExpr::ConstInt(0)),
+                                op2("<", var("k"), var("width")),
+                            ),
+                        ),
+                    ),
+                    vec![
+                        DaStmt::Expr(call(
+                            RAW_PUT,
+                            vec![var("cell"), cast(var("k"), DaType::uint64()), var("c")],
+                        )),
+                        advance("k"),
+                        next(),
+                    ],
+                ),
+                DaStmt::Expr(call(
+                    RAW_PUT,
+                    vec![
+                        var("cell"),
+                        cast(var("k"), DaType::uint64()),
+                        DaExpr::ConstInt(0),
+                    ],
+                )),
+            ],
+            vec![],
+            Some(vec![
+                // The subject is collected into `buf`; a field width bounds it.
+                local("limit", DaType::int(), DaExpr::ConstInt(SCAN_SUBJECT_MAX)),
+                if_then(
+                    op2(
+                        "&&",
+                        op2(">", var("width"), DaExpr::ConstInt(0)),
+                        op2("<", var("width"), var("limit")),
+                    ),
+                    vec![assign(var("limit"), var("width"))],
+                ),
+                local("n", DaType::int(), DaExpr::ConstInt(0)),
+                local("any", DaType::bool(), DaExpr::ConstBool(false)),
+                if_chain(var("floating"), floating, vec![], Some(integer)),
+            ]),
+        ),
+        advance("arg"),
+        advance("done"),
+    ];
+    helper(
+        FSCANF,
+        vec![
+            u64_param("handle"),
+            u64_param("f"),
+            param("args", va_args_type()),
+        ],
+        DaType::int(),
+        [
+            vec![
+                local("done", DaType::int(), DaExpr::ConstInt(0)),
+                local("arg", DaType::int(), DaExpr::ConstInt(0)),
+                local("i", DaType::uint64(), uint64_const(0)),
+                constant(
+                    "buf",
+                    DaType::uint64(),
+                    call(
+                        "c2da_rt_malloc",
+                        vec![uint64_const(SCAN_SUBJECT_MAX as u64 + 1)],
+                    ),
+                ),
+                local("c", DaType::int(), call(FGETC, vec![var("handle")])),
+                while_true(loop_body),
+            ],
+            finish(var("done")),
+        ]
+        .concat(),
+    )
+}
+
+/// The longest numeric subject `c2da_std_fscanf` collects without a field
+/// width; glibc's own bound is the input, and no C number needs more.
+const SCAN_SUBJECT_MAX: i64 = 511;
 
 #[cfg(test)]
 mod tests {
