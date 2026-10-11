@@ -1024,10 +1024,18 @@ pub(crate) fn libm_function(name: &str) -> Option<LibmFunction> {
 
 /// Lowers a `<math.h>` call whose arguments are already converted.
 pub(crate) fn lower_libm(function: LibmFunction, args: Vec<DaExpr>) -> DaExpr {
-    if function.builtin == FABS {
-        require(FABS);
-    } else {
-        MATH_USED.with(|used| used.set(true));
+    MATH_USED.with(|used| used.set(true));
+    // `math::abs` clears the sign bit (`fabs`/`fabsf`, and the SIMD form
+    // masks it), `sqrt` is IEEE's correctly rounded root in either width
+    // and `fmod` is exact: the `float` builtin is C's `sqrtf`, `fabsf`,
+    // `fmodf` exactly, with no round trip through `double`.
+    let exact_builtin = match function.builtin {
+        FABS => Some("abs"),
+        "sqrt" | "fmod" => Some(function.builtin),
+        _ => None,
+    };
+    if let Some(builtin) = exact_builtin {
+        return call(builtin, args);
     }
     // The C call already converted each argument to its parameter type, so
     // only a `float` variant's arguments need widening.
