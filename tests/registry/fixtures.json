@@ -2289,6 +2289,32 @@
         "value": "unregistered"
       },
       "family": "quakegeneric",
+      "id": "tests--manual--quakegeneric--src--qg_eden_play",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/quakegeneric/src/qg_eden_play.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "quakegeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iupstream/quakegeneric/source",
+          "-Isrc",
+          "-include",
+          "engine_config.h",
+          "-lm"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "quakegeneric",
       "id": "tests--manual--quakegeneric--src--qg_platform",
       "owner": "corpus graph inventory",
       "runtime": "unverified",

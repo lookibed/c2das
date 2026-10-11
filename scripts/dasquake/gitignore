@@ -1,0 +1,7 @@
+*.pak
+*.PAK
+*.pak.data
+id1/
+# daslang's module and JIT caches written next to the scripts
+.cache/
+.jitted_scripts/

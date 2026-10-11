@@ -80,6 +80,34 @@ model (`getc` in `cl_demo.c`, which reads the demo's CD-track line) are the next
 work found"); they were not reached here.  These are translator gaps: the C is not changed to
 avoid them.
 
+## Play build (EdenSpark)
+
+Milestone M1 of `docs/quake-eden-plan.md`, prepared ahead of the translator work it needs.
+
+- `src/qg_eden_play.c` (ours) with `src/qg_eden.h`: the seven `QG_*` functions for interactive
+  play and the host API `qge_init` (attract demos), `qge_init_map` (`+map start`),
+  `qge_tick(ms)` (host clock; `QG_Tick` gets the time since the previous call), `qge_key`
+  (`quakekeys.h` codes, a 64-event queue `QG_GetKey` drains), `qge_mouse`, `qge_screen`,
+  `qge_palette`, `qge_frames`, `qge_width`, `qge_height`.  The engine runs as
+  `quake -basedir quake`, so the host registers the pak as `quake/id1/pak0.pak`.  The screen is
+  the engine's own `vid_buffer`; the palette is copied into a harness buffer, because the
+  engine passes palettes from its stack (`V_UpdatePalette`, `CL_ParseServerMessage`).  No sound:
+  `snd_null.c` is the sound driver.
+- The play translation units are the case's 68 engine units plus `src/qg_eden_play.c`
+  (not `qg_platform.c` or `quake_entry.c`; no `main`).
+- `eden/c2das_quake_player.das` (hand-written host, follows the Doom player): texture from the
+  8-bit screen through the RGB palette, keys through an action set, optional mouse from the
+  input command buffer, status line with fps and frame ms.  `scripts/export_dasquake.py` and
+  `scripts/dasquake/` export the dasQUAKE tree like dasDOOM's.
+
+Checked natively (clang-18, 64-bit, the 68 engine units, `qg_eden_play.c` and a test driver in
+scratch): `qge_init` then 400 `qge_tick` calls 40 ms apart, with an Esc press and mouse
+movement, render 409 frames (every tick at least one; level loads render extra ones), and the screen address is `vid_buffer`.
+`qge_init_map` segfaults natively after loading `maps/start.bsp`: the 64-bit QuakeC string
+issue above.  Under `--memory-model linear` it is expected to work, not yet checked.  Both
+the exporter and a direct translation of the play units stop at the `atan` refusal in
+`Chase_Update`, like the two cases.
+
 ## Fixtures
 
 `fixtures/id1/pak0.pak` is id Software's Quake shareware game data (version 1.06, episode 1).  It
