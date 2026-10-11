@@ -1063,6 +1063,21 @@ impl<'c> Translation<'c> {
                 {
                     self.object_root(*inner)
                 }
+                // A local union is bytes read back through another member's
+                // type: in the C stack every member is a heap access, where
+                // a daslang value would need `reinterpret`.
+                CExprKind::DeclRef(_, decl, _)
+                    if matches!(
+                        self.ast_context[*decl].kind,
+                        CDeclKind::Variable { typ, .. }
+                            if matches!(
+                                self.ast_context.resolve_type(typ.ctype).kind,
+                                CTypeKind::Union(_)
+                            )
+                    ) =>
+                {
+                    Some(*decl)
+                }
                 _ => None,
             };
             let Some(decl) = root else { continue };

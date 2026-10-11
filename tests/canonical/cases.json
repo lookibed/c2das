@@ -1254,6 +1254,23 @@
       "runtime": "required"
     },
     {
+      "id": "p224-linear-local-union",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p224_linear_local_union.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "150 1 6\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p223-std-sprintf",
       "status": "ready",
       "source_root": "tests/syntax",
