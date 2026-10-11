@@ -2353,7 +2353,7 @@
       "owner": "corpus graph inventory",
       "runtime": "required",
       "source": "tests/manual/quakegeneric/src/quake_entry.c",
-      "status": "known-red"
+      "status": "supported"
     },
     {
       "c_graph": "single-tu",

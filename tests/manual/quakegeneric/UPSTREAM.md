@@ -66,14 +66,17 @@ comparison.
 
 ## Translation status
 
-Both cases are `known-red`.  In both, the C reference program reproduces the declared oracle
-under the canonical runner; translation then stops.  First blocker at the time of import
-(2026-10-12, translator at `e988a8de1`), the same for both cases:
+`quakegeneric-demo1-std` is `ready`: the translated program reproduces the C reference's 101
+frame hashes.  `quakegeneric-demo1-eden-linear` is `known-red`; the C reference reproduces the
+declared oracle under the canonical runner, and translation then stops.
 
-| case | first blocker |
+| case | status / first blocker |
 |---|---|
-| `quakegeneric-demo1-std` (`--libc std`) | `translation failed: operation=top-level declaration lowering; declaration=Chase_Update; cause=unsupported external call: atan` (`chase.c`) |
-| `quakegeneric-demo1-eden-linear` (eden flags, `--memory-model linear`) | the same `atan` refusal in `Chase_Update` |
+| `quakegeneric-demo1-std` (`--libc std`) | passes |
+| `quakegeneric-demo1-eden-linear` (eden flags, `--memory-model linear`) | `declaration=Sys_FileOpenWrite; cause=not supported under --memory-model linear yet: library function `strerror` over C memory` (`sys_null.c:95`) |
+
+At the time of import (2026-10-12, translator at `e988a8de1`) both cases stopped at
+`unsupported external call: atan` in `Chase_Update`.
 
 The rest of libm the engine calls (`sqrt`, `sin`, `cos`, `tan`, `pow`) and stdio under the linear
 model (`getc` in `cl_demo.c`, which reads the demo's CD-track line) are the next expected blockers (`docs/quake-eden-plan.md`, "Translator
