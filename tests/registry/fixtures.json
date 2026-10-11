@@ -2270,6 +2270,92 @@
       "status": "known-red"
     },
     {
+      "c_graph": "quakegeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iupstream/quakegeneric/source",
+          "-Isrc",
+          "-include",
+          "engine_config.h",
+          "-lm"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "quakegeneric",
+      "id": "tests--manual--quakegeneric--src--qg_eden_play",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/quakegeneric/src/qg_eden_play.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "quakegeneric",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iupstream/quakegeneric/source",
+          "-Isrc",
+          "-include",
+          "engine_config.h",
+          "-lm"
+        ]
+      },
+      "entrypoint": "graph-member",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "quakegeneric",
+      "id": "tests--manual--quakegeneric--src--qg_platform",
+      "owner": "corpus graph inventory",
+      "runtime": "unverified",
+      "source": "tests/manual/quakegeneric/src/qg_platform.c",
+      "status": "inventory-only"
+    },
+    {
+      "c_graph": "quakegeneric",
+      "canonical_case": "quakegeneric-demo1-std",
+      "canonical_cases": [
+        "quakegeneric-demo1-std",
+        "quakegeneric-demo1-eden-linear"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-std=c11",
+          "-Iupstream/quakegeneric/source",
+          "-Isrc",
+          "-include",
+          "engine_config.h",
+          "-lm"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "frame[0]=1626327968\nframe[1]=913876061\nframe[2]=1235901607\nframe[3]=-1510137502\nframe[4]=-1447275665\nframe[5]=1604408250\nframe[6]=1054261287\nframe[7]=-2137828193\nframe[8]=-13865727\nframe[9]=-1391079555\nframe[10]=1954363209\nframe[11]=-1971495795\nframe[12]=-1725348717\nframe[13]=284400774\nframe[14]=1795074720\nframe[15]=1773090806\nframe[16]=272626775\nframe[17]=1556293031\nframe[18]=1509272894\nframe[19]=-1530714053\nframe[20]=-1172085040\nframe[21]=1301010768\nframe[22]=-847832480\nframe[23]=1422537081\nframe[24]=1467368733\nframe[25]=-1524427101\nframe[26]=1845793197\nframe[27]=-2084024248\nframe[28]=-1483714875\nframe[29]=-758348664\nframe[30]=1249726768\nframe[31]=534535021\nframe[32]=421920642\nframe[33]=1517594818\nframe[34]=-1175236577\nframe[35]=-647776145\nframe[36]=775478889\nframe[37]=-873368453\nframe[38]=-848304658\nframe[39]=-1908758665\nframe[40]=-1272616395\nframe[41]=853136593\nframe[42]=-1008914930\nframe[43]=1885605612\nframe[44]=1338030278\nframe[45]=1937078097\nframe[46]=435043869\nframe[47]=1934153416\nframe[48]=-850873666\nframe[49]=-882638844\nframe[50]=356515070\nframe[51]=-1964458743\nframe[52]=599503273\nframe[53]=-1294655111\nframe[54]=-370129061\nframe[55]=61095985\nframe[56]=35444505\nframe[57]=828463461\nframe[58]=1309148355\nframe[59]=1078120659\nframe[60]=-1545602960\nframe[61]=-1683290910\nframe[62]=1475209746\nframe[63]=1017932383\nframe[64]=693830875\nframe[65]=-581633313\nframe[66]=-295223504\nframe[67]=1350323515\nframe[68]=626747914\nframe[69]=-94243005\nframe[70]=-868127033\nframe[71]=-1789727541\nframe[72]=2137354752\nframe[73]=-258456405\nframe[74]=1796323300\nframe[75]=1025517367\nframe[76]=663332897\nframe[77]=-610927334\nframe[78]=-2076954521\nframe[79]=738942805\nframe[80]=-343788006\nframe[81]=1448081540\nframe[82]=-1832676717\nframe[83]=2083740829\nframe[84]=-1781823819\nframe[85]=-392278661\nframe[86]=14187933\nframe[87]=-1520929405\nframe[88]=1660065803\nframe[89]=-574478806\nframe[90]=-739030710\nframe[91]=-527878785\nframe[92]=-1284453610\nframe[93]=800999759\nframe[94]=601697802\nframe[95]=-1670204952\nframe[96]=421892536\nframe[97]=765715718\nframe[98]=2024815673\nframe[99]=-1846441944\nframes=100\n"
+        }
+      },
+      "family": "quakegeneric",
+      "id": "tests--manual--quakegeneric--src--quake_entry",
+      "owner": "corpus graph inventory",
+      "runtime": "required",
+      "source": "tests/manual/quakegeneric/src/quake_entry.c",
+      "status": "known-red"
+    },
+    {
       "c_graph": "single-tu",
       "checked_in_das": "tests/manual/repro-architecture/repro_assignment_bitand_const_ptr.das",
       "clang": {
@@ -12182,6 +12268,19 @@
       "description": "doomgeneric engine plus the corpus platform layer, rooted at src/doom_all.c; src/doom_bench_all.c is the same graph with the timing entry.",
       "entry": "tests/manual/doomgeneric/src/doom_all.c",
       "id": "doomgeneric"
+    },
+    {
+      "clang_flags": [
+        "-std=c11",
+        "-Iupstream/quakegeneric/source",
+        "-Isrc",
+        "-include",
+        "engine_config.h",
+        "-lm"
+      ],
+      "description": "quakegeneric (WinQuake software renderer) plus the corpus platform layer, compiled unit by unit: the 68 engine units of upstream's makefile, src/qg_platform.c and the entry src/quake_entry.c.",
+      "entry": "tests/manual/quakegeneric/src/quake_entry.c",
+      "id": "quakegeneric"
     }
   ],
   "purpose": "Frozen inventory; statuses are facts, never a compatibility claim.",
