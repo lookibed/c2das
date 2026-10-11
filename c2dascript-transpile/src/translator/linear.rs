@@ -4781,8 +4781,12 @@ def c2da_lin_vfmt(f : int; args : array<C2daVaArg>; start : int; var out : array
             spec += to_char(conv)
             let text = fmt(spec, args[k].f64)
             k++
-            for (j in range(length(text))) {
-                push(out, uint8(character_at(text, j)))
+            // `push_from` does not take `peek_data`'s temporary view.
+            peek_data(text) $(bytes) {
+                reserve(out, length(out) + length(bytes))
+                for (b in bytes) {
+                    push(out, b)
+                }
             }
         } elif (conv == 99) {
             let b = int(args[k].i64 & 255l)
