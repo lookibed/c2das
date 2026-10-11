@@ -85,6 +85,25 @@
    dropped. Removing it needs proof that a store through a `uint64`-reinterpreted address is
    seen as a side effect.
 
+## das-critic-perf on e988a8de1..8daff4635 (libm, rand, setjmp, getc, printf floats)
+
+**Verdict: PASS.** No corpus regression: Doom's translations are identical apart from cold
+helpers.
+
+**Findings, in the interpreter:**
+
+| # | C | today | proposed | per call | legality |
+|---|---|---|---|---|---|
+| 1 | `sqrtf(f)`, or `(float)sqrt(f)` | `float(sqrt(double(f)))` | `sqrt(f)`, one `Sqrt_TT<float>` | −16 ns (3–4×) | exact: IEEE sqrt is correctly rounded, double rounding is harmless |
+| 2 | `fabsf(f)` | `float(c2da_std_fabs(double(f)))` | `abs(f)` | −9 ns | exact: sign bit only |
+| 2b | `fabs(x)` on doubles | the `c2da_std_fabs` call | `abs(x)` | −2 ns | exact |
+| 3 | `fmodf(a, b)` | through double | `fmod(f, g)` | −10 ns | exact |
+| 4 | `sinf`/`cosf`/`expf`/…, `floorf`/`ceilf` | through double | keep | — | daslang's float forms are approximate or wrong for −0.0 and large magnitudes; a candidate for the fork |
+| 5 | linear `%f/%e/%g` | builds the spec with string `+=`, copies by `character_at` | build once; copy with `peek_data` | a few hundred ns per conversion (estimate) | cold |
+
+Findings 1–3 are one peephole in `lower_libm`: for an argument widened from float whose result is
+narrowed back, emit the float builtin.
+
 ## Readability
 
 - **Nested wrappers:** 11 387 `unsafe(unsafe(…))` in Doom. Many `reinterpret` calls target
