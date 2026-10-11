@@ -104,6 +104,32 @@ helpers.
 Findings 1–3 are one peephole in `lower_libm`: for an argument widened from float whose result is
 narrowed back, emit the float builtin.
 
+## das-critic-style on the same range
+
+**Verdict: BLOCK (narrow).** The range adds 5 lint findings the translator could avoid at no speed
+cost. Doom std output is unchanged: 720 findings on both commits.
+
+**To fix:**
+1. **Linear float formatting:** `c2da_lin_vfmt` copies the formatted text with `character_at` in a
+   loop (PERF002/PERF006, O(n²)). Use `peek_data` + `push_from` instead (`linear.rs:4503`).
+2. **`longjmp`:** `c2da_std_longjmp`'s `value` parameter is unused (LINT012). Keep it, so the
+   argument is still evaluated, and mark it `[unused_argument(value)]`.
+3. **`fgetc`/`fread` under linear:** `int64(length(…))` becomes `long_length(…)` (LINT017).
+4. **`setjmp` functions:** a dead `panic` and `return 0` follow a `try/recover` whose arms both
+   return. `TryRecover` should count as terminating in `cfg/structured.rs`.
+
+**Smaller:**
+- STYLE042 single-return helpers, systemic: `das_ast` has no `=>` form.
+- `to_char(35)` for `#`.
+- `srand`'s while loops.
+- Unused `jmp_buf` storage.
+- `recover` re-panics with a generic message.
+
+**Hosts** (not linted: `engine.core` exists only in the editor):
+- `c2das_quake_player.das` defines a private `fmt` that shadows `strings::fmt`.
+- `done > 0` guards a division by `ticks`.
+- The dasQUAKE `main.das` copies the pak byte by byte.
+
 ## Readability
 
 - **Nested wrappers:** 11 387 `unsafe(unsafe(…))` in Doom. Many `reinterpret` calls target
