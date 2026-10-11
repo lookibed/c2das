@@ -11,3 +11,12 @@
   nearest `REVIEW.md`, and the matching skill in `skills/`.
 - Unsupported C semantics fail closed with a source-located diagnostic.  No generated-text
   replacement, fixture-specific body rewrite, or silent daScript-value fallback is permitted.
+- A translator gap is fixed in the translator.  C — upstream sources or our harness under
+  `tests/manual/*/src` — is never reshaped to avoid it.
+
+# Pre-PR review
+
+- A change that can alter generated daslang (translator, `das_ast`, runtime/libc preludes,
+  translator or case flags) passes the two output critics `das-critic-perf` and
+  `das-critic-style` (`.claude/agents/`) once before its PR or push to `master`, after the
+  gates are green.  Procedure and blocking rules: `docs/pre-pr-review.md`.
