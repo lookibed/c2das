@@ -3033,6 +3033,9 @@ impl<'c> Translation<'c> {
         base: &str,
         args: &[CExprId],
     ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
+        if matches!(base, "fscanf" | "__isoc99_fscanf") {
+            return self.linear_fscanf(ctx, expr_id, args).map(Some);
+        }
         let (runtime, types): (&str, &str) = match base {
             "fopen" => ("c2da_lin_fopen", "II"),
             "fread" => ("c2da_lin_fread", "IUUH"),
@@ -3081,6 +3084,77 @@ impl<'c> Translation<'c> {
         Ok(Some(out.map(|list| {
             DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list)
         })))
+    }
+
+    /// `fscanf` over a registered file (`c2da_lin_fscanf`): the format must be
+    /// a literal whose every directive the runtime implements (the `--libc std`
+    /// grammar, `libc::unsupported_stream_scan_conversion`), and the pointer
+    /// arguments travel as one `int` offset per conversion.
+    fn linear_fscanf(
+        &self,
+        ctx: ExprContext,
+        expr_id: CExprId,
+        args: &[CExprId],
+    ) -> TranslationResult<WithStmts<DaExpr>> {
+        let bytes = self
+            .decayed_array(args.get(1).copied().unwrap_or(expr_id))
+            .and_then(|lit| match &self.ast_context[lit].kind {
+                CExprKind::Literal(_, CLiteral::String(bytes, 1)) => Some(bytes.clone()),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                self.linear_refuse(expr_id, "`fscanf` without a string literal format")
+            })?;
+        if let Some(spelled) = libc::unsupported_stream_scan_conversion(&bytes) {
+            return Err(self.linear_refuse(expr_id, &format!("fscanf conversion `{spelled}`")));
+        }
+        let mut convs = 0;
+        let mut k = 0;
+        while k < bytes.len() {
+            if bytes[k] == b'%' {
+                if bytes.get(k + 1) != Some(&b'%') {
+                    convs += 1;
+                }
+                k += 1;
+            }
+            k += 1;
+        }
+        if convs + 2 != args.len() {
+            return Err(self.linear_refuse(
+                expr_id,
+                "`fscanf` whose argument count does not match its format",
+            ));
+        }
+        libc::require_eden_files();
+        libc::require_write();
+        FILE_USED.with(|u| u.set(true));
+        let mut out = WithStmts::new_val(Vec::new());
+        for (index, arg) in args.iter().enumerate() {
+            let v = self.convert_expr(ctx.used(), *arg, None)?;
+            let t = if index == 0 {
+                DaType::uint64()
+            } else {
+                DaType::int()
+            };
+            out = out.zip(v).map(|(mut list, v)| {
+                list.push(if Self::infer_type(&v).as_ref() == Some(&t) {
+                    v
+                } else {
+                    cast(t, v)
+                });
+                list
+            });
+        }
+        Ok(out.map(|mut list| {
+            let mut ptrs = list.split_off(2);
+            // An empty `[]` has no element type: a format without
+            // conversions passes one unused slot.
+            if ptrs.is_empty() {
+                ptrs.push(DaExpr::ConstInt(0));
+            }
+            list.push(DaExpr::MakeArray(ptrs));
+            DaExpr::Call(Box::new(DaExpr::Var("c2da_lin_fscanf".into())), list)
+        }))
     }
 
     fn linear_call(
@@ -4264,6 +4338,213 @@ def c2da_lin_fgetc(handle : uint64) : int {
     }
     c2da_eden_open_pos[slot] = pos + 1l
     return int(c2da_eden_file_data[file][pos])
+}
+
+// fscanf's one byte of lookahead goes back to the file when the scan ends, so
+// the stream is left at the first byte no directive consumed (as glibc's is).
+def private c2da_lin_scan_unget(handle : uint64; c : int) {
+    if (c >= 0) {
+        let slot = int(handle - 16ul)
+        c2da_eden_open_pos[slot] = c2da_eden_open_pos[slot] - 1l
+    }
+}
+
+// fscanf over a registered file.  The translator accepts only a literal format
+// of white space, ordinary bytes, `%%`, `%[w]d %[w]i %[w]o %[w]u %[w]x %[w]X`
+// (into an int: the low 32 bits of strtol's/strtoul's saturated value),
+// `%[w]s` and `%[w]e %[w]f %[w]g %[w]E %[w]G` (into a float, a double under
+// `l`); `ptrs` holds the conversions' target offsets in order.  The answer is
+// the number of stored items, or -1 when the input ends before the first.
+def c2da_lin_fscanf(handle : uint64; f : int; ptrs : array<int>) : int {
+    var c = c2da_lin_fgetc(handle)
+    var done = 0
+    var k = f
+    while (int(c2da_mem[k]) != 0) {
+        let fc = int(c2da_mem[k])
+        if (c2da_lin_isspace(fc)) {
+            while (c2da_lin_isspace(int(c2da_mem[k]))) {
+                k++
+            }
+            while (c >= 0 && c2da_lin_isspace(c)) {
+                c = c2da_lin_fgetc(handle)
+            }
+            continue
+        }
+        if (fc != 37) {
+            if (c < 0) {
+                return done == 0 ? -1 : done
+            }
+            if (c != fc) {
+                c2da_lin_scan_unget(handle, c)
+                return done
+            }
+            c = c2da_lin_fgetc(handle)
+            k++
+            continue
+        }
+        k++
+        var width = 0
+        while (int(c2da_mem[k]) >= 48 && int(c2da_mem[k]) <= 57) {
+            width = width * 10 + int(c2da_mem[k]) - 48
+            k++
+        }
+        var wide = false
+        if (int(c2da_mem[k]) == 108) {
+            wide = true
+            k++
+        }
+        let conv = int(c2da_mem[k])
+        k++
+        while (c >= 0 && c2da_lin_isspace(c)) {
+            c = c2da_lin_fgetc(handle)
+        }
+        if (c < 0) {
+            return done == 0 ? -1 : done
+        }
+        if (conv == 37) {
+            if (c != 37) {
+                c2da_lin_scan_unget(handle, c)
+                return done
+            }
+            c = c2da_lin_fgetc(handle)
+            continue
+        }
+        let p = ptrs[done]
+        if (conv == 115) {
+            var n = 0
+            while (c >= 0 && !c2da_lin_isspace(c) && (width == 0 || n < width)) {
+                c2da_mem[p + n] = uint8(c)
+                n++
+                c = c2da_lin_fgetc(handle)
+            }
+            c2da_mem[p + n] = uint8(0)
+            done++
+            continue
+        }
+        let limit = width > 0 ? width : 2147483647
+        var n = 0
+        var neg = false
+        var any = false
+        if (n < limit && (c == 45 || c == 43)) {
+            neg = c == 45
+            n++
+            c = c2da_lin_fgetc(handle)
+        }
+        if (conv == 101 || conv == 102 || conv == 103 || conv == 69 || conv == 71) {
+            if ((c | 32) == 105 || (c | 32) == 110) {
+                panic("--memory-model linear: fscanf does not implement `inf`/`nan` input")
+            }
+            let subject = build_string() $(var w) {
+                while (n < limit && c >= 48 && c <= 57) {
+                    write_char(w, c)
+                    any = true
+                    n++
+                    c = c2da_lin_fgetc(handle)
+                }
+                if (any && (c | 32) == 120) {
+                    panic("--memory-model linear: fscanf does not implement hexadecimal floating input")
+                }
+                if (n < limit && c == 46) {
+                    write_char(w, c)
+                    n++
+                    c = c2da_lin_fgetc(handle)
+                    while (n < limit && c >= 48 && c <= 57) {
+                        write_char(w, c)
+                        any = true
+                        n++
+                        c = c2da_lin_fgetc(handle)
+                    }
+                }
+                if (any && n < limit && (c | 32) == 101) {
+                    write_char(w, c)
+                    n++
+                    c = c2da_lin_fgetc(handle)
+                    if (n < limit && (c == 45 || c == 43)) {
+                        write_char(w, c)
+                        n++
+                        c = c2da_lin_fgetc(handle)
+                    }
+                    while (n < limit && c >= 48 && c <= 57) {
+                        write_char(w, c)
+                        n++
+                        c = c2da_lin_fgetc(handle)
+                    }
+                }
+            }
+            if (!any) {
+                c2da_lin_scan_unget(handle, c)
+                return done
+            }
+            var v = c2da_lin_scan_double(subject)
+            if (neg) {
+                v = -v
+            }
+            if (wide) {
+                let bits = double_bits_to_uint64(v)
+                c2da_lin_st32(p, int(uint(bits & 0xfffffffful)))
+                c2da_lin_st32(p + 4, int(uint(bits >> 32ul)))
+            } else {
+                c2da_lin_st32(p, int(float_bits_to_uint(float(v))))
+            }
+            done++
+            continue
+        }
+        var radix = conv == 105 ? 0 : (conv == 111 ? 8 : (conv == 120 || conv == 88 ? 16 : 10))
+        if (n < limit && c == 48) {
+            any = true
+            n++
+            c = c2da_lin_fgetc(handle)
+            if (n < limit && (c | 32) == 120 && (radix == 0 || radix == 16)) {
+                radix = 16
+                n++
+                c = c2da_lin_fgetc(handle)
+            } elif (radix == 0) {
+                radix = 8
+            }
+        } elif (radix == 0) {
+            radix = 10
+        }
+        var mag = 0ul
+        var over = false
+        while (n < limit && c2da_lin_digit(c, radix) >= 0) {
+            let d = uint64(c2da_lin_digit(c, radix))
+            if (mag > (0xfffffffffffffffful - d) / uint64(radix)) {
+                over = true
+            } else {
+                mag = mag * uint64(radix) + d
+            }
+            any = true
+            n++
+            c = c2da_lin_fgetc(handle)
+        }
+        if (!any) {
+            c2da_lin_scan_unget(handle, c)
+            return done
+        }
+        var value = 0ul
+        if (conv == 100 || conv == 105) {
+            // strtol: saturated at LONG_MIN / LONG_MAX.
+            if (neg) {
+                value = over || mag > 0x8000000000000000ul ? 0x8000000000000000ul : (0ul - mag)
+            } else {
+                value = over || mag > 0x7ffffffffffffffful ? 0x7ffffffffffffffful : mag
+            }
+        } elif (over) {
+            value = 0xfffffffffffffffful
+        } else {
+            value = neg ? 0ul - mag : mag
+        }
+        c2da_lin_st32(p, int(uint(value & 0xfffffffful)))
+        done++
+    }
+    c2da_lin_scan_unget(handle, c)
+    return done
+}
+
+// strtod of a collected `digits[.digits][e[sign]digits]` subject, by
+// daslang's correctly rounded `to_double`.
+def private c2da_lin_scan_double(subject : string) : double {
+    return to_double(subject)
 }
 
 // Only stdout and stderr are writable (--libc eden): any other handle writes nothing.

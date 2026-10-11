@@ -7168,8 +7168,9 @@
     },
     {
       "c_graph": "single-tu",
-      "canonical_case": "p226-std-fscanf",
+      "canonical_case": "p226-linear-fscanf",
       "canonical_cases": [
+        "p226-linear-fscanf",
         "p226-std-fscanf"
       ],
       "checked_in_das": null,

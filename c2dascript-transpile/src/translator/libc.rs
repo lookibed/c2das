@@ -2053,7 +2053,7 @@ fn unsupported_scan_conversion(format: &[u8]) -> Option<String> {
 ///
 /// Assignment suppression, every other length modifier and every other
 /// conversion (`%c %[ %n %p %a`…) is reported here.
-fn unsupported_stream_scan_conversion(format: &[u8]) -> Option<String> {
+pub(crate) fn unsupported_stream_scan_conversion(format: &[u8]) -> Option<String> {
     let mut i = 0;
     while i < format.len() {
         if format[i] != b'%' {
