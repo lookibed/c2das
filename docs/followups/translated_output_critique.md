@@ -1,16 +1,19 @@
 # What the translated daslang could do better: interpreter first
 
-## Open follow-ups from the 8daff4635..0cf37079f review (`docs/reviews/2026-10-12-0cf37079f.md`)
+## Follow-ups from the 8daff4635..0cf37079f review (`docs/reviews/2026-10-12-0cf37079f.md`)
 
-1. Rename alias `let`s that copy another reuse temp (perf finding 1, 134 in Doom).
-2. `c2da_lin_strerror`:
-   - copy through `peek_data`;
-   - drop the `int(...)` around its result;
-   - inline `c2da_lin_scan_double`.
-3. Emit the linear `fscanf` runtime only when a program calls it.
-4. Host-import fixture hosts: add `[unused_argument(mem)]`; name the `eden_gpu.das` globals in
-   snake_case.
-5. Reuse a `while` condition's load in the loop body (measure first).
+All closed:
+
+1. Copies of a reuse temp (`let c2da_freshN : int = c2da_freshM`) read the temp: 28625d6c4
+   (Doom eden-linear 77 → 0).  Reuse temps are named in source order: same commit.
+2. `c2da_lin_strerror`: `peek_data` copy and no `int(...)` (cfedaf694, 9e05d739d); the text
+   comes from a code/text table, not an if-chain: 2ad852461.
+3. The linear `fscanf` runtime is emitted only when a program calls `fscanf`: 2ad852461.
+4. Host-import fixture hosts: `[unused_argument(mem)]` and `=>` bodies (9895905cd);
+   `eden_gpu.das` globals in snake_case (f34a14701).
+5. A `while` condition's load is reused in the body by rotating the loop, only when that gains
+   a reuse: b18bb23b8.  Interpreter, 20 M iterations: rotation alone +3–12%, one 4-byte load
+   reused −19 to −28%; 10 loops in Doom.
 
 ## Method
 
