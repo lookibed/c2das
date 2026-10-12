@@ -28,6 +28,7 @@ def write_eden_host(
     destination: Path,
     das_options: list[str] = (),
     entry_eden: bool = False,
+    runtime_module: str = "c2da_runtime",
 ) -> Path:
     """The test host of a `--libc eden` case (`docs/eden-flags.md` flag 5).
 
@@ -45,13 +46,14 @@ def write_eden_host(
     """
     module = generated_das.stem
     # Under `--module-layout source` the `--libc eden` state (and
-    # `c2da_eden_add_file`) lives in the shared runtime module.
-    shared = generated_das.parent / "c2da_runtime.das"
+    # `c2da_eden_add_file`) lives in the shared runtime module
+    # (`c2da_runtime` unless the case's `--runtime-module` names it).
+    shared = generated_das.parent / f"{runtime_module}.das"
     lines = [
         "options gen2",
         *[f"options {option}" for option in das_options],
         "require daslib/fio",
-        *(["require c2da_runtime"] if shared.is_file() else []),
+        *([f"require {runtime_module}"] if shared.is_file() else []),
         f"require {module}",
         "",
         "[export]",
@@ -604,6 +606,14 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         entry_eden = any(
             flags[i : i + 2] == ["--entry", "eden"] for i in range(len(flags))
         )
+        runtime_module = next(
+            (
+                flags[i + 1]
+                for i in range(len(flags) - 1)
+                if flags[i] == "--runtime-module"
+            ),
+            "c2da_runtime",
+        )
         if case.get("libc") == "eden" and (program_args or entry_eden):
             das_entry = write_eden_host(
                 generated_das,
@@ -611,6 +621,7 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
                 generated_das.parent / "c2da_eden_host.das",
                 case.get("das_options", []),
                 entry_eden,
+                runtime_module,
             )
             das_main = "c2da_host_main"
         da_result = subprocess.run(
