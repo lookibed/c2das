@@ -1389,6 +1389,39 @@
       "runtime": "required"
     },
     {
+      "id": "p226-linear-unprototyped-call",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p226_linear_unprototyped_call.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": [
+        "--memory-model",
+        "linear",
+        "--fnptr-model",
+        "table",
+        "--dialect",
+        "eden-0.6.4",
+        "--no-unsafe"
+      ],
+      "clang": {
+        "compiler": "clang-18",
+        "flags": [
+          "-w"
+        ]
+      },
+      "c_reference": {
+        "entrypoint": "main",
+        "return_type": "int"
+      },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "total=14 front=1 back=2 other=1\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p225-linear-strerror",
       "status": "ready",
       "source_root": "tests/syntax",

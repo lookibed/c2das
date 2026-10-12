@@ -643,7 +643,11 @@ impl<'c> Translation<'c> {
             // `--fnptr-model table`: the value is an index into the table of
             // its signature.
             let callee_value = if self.is_linear() && super::linear::fn_table() {
-                self.linear_fn_callee(callee_expr_id, func_expr.val)?
+                // An unprototyped pointer called with arguments calls a
+                // function of their promoted types (6.5.2.2p6): the table of
+                // that signature, where such a function has its slot.
+                let unprototyped = self.unprototyped_call_type(func, args)?;
+                self.linear_fn_callee(callee_expr_id, func_expr.val, unprototyped)?
             } else if let Some(real) = self.unprototyped_call_type(func, args)? {
                 self.abi_pointer_cast(func_expr.val, real)
             } else {

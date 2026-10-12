@@ -968,9 +968,13 @@ impl<'c> Translation<'c> {
         &self,
         callee: CExprId,
         value: DaExpr,
+        call_sig: Option<DaType>,
     ) -> TranslationResult<DaExpr> {
-        let ty = self.qual_of(callee)?;
-        let n = sig_id(&self.fn_sig(ty.ctype)?);
+        let sig = match call_sig {
+            Some(sig) => sig,
+            None => self.fn_sig(self.qual_of(callee)?.ctype)?,
+        };
+        let n = sig_id(&sig);
         Ok(DaExpr::Index(
             Box::new(DaExpr::Var(format!("c2da_fn_table{n}"))),
             Box::new(value),
@@ -2008,6 +2012,10 @@ impl<'c> Translation<'c> {
             DaExpr::ConstInt(v) if *v >= i32::MIN as i64 && *v <= i32::MAX as i64 => e,
             _ => match Self::infer_type(&e) {
                 Some(t) if matches!(t.kind, DaTypeKind::Int) => e,
+                // C's `!x` or `a < b` is an `int` 0/1 but a daslang `bool`,
+                // and daslang has no `int(bool)`.
+                Some(t) if matches!(t.kind, DaTypeKind::Bool) => bool_as_int(e),
+                _ if super::is_boolean_expression(&e) => bool_as_int(e),
                 _ => cast(DaType::int(), e),
             },
         }
@@ -3548,6 +3556,15 @@ def private c2da_lin_init() {{
 {body}{format_section}{file_section}{argv_section}{strerror_section}{fn_section}"#,
         body = heap_runtime_body(stack_base)
     )
+}
+
+/// `b ? 1 : 0`: C's `int` value of a daslang `bool`.
+fn bool_as_int(b: DaExpr) -> DaExpr {
+    DaExpr::Op3 {
+        cond: Box::new(b),
+        then: Box::new(DaExpr::ConstInt(1)),
+        else_: Box::new(DaExpr::ConstInt(0)),
+    }
 }
 
 /// The program-wide program state of `--memory-model linear` under
