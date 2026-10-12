@@ -488,6 +488,14 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         raise CaseFailure(f"{case['id']}: translation entry must be source-root relative")
     if not (source_root / entry).is_file():
         raise CaseFailure(f"{case['id']}: missing C input {source_root / entry}")
+    # `local_fixtures`: source-root-relative files a case needs that are not in git
+    # because their licence forbids redistributing them on their own (Quake's
+    # shareware pak0.pak; fetched by the corpus's tools/get_*.sh).  Without them
+    # the case is reported SKIP, never PASS, and does not fail the run.
+    missing = [p for p in case.get("local_fixtures", []) if not (source_root / p).is_file()]
+    if missing:
+        print(f"SKIP {case['id']}: local fixture missing ({', '.join(missing)}); fetch it with the corpus's tools/")
+        return
     env = os.environ.copy()
     env["CARGO_TARGET_DIR"] = env.get(
         "C2DAS_CASE_CARGO_TARGET_DIR", str(ROOT / "target")
