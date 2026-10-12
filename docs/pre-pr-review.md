@@ -8,12 +8,14 @@ PR is opened (or before a direct push to `master`). The critics are defined in `
 | critic | file | judges |
 |---|---|---|
 | `das-critic-perf` | `.claude/agents/das-critic-perf.md` | interpreter/JIT/AOT cost of the generated code: node shapes, loops, temporaries, allocation |
-| `das-critic-style` | `.claude/agents/das-critic-style.md` | idiom and noise against daslang's own code and its lint/format tools |
+| `das-critic-style` | `.claude/agents/das-critic-style.md` | beauty, idiom and noise of all output in every mode, against daslang's own code and its lint/format tools |
 
 Changes that can alter generated daslang include the translator, `das_ast`, the runtime and libc
 preludes, and translator flags or case flags.
 
-Both critics compare the head against the merge base on the affected cases. Their references are:
+Both critics read the generated output as a blank sheet: all of it, in every translator mode, with no
+"before" and no "pre-existing". The range only says which cases to regenerate first; perf also times
+the merge base to catch regressions. Their references are:
 - daslang's own code: `daslib`, `modules/dasLLAMA`, `modules/dasVulkan`, `modules/dasGlsl`,
   `modules/dasSpirv`, `examples`;
 - the node emitter in `src/ast/ast_simulate.cpp`;
@@ -48,10 +50,10 @@ Run it before opening the PR or pushing to `master`.
 
 ## What blocks
 
-- **`BLOCK` from `das-critic-perf`:** an interpreter regression, or an introduced construct
-  ≥ 3% slower on a corpus.
-- **`BLOCK` from `das-critic-style`:** new avoidable lint findings at no speed cost, or a readability
-  regression.
+- **`BLOCK` from `das-critic-perf`:** an interpreter regression, or any construct in the output the
+  translator could emit measurably faster, whoever introduced it.
+- **`BLOCK` from `das-critic-style`:** any avoidable ugliness in the output, in any mode, that the
+  translator could emit cleanly at no speed cost, whoever introduced it.
 
 Either one is fixed in the translator before the PR, or recorded with a reason in the PR body.
 
