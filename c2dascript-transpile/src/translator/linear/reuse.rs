@@ -34,8 +34,9 @@
 //! is left untouched (the translator marks it while lowering, `VOLATILE` in
 //! `linear.rs`).
 use super::{load, store, Scalar, MEM};
+use crate::cfg::labels::{collect_written, is_site_temporary, rename_vars};
 use das_ast::{DaBlock, DaExpr, DaStmt, DaType, DaTypeKind};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// The calls that neither read nor write memory and cannot fail.
 const PURE_CALLS: &[&str] = &[
@@ -217,6 +218,17 @@ struct Group {
     /// is forwarded from a store.
     def: Option<(usize, DaExpr, DaType)>,
     uses: usize,
+    /// The type of the name when it is a `let` of this pass (here or in an
+    /// enclosing block), never written: a later temporary that only copies it
+    /// is renamed to it.
+    let_ty: Option<DaType>,
+}
+
+/// The pass's state for one function body.
+struct Pass<'f> {
+    fresh: &'f mut dyn FnMut() -> String,
+    /// Every name the body assigns, steps or takes the address of.
+    written: HashSet<String>,
 }
 
 /// A load whose value is known at the current statement.
@@ -233,6 +245,8 @@ struct Avail {
     group: usize,
     /// The name holding the value, when inherited from an enclosing block.
     name: Option<String>,
+    /// That name's type when it is a `let` of this pass ([`Group::let_ty`]).
+    let_ty: Option<DaType>,
 }
 
 impl Avail {
@@ -250,13 +264,14 @@ impl Avail {
             width: 4,
             group,
             name: None,
+            let_ty: None,
         }
     }
 }
 
 /// One run of the pass over the statements of a block, then over every block
 /// nested in them.  `entry` are the loads known on entry to the block.
-fn reuse_block(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String, entry: &[Avail]) {
+fn reuse_block(stmts: &mut Vec<DaStmt>, pass: &mut Pass, entry: &[Avail]) {
     let mut groups: Vec<Group> = Vec::new();
     let mut avail: Vec<Avail> = Vec::new();
     for av in entry {
@@ -264,6 +279,7 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String, entry
             name: av.name.clone().unwrap_or_default(),
             def: None,
             uses: 0,
+            let_ty: av.let_ty.clone(),
         });
         avail.push(Avail {
             group: groups.len() - 1,
@@ -320,8 +336,9 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String, entry
                     };
                     groups.push(Group {
                         name: String::new(),
-                        def: Some((i, load(s, &a), ty)),
+                        def: Some((i, load(s, &a), ty.clone())),
                         uses: 1,
+                        let_ty: Some(ty),
                     });
                     let g = groups.len() - 1;
                     avail.push(Avail::new(key.clone(), &a, None, g));
@@ -352,6 +369,7 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String, entry
                         name: v.clone(),
                         def: None,
                         uses: 0,
+                        let_ty: None,
                     });
                     let key = key_of(Scalar::F32, &a);
                     avail.push(Avail::new(key, &a, Some(v), groups.len() - 1));
@@ -366,14 +384,25 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String, entry
         i += 1;
     }
 
-    // Groups worth a name: a repeat of a load, or a forwarded store read again.
-    for g in groups.iter_mut() {
-        if g.def.is_some() && g.uses >= 2 {
-            g.name = fresh();
-        }
-    }
     let mut out = Vec::with_capacity(stmts.len());
+    // Temporaries that only copy a `let` of this pass: their uses read it.
+    let mut renamed: HashMap<String, String> = HashMap::new();
     for (i, mut stmt) in std::mem::take(stmts).into_iter().enumerate() {
+        // Groups worth a name (a repeat of a load) are named in source order:
+        // at the statement their `let` goes before, ahead of the blocks
+        // nested in it.
+        for g in groups.iter_mut() {
+            if let Some((at, init, ty)) = &g.def {
+                if *at == i && g.uses >= 2 {
+                    g.name = (pass.fresh)();
+                    out.push(DaStmt::Let {
+                        name: g.name.clone(),
+                        var_type: Some(ty.clone()),
+                        init: Some(init.clone()),
+                    });
+                }
+            }
+        }
         let names: Vec<(String, String)> = uses
             .get(i)
             .map(|u| {
@@ -386,17 +415,6 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String, entry
                     .collect()
             })
             .unwrap_or_default();
-        for g in &groups {
-            if let (Some((at, init, ty)), false) = (&g.def, g.name.is_empty()) {
-                if *at == i {
-                    out.push(DaStmt::Let {
-                        name: g.name.clone(),
-                        var_type: Some(ty.clone()),
-                        init: Some(init.clone()),
-                    });
-                }
-            }
-        }
         if !names.is_empty() {
             rewrite_stmt(&mut stmt, &names);
         }
@@ -407,6 +425,7 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String, entry
                     .filter(|av| !groups[av.group].name.is_empty())
                     .map(|av| Avail {
                         name: Some(groups[av.group].name.clone()),
+                        let_ty: groups[av.group].let_ty.clone(),
                         ..av.clone()
                     })
                     .collect()
@@ -416,16 +435,62 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String, entry
             DaStmt::Expr(DaExpr::IfThenElse {
                 then, elifs, else_, ..
             }) if !entry.is_empty() && elifs.is_empty() => {
-                nested_in_expr(then, fresh, &entry);
+                nested_in_expr(then, pass, &entry);
                 if let Some(e) = else_ {
-                    nested_in_expr(e, fresh, &entry);
+                    nested_in_expr(e, pass, &entry);
                 }
             }
-            _ => nested_blocks(&mut stmt, fresh),
+            _ => nested_blocks(&mut stmt, pass),
+        }
+        if let Some((alias, target)) = copy_of_let(&stmt, &groups, &pass.written) {
+            renamed.insert(alias, target);
+            continue;
         }
         out.push(stmt);
     }
+    // The block's statements, nested blocks included, are rewritten by now;
+    // an alias is declared once and read only after its declaration.
+    if !renamed.is_empty() {
+        for stmt in &mut out {
+            match stmt {
+                DaStmt::Expr(e)
+                | DaStmt::Let { init: Some(e), .. }
+                | DaStmt::Var { init: Some(e), .. } => rename_vars(e, &renamed),
+                _ => {}
+            }
+        }
+    }
     *stmts = out;
+}
+
+/// `let t = n` (or a `var t` never written) of a site temporary `t` whose
+/// whole initializer reads `n`, a `let` of this pass of the same type:
+/// `(t, n)`.  Both are immutable, so every read of `t` may read `n`.
+fn copy_of_let(
+    stmt: &DaStmt,
+    groups: &[Group],
+    written: &HashSet<String>,
+) -> Option<(String, String)> {
+    let (name, ty, init) = match stmt {
+        DaStmt::Let {
+            name,
+            var_type,
+            init: Some(DaExpr::Var(n)),
+        } => (name, var_type.as_ref(), n),
+        DaStmt::Var {
+            name,
+            var_type,
+            init: Some(DaExpr::Var(n)),
+        } => (name, Some(var_type), n),
+        _ => return None,
+    };
+    if !is_site_temporary(name) || written.contains(name) {
+        return None;
+    }
+    let group = groups.iter().find(|g| g.name == *init)?;
+    let let_ty = group.let_ty.as_ref()?;
+    ty.map_or(true, |t| t == let_ty)
+        .then(|| (name.clone(), init.clone()))
 }
 
 enum Write {
@@ -614,11 +679,11 @@ fn rewrite_stmt(stmt: &mut DaStmt, names: &[(String, String)]) {
 }
 
 /// Runs the pass over every block nested in `stmt`, each on its own.
-fn nested_blocks(stmt: &mut DaStmt, fresh: &mut dyn FnMut() -> String) {
+fn nested_blocks(stmt: &mut DaStmt, pass: &mut Pass) {
     match stmt {
-        DaStmt::Expr(e) => nested_in_expr(e, fresh, &[]),
+        DaStmt::Expr(e) => nested_in_expr(e, pass, &[]),
         DaStmt::Let { init: Some(e), .. } | DaStmt::Var { init: Some(e), .. } => {
-            nested_in_expr(e, fresh, &[])
+            nested_in_expr(e, pass, &[])
         }
         _ => {}
     }
@@ -626,24 +691,24 @@ fn nested_blocks(stmt: &mut DaStmt, fresh: &mut dyn FnMut() -> String) {
 
 /// Runs the pass over the blocks of `e`; `entry` are the loads known when a
 /// block `e` itself starts.
-fn nested_in_expr(e: &mut DaExpr, fresh: &mut dyn FnMut() -> String, entry: &[Avail]) {
+fn nested_in_expr(e: &mut DaExpr, pass: &mut Pass, entry: &[Avail]) {
     match e {
-        DaExpr::Block(DaBlock { stmts }) => reuse_block(stmts, fresh, entry),
+        DaExpr::Block(DaBlock { stmts }) => reuse_block(stmts, pass, entry),
         DaExpr::IfThenElse {
             then, elifs, else_, ..
         } => {
-            nested_in_expr(then, fresh, &[]);
+            nested_in_expr(then, pass, &[]);
             for (_, b) in elifs.iter_mut() {
-                nested_in_expr(b, fresh, &[]);
+                nested_in_expr(b, pass, &[]);
             }
             if let Some(b) = else_ {
-                nested_in_expr(b, fresh, &[]);
+                nested_in_expr(b, pass, &[]);
             }
         }
-        DaExpr::While(_, body) | DaExpr::For { body, .. } => nested_in_expr(body, fresh, &[]),
+        DaExpr::While(_, body) | DaExpr::For { body, .. } => nested_in_expr(body, pass, &[]),
         DaExpr::TryRecover(body, handler) => {
-            nested_in_expr(body, fresh, &[]);
-            nested_in_expr(handler, fresh, &[]);
+            nested_in_expr(body, pass, &[]);
+            nested_in_expr(handler, pass, &[]);
         }
         _ => {}
     }
@@ -651,5 +716,15 @@ fn nested_in_expr(e: &mut DaExpr, fresh: &mut dyn FnMut() -> String, entry: &[Av
 
 /// The pass over a lowered function body.
 pub(crate) fn reuse_loads(stmts: &mut Vec<DaStmt>, fresh: &mut dyn FnMut() -> String) {
-    reuse_block(stmts, fresh, &[]);
+    let mut written = HashSet::new();
+    for stmt in stmts.iter_mut() {
+        match stmt {
+            DaStmt::Expr(e)
+            | DaStmt::Let { init: Some(e), .. }
+            | DaStmt::Var { init: Some(e), .. } => collect_written(e, &mut written),
+            _ => {}
+        }
+    }
+    let mut pass = Pass { fresh, written };
+    reuse_block(stmts, &mut pass, &[]);
 }

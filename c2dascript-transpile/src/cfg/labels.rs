@@ -855,7 +855,7 @@ fn collect_addressed(expr: &DaExpr, out: &mut Vec<String>) {
 }
 
 /// Rename the variables `renamed` names, everywhere in `expr`.
-fn rename_vars(expr: &mut DaExpr, renamed: &HashMap<String, String>) {
+pub(crate) fn rename_vars(expr: &mut DaExpr, renamed: &HashMap<String, String>) {
     if let DaExpr::Var(name) = expr {
         if let Some(new_name) = renamed.get(name) {
             *name = new_name.clone();
@@ -896,7 +896,7 @@ pub(crate) fn let_bind_site_temporaries(decls: &mut [das_ast::DaDecl]) {
     }
 }
 
-fn is_site_temporary(name: &str) -> bool {
+pub(crate) fn is_site_temporary(name: &str) -> bool {
     name.starts_with("c2da_postinc") || name.starts_with("c2da_fresh")
 }
 
@@ -909,7 +909,7 @@ fn place_root(expr: &DaExpr) -> Option<&str> {
     }
 }
 
-fn collect_written(expr: &mut DaExpr, written: &mut HashSet<String>) {
+pub(crate) fn collect_written(expr: &mut DaExpr, written: &mut HashSet<String>) {
     match &*expr {
         DaExpr::Assign(place, _)
         | DaExpr::AssignOp { left: place, .. }
