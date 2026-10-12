@@ -167,6 +167,29 @@ argument. Fixtures: `h01`, `m06`. Details: `eden-flags.md`, "Host imports (exper
 
 This is the call path an `eden_gpu_*` ABI for M2 will use.
 
+### dasDOOM and dasQUAKE in one editor project (04:05)
+
+Both public exports (`lookibed/dasDOOM`, `lookibed/dasQUAKE`) were installed side by side in one
+EdenSpark project. The runtime modules are named per program (`dasdoom_runtime`,
+`dasquake_runtime`), so the two no longer collide on `c2da_runtime`.
+
+**Quake verified in the editor:**
+- the demo renders;
+- Esc opens the menu;
+- New Game starts;
+- holding Up walks forward.
+
+**Memory:** peak context use with both games running is 93.4 of 104.9 MB.
+- The 18.7 MB pak is stored as a 32 MiB array, the largest single allocation.
+- A leftover probe project pushed the total past the cap. A project should hold nothing else.
+
+**Speed [M]:**
+
+| situation | Quake | Doom |
+|---|---|---|
+| Quake alone | 17.7 fps; `quake_bench` 44–60 ms per tick, 16.6–22.8 fps engine-only | — |
+| both running | 12–14.5 fps | 12.7–15.6 tics/s |
+
 ### Next
 
 1. The `das-critic-perf` libm peephole, landed. Then the load-reuse optimization for Quake's
