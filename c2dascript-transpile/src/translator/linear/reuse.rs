@@ -21,6 +21,9 @@
 //!   following `float` load at `a` read `v`, under the same conditions.
 //! - **`if` branches.** The loads known right after an `if` condition (no
 //!   `elif`) are known on entry to both branches.
+//! - **Copies.** A site temporary (`let`, or a `var` never written) whose
+//!   whole initializer became a `let` of this pass is dropped and its reads
+//!   read that `let`.  The pass's names are taken in source order.
 //!
 //! The rule is deliberately syntactic and conservative.  Addresses are
 //! compared as `base + constant`; a heap store keeps a remembered load only

@@ -13,6 +13,5 @@ def public eden_gpu_upload(mem : array<uint8>; data : int; len : int) {
     }
 }
 
-def public eden_gpu_frame(mem : array<uint8>; w : int; h : int) : int {
-    return int(g_sum ^ uint(w * h))
-}
+[unused_argument(mem)]
+def public eden_gpu_frame(mem : array<uint8>; w : int; h : int) : int => int(g_sum ^ uint(w * h))
