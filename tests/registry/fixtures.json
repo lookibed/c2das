@@ -3767,6 +3767,146 @@
       "status": "supported"
     },
     {
+      "c_graph": "single-tu",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-host-import",
+      "id": "tests--syntax--h01_host_import--host_reference",
+      "owner": "translator/host_import.rs",
+      "runtime": "unverified",
+      "source": "tests/syntax/h01_host_import/host_reference.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "h01-host-import-std",
+      "canonical_cases": [
+        "h01-host-import-std",
+        "h01-host-import-eden-linear"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "frame=-353163396\nframe=1937990348\n"
+        }
+      },
+      "family": "syntax-host-import",
+      "id": "tests--syntax--h01_host_import--main",
+      "owner": "translator/host_import.rs",
+      "runtime": "required",
+      "source": "tests/syntax/h01_host_import/main.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "h01-host-import-refuse-defined",
+      "canonical_cases": [
+        "h01-host-import-refuse-defined"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "host import eden_gpu_frame (bound to eden_gpu::eden_gpu_frame) is also defined by the C program",
+          "location": "refuse_defined.c:3",
+          "operation": "translation",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-host-import",
+      "id": "tests--syntax--h01_host_import--refuse_defined",
+      "owner": "translator/host_import.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/h01_host_import/refuse_defined.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "h01-host-import-refuse-function-pointer",
+      "canonical_cases": [
+        "h01-host-import-refuse-function-pointer"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "host import eden_gpu_on_frame: parameter 1 is a function pointer, which has no host-import mapping",
+          "location": "refuse_function_pointer.c:10",
+          "operation": "top-level declaration lowering",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-host-import",
+      "id": "tests--syntax--h01_host_import--refuse_function_pointer",
+      "owner": "translator/host_import.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/h01_host_import/refuse_function_pointer.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
+      "canonical_case": "h01-host-import-refuse-variadic",
+      "canonical_cases": [
+        "h01-host-import-refuse-variadic"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "not-applicable",
+      "expected": {
+        "kind": "translation-error",
+        "value": {
+          "cause": "host import eden_gpu_log: a variadic function cannot be imported",
+          "location": "refuse_variadic.c:5",
+          "operation": "top-level declaration lowering",
+          "type": "Function"
+        }
+      },
+      "family": "syntax-host-import",
+      "id": "tests--syntax--h01_host_import--refuse_variadic",
+      "owner": "translator/host_import.rs",
+      "runtime": "not-applicable",
+      "source": "tests/syntax/h01_host_import/refuse_variadic.c",
+      "status": "supported"
+    },
+    {
       "c_graph": "multi-tu-source",
       "checked_in_das": null,
       "clang": {
@@ -4117,6 +4257,76 @@
       "owner": "lib.rs link_units / translator module layout",
       "runtime": "unverified",
       "source": "tests/syntax/m05_module_layout_typed_records/walk.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m06_host_import_source--host_reference",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m06_host_import_source/host_reference.c",
+      "status": "quarantined"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "canonical_case": "m06-host-import-source-eden-linear",
+      "canonical_cases": [
+        "m06-host-import-source-eden-linear"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "frame=-353163396\nframe=1937990348\n"
+        }
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m06_host_import_source--main",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "required",
+      "source": "tests/syntax/m06_host_import_source/main.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "multi-tu-source",
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "unregistered",
+      "expected": {
+        "kind": "unregistered",
+        "value": "unregistered"
+      },
+      "family": "syntax-module-layout",
+      "id": "tests--syntax--m06_host_import_source--upload",
+      "owner": "lib.rs link_units / translator module layout",
+      "runtime": "unverified",
+      "source": "tests/syntax/m06_host_import_source/upload.c",
       "status": "quarantined"
     },
     {

@@ -2938,6 +2938,124 @@
       "runtime": "required"
     },
     {
+      "id": "m06-host-import-source-eden-linear",
+      "status": "ready",
+      "source_root": "tests/syntax/m06_host_import_source",
+      "translation_entry": "main.c",
+      "translation_units": ["upload.c", "main.c"],
+      "c_graph": "multi-tu-source",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe", "--host-import", "eden_gpu_upload=eden_gpu::upload", "--host-import", "eden_gpu_frame=eden_gpu::frame"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "sources": ["upload.c", "main.c", "host_reference.c"] },
+      "preserve_das": ["eden_gpu.das"],
+      "host_modules": ["eden_gpu.das"],
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "frame=-353163396\nframe=1937990348\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "h01-host-import-std",
+      "status": "ready",
+      "source_root": "tests/syntax/h01_host_import",
+      "translation_entry": "main.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "translator_flags": ["--host-import-prefix", "eden_gpu_=eden_gpu"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "sources": ["main.c", "host_reference.c"] },
+      "preserve_das": ["host/raw/eden_gpu.das"],
+      "host_modules": ["host/raw/eden_gpu.das"],
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "frame=-353163396\nframe=1937990348\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "h01-host-import-eden-linear",
+      "status": "ready",
+      "source_root": "tests/syntax/h01_host_import",
+      "translation_entry": "main.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe", "--host-import-prefix", "eden_gpu_=eden_gpu"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "sources": ["main.c", "host_reference.c"] },
+      "preserve_das": ["host/linear/eden_gpu.das"],
+      "host_modules": ["host/linear/eden_gpu.das"],
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "frame=-353163396\nframe=1937990348\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
+      "id": "h01-host-import-refuse-function-pointer",
+      "status": "negative",
+      "source_root": "tests/syntax/h01_host_import",
+      "translation_entry": "refuse_function_pointer.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "translator_flags": ["--host-import", "eden_gpu_on_frame=eden_gpu::on_frame"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
+      "das_entrypoint": "not-applicable",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": {
+        "operation": "top-level declaration lowering",
+        "type": "Function",
+        "location": "refuse_function_pointer.c:10",
+        "cause": "host import eden_gpu_on_frame: parameter 1 is a function pointer, which has no host-import mapping"
+      },
+      "runtime": "not-applicable"
+    },
+    {
+      "id": "h01-host-import-refuse-defined",
+      "status": "negative",
+      "source_root": "tests/syntax/h01_host_import",
+      "translation_entry": "refuse_defined.c",
+      "c_graph": "single-tu",
+      "libc": "std",
+      "translator_flags": ["--host-import-prefix", "eden_gpu_=eden_gpu"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
+      "das_entrypoint": "not-applicable",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": {
+        "operation": "translation",
+        "type": "Function",
+        "location": "refuse_defined.c:3",
+        "cause": "host import eden_gpu_frame (bound to eden_gpu::eden_gpu_frame) is also defined by the C program"
+      },
+      "runtime": "not-applicable"
+    },
+    {
+      "id": "h01-host-import-refuse-variadic",
+      "status": "negative",
+      "source_root": "tests/syntax/h01_host_import",
+      "translation_entry": "refuse_variadic.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--host-import-prefix", "eden_gpu_=eden_gpu"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "not-applicable", "return_type": "int" },
+      "das_entrypoint": "not-applicable",
+      "expected": { "stdout": "", "exit_code": 0 },
+      "expected_error": {
+        "operation": "top-level declaration lowering",
+        "type": "Function",
+        "location": "refuse_variadic.c:5",
+        "cause": "host import eden_gpu_log: a variadic function cannot be imported"
+      },
+      "runtime": "not-applicable"
+    },
+    {
       "id": "p72-eden-file-io",
       "status": "ready",
       "source_root": "tests/syntax",
