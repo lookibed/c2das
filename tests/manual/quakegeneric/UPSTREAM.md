@@ -113,9 +113,17 @@ Checked natively (clang-18, 64-bit, the 68 engine units, `qg_eden_play.c` and a 
 scratch): `qge_init` then 400 `qge_tick` calls 40 ms apart, with an Esc press and mouse
 movement, render 409 frames (every tick at least one; level loads render extra ones), and the screen address is `vid_buffer`.
 `qge_init_map` segfaults natively after loading `maps/start.bsp`: the 64-bit QuakeC string
-issue above.  Under `--memory-model linear` it is expected to work, not yet checked.  Both
-the exporter and a direct translation of the play units stop at the `atan` refusal in
-`Chase_Update`, like the two cases.
+issue above.
+
+In the EdenSpark editor (2026-10-12, exporter output of this tree's translator, eden/ installed
+under `modules/dasquake/`, the pak as `assets/dasquake/pak0.pak.data`): `quake_play` plays the
+attract demos and `quake_play map` loads and renders `maps/start.bsp` (under the linear model
+the QuakeC string offsets are 32-bit).  The host's status line read 17-19 fps for the demos
+(frame about 47-55 ms, screen copy about 1.3 ms) and about 11-12 fps on `start` (frame about
+75-85 ms); `quake_bench 300` measured 61.6 ms/tick with the copy, 60.5 ms/tick without.  One
+editor session, one machine, interpreter as the editor runs it; keyboard input was not
+exercised.  The project's Doom install could not stay required next to it: both translations
+ship a module named `c2da_runtime`, and one context holds one module of a name.
 
 ## Fixtures
 
