@@ -41,6 +41,7 @@ fn config(output_dir: &Path) -> TranspilerConfig {
         enabled_warnings: Default::default(),
         disabled_warnings: Default::default(),
         target: Default::default(),
+        host_imports: vec![],
     }
 }
 

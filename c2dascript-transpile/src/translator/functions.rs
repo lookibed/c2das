@@ -493,6 +493,14 @@ impl<'c> Translation<'c> {
         // the same reason, and never for a symbol the translation unit defines
         // itself.
         let std_libc = self.std_libc_call(func);
+        // A direct call to a C function bound by `--host-import`
+        // (`host_import.rs`); `reject_unknown_external_call` has proved the
+        // name is otherwise undefined and its signature crosses.
+        let host_import = is_direct
+            .then(|| self.direct_call_name(func))
+            .flatten()
+            .filter(|_| self.direct_call_decl(func).is_none())
+            .and_then(|name| self.host_import(&name));
         // A literal format string is checked before anything is lowered: a
         // conversion the std engine does not implement is a translation-time
         // failure, never output whose later conversions read the wrong
@@ -638,6 +646,8 @@ impl<'c> Translation<'c> {
                 ));
             }
             super::libc::lower_libm(function, das_args)
+        } else if let Some((module, function)) = host_import {
+            self.host_import_call(&module, &function, das_args)
         } else if indirect_callee.is_some() {
             // `invoke` is daScript's call-through-a-function-value operator.
             // `--fnptr-model table`: the value is an index into the table of
@@ -1133,11 +1143,44 @@ impl<'c> Translation<'c> {
             ref name,
             body,
             ref parameters,
+            typ,
             ..
         } = self.ast_context[decl_id].kind
         else {
             return Ok(());
         };
+        // Host imports (`host_import.rs`): a bound name must be one nothing
+        // else claims, or the call would silently take one of two meanings.
+        if let Some((module, function)) = self.host_import(name) {
+            let claimed = if canonical_runtime_function(name).is_some()
+                || self.std_libc_call(func).is_some()
+                || self.libm_call(func).is_some()
+                || runtime_declares(name)
+            {
+                Some("is a function the translator lowers itself")
+            } else if body.is_some()
+                || self.ast_context.iter_decls().any(|(_, decl)| {
+                    matches!(&decl.kind, CDeclKind::Function { name: other, body: Some(_), .. }
+                        if other == name)
+                })
+                || self.link_owner(name).is_some()
+            {
+                Some("is also defined by the C program")
+            } else {
+                None
+            };
+            if let Some(reason) = claimed {
+                return Err(format_translation_err!(
+                    self.ast_context.display_loc(&self.ast_context[func].loc),
+                    "host import {} (bound to {}::{}) {}",
+                    name,
+                    module,
+                    function,
+                    reason,
+                ));
+            }
+            return self.check_host_import_signature(func, name, typ);
+        }
         if body.is_some() || canonical_runtime_function(name).is_some() {
             return Ok(());
         }

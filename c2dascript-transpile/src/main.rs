@@ -11,7 +11,7 @@ fn main() {
 
     if args.is_empty() {
         eprintln!("Usage: c2dascript-transpile <compile_commands.json> [extra_clang_args...]");
-        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all|eden] [--target master|eden] [--float-compare ieee|nan-safe] [--dialect master|eden-0.6.4] [--no-unsafe[=fail|report|off]] [--memory-model raw|linear] [--fnptr-model value|table] [--varargs-model array|heap] [--heap-reserve <bytes>] [--entry main|eden] [--records natural|typed] [--runtime-module <name>] [--module-layout unity|source] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
+        eprintln!("   or: c2dascript-transpile [--strict] [--inline=on|off|auto] [--no-inline] [--public-module] [--no-solid-context] [--unsafe-deref] [--das-option <text>]... [--libc nostd|std|ffi|all|eden] [--target master|eden] [--float-compare ieee|nan-safe] [--dialect master|eden-0.6.4] [--no-unsafe[=fail|report|off]] [--memory-model raw|linear] [--fnptr-model value|table] [--varargs-model array|heap] [--heap-reserve <bytes>] [--entry main|eden] [--records natural|typed] [--host-import <c_name>=<module>::<function>]... [--host-import-prefix <prefix>=<module>]... [--runtime-module <name>] [--module-layout unity|source] [-W[no-]<diagnostic>]... [--output-dir <dir>] --file <file.c> [extra_clang_args...]");
         std::process::exit(1);
     }
 
@@ -60,6 +60,30 @@ fn main() {
     // The translator's own diagnostic switches, e.g. `-Wno-must-tail`.  Every
     // other `-W…` argument is clang's and is left in `args`.
     let (enabled_warnings, disabled_warnings) = take_warning_switches(&mut args);
+    // Experimental host imports (`translator/host_import.rs`): an undefined
+    // C extern bound to a daslang module function.
+    let mut host_imports = Vec::new();
+    for (flag, parse) in [
+        (
+            "--host-import",
+            c2dascript_transpile::translator::host_import::HostImport::parse_exact
+                as fn(&str) -> Result<_, String>,
+        ),
+        (
+            "--host-import-prefix",
+            c2dascript_transpile::translator::host_import::HostImport::parse_prefix,
+        ),
+    ] {
+        while let Some(text) = take_value(&mut args, flag) {
+            match parse(&text) {
+                Ok(import) => host_imports.push(import),
+                Err(message) => {
+                    eprintln!("{message}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
     // Which libc entry points the translated module may call. `nostd` is the
     // default and the only mode that is fully implemented besides `std`.
     // Target switches (`target.rs`, `docs/eden-flags.md`).  `--target eden`
@@ -257,6 +281,7 @@ fn main() {
         enabled_warnings,
         disabled_warnings,
         target,
+        host_imports,
     };
 
     let path = Path::new(&args[0]);

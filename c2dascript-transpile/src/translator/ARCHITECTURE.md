@@ -947,6 +947,29 @@ variant) is the fixture.
   as never initialised, wherever it is declared (`ast_lint.cpp`, `error[30173]`), while C
   zero-initialises it before the program starts (C11 6.7.9p10).  `p135-static-zero-spelled`.
 
+## Host imports (experimental)
+
+`--host-import <c_name>=<module>::<function>` and `--host-import-prefix <prefix>=<module>`
+(`TranspilerConfig::host_imports`; user-facing contract in `docs/eden-flags.md`, "Host imports
+(experimental)").  `host_import.rs` owns the binding, the signature check and the call shape:
+
+- The binding is decided from the C declaration at a direct call site.  Only a name nothing else
+  claims binds: `functions.rs reject_unknown_external_call` refuses a bound name the program
+  also defines (here or, under the source layout, in another unit) or that the runtime,
+  `--libc std`/`eden` or libm lowers, and `translate_impl` refuses a bound definition up front
+  (`check_host_import_definitions`).  `linear.rs linear_call` steps aside for a bound name so
+  its "library function over C memory" refusal does not fire.
+- Arguments are lowered exactly as for a call to a translated C function, so the ABI is the
+  translator's own typing (an `int` offset under `--memory-model linear`, a daslang pointer
+  under `raw`); only prototyped, non-variadic declarations whose parameters and result are
+  scalars or data pointers cross, everything else fails closed at the call.
+- The call is the qualified `<module>::<function>(…)`; under linear the heap `linear::MEM` is
+  prepended as the first argument, so the host module needs no `require` of the translated
+  module or of `c2da_runtime` (no cycle).  The modules a unit calls into are collected in
+  `Translation::host_import_modules` and become `require` lines of that unit.
+
+Cases `h01-host-import-*`, `m06-host-import-source-eden-linear`.
+
 ## Memory copies go to daslang's builtins
 
 C `memcpy` and `memmove` are lowered to daslang's builtin `memcpy` / `memmove`

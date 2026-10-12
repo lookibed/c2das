@@ -33,6 +33,7 @@ mod enums;
 mod float_compare;
 mod functions;
 mod global_order;
+pub mod host_import;
 mod inline;
 mod layout;
 mod libc;
@@ -432,6 +433,9 @@ pub struct Translation<'c> {
     /// body is converted, a read of one of its parameters is the argument
     /// value the call site bound.
     pub(crate) inline_frames: RefCell<Vec<HashMap<CDeclId, DaExpr>>>,
+    /// The daslang modules this unit calls host imports in
+    /// (`host_import.rs`), `require`d by the unit.
+    pub(crate) host_import_modules: RefCell<std::collections::BTreeSet<String>>,
     pub main_file: PathBuf,
 }
 
@@ -467,6 +471,7 @@ impl<'c> Translation<'c> {
             inline_candidates: RefCell::new(HashMap::new()),
             inline_stack: RefCell::new(vec![]),
             inline_frames: RefCell::new(vec![]),
+            host_import_modules: RefCell::default(),
             ast_context,
             tcfg,
             link: None,
@@ -4301,6 +4306,7 @@ fn translate_impl(
     ast_context.alias_block_scope_externs();
     let mut t = Translation::new(ast_context, tcfg, main_file);
     t.link = link;
+    t.check_host_import_definitions()?;
 
     // Source layout: an external symbol is spelled by its C name in every
     // module — the owner's definition and the other units' references alike —
@@ -4836,6 +4842,7 @@ fn translate_impl(
     // module.
     requires.extend(libc::module_requires());
     requires.extend(float_compare_requires);
+    requires.extend(t.host_import_modules.borrow().iter().cloned());
     if t.is_linear() {
         // Under the source layout the heap, the allocator and the function
         // tables live in the shared module (`linear::shared_runtime_source`).

@@ -239,6 +239,34 @@ def stage_generated_das(
     return staged
 
 
+def stage_host_modules(
+    case: dict[str, Any], copied_root: Path, generated_dir: Path, preserved: set[Path]
+) -> None:
+    """Place the fixture's hand-written host modules beside the fresh output.
+
+    `host_modules`: fixture-root-relative `.das` files implementing the
+    functions the case binds with `--host-import`/`--host-import-prefix`
+    (docs/eden-flags.md, "Host imports (experimental)").  The translated
+    module `require`s each by its file stem, which daslang resolves against
+    the entry file's directory.  Each must also be declared in `preserve_das`,
+    and a host module may not share a name with a generated one.
+    """
+    for relative in case.get("host_modules", []):
+        source = copied_root / Path(relative)
+        if Path(relative).is_absolute() or ".." in Path(relative).parts:
+            raise CaseFailure(f"{case['id']}: host_modules must be fixture-root relative")
+        if source not in preserved:
+            raise CaseFailure(
+                f"{case['id']}: host module {relative} must also be declared in preserve_das"
+            )
+        target = generated_dir / source.name
+        if target.exists():
+            raise CaseFailure(
+                f"{case['id']}: host module {source.name} collides with a generated module"
+            )
+        shutil.copyfile(source, target)
+
+
 def libc_flags(case: dict[str, Any]) -> list[str]:
     """The translator policy flags this case is translated under.
 
@@ -551,6 +579,7 @@ def execute(case: dict[str, Any], daslang: Path, keep: bool) -> None:
         if not generated_das.is_file():
             raise CaseFailure(f"{case['id']}: transpiler produced no fresh output at {generated_das}")
         store_latest(case["id"], "canonical", generated_dir, translate_command)
+        stage_host_modules(case, copied_root, generated_dir, preserved)
 
         if "das_program" in case:
             das_program = copied_root / Path(case["das_program"])

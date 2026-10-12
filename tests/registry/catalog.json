@@ -111,6 +111,16 @@
       "status": "quarantined"
     },
     {
+      "c_graph": "single-tu",
+      "entrypoint": "unregistered",
+      "expected_kind": "unregistered",
+      "glob": "tests/syntax/h*/*.c",
+      "id": "syntax-host-import",
+      "owner": "translator/host_import.rs",
+      "runtime": "unverified",
+      "status": "quarantined"
+    },
+    {
       "c_graph": "multi-tu-source",
       "entrypoint": "unregistered",
       "expected_kind": "unregistered",
