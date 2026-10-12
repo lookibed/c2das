@@ -213,6 +213,50 @@ flow. `volatile` is excluded.
   field has to be read again after each store. A bigger lever needs either restrict/alias facts
   or the word-heap fast path for aligned floats (item 4, about 3.4× per access).
 
+### eden_gpu ABI v0 (05:20)
+
+The translated engine now calls the host's display functions itself instead of the host polling
+`qge_screen`/`qge_palette` after every tick.
+
+- **C side:** `src/qg_eden_gpu.c`, a copy of `qg_eden_play.c` with the same `qge_*` API.
+  `QG_DrawFrame` calls `eden_gpu_present(pixels, 320, 240)` and `QG_SetPalette` calls
+  `eden_gpu_palette(rgb768)`. Both are declared `extern` in `src/qg_eden_gpu.h` and defined
+  nowhere in C.
+- **Translation:** the play units of `quakegeneric-demo1-eden-linear` (with `qg_eden_gpu.c` in
+  place of `qg_eden_play.c`), its eden flags, `--module-layout source --public-module
+  --runtime-module dasquake_gpu_runtime --host-import-prefix eden_gpu_=eden_gpu`. The
+  translator emits `eden_gpu::eden_gpu_present(c2da_mem, qge_screen_pixels, 320, 240)` and
+  `require eden_gpu` in the cluster module.
+- **Host side:** `eden/eden_gpu.das` (hand-written, module `eden_gpu`). `eden_gpu_palette(mem,
+  rgb768)` builds a 256-entry RGBA table. `eden_gpu_present(mem, pixels, w, h)` converts the
+  8-bit indices through it into a `Bitmap` and calls `update_texture` on the texture the player
+  bound with `eden_gpu_bind`. The palette lookup runs **on the CPU**; the `[pixel_shader]`
+  lookup was not attempted in v0.
+- **Player:** a copy of the installed `c2das_quake_player.das` (not committed) whose
+  `show_frame` only binds the texture. It is installed as `modules/dasquake_gpu/`, with the
+  cheat `quake_gpu_play`.
+
+Measured in the editor, attract demos, real time [M]:
+
+| | value |
+|---|---|
+| fps | 16.2–17.2 (M1 polling build: 17–19) |
+| engine frame | 62 ms avg |
+| `eden_gpu_present` CPU convert | 1.86 ms per present |
+| `update_texture` | 0.44 ms per present |
+| presents / palette calls | 239 / 47 after about 15 s |
+
+The frame rate is unchanged within noise, as expected: v0 moves the same conversion from the
+player into the import. Screenshot: the demo1 scene renders correctly.
+
+- **One Quake per project:** the GPU install and `modules/dasquake` cannot be loaded together.
+  Every engine unit module (`chase_cluster`, `crc`, …) has the same name in both, and the editor
+  compiles every `.das` in the project, so it reports `MODULE NAME COLLISION` even when
+  `main.das` requires only one of them. `--runtime-module` renames only the runtime. Two
+  translations of one program in one project need a module-name prefix in the translator.
+- **Next:** pass the 8-bit indices as a texture and do the palette lookup in a `[pixel_shader]`.
+  That removes the 1.86 ms convert, but the upload becomes one byte per pixel.
+
 ### Next
 
 1. The `das-critic-perf` libm peephole, landed. Then the load-reuse optimization for Quake's
