@@ -44,6 +44,8 @@ var private g_palettes : int = 0
 var private g_palUploads : int = 0
 var private g_convertMs : double = 0.0lf
 var private g_uploadMs : double = 0.0lf
+var private g_paletteMs : double = 0.0lf
+var private g_palUploadMs : double = 0.0lf
 
 // the texture eden_gpu_present updates (w x h, RGBA) on the v0 CPU path
 def public eden_gpu_bind(texture : TextureId) {
@@ -98,6 +100,7 @@ def public eden_gpu_material(w : int; h : int; shader : bool) : MaterialId {
 }
 
 def public eden_gpu_palette(mem : array<uint8>; rgb768 : int) {
+    let t0 = ref_time_ticks()
     for (i in range(256)) {
         let p = rgb768 + i * 3
         // a Bitmap texel is 0xAARRGGBB (measured: R in the low byte showed
@@ -109,6 +112,7 @@ def public eden_gpu_palette(mem : array<uint8>; rgb768 : int) {
         }
     }
     g_palettes++
+    g_paletteMs += double(get_time_nsec(t0)) / 1000000.0lf
 }
 
 def public eden_gpu_present(mem : array<uint8>; pixels : int; w : int; h : int) {
@@ -119,8 +123,24 @@ def public eden_gpu_present(mem : array<uint8>; pixels : int; w : int; h : int) 
     let t0 = ref_time_ticks()
     if (g_shader) {
         // four indices per texel; byte k of the group is byte k of the
-        // 0xAARRGGBB texel, so the channels B G R A (quake_palette.shader)
-        for (i in range(w * h / 4)) {
+        // 0xAARRGGBB texel, so the channels B G R A (quake_palette.shader).
+        // Four texels per iteration: the loop overhead is a large part of
+        // the interpreter's cost (measured 0.93 -> 0.79 ms for two per
+        // iteration).  Eden has no cheaper path: `unsafe` and the typed
+        // array_view are rejected by its CodeOfPolicies, and create_texture
+        // over array<uint8> crashed the game.  The tail loop covers the
+        // texels past the last group of four
+        let n = w * h / 4
+        let n4 = n / 4
+        for (j in range(n4)) {
+            let i = j * 4
+            let p = pixels + i * 4
+            g_bitmap.pixels[i] = uint(mem[p]) | (uint(mem[p + 1]) << 8u) | (uint(mem[p + 2]) << 16u) | (uint(mem[p + 3]) << 24u)
+            g_bitmap.pixels[i + 1] = uint(mem[p + 4]) | (uint(mem[p + 5]) << 8u) | (uint(mem[p + 6]) << 16u) | (uint(mem[p + 7]) << 24u)
+            g_bitmap.pixels[i + 2] = uint(mem[p + 8]) | (uint(mem[p + 9]) << 8u) | (uint(mem[p + 10]) << 16u) | (uint(mem[p + 11]) << 24u)
+            g_bitmap.pixels[i + 3] = uint(mem[p + 12]) | (uint(mem[p + 13]) << 8u) | (uint(mem[p + 14]) << 16u) | (uint(mem[p + 15]) << 24u)
+        }
+        for (i in range(n4 * 4, n)) {
             let p = pixels + i * 4
             g_bitmap.pixels[i] = uint(mem[p]) | (uint(mem[p + 1]) << 8u) | (uint(mem[p + 2]) << 16u) | (uint(mem[p + 3]) << 24u)
         }
@@ -134,12 +154,14 @@ def public eden_gpu_present(mem : array<uint8>; pixels : int; w : int; h : int) 
     if (g_bound) {
         let t1 = ref_time_ticks()
         if (g_shader && g_palDirty) {
+            let t2 = ref_time_ticks()
             g_palDirty = false
             for (i in range(256)) {
                 g_palBitmap.pixels[i] = g_lut[i]
             }
             update_texture(g_palBitmap, g_palTexture)
             g_palUploads++
+            g_palUploadMs += double(get_time_nsec(t2)) / 1000000.0lf
         }
         update_texture(g_bitmap, g_texture)
         g_uploadMs += double(get_time_nsec(t1)) / 1000000.0lf
@@ -151,6 +173,8 @@ def public eden_gpu_report : string {
     let n = double(max(g_presents, 1))
     let c = int(g_convertMs / n * 1000.0lf)
     let u = int(g_uploadMs / n * 1000.0lf)
+    let pc = int(g_paletteMs / double(max(g_palettes, 1)) * 1000.0lf)
+    let pu = int(g_palUploadMs / double(max(g_palUploads, 1)) * 1000.0lf)
     let path = g_shader ? "v1 shader" : "v0 cpu"
-    return "eden_gpu ({path}): presents {g_presents}, palettes {g_palettes} ({g_palUploads} uploaded), convert {c} us/present, upload {u} us/present"
+    return "eden_gpu ({path}): presents {g_presents}, palettes {g_palettes} ({g_palUploads} uploaded), convert {c} us/present, upload {u} us/present, palette {pc} us/call, palette upload {pu} us/upload"
 }

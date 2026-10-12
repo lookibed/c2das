@@ -123,7 +123,7 @@ What scripts can and cannot do (documentation survey, plus measurements):
 | M0 | translator fixes 1–3; a quakegeneric timedemo case whose frame hashes equal C | — |
 | M1 | C play harness (`qge_*`) and host copied from the Doom player; a dasQUAKE repo shaped like dasDOOM | 16–38 fps [E] |
 | M1.5 | load reuse in the translator; palette lookup in a pixel shader | ~35–40 fps [E] |
-| M2 | GPU **for computation only**: per-pixel work of the software renderer moved into pixel shaders (palette lookup done; next candidates: surface-cache building, i.e. lightmap × texture, and span texture mapping), through `eden_gpu_*` host imports | — |
+| M2 | GPU **for computation only**: per-pixel work of the software renderer moved into pixel shaders (palette lookup done; surface-cache building and span mapping are blocked: Eden has no GPU readback, see "GPU compute: readback and stage 2"), through `eden_gpu_*` host imports | — |
 
 **Decision (2026-10-12):** the Eden GPU is used for computation only. c2das does not build Eden
 scene geometry (meshes, cameras) from the translated program. A GLQuake-style capture layer is out
@@ -340,12 +340,80 @@ DSL facts found (all compiled and run):
   texel), which were not tried. So one byte per index needs the 4-per-texel packing.
 - The register and instruction limits were not hit. The shader uses about 15 operations.
 
+### GPU compute: readback and stage 2 (10:45)
+
+**Question:** can a script get GPU results back? Without that, a pixel shader can only produce
+what is shown on screen, and no stage of the software renderer whose output the engine reads
+again (surface-cache blocks, spans into the 8-bit screen) can move to the GPU.
+
+**Answer: no.** Evidence, from the editor's own symbol table (`get_completion_list`, all 4795
+functions of the compiled project), `search_docs` and a probe module run in the editor [M]:
+- `create_render_target(w, h, TextureDeclaration) : TextureId` exists but is undocumented. Other
+  projects use it only as `Camera.renderTargetId`, so a camera renders into it and a material
+  samples it. A pixel shader therefore writes it only by rendering a quad through a camera. That
+  is Eden scene geometry, out of scope under the computation-only rule.
+- No function takes a `TextureId` and returns pixels. The only `TextureId → CPU` functions are
+  `get_texture_size`, `get_texture_sprites`, `get_resource_name` and `is_resource_alive`.
+  `search_docs` for readback, read pixels, screenshot, capture and "save texture" finds nothing.
+- `get_image_content(path, block)` reads image **assets** only. For a render target (64x64,
+  valid, size readable) and for a `create_texture` texture it returned `false`. The "name" of
+  such a texture is the source location of its creation, not an asset path.
+- No compute shaders (see "GPU paths in Eden").
+
+So M2 can only move **display-side** work: per-pixel stages whose result is only shown. The
+surface-cache offload (texel × lightmap into the heap) is not possible in Eden today.
+
+**Stage 2 candidates without readback**, probed in the editor [M]:
+- *Upload the 8-bit screen as-is.* There is no 8-bit format, and no safe byte-to-`uint` view:
+  - `unsafe { memcpy(...) }` is rejected at compile time: `error[31012]: unsafe function ...
+    unsafe functions are prohibited by CodeOfPolicies`.
+  - daslib's typed `array_view(bytes, offset, n, type<uint>)` is rejected the same way, because
+    its generic body uses `unsafe`.
+  - `create_texture(w, h, pixels : array<uint8>, ...)` (the generic `array<auto(TT)>` overload)
+    crashed the game: `Unrecoverable exception in user thread`.
+
+  The packing loop stays on the CPU. Its interpreter cost per 320x240 frame, 20 runs:
+
+  | packing loop | ms |
+  |---|---|
+  | one texel per iteration (v1) | 0.93 |
+  | two texels per iteration | 0.79 |
+  | a byte range with a `& 3` test | 1.10 |
+
+- *Palette shifts (`v_blend`) in the shader.* The palette import and its upload cost much less
+  than estimated (from the new `quake_report` fields, run below): 17 us per palette call and 31 us
+  per 256x1 upload, so 182 calls / 162 uploads over 1196 frames are about 7 us per frame. The
+  shifted palette is built by the engine's `V_UpdatePalette`, which the harness cannot skip without
+  editing engine sources. A shader blend would save at most those 7 us per frame and would
+  approximate Quake's integer `>> 8` blend. **Not done.**
+- Upload costs (probe): a 64x64 RGBA `update_texture` 0.008 ms, a 256x1 one 0.0016 ms.
+
+**Done:** `eden_gpu_present` packs four texels per loop iteration (with a tail loop), and
+`quake_report` now shows palette time per call and per upload. Measured in the editor, attract
+demos, real time, the same editor session, one run each of about 1100 frames [M]:
+
+| | before | after |
+|---|---|---|
+| present CPU (pack) | 1075 us | 971 us |
+| `update_texture` per present | 173 us | 178 us |
+| fps | 18.6 | 20.0 |
+| engine frame avg | 52.0 ms | 48.3 ms |
+
+The pack saves 0.1 ms per present (10 %). The fps and frame-average differences are larger than
+that and are run-to-run noise in real-time attract play; they are not attributed to this change.
+
+**Decision:** with no readback and no unsafe code, Eden's GPU can take over only the final
+per-pixel mapping of the 8-bit screen, and that is done (palette lookup, v1). The renderer's cost
+stays in the interpreted engine (about 46–52 ms per frame against about 1.15 ms for the whole
+present). The next real gains are translator-side (M1.5 load reuse, perf peepholes), not GPU
+stages. Revisit M2 if Eden adds a texture readback or allows a byte-to-`uint` view.
+
 ### Next
 
 1. The `das-critic-perf` libm peephole, landed. Then the load-reuse optimization for Quake's
    float-heavy code (M1.5).
 2. A per-program name for the shared runtime module.
 3. Key input for Quake in the editor.
-4. M2, compute only: move the software renderer's per-pixel stages into pixel shaders through
-   `eden_gpu_*` imports. The palette lookup is done. Next candidates are surface-cache building
-   (lightmap × texture) and span texture mapping. No Eden geometry.
+4. M2, compute only: blocked. Eden has no GPU readback (see "GPU compute: readback and stage
+   2"), so surface-cache building and span mapping cannot move to the GPU. The palette lookup is
+   the only stage done. No Eden geometry.
