@@ -31,21 +31,21 @@ let private PALETTE_SHADER = "modules/dasquake_gpu/quake_palette.shader"
 
 var private g_lut : uint[256]
 var private g_bitmap : Bitmap
-var private g_palBitmap : Bitmap
+var private g_pal_bitmap : Bitmap
 var private g_width : int = 0
 var private g_height : int = 0
 var private g_texture : TextureId
-var private g_palTexture : TextureId
+var private g_pal_texture : TextureId
 var private g_bound : bool = false
 var private g_shader : bool = false
-var private g_palDirty : bool = true
+var private g_pal_dirty : bool = true
 var private g_presents : int = 0
 var private g_palettes : int = 0
-var private g_palUploads : int = 0
-var private g_convertMs : double = 0.0lf
-var private g_uploadMs : double = 0.0lf
-var private g_paletteMs : double = 0.0lf
-var private g_palUploadMs : double = 0.0lf
+var private g_pal_uploads : int = 0
+var private g_convert_ms : double = 0.0lf
+var private g_upload_ms : double = 0.0lf
+var private g_palette_ms : double = 0.0lf
+var private g_pal_upload_ms : double = 0.0lf
 
 // the texture eden_gpu_present updates (w x h, RGBA) on the v0 CPU path
 def public eden_gpu_bind(texture : TextureId) {
@@ -73,7 +73,7 @@ def public eden_gpu_material(w : int; h : int; shader : bool) : MaterialId {
         return create_material(MaterialImport(shaderName = "pixel_art", diffuse = tex))
     }
     g_bitmap <- Bitmap(w / 4, h)
-    g_palBitmap <- Bitmap(256, 1)
+    g_pal_bitmap <- Bitmap(256, 1)
     var blank : array<uint>
     resize(blank, w / 4 * h)
     // indices are data: no sRGB decode, no filtering, no mips
@@ -85,16 +85,16 @@ def public eden_gpu_material(w : int; h : int; shader : bool) : MaterialId {
     ))
     var pal : array<uint>
     resize(pal, 256)
-    g_palTexture = create_texture(256, 1, pal, TextureDeclaration(
+    g_pal_texture = create_texture(256, 1, pal, TextureDeclaration(
         filter = TextureFilter.Point,
         generateMipLevels = false,
         addressing = TextureAddress.Clamp
     ))
     g_bound = true
     g_shader = true
-    g_palDirty = true
+    g_pal_dirty = true
     var props = MaterialProperties("indexTex", g_texture)
-    props |> add("paletteTex", g_palTexture)
+    props |> add("paletteTex", g_pal_texture)
     props |> add("packedWidth", float(w / 4))
     return create_material(MaterialImport(shaderId = request_shader(PALETTE_SHADER), properties <- props))
 }
@@ -108,11 +108,11 @@ def public eden_gpu_palette(mem : array<uint8>; rgb768 : int) {
         let c = 0xff000000u | (uint(mem[p]) << 16u) | (uint(mem[p + 1]) << 8u) | uint(mem[p + 2])
         if (g_lut[i] != c) {
             g_lut[i] = c
-            g_palDirty = true
+            g_pal_dirty = true
         }
     }
     g_palettes++
-    g_paletteMs += double(get_time_nsec(t0)) / 1000000.0lf
+    g_palette_ms += double(get_time_nsec(t0)) / 1000000.0lf
 }
 
 def public eden_gpu_present(mem : array<uint8>; pixels : int; w : int; h : int) {
@@ -149,32 +149,32 @@ def public eden_gpu_present(mem : array<uint8>; pixels : int; w : int; h : int) 
             g_bitmap.pixels[i] = g_lut[int(mem[pixels + i])]
         }
     }
-    g_convertMs += double(get_time_nsec(t0)) / 1000000.0lf
+    g_convert_ms += double(get_time_nsec(t0)) / 1000000.0lf
     g_presents++
     if (g_bound) {
         let t1 = ref_time_ticks()
-        if (g_shader && g_palDirty) {
+        if (g_shader && g_pal_dirty) {
             let t2 = ref_time_ticks()
-            g_palDirty = false
+            g_pal_dirty = false
             for (i in range(256)) {
-                g_palBitmap.pixels[i] = g_lut[i]
+                g_pal_bitmap.pixels[i] = g_lut[i]
             }
-            update_texture(g_palBitmap, g_palTexture)
-            g_palUploads++
-            g_palUploadMs += double(get_time_nsec(t2)) / 1000000.0lf
+            update_texture(g_pal_bitmap, g_pal_texture)
+            g_pal_uploads++
+            g_pal_upload_ms += double(get_time_nsec(t2)) / 1000000.0lf
         }
         update_texture(g_bitmap, g_texture)
-        g_uploadMs += double(get_time_nsec(t1)) / 1000000.0lf
+        g_upload_ms += double(get_time_nsec(t1)) / 1000000.0lf
     }
 }
 
 // presents and palette calls so far, and the average convert / upload ms
 def public eden_gpu_report : string {
     let n = double(max(g_presents, 1))
-    let c = int(g_convertMs / n * 1000.0lf)
-    let u = int(g_uploadMs / n * 1000.0lf)
-    let pc = int(g_paletteMs / double(max(g_palettes, 1)) * 1000.0lf)
-    let pu = int(g_palUploadMs / double(max(g_palUploads, 1)) * 1000.0lf)
+    let c = int(g_convert_ms / n * 1000.0lf)
+    let u = int(g_upload_ms / n * 1000.0lf)
+    let pc = int(g_palette_ms / double(max(g_palettes, 1)) * 1000.0lf)
+    let pu = int(g_pal_upload_ms / double(max(g_pal_uploads, 1)) * 1000.0lf)
     let path = g_shader ? "v1 shader" : "v0 cpu"
-    return "eden_gpu ({path}): presents {g_presents}, palettes {g_palettes} ({g_palUploads} uploaded), convert {c} us/present, upload {u} us/present, palette {pc} us/call, palette upload {pu} us/upload"
+    return "eden_gpu ({path}): presents {g_presents}, palettes {g_palettes} ({g_pal_uploads} uploaded), convert {c} us/present, upload {u} us/present, palette {pc} us/call, palette upload {pu} us/upload"
 }
