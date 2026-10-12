@@ -67,13 +67,19 @@ comparison.
 ## Translation status
 
 `quakegeneric-demo1-std` is `ready`: the translated program reproduces the C reference's 101
-frame hashes.  `quakegeneric-demo1-eden-linear` is `known-red`; the C reference reproduces the
-declared oracle under the canonical runner, and translation then stops.
+frame hashes.  `quakegeneric-demo1-eden-linear` is `ready` too: under the EdenSpark flags
+(`--memory-model linear`, `--libc eden`, `--no-unsafe`) the same 101 lines come out.  Its test
+host registers every file under the base directory argument (`fixtures/`) with
+`c2da_eden_add_file` (`scripts/run_c2das_cases.py`, `write_eden_host`).
 
-| case | status / first blocker |
+| case | status |
 |---|---|
 | `quakegeneric-demo1-std` (`--libc std`) | passes |
-| `quakegeneric-demo1-eden-linear` (eden flags, `--memory-model linear`) | `declaration=Sys_FileOpenWrite; cause=not supported under --memory-model linear yet: library function `strerror` over C memory` (`sys_null.c:95`) |
+| `quakegeneric-demo1-eden-linear` (eden flags, `--memory-model linear`) | passes |
+
+The last three gaps on the way, each with its fixture: `strerror` over C memory
+(`p225-linear-strerror`), a call with arguments through an unprototyped function pointer held
+in the heap and a `!side` heap index (`p226-linear-unprototyped-call`).
 
 At the time of import (2026-10-12, translator at `e988a8de1`) both cases stopped at
 `unsupported external call: atan` in `Chase_Update`.

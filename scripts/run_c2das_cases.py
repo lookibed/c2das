@@ -62,7 +62,19 @@ def write_eden_host(
         "def c2da_eden_add_file" in das.read_text()
         for das in generated_das.parent.glob("*.das")
     )
+    # A directory argument (a base directory such as Quake's `-basedir`)
+    # registers every regular file under it, each under `<arg>/<relative>`.
+    files: list[str] = []
     for arg in program_args if has_files else []:
+        if Path(arg).is_dir():
+            files += sorted(
+                f"{arg}/{p.relative_to(arg).as_posix()}"
+                for p in Path(arg).rglob("*")
+                if p.is_file()
+            )
+        else:
+            files.append(arg)
+    for arg in files:
         path = json.dumps(arg)
         lines += [
             f"    fopen({path}, \"rb\") $(f) {{",
