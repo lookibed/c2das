@@ -1,5 +1,17 @@
 # What the translated daslang could do better: interpreter first
 
+## Open follow-ups from the 8daff4635..0cf37079f review (`docs/reviews/2026-10-12-0cf37079f.md`)
+
+1. Rename alias `let`s that copy another reuse temp (perf finding 1, 134 in Doom).
+2. `c2da_lin_strerror`:
+   - copy through `peek_data`;
+   - drop the `int(...)` around its result;
+   - inline `c2da_lin_scan_double`.
+3. Emit the linear `fscanf` runtime only when a program calls it.
+4. Host-import fixture hosts: add `[unused_argument(mem)]`; name the `eden_gpu.das` globals in
+   snake_case.
+5. Reuse a `while` condition's load in the loop body (measure first).
+
 ## Method
 
 - Recorded 2026-10-08.
