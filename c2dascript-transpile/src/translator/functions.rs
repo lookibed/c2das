@@ -277,8 +277,14 @@ impl<'c> Translation<'c> {
             };
 
             // Run through CFG pipeline
+            if self.is_linear() {
+                self.linear_begin_body();
+            }
             let mut body_stmts =
                 crate::cfg::convert_function_body(self, body_id, &stmt_ids, imp_ret, ret_ctype)?;
+            if self.is_linear() {
+                self.linear_reuse_loads(&mut body_stmts);
+            }
 
             // The parameter copies are the first thing the function does: the
             // body already refers to them by the C parameter's name, and a

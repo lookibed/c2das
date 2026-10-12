@@ -7519,6 +7519,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p229-linear-load-reuse",
+      "canonical_cases": [
+        "p229-linear-load-reuse"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "xform 2.25 7.5 49.5938\nalias_store same 19\nalias_store diff 8\nalias_forward same -1.5\nalias_forward diff 3.25\ncall_between 45 calls 1\npointer_moves 206\nvolatile 410\nconditional 18 -1\nconditional 2\nwalk 65\nma 6 7.5 9.75 dot 6.09375\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p229_linear_load_reuse",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p229_linear_load_reuse.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p22-typed-literals",
       "canonical_cases": [
         "p22-typed-literals"

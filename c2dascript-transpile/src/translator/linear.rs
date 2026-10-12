@@ -27,7 +27,14 @@ use std::collections::HashMap as StdHashMap;
 
 mod typed_records;
 pub use typed_records::{typed_records_program, TypedVerdict};
+mod reuse;
 mod va_heap;
+
+thread_local! {
+    /// Whether the function being lowered reaches a `volatile` object in the
+    /// heap: its loads are then never reused (`linear/reuse.rs`).
+    static VOLATILE: std::cell::Cell<bool> = std::cell::Cell::new(false);
+}
 
 /// The heap: one module global.
 pub(crate) const MEM: &str = "c2da_mem";
@@ -2006,6 +2013,20 @@ impl<'c> Translation<'c> {
         self.renamer.borrow_mut().fresh()
     }
 
+    /// Before a function body is lowered: no `volatile` heap access seen yet.
+    pub(crate) fn linear_begin_body(&self) {
+        VOLATILE.with(|v| v.set(false));
+    }
+
+    /// After a function body is lowered: heap load reuse
+    /// (`linear/reuse.rs`), unless the body reaches a `volatile` heap object.
+    pub(crate) fn linear_reuse_loads(&self, stmts: &mut Vec<DaStmt>) {
+        if VOLATILE.with(|v| v.replace(false)) {
+            return;
+        }
+        reuse::reuse_loads(stmts, &mut || self.fresh_name());
+    }
+
     /// `int(e)` unless `e` already is an `int`.
     fn as_int(e: DaExpr) -> DaExpr {
         match &e {
@@ -2046,6 +2067,9 @@ impl<'c> Translation<'c> {
         expr_id: CExprId,
     ) -> TranslationResult<Option<WithStmts<DaExpr>>> {
         use CExprKind::*;
+        if matches!(self.qual_of(expr_id), Ok(q) if q.qualifiers.is_volatile) {
+            VOLATILE.with(|v| v.set(true));
+        }
         match &self.ast_context[expr_id].kind {
             Paren(_, inner) => self.heap_place(ctx, *inner),
             DeclRef(_, decl, _) => Ok(frame_offset(*decl)

@@ -1289,6 +1289,23 @@
       "runtime": "required"
     },
     {
+      "id": "p229-linear-load-reuse",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p229_linear_load_reuse.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": ["--memory-model", "linear", "--dialect", "eden-0.6.4", "--no-unsafe"],
+      "clang": { "compiler": "clang-18", "flags": ["-w"] },
+      "c_reference": { "entrypoint": "main", "return_type": "int" },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "xform 2.25 7.5 49.5938\nalias_store same 19\nalias_store diff 8\nalias_forward same -1.5\nalias_forward diff 3.25\ncall_between 45 calls 1\npointer_moves 206\nvolatile 410\nconditional 18 -1\nconditional 2\nwalk 65\nma 6 7.5 9.75 dot 6.09375\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p227-variadic-function-pointer",
       "status": "ready",
       "source_root": "tests/syntax",
