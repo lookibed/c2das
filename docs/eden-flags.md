@@ -431,6 +431,20 @@ The design is in `translator/ARCHITECTURE.md` ("Target switches", `linear.rs`). 
   8-bit values, little-endian shifts for wider ones, `math_bits` for floating values. A
   field through a pointer is at Clang's offset. Records reached only by value stay
   daslang structs; under the model they carry no layout proof.
+- **Load reuse.** A 4-byte heap load (`float`, `int`, pointer) costs about 45 ns in the
+  interpreter (four bounds-checked bytes), so after a function body is lowered
+  (`translator/linear/reuse.rs`), within one block a repeated load of the same address
+  becomes one `let` before its first statement, and a `float` load right after a `float`
+  store of the same address reads the stored value. It applies only when nothing in between
+  can change the value: no call (other than the `math_bits` conversions), no write to a
+  variable the address reads, no control flow, and no heap store that may overlap it. Only
+  a store at the same base with a disjoint constant offset is known not to overlap, so a
+  store through another pointer kills every remembered load. Loads known after an `if`
+  condition carry into its branches. A first load that only appears under `&&`/`||`/`?:`
+  is never hoisted, and a function that reaches a `volatile` heap object is left as is.
+  Micro-benchmark (20 M iterations, master daslang): three reads of one field 133–138 ns,
+  one read plus a `let` 53–54 ns. Case `p229-linear-load-reuse` covers the aliasing,
+  call, pointer-update, `volatile` and conditional cases.
 - **Static data.** String literals whose address is taken are placed in the heap by the
   `[init]` function.
 - **C stack (step 4).** A local (not a parameter, not a `static`) whose address is taken

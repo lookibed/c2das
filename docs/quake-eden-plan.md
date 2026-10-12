@@ -110,7 +110,8 @@ What scripts can and cannot do (documentation survey, plus measurements):
 3. **`setjmp`/`longjmp`** for `Host_Error`, lowered to panic plus `try/recover`.
 4. **Float access cost:**
    - reuse heap loads within a block, and do not read a value back right after storing it — Quake's
-     `DotProduct`/`VectorMA` macros reload the same fields;
+     `DotProduct`/`VectorMA` macros reload the same fields. **Landed** (`linear/reuse.rs`, case
+     `p229-linear-load-reuse`); see "M1.5: load reuse" below for what it buys;
    - optionally, a word-heap fast path for aligned floats, about 3.4× cheaper per access.
 5. **A host-import flag** binding an undefined C extern to a daslang function, with heap ranges
    passed as (offset, length).
@@ -189,6 +190,28 @@ EdenSpark project. The runtime modules are named per program (`dasdoom_runtime`,
 |---|---|---|
 | Quake alone | 17.7 fps; `quake_bench` 44–60 ms per tick, 16.6–22.8 fps engine-only | — |
 | both running | 12–14.5 fps | 12.7–15.6 tics/s |
+
+### M1.5: load reuse (translator, 04:30)
+
+The rule is in `eden-flags.md`, "`--memory-model linear` as built", under "Load reuse". Within a
+block, a repeated 4-byte heap load becomes one `let`, and a `float` store is forwarded to the next
+load of its address. Nothing is reused across a call, a store through another pointer, or control
+flow. `volatile` is excluded.
+
+- **Micro-benchmark** (20 M iterations, master daslang, 2 runs): one `float` load is 44–49 ns.
+  Three loads of one field take 133–138 ns; one load plus a `let` takes 53–54 ns. Folding the
+  address `p + 1 * 4 + k` into `p + 5 + k` gains under 5%, which is noise.
+- **Quake timedemo** (`quakegeneric-demo1-eden-linear` flags, 100 frames, master daslang,
+  `-no-module-cache`, interleaved, 13 runs of each): float load sites go from 3042 to 2782.
+  - Wall time is bimodal on this machine, about 14.5 s or about 17.5 s, for either build.
+  - Compiling takes 6.0–6.4 s.
+  - In the fast mode, base takes 14.74–15.46 s and new takes 14.19–14.74 s. That is ≈ 86 → ≈ 82
+    ms per frame (best runs, compile time removed), ≈ 5%. The gap is within the noise of the slow
+    mode, so it is not a confirmed gain.
+- **Why so little:** the hot transforms (`TransformVector`, `R_AliasTransformVector`, …) store
+  `out[k]` between their `DotProduct`s over `in`. In C, `out` may alias `in`, so every `in`
+  field has to be read again after each store. A bigger lever needs either restrict/alias facts
+  or the word-heap fast path for aligned floats (item 4, about 3.4× per access).
 
 ### Next
 
