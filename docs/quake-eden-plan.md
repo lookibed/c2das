@@ -93,11 +93,9 @@ What scripts can and cannot do (documentation survey, plus measurements):
   The language is a float-only daslang subset with 16 float4 registers and 128 instructions, loops
   unrolled. Quake's palette lookup runs in one; see "eden_gpu ABI v1" below.
 - **A GL 1.x immediate-mode shim** is too costly: about 2 ms per 10 k triangles before the C side
-  even runs. The workable form is a capture layer:
-  1. At map load, GLQuake's world polygons become static meshes and its textures become
-     `create_texture`.
-  2. Per frame, only the camera, entities, alias-model frames and changed lightmap regions are
-     updated.
+  even runs. A capture layer that turns GLQuake's polygons into static Eden meshes would work
+  technically, but it is **out of scope**: the Eden GPU is used for computation only, never for
+  scene geometry (decision of 2026-10-12, see Milestones).
 - **An `eden_gpu` ABI:** c2das has no import mechanism yet, because an undefined extern is a strict
   error. The first step is a command buffer that the C writes into the heap and the host decodes
   each frame, as Doom's host does pull-only today. Real imports come later through a flag.
@@ -125,7 +123,11 @@ What scripts can and cannot do (documentation survey, plus measurements):
 | M0 | translator fixes 1–3; a quakegeneric timedemo case whose frame hashes equal C | — |
 | M1 | C play harness (`qge_*`) and host copied from the Doom player; a dasQUAKE repo shaped like dasDOOM | 16–38 fps [E] |
 | M1.5 | load reuse in the translator; palette lookup in a pixel shader | ~35–40 fps [E] |
-| M2 | GLQuake capture layer → static meshes; command-buffer ABI, then host imports | ~60 fps [E] |
+| M2 | GPU **for computation only**: per-pixel work of the software renderer moved into pixel shaders (palette lookup done; next candidates: surface-cache building, i.e. lightmap × texture, and span texture mapping), through `eden_gpu_*` host imports | — |
+
+**Decision (2026-10-12):** the Eden GPU is used for computation only. c2das does not build Eden
+scene geometry (meshes, cameras) from the translated program. A GLQuake-style capture layer is out
+of scope, and the M2a mesh prototype was reverted (`b32236340`).
 
 ## Status (2026-10-12, 03:40)
 
@@ -166,7 +168,7 @@ EdenSpark editor [M]:
 daslang function. Under linear memory, pointers pass as heap offsets, plus `c2da_mem` as the first
 argument. Fixtures: `h01`, `m06`. Details: `eden-flags.md`, "Host imports (experimental)".
 
-This is the call path an `eden_gpu_*` ABI for M2 will use.
+This is the call path the `eden_gpu_*` compute ABI uses.
 
 ### dasDOOM and dasQUAKE in one editor project (04:05)
 
@@ -344,4 +346,6 @@ DSL facts found (all compiled and run):
    float-heavy code (M1.5).
 2. A per-program name for the shared runtime module.
 3. Key input for Quake in the editor.
-4. M2: `eden_gpu_*` imports for a GLQuake-style capture layer.
+4. M2, compute only: move the software renderer's per-pixel stages into pixel shaders through
+   `eden_gpu_*` imports. The palette lookup is done. Next candidates are surface-cache building
+   (lightmap × texture) and span texture mapping. No Eden geometry.
