@@ -152,9 +152,14 @@ def play_units(eden: dict) -> list[str]:
 
 
 def play_module(directory: Path, names: list[str]) -> str:
-    """The generated module that defines `qge_init`."""
-    found = [n[:-len(".das")] for n in names if n.endswith(".das")
-             and re.search(r"^def (public )?qge_init\b", (directory / n).read_text(), re.MULTILINE)]
+    """The generated module that defines `qge_init`, directly or through the
+    `include` of a `.das.inc` (a cluster module includes its units' bodies)."""
+    defines = [n for n in names
+               if re.search(r"^def (public )?qge_init\b", (directory / n).read_text(), re.MULTILINE)]
+    found = sorted({n[:-len(".das")] for n in names if n.endswith(".das")
+                    for d in defines
+                    if n == d or re.search(rf"^include {re.escape(d)}$",
+                                           (directory / n).read_text(), re.MULTILINE)})
     if len(found) != 1:
         fail(f"expected one eden/ module defining qge_init, found {found}")
     return found[0]
