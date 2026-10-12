@@ -125,3 +125,52 @@ What scripts can and cannot do (documentation survey, plus measurements):
 | M1 | C play harness (`qge_*`) and host copied from the Doom player; a dasQUAKE repo shaped like dasDOOM | 16–38 fps [E] |
 | M1.5 | load reuse in the translator; palette lookup in a pixel shader | ~35–40 fps [E] |
 | M2 | GLQuake capture layer → static meshes; command-buffer ABI, then host imports | ~60 fps [E] |
+
+## Status (2026-10-12, 03:40)
+
+### M0: done
+
+Both cases equal C on master daslang, 101 frame-hash lines each:
+- `quakegeneric-demo1-std` (raw memory);
+- `quakegeneric-demo1-eden-linear` (`--libc eden --memory-model linear --dialect eden-0.6.4
+  --no-unsafe`).
+
+Translator work it took:
+- libm, `rand`, `setjmp`/`longjmp`;
+- `getc`, `fscanf` (std and linear), `sprintf`, `strerror`, printf floats under linear;
+- local unions in the linear heap;
+- calls through variadic and unprototyped function pointers;
+- bool/enum conversions.
+
+### M1: done, playable in the editor
+
+The play build (`qg_eden_play.c` + `eden/c2das_quake_player.das`, per-file layout) runs in the
+EdenSpark editor [M]:
+
+| mode | fps | ms per frame |
+|---|---|---|
+| attract demos | 17–19 | 47–55 |
+| `+map start` | 11–12 | 75–85 |
+| `quake_bench 300` | 16 | 61 per tick |
+
+- **QuakeC under the linear model:** its 32-bit string offsets work, because heap offsets are
+  below 2^31.
+- **Keyboard input in the editor:** not yet verified.
+- **One project, one c2das program:** Doom and Quake cannot share an Eden project yet. Both ship a
+  module named `c2da_runtime`, and the editor refuses the duplicate name.
+
+### Host imports: landed as an experimental flag
+
+`--host-import c=module::fn` and `--host-import-prefix pre=module` bind an undefined C extern to a
+daslang function. Under linear memory, pointers pass as heap offsets, plus `c2da_mem` as the first
+argument. Fixtures: `h01`, `m06`. Details: `eden-flags.md`, "Host imports (experimental)".
+
+This is the call path an `eden_gpu_*` ABI for M2 will use.
+
+### Next
+
+1. The `das-critic-perf` libm peephole, landed. Then the load-reuse optimization for Quake's
+   float-heavy code (M1.5).
+2. A per-program name for the shared runtime module.
+3. Key input for Quake in the editor.
+4. M2: `eden_gpu_*` imports for a GLQuake-style capture layer.
