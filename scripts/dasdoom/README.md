@@ -15,9 +15,9 @@ module when files depend on each other in a cycle. So the tree mirrors the origi
 
 | path | what it is |
 |---|---|
-| `doom/` | The timedemo program under `--libc std`, `--module-layout source`: @DOOM_MODULES@ modules (one per C file, or a cluster of mutually dependent files), @DOOM_INCS@ `.das.inc` fragments, and the runtime `c2da_runtime.das`. The entry `doom_entry.das` plays `-timedemo demo1` and prints one hash per frame. |
+| `doom/` | The timedemo program under `--libc std`, `--module-layout source`: @DOOM_MODULES@ modules (one per C file, or a cluster of mutually dependent files), @DOOM_INCS@ `.das.inc` fragments, and the runtime `dasdoom_runtime.das` (named per program, so dasDOOM and dasQUAKE fit in one EdenSpark project). The entry `doom_entry.das` plays `-timedemo demo1` and prints one hash per frame. |
 | `doom/run.sh` | Runs the program on `doom1.wad` and compares the first 70 frame hashes with `expected_frames.txt`, the output of the C build. |
-| `eden/` | The interactive build for the EdenSpark editor, per file like `doom/`: the engine with the platform layer and sound mixer (the harness files join the cluster module `am_map_cluster.das`, which defines the `dge_*` host API), the runtime `c2da_runtime.das`, the hand-written host `c2das_doom_player.das`, and `main.das.example`. |
+| `eden/` | The interactive build for the EdenSpark editor, per file like `doom/`: the engine with the platform layer and sound mixer (the harness files join the cluster module `am_map_cluster.das`, which defines the `dge_*` host API), the runtime `dasdoom_runtime.das`, the hand-written host `c2das_doom_player.das`, and `main.das.example`. |
 | `harness/` | The c2das-authored C entries and platform layers that the translations include. |
 | `tools/get_wad.sh` | Downloads the shareware `doom1.wad` and checks its SHA-1. |
 

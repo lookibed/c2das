@@ -16,9 +16,9 @@ module when files depend on each other in a cycle. So the tree mirrors the origi
 
 | path | what it is |
 |---|---|
-| `quake/` | The timedemo program under `--libc std`, `--module-layout source`: @QUAKE_MODULES@ modules (one per C file, or a cluster of mutually dependent files), @QUAKE_INCS@ `.das.inc` fragments, and the runtime `c2da_runtime.das`. The entry `quake_entry.das` plays `+timedemo demo1` and prints one hash per frame. |
+| `quake/` | The timedemo program under `--libc std`, `--module-layout source`: @QUAKE_MODULES@ modules (one per C file, or a cluster of mutually dependent files), @QUAKE_INCS@ `.das.inc` fragments, and the runtime `dasquake_runtime.das` (named per program, so dasQUAKE and dasDOOM fit in one EdenSpark project). The entry `quake_entry.das` plays `+timedemo demo1` and prints one hash per frame. |
 | `quake/run.sh` | Runs the program on `id1/pak0.pak` and compares the 100 frame hashes with `expected_frames.txt`, the output of the C build. |
-| `eden/` | The interactive build for the EdenSpark editor, per file like `quake/`: the engine with the play platform layer `qg_eden_play.c` (it joins the cluster module `@PLAY_MODULE@.das`, which defines the `qge_*` host API), the runtime `c2da_runtime.das`, the hand-written host `c2das_quake_player.das`, and `main.das.example`. |
+| `eden/` | The interactive build for the EdenSpark editor, per file like `quake/`: the engine with the play platform layer `qg_eden_play.c` (it joins the cluster module `@PLAY_MODULE@.das`, which defines the `qge_*` host API), the runtime `dasquake_runtime.das`, the hand-written host `c2das_quake_player.das`, and `main.das.example`. |
 | `harness/` | The c2das-authored C entries and platform layers that the translations include. |
 | `tools/get_pak.sh` | Downloads the Quake 1.06 shareware release and extracts `id1/pak0.pak`, checking SHA-1s. |
 
