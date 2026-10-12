@@ -5170,6 +5170,22 @@ const STRERROR_CATALOGUE: &[(Errno, &str)] = &[
     (Errno::Eoverflow, "Value too large for defined data type"),
 ];
 
+/// The `strerror` catalogue as `(code, text)` in the numbering of the target
+/// `triple`, or `None` when that numbering is unknown.  `--memory-model
+/// linear` builds its own heap-copying `strerror` from it.
+pub(crate) fn strerror_catalogue(triple: &str) -> Option<Vec<(i64, &'static str)>> {
+    let numbering = ErrnoNumbering::of_target(triple);
+    if numbering == ErrnoNumbering::Unknown {
+        return None;
+    }
+    Some(
+        STRERROR_CATALOGUE
+            .iter()
+            .map(|(code, text)| (numbering.code(*code), *text))
+            .collect(),
+    )
+}
+
 /// `def c2da_std_strerror_text(code : int) : string`
 fn build_strerror_text() -> DaDecl {
     let arm = |entry: &(Errno, &str)| {

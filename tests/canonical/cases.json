@@ -1389,6 +1389,37 @@
       "runtime": "required"
     },
     {
+      "id": "p225-linear-strerror",
+      "status": "ready",
+      "source_root": "tests/syntax",
+      "translation_entry": "p225_linear_strerror.c",
+      "c_graph": "single-tu",
+      "libc": "eden",
+      "translator_flags": [
+        "--memory-model",
+        "linear",
+        "--dialect",
+        "eden-0.6.4",
+        "--no-unsafe"
+      ],
+      "clang": {
+        "compiler": "clang-18",
+        "flags": [
+          "-w"
+        ]
+      },
+      "c_reference": {
+        "entrypoint": "main",
+        "return_type": "int"
+      },
+      "das_entrypoint": "main",
+      "expected": {
+        "stdout": "No such file or directory|25\nInvalid argument\nNumerical result out of range\nUnknown error 9999\nUnknown error -7\nPermission denied O\n",
+        "exit_code": 0
+      },
+      "runtime": "required"
+    },
+    {
       "id": "p222-linear-getc",
       "status": "ready",
       "source_root": "tests/syntax",

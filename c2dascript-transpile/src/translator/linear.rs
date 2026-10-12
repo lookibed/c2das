@@ -61,6 +61,8 @@ thread_local! {
     static FILE_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
     /// Whether the `main` wrapper builds argv in the heap.
     static ARGV_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    /// The `strerror` section (`strerror_runtime`) once a call was lowered.
+    static STRERROR_SECTION: RefCell<Option<String>> = RefCell::new(None);
 }
 
 /// Clears the static block at the start of a translation unit.
@@ -74,6 +76,7 @@ pub fn reset() {
     FORMAT_USED.with(|u| u.set(false));
     FILE_USED.with(|u| u.set(false));
     ARGV_USED.with(|u| u.set(false));
+    STRERROR_SECTION.with(|u| *u.borrow_mut() = None);
     IN_LINK.with(|l| *l.borrow_mut() = None);
     EXTERN_STATIC.with(|s| s.borrow_mut().clear());
     OWN_EXTERN_FUNCS.with(|o| o.borrow_mut().clear());
@@ -3262,6 +3265,29 @@ impl<'c> Translation<'c> {
                 DaExpr::Call(Box::new(DaExpr::Var("c2da_lin_sscanf".into())), list)
             })));
         }
+        // `strerror` answers a heap copy of the std catalogue's text.
+        if base == "strerror" && args.len() == 1 {
+            let catalogue =
+                libc::strerror_catalogue(&self.ast_context.target).ok_or_else(|| {
+                    self.linear_refuse(
+                        expr_id,
+                        &format!(
+                            "`strerror` for target `{}`, whose errno numbering is unknown",
+                            self.ast_context.target
+                        ),
+                    )
+                })?;
+            STRERROR_SECTION.with(|u| *u.borrow_mut() = Some(strerror_runtime(&catalogue)));
+            let v = self.convert_expr(ctx.used(), args[0], None)?;
+            return Ok(Some(v.map(|v| {
+                let v = if Self::infer_type(&v) == Some(DaType::int()) {
+                    v
+                } else {
+                    cast(DaType::int(), v)
+                };
+                DaExpr::Call(Box::new(DaExpr::Var("c2da_lin_strerror".into())), vec![v])
+            })));
+        }
         // (runtime function, argument types: `I` int, `U` uint64)
         let sig: Option<(&str, &str)> = match base {
             "malloc" => Some(("c2da_lin_malloc", "U")),
@@ -3500,6 +3526,9 @@ pub fn runtime_source(reserve: u64) -> String {
     } else {
         ""
     };
+    let strerror_section = STRERROR_SECTION
+        .with(|u| u.borrow().clone())
+        .unwrap_or_default();
     let fn_section = function_tables_source();
     format!(
         r#"
@@ -3516,7 +3545,7 @@ def private c2da_lin_init() {{
     resize(c2da_mem, {brk})
 {copy}    c2da_lin_brk = {brk}
 }}
-{body}{format_section}{file_section}{argv_section}{fn_section}"#,
+{body}{format_section}{file_section}{argv_section}{strerror_section}{fn_section}"#,
         body = heap_runtime_body(stack_base)
     )
 }
@@ -3538,6 +3567,8 @@ pub struct LinearLink {
     pub format_heap: bool,
     pub file: bool,
     pub argv: bool,
+    /// The `strerror` section, once some unit lowered a call.
+    pub strerror: Option<String>,
     /// External objects some unit takes the address of: name → (offset,
     /// size), fixed before any unit is translated (`plan_shared_externs`).
     pub externs: BTreeMap<String, (i64, usize)>,
@@ -3584,6 +3615,9 @@ pub fn linked_state() -> LinearLink {
         format_heap: input.format_heap || va_heap::format_heap_used(),
         file: input.file || FILE_USED.with(|u| u.get()),
         argv: input.argv || ARGV_USED.with(|u| u.get()),
+        strerror: input
+            .strerror
+            .or_else(|| STRERROR_SECTION.with(|u| u.borrow().clone())),
         externs: input.externs,
         fn_externs: input.fn_externs,
     }
@@ -3700,6 +3734,7 @@ pub fn shared_runtime_source(reserve: u64, link: &LinearLink) -> String {
     );
     let file_section = if link.file { FILE_RUNTIME } else { "" };
     let argv_section = if link.argv { ARGV_RUNTIME } else { "" };
+    let strerror_section = link.strerror.as_deref().unwrap_or("");
     let mut tables = String::new();
     if !link.sigs.is_empty() {
         tables.push_str(
@@ -3735,7 +3770,7 @@ def c2da_lin_setup() {{
 def private c2da_lin_init() {{
     c2da_lin_setup()
 }}
-{body}{format_section}{file_section}{argv_section}{tables}"#,
+{body}{format_section}{file_section}{argv_section}{strerror_section}{tables}"#,
         body = heap_runtime_body(stack_base)
     )
 }
@@ -4275,6 +4310,46 @@ def c2da_lin_put_arg(argv : int; index : int; s : string) {
     c2da_lin_st32(argv + index * 8, p)
 }
 "#;
+
+/// `strerror` over C memory: the std catalogue's text (`libc::STRERROR_CATALOGUE`,
+/// glibc's wording in the target's numbering) copied into one heap buffer,
+/// which the next call may overwrite (C11 7.24.6.2p4).
+fn strerror_runtime(catalogue: &[(i64, &str)]) -> String {
+    let mut text = String::from(
+        "\n// strerror over C memory: glibc's text, copied into one heap buffer.\n\
+         var private c2da_lin_strerror_buf : int = 0\n\
+         var private c2da_lin_strerror_cap : int = 0\n\n\
+         def private c2da_lin_strerror_text(code : int) : string {\n",
+    );
+    for (code, msg) in catalogue {
+        text.push_str(&format!(
+            "    if (code == {code}) {{\n        return \"{msg}\"\n    }}\n"
+        ));
+    }
+    text.push_str(
+        "    return \"Unknown error {code}\"\n}\n\n\
+         def c2da_lin_strerror(code : int) : int {\n\
+         \x20   let s = c2da_lin_strerror_text(code)\n\
+         \x20   let n = length(s)\n\
+         \x20   if (c2da_lin_strerror_cap < n + 1) {\n\
+         \x20       let p = c2da_lin_malloc(uint64(n + 1))\n\
+         \x20       if (p == 0) {\n\
+         \x20           return 0\n\
+         \x20       }\n\
+         \x20       c2da_lin_free(c2da_lin_strerror_buf)\n\
+         \x20       c2da_lin_strerror_buf = p\n\
+         \x20       c2da_lin_strerror_cap = n + 1\n\
+         \x20   }\n\
+         \x20   let p = c2da_lin_strerror_buf\n\
+         \x20   for (j in range(n)) {\n\
+         \x20       c2da_mem[p + j] = uint8(character_at(s, j))\n\
+         \x20   }\n\
+         \x20   c2da_mem[p + n] = uint8(0)\n\
+         \x20   return p\n\
+         }\n",
+    );
+    text
+}
 
 /// Records that the `main` wrapper builds argv in the heap.
 pub(crate) fn note_argv() {

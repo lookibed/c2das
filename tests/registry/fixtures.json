@@ -7139,6 +7139,34 @@
     },
     {
       "c_graph": "single-tu",
+      "canonical_case": "p225-linear-strerror",
+      "canonical_cases": [
+        "p225-linear-strerror"
+      ],
+      "checked_in_das": null,
+      "clang": {
+        "compile_commands": null,
+        "flags": [
+          "-w"
+        ]
+      },
+      "entrypoint": "main",
+      "expected": {
+        "kind": "stdout-and-exit-code",
+        "value": {
+          "exit_code": 0,
+          "stdout": "No such file or directory|25\nInvalid argument\nNumerical result out of range\nUnknown error 9999\nUnknown error -7\nPermission denied O\n"
+        }
+      },
+      "family": "syntax-pointer-legacy",
+      "id": "tests--syntax--p225_linear_strerror",
+      "owner": "abi.rs / object_memory.rs",
+      "runtime": "required",
+      "source": "tests/syntax/p225_linear_strerror.c",
+      "status": "supported"
+    },
+    {
+      "c_graph": "single-tu",
       "canonical_case": "p225-printf-floats-linear",
       "canonical_cases": [
         "p225-printf-floats-linear",
