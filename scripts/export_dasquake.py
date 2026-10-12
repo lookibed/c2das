@@ -12,7 +12,9 @@ top-level files, which are rewritten (a `.git` directory there is left alone).
 
 - `quake/`: the `--libc std` timedemo program translated exactly like the case
   `quakegeneric-demo1-std` of tests/canonical/cases.json (its units, clang
-  flags, libc and das_options) with `--module-layout source`.  `run.sh` runs it
+  flags, libc and das_options) with `--module-layout source` and
+  `--runtime-module dasquake_runtime` (also for `eden/`, so the shared runtime
+  module does not collide with dasDOOM's in one EdenSpark project).  `run.sh` runs it
   on a base directory holding `id1/pak0.pak` and compares the 100 frame hashes
   with `expected_frames.txt` (the case's expected stdout).
 - `eden/`: the EdenSpark play build: the engine units of the case
@@ -54,6 +56,13 @@ HOST = QUAKE / "eden" / "c2das_quake_player.das"
 # dasQUAKE install the translated modules sit next to it in modules/dasquake/.
 HOST_REQUIRE_FROM = "require modules/c2das/quake/"
 HOST_REQUIRE_TO = "require modules/dasquake/"
+# The shared runtime module is named per program (`--runtime-module`), so dasQUAKE
+# and dasDOOM can be installed in one EdenSpark project: two modules named
+# `c2da_runtime` are a module name collision there.  The host requires the c2das
+# default name; the export rewrites that require.
+RUNTIME_MODULE = "dasquake_runtime"
+HOST_RUNTIME_FROM = HOST_REQUIRE_FROM + "c2da_runtime\n"
+HOST_RUNTIME_TO = HOST_REQUIRE_FROM + RUNTIME_MODULE + "\n"
 # The host's require of the module holding `qge_*` (the engine's cluster module).
 HOST_PLAY_MODULE = re.compile(r"^require modules/c2das/quake/(\w+_cluster)$", re.MULTILINE)
 HARNESS = ["engine_config.h", "qg_platform.c", "quake_entry.c", "qg_eden.h", "qg_eden_play.c"]
@@ -135,11 +144,11 @@ def translate_source(tool: Path, c: dict, name: str, units: list[str], clang_fla
         for unit in units], indent=2))
     out = work / name
     out.mkdir()
-    command = [str(tool), "--strict", *options, "--output-dir", str(out),
-               "--module-layout", "source", str(database)]
+    layout = ["--module-layout", "source", "--runtime-module", RUNTIME_MODULE]
+    command = [str(tool), "--strict", *options, "--output-dir", str(out), *layout, str(database)]
     run(command, src, f"translating {name}/ ({c['id']})")
     shown = ["c2dascript-transpile", "--strict", *options, "--output-dir", name,
-             "--module-layout", "source", "compile_commands.json"]
+             *layout, "compile_commands.json"]
     return out, shown
 
 
@@ -185,8 +194,11 @@ def main() -> int:
     dirty = bool(git("status", "--porcelain", "--untracked-files=no"))
     tool = translator()
     host = HOST.read_text()
-    if host.count(HOST_REQUIRE_FROM) == 0 or len(HOST_PLAY_MODULE.findall(host)) != 1:
-        fail(f"{HOST.relative_to(ROOT)}: expected `{HOST_REQUIRE_FROM}…` requires, one of them `…_cluster`")
+    if (host.count(HOST_REQUIRE_FROM) == 0 or len(HOST_PLAY_MODULE.findall(host)) != 1
+            or host.count(HOST_RUNTIME_FROM) != 1):
+        fail(f"{HOST.relative_to(ROOT)}: expected `{HOST_REQUIRE_FROM}…` requires, one of them "
+             f"`…_cluster` and one `{HOST_RUNTIME_FROM.strip()}`")
+    host = host.replace(HOST_RUNTIME_FROM, HOST_RUNTIME_TO)
 
     with tempfile.TemporaryDirectory(prefix="dasquake-") as scratch:
         work = Path(scratch)

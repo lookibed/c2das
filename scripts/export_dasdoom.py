@@ -12,7 +12,9 @@ files, which are rewritten (a `.git` directory there is left alone).
 - `doom/`: the `--libc std` timedemo program translated exactly like the case
   `doomgeneric-demo1-std-source` of tests/canonical/cases.json (its units,
   clang flags, libc and das_options, `--module-layout source`): one daslang
-  module per C file or cluster, the `.das.inc` fragments and `c2da_runtime.das`.
+  module per C file or cluster, the `.das.inc` fragments and the shared runtime
+  `dasdoom_runtime.das` (`--runtime-module dasdoom_runtime`, also for `eden/`, so
+  the runtime module does not collide with dasQUAKE's in one EdenSpark project).
   `run.sh` runs it on doom1.wad and compares the 70 frame hashes with
   `expected_frames.txt` (the case's expected stdout).
 - `eden/`: the EdenSpark play build in the per-file layout: the translation
@@ -57,6 +59,13 @@ HOST = DOOM / "eden" / "c2das_doom_player.das"
 # dasDOOM install the translated modules sit next to it in modules/dasdoom/.
 HOST_REQUIRE_FROM = "require modules/c2das/doom/"
 HOST_REQUIRE_TO = "require modules/dasdoom/"
+# The shared runtime module is named per program (`--runtime-module`), so dasDOOM
+# and dasQUAKE can be installed in one EdenSpark project: two modules named
+# `c2da_runtime` are a module name collision there.  The host requires the c2das
+# default name; the export rewrites that require.
+RUNTIME_MODULE = "dasdoom_runtime"
+HOST_RUNTIME_FROM = HOST_REQUIRE_FROM + "c2da_runtime\n"
+HOST_RUNTIME_TO = HOST_REQUIRE_FROM + RUNTIME_MODULE + "\n"
 HARNESS = ["engine_config.h", "all.c", "doom_entry.c", "dg_platform.c",
            "doom_eden_play_all.c", "dg_eden.h", "dg_eden_play.c", "dg_eden_sound.c",
            "eden_play_include/SDL_mixer.h"]
@@ -132,11 +141,11 @@ def translate_source(tool: Path, c: dict, name: str, units: list[str], clang_fla
         for unit in units], indent=2))
     out = work / name
     out.mkdir()
-    command = [str(tool), "--strict", *options, "--output-dir", str(out),
-               "--module-layout", "source", str(database)]
+    layout = ["--module-layout", "source", "--runtime-module", RUNTIME_MODULE]
+    command = [str(tool), "--strict", *options, "--output-dir", str(out), *layout, str(database)]
     run(command, src)
     shown = ["c2dascript-transpile", "--strict", *options, "--output-dir", name,
-             "--module-layout", "source", "compile_commands.json"]
+             *layout, "compile_commands.json"]
     return out, shown
 
 
@@ -199,8 +208,10 @@ def main() -> int:
     (out / "doom" / "run.sh").chmod(0o755)
 
     host = HOST.read_text()
-    if host.count(HOST_REQUIRE_FROM) == 0:
-        fail(f"{HOST.relative_to(ROOT)}: expected `{HOST_REQUIRE_FROM}…` requires")
+    if host.count(HOST_REQUIRE_FROM) == 0 or host.count(HOST_RUNTIME_FROM) != 1:
+        fail(f"{HOST.relative_to(ROOT)}: expected `{HOST_REQUIRE_FROM}…` requires, "
+             f"one of them `{HOST_RUNTIME_FROM.strip()}`")
+    host = host.replace(HOST_RUNTIME_FROM, HOST_RUNTIME_TO)
     (out / "eden" / HOST.name).write_text(host.replace(HOST_REQUIRE_FROM, HOST_REQUIRE_TO))
     shutil.copyfile(TEMPLATES / "main.das", out / "eden" / "main.das.example")
 
