@@ -9,6 +9,7 @@
  * `qg_eden_play.c` for what each function does. */
 #include <stdint.h>
 
+#include "quakedef.h"
 #include "qg_eden_gpu.h"
 #include "quakegeneric.h"
 
@@ -26,6 +27,123 @@ static int qge_mouse_dx = 0;
 static int qge_mouse_dy = 0;
 static char *qge_argv[8];
 
+/* M2a: the world polygons of cl.worldmodel, batched per texture */
+#define QGE_WORLD_VERTS 16384
+#define QGE_WORLD_INDICES (QGE_WORLD_VERTS * 3)
+
+static model_t *qge_world_sent = 0;
+static float qge_world_verts[QGE_WORLD_VERTS * 8];
+static int qge_world_idx[QGE_WORLD_INDICES];
+static int qge_world_nverts = 0;
+static int qge_world_nidx = 0;
+
+static void qge_world_flush(int tex)
+{
+    if (qge_world_nidx > 0) {
+        eden_gpu_world_mesh(tex, qge_world_verts, qge_world_nverts, qge_world_idx, qge_world_nidx);
+    }
+    qge_world_nverts = 0;
+    qge_world_nidx = 0;
+}
+
+/* one surface as a triangle fan; its vertices come from the surfedges
+ * (a negative surfedge is the edge walked backwards) */
+static void qge_world_surface(model_t *m, msurface_t *s, int tex)
+{
+    mtexinfo_t *ti = s->texinfo;
+    float sw = (float)ti->texture->width;
+    float th = (float)ti->texture->height;
+    float nx = s->plane->normal[0];
+    float ny = s->plane->normal[1];
+    float nz = s->plane->normal[2];
+    int base = 0;
+    int i = 0;
+
+    if (s->numedges < 3 || s->numedges > QGE_WORLD_VERTS) {
+        return;
+    }
+    if (qge_world_nverts + s->numedges > QGE_WORLD_VERTS ||
+        qge_world_nidx + (s->numedges - 2) * 3 > QGE_WORLD_INDICES) {
+        qge_world_flush(tex);
+    }
+    if (s->flags & SURF_PLANEBACK) {
+        nx = -nx;
+        ny = -ny;
+        nz = -nz;
+    }
+    base = qge_world_nverts;
+    for (i = 0; i < s->numedges; i++) {
+        int e = m->surfedges[s->firstedge + i];
+        float *p = 0;
+        float *out = &qge_world_verts[qge_world_nverts * 8];
+
+        if (e >= 0) {
+            p = m->vertexes[m->edges[e].v[0]].position;
+        } else {
+            p = m->vertexes[m->edges[-e].v[1]].position;
+        }
+        out[0] = p[0];
+        out[1] = p[1];
+        out[2] = p[2];
+        out[3] = nx;
+        out[4] = ny;
+        out[5] = nz;
+        out[6] = (DotProduct(p, ti->vecs[0]) + ti->vecs[0][3]) / sw;
+        out[7] = (DotProduct(p, ti->vecs[1]) + ti->vecs[1][3]) / th;
+        qge_world_nverts += 1;
+    }
+    for (i = 2; i < s->numedges; i++) {
+        qge_world_idx[qge_world_nidx] = base;
+        qge_world_idx[qge_world_nidx + 1] = base + i - 1;
+        qge_world_idx[qge_world_nidx + 2] = base + i;
+        qge_world_nidx += 3;
+    }
+}
+
+/* the world brush model (submodel 0: not doors, lifts or other brush
+ * entities) to the host, one texture at a time; sky is skipped */
+static void qge_world_send(model_t *m)
+{
+    int t = 0;
+    int i = 0;
+
+    eden_gpu_world_begin(m->numtextures);
+    for (t = 0; t < m->numtextures; t++) {
+        texture_t *tx = m->textures[t];
+
+        if (!tx) {
+            continue;
+        }
+        eden_gpu_world_texture(t, (unsigned char *)tx + tx->offsets[0], (int)tx->width, (int)tx->height, host_basepal);
+        qge_world_nverts = 0;
+        qge_world_nidx = 0;
+        for (i = 0; i < m->nummodelsurfaces; i++) {
+            msurface_t *s = &m->surfaces[m->firstmodelsurface + i];
+
+            if (s->texinfo->texture != tx || (s->flags & SURF_DRAWSKY)) {
+                continue;
+            }
+            qge_world_surface(m, s, t);
+        }
+        qge_world_flush(t);
+    }
+    eden_gpu_world_end();
+}
+
+/* map load (a new cl.worldmodel) sends the world; every frame the view */
+static void qge_gpu_frame(void)
+{
+    if (cls.state == ca_connected && cl.worldmodel && cl.worldmodel != qge_world_sent) {
+        qge_world_sent = cl.worldmodel;
+        qge_world_send(cl.worldmodel);
+    }
+    if (qge_world_sent) {
+        eden_gpu_camera(r_refdef.vieworg[0], r_refdef.vieworg[1], r_refdef.vieworg[2],
+                        r_refdef.viewangles[0], r_refdef.viewangles[1], r_refdef.viewangles[2],
+                        r_refdef.fov_x, r_refdef.fov_y);
+    }
+}
+
 void QG_Init(void)
 {
 }
@@ -39,6 +157,7 @@ void QG_DrawFrame(void *pixels)
     qge_screen_pixels = (unsigned char *)pixels;
     qge_frame_count += 1;
     eden_gpu_present(qge_screen_pixels, QUAKEGENERIC_RES_X, QUAKEGENERIC_RES_Y);
+    qge_gpu_frame();
 }
 
 void QG_SetPalette(unsigned char palette[768])

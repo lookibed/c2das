@@ -14,4 +14,19 @@ extern void eden_gpu_present(const unsigned char *pixels, int w, int h);
 /* 256 RGB triples; valid only during the call */
 extern void eden_gpu_palette(const unsigned char *rgb768);
 
+/* M2a: the world model as static GPU meshes, sent once per map load.
+ * world_begin opens a new world (the host drops the previous one);
+ * world_texture hands one miptex (level 0, w*h palette indices) with the
+ * 768-byte base palette; world_mesh hands a batch of triangles of texture
+ * `tex`: `verts` is nverts * 8 floats (x y z nx ny nz u v, Quake
+ * coordinates, u/v in texture repeats), `idx` is nidx vertex indices;
+ * world_end closes the world (the host builds its meshes then). */
+extern void eden_gpu_world_begin(int ntextures);
+extern void eden_gpu_world_texture(int tex, const unsigned char *pixels, int w, int h, const unsigned char *rgb768);
+extern void eden_gpu_world_mesh(int tex, const float *verts, int nverts, const int *idx, int nidx);
+extern void eden_gpu_world_end(void);
+/* per frame: the view origin, the view angles (pitch yaw roll, degrees)
+ * and the horizontal / vertical fov (degrees) of r_refdef */
+extern void eden_gpu_camera(float x, float y, float z, float pitch, float yaw, float roll, float fov_x, float fov_y);
+
 #endif /* QG_EDEN_GPU_H */

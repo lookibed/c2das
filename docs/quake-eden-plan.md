@@ -338,10 +338,98 @@ DSL facts found (all compiled and run):
   texel), which were not tried. So one byte per index needs the 4-per-texel packing.
 - The register and instruction limits were not hit. The shader uses about 15 operations.
 
+### M2a: world as Eden meshes (10:35)
+
+The world model of the loaded map is drawn by Eden on the GPU, next to the software frame and
+from the same view. The engine sources are unchanged: the harness reads `cl.worldmodel` and
+`r_refdef`, which the software renderer already fills.
+
+- **C side** (`src/qg_eden_gpu.c`, five new imports in `src/qg_eden_gpu.h`):
+  - `QG_DrawFrame` calls `qge_gpu_frame` after `eden_gpu_present`.
+  - When `cls.state == ca_connected` and `cl.worldmodel` differs from the last world sent, the
+    harness walks the world brush model (submodel 0, `firstmodelsurface .. +nummodelsurfaces`),
+    one texture at a time. Sky surfaces are skipped.
+  - `eden_gpu_world_begin(ntextures)` opens a world. `eden_gpu_world_texture(tex, pixels, w, h,
+    host_basepal)` hands one miptex (level 0) by heap offset.
+  - Each surface becomes a triangle fan from its surfedges, a negative surfedge being the edge
+    walked backwards. A vertex is 8 floats: position, the plane normal (negated for
+    `SURF_PLANEBACK`), and `u v` from `texinfo->vecs` divided by the texture size.
+  - The vertices and indices are packed in two static heap buffers (16 384 vertices, 49 152
+    indices). One `eden_gpu_world_mesh(tex, verts, nverts, idx, nidx)` per texture, or per
+    buffer-full, hands both buffers by offset and count. The host reads them from `c2da_mem`, so
+    there is no host call per vertex. `eden_gpu_world_end()` closes the world.
+  - Every frame after that: `eden_gpu_camera(vieworg xyz, viewangles pitch yaw roll, fov_x,
+    fov_y)` from `r_refdef`.
+- **Host side** (`eden/eden_gpu.das`):
+  - Coordinates: Quake `(x fwd, y left, z up)` becomes Eden `(-y, z, x) / 32`. Eden is
+    left-handed, Y up, and a camera looks along +Z; `world_to_screen` confirmed that +Z is screen
+    right for a camera facing -X. The world root sits at `y = 1000`, out of the orthographic
+    camera's view.
+  - Each texture is converted through the base palette into a `create_texture` (`Point`, mips,
+    `Wrap`). It gets a default-shader material (lit, `FaceCullMode.None`).
+  - Each mesh call builds one `MeshGeometry`, calls `create_mesh`, and creates a child node.
+  - `world_end` creates the camera node, with `FovAxis.Horizontal`, `znear` 0.05, `zfar` 500 and
+    viewport `(0.5, 0, 0.5, 1)`, and one `DirectionalLight`.
+  - `eden_gpu_camera` ports `AngleVectors` and sets the camera's position and
+    `make_quat_from_basis_zy(forward, up)`, and sets `fov = fov_x`.
+  - `eden_gpu_world_show(on)` hides or shows the world and its camera, for the A/B below.
+    `eden_gpu_report` adds the world numbers.
+- **Test project only** (not in this repo): `main.das` splits the screen whenever
+  `quake_gpu_play` starts. The orthographic camera with the software quad gets the left half
+  (`orthographicSize` 14), and the GPU camera gets the right half. The cheat
+  `quake_gpu_world [on|off]` calls `eden_gpu_world_show`.
+
+Measured in the editor at real time, with the v1 palette shader. The two maps are `+map start`
+(`quake_gpu_play map`) and the first attract demo's map (`quake_gpu_play`) [M]:
+
+| | start | demo1 map |
+|---|---|---|
+| textures / meshes | 81 / 68 | 52 / 27 |
+| triangles / vertices | 14 324 / 24 060 | 12 722 / 21 550 |
+| world load, `world_begin` → `world_end` | 190–195 ms | 134 ms |
+| of which host (palette convert, `create_texture`, `create_mesh`, nodes) | 30 ms | 20 ms |
+| `eden_gpu_camera` (host side) | 19–21 µs per call | — |
+
+- **Load cost:** the remaining ~160 ms of the start-map load is the translated C walk plus
+  reading the floats back from `c2da_mem` in the interpreter. It is paid once per map.
+- **Frame rate, start map, standing still:** world shown, 14.3 and then 12.5 fps over 20–24 s
+  windows; world hidden, 12.5 fps. The engine tick is about 71 ms and the editor frame 73–80 ms
+  in both cases. The 14 k-triangle world is not measurable next to the software frame. The
+  window to window spread (12.5–14.3) is larger than any on/off difference.
+- **Screenshots** were taken in the scratchpad (`quakem2/`). Each has the software quad and the
+  GPU view at the same moment. `*_compare_*` crops the quad and scales the GPU half to the same
+  horizontal 90° for side-by-side viewing.
+  - On the start map, the pillars, the arches, the floor tiling, the left torch's wall position
+    and the right stone wall line up.
+  - In the attract demo, the GPU camera follows the demo's moving view. The map change
+    (start → demo map) rebuilt the world: 52 textures in place of 81.
+  - The GPU view is darker than Quake and has no lightmaps. It is lit only by the one directional
+    light. The sky shows the camera's grey background.
+- **Not verified:** pitch and roll beyond what the demo view did, because key injection through
+  `input_sequence` did not reach the player. Brush entities (doors, lifts: submodels 1+), alias
+  models, particles and water warp are not drawn.
+
+What M2b needs:
+1. **Lightmaps.** Either bake `surf->samples` with the styles into a lightmap atlas and draw a
+   second pass, or combine texture × lightmap in one `[pixel_shader]`. Eden meshes have one UV
+   set, so a combined shader needs the lightmap coordinates packed some other way, for example
+   a per-surface atlas in place of tiling textures, or a second mesh per surface. Lightstyle
+   animation means updating atlas regions.
+2. **Texture atlas or fewer materials:** 68 meshes in 81 materials work. A paletted atlas, with
+   the lookup in the shader as in v1, would also make palette shifts (damage flashes) apply to
+   the world.
+3. **Brush entities** (`cl_entities` with a brush model: doors, lifts, buttons) as their own
+   meshes with per-frame transforms. **Alias models** (monsters, weapon) as per-frame
+   `update_mesh` of their poses. Sky and turbulent surfaces through shaders.
+4. **Then skip the software renderer:** once the GPU view is complete, `R_RenderView` is the
+   ~70 ms that remains per frame. Dropping it needs a harness-side switch, for example
+   `r_norefresh` or a platform-level hook, never an engine edit. The 2D layer (status bar,
+   console, menus) still has to reach the screen, as a separate overlay texture.
+
 ### Next
 
 1. The `das-critic-perf` libm peephole, landed. Then the load-reuse optimization for Quake's
    float-heavy code (M1.5).
 2. A per-program name for the shared runtime module.
 3. Key input for Quake in the editor.
-4. M2: `eden_gpu_*` imports for a GLQuake-style capture layer.
+4. M2b: lightmaps, brush entities and alias models on the GPU (see M2a above).
