@@ -91,7 +91,7 @@ What scripts can and cannot do (documentation survey, plus measurements):
   The engine batches by mesh and material.
 - **Pixel shaders only:** a `.shader` file using `engine.render.shader_dsl` and `[pixel_shader]`.
   The language is a float-only daslang subset with 16 float4 registers and 128 instructions, loops
-  unrolled. This is from the docs; no shader was compiled in the editor.
+  unrolled. Quake's palette lookup runs in one; see "eden_gpu ABI v1" below.
 - **A GL 1.x immediate-mode shim** is too costly: about 2 ms per 10 k triangles before the C side
   even runs. The workable form is a capture layer:
   1. At map load, GLQuake's world polygons become static meshes and its textures become
@@ -255,7 +255,88 @@ player into the import. Screenshot: the demo1 scene renders correctly.
   `main.das` requires only one of them. `--runtime-module` renames only the runtime. Two
   translations of one program in one project need a module-name prefix in the translator.
 - **Next:** pass the 8-bit indices as a texture and do the palette lookup in a `[pixel_shader]`.
-  That removes the 1.86 ms convert, but the upload becomes one byte per pixel.
+  That removes the 1.86 ms convert, but the upload becomes one byte per pixel. Done in v1.
+
+### eden_gpu ABI v1: palette shader (10:15)
+
+The palette lookup now runs in an Eden pixel shader. The C side and the translation are the same
+as in v0; only the host changed.
+
+- **`eden/quake_palette.shader`** (hand-written, unlit). It has two `Sampler2D` material
+  properties:
+  - `indexTex`: the 8-bit screen, four indices per RGBA8 texel (80x240).
+  - `paletteTex`: the palette as a 256x1 texture.
+
+  The shader takes the texel at `uv` and picks the channel `floor(frac(uv.x * 80) * 4)`. It does
+  this with a `step` mask and a `dot`, because the DSL has no integer or array indexing. It then
+  makes a dependent read from the palette at `u = index * 255/256 + 0.5/256`:
+
+  ```
+  let packed = tex2d(indexTex, inp.uv).zyxw
+  let ch = floor(frac(inp.uv.x * packedWidth) * 4.0)
+  let m1 = step(0.5, ch)
+  let m2 = step(1.5, ch)
+  let m3 = step(2.5, ch)
+  let index = dot(packed, float4(1.0 - m1, m1 - m2, m2 - m3, m3))
+  let rgb = tex2d(paletteTex, float2(index * (255.0 / 256.0) + 0.5 / 256.0, 0.5)).xyz
+  return UnlitOutput(color = rgb)
+  ```
+- **`eden/eden_gpu.das`** has a new import, `eden_gpu_material(w, h, shader)`, which creates the
+  textures and returns the material:
+  - The index texture uses `Point` filtering, no mips, `Clamp` addressing and `sRGB = false`.
+  - The palette texture uses `Point` filtering, no mips and the default sRGB.
+  - The material is `MaterialImport(shaderId = request_shader(...), properties <- props)`, where
+    `props` is `MaterialProperties("indexTex", tex)` plus `add("paletteTex", pal)` and
+    `add("packedWidth", 80.0)`.
+
+  `eden_gpu_present` packs four bytes into each `uint` texel (19 200 iterations instead of 76 800
+  lookups) and calls `update_texture`. `eden_gpu_palette` compares the new colours with the table
+  and re-uploads the 256x1 texture only when they changed.
+- **Fallback:** the cheat `quake_gpu_play [real|fixed|map] [gpu|cpu]`. `cpu` selects the v0 path:
+  the CPU lookup into a 320x240 `pixel_art` material. A width that is not a multiple of 4 also
+  falls back to v0.
+- **Install:** the editor's asset database has no entry for a `.shader` without a `.meta`, and
+  `request_shader` then fails with `asset '...' not found`. The fix is
+  `quake_palette.shader.meta`, holding `guid:t="<fresh guid>"` and `assetType:i=12`, next to the
+  shader in `modules/dasquake_gpu/`.
+
+**Byte order (a v0 bug, fixed):** a `Bitmap` texel is `0xAARRGGBB`. v0, and the M1 player
+`c2das_quake_player.das`, packed R into the low byte, so red and blue were swapped. The brown
+console showed blue and the demo1 scene showed teal. The v0 claim that "the demo1 scene renders
+correctly" was wrong. All three lookup tables now pack `R << 16 | G << 8 | B`. In the shader, a
+packed index texel's bytes 0..3 arrive as channels B G R A, which `.zyxw` puts back in order.
+
+Measured in the editor, attract demos, real time. Both runs used the same editor session and the
+same build, and were reported after about 1020 frames [M]:
+
+| | v0 cpu | v1 shader |
+|---|---|---|
+| present CPU (convert / pack) | 1.71 ms | 1.03 ms |
+| `update_texture` per present | 0.31 ms | 0.13 ms (palette re-uploads included) |
+| present total | 2.02 ms | 1.16 ms |
+| fps | 20.5 | 20.7 |
+| palette calls / uploads | 152 / — | 150 / 134 |
+
+- **Present cost:** v1 cuts the per-present CPU cost by 0.86 ms (43 %). The packing loop is
+  still 1 ms because it runs in the interpreter: daslang has no safe way to view 4 heap bytes as
+  one `uint`. On a 46 ms engine frame the fps change is within noise.
+- **Palette uploads:** these are nearly one per palette call. Quake's palette shifts (damage and
+  item flashes) change the colours on most calls.
+- **Image:** the scene and the status bar match the v0 output. The `UnlitOutput` colour comes
+  out slightly lighter than the `pixel_art` material: on JPEG region means the R and G channels
+  are 5–16 levels higher and B is equal. This is not an index error, because the geometry and
+  text are identical; it is probably the unlit path's tonemapping or exposure.
+
+DSL facts found (all compiled and run):
+- A dependent texture read (`tex2d` with a UV computed from another `tex2d`) works.
+- A `Sampler2D` property can be bound to a runtime `TextureId` through `MaterialProperties`. The
+  `Sampler2D("...")` default is only a placeholder.
+- The shader's filtering, mips and sRGB come from the `TextureDeclaration` of `create_texture`.
+- `frac`, `floor`, `step` and `dot` exist. `UnlitInput` / `UnlitOutput(color = ...)` work.
+- No 8-bit single-channel format turned up. `TextureFormat` lists DXT, ATI, A8R8G8B8 and
+  A2R10G10B10. `update_texture` also takes `Texture2Dfloat` and `Texture2Duint` (4 bytes per
+  texel), which were not tried. So one byte per index needs the 4-per-texel packing.
+- The register and instruction limits were not hit. The shader uses about 15 operations.
 
 ### Next
 

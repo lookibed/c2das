@@ -373,11 +373,12 @@ class C2dasQuakePlayer : Component {
             return false
         }
         let t0 = ref_time_ticks()
-        // the palette: 256 RGB byte triples in the heap
+        // the palette: 256 RGB byte triples in the heap, into 0xAARRGGBB
+        // Bitmap texels (R in the low byte showed the brown console blue)
         let pal = int(qge_palette())
         for (i in range(256)) {
             let p = pal + i * 3
-            lut[i] = 0xff000000u | uint(c2da_mem[p]) | (uint(c2da_mem[p + 1]) << 8u) | (uint(c2da_mem[p + 2]) << 16u)
+            lut[i] = 0xff000000u | (uint(c2da_mem[p]) << 16u) | (uint(c2da_mem[p + 1]) << 8u) | uint(c2da_mem[p + 2])
         }
         // the screen: one palette index per pixel, row-major, top row first
         for (i in range(width * height)) {
