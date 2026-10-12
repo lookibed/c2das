@@ -66,6 +66,8 @@ thread_local! {
     static FORMAT_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
     /// Whether `fopen`/`fread` were lowered (the `--libc eden` file section).
     static FILE_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    /// Whether `fscanf` was lowered (the `SCANF_RUNTIME` section).
+    static SCANF_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
     /// Whether the `main` wrapper builds argv in the heap.
     static ARGV_USED: std::cell::Cell<bool> = std::cell::Cell::new(false);
     /// The `strerror` section (`strerror_runtime`) once a call was lowered.
@@ -82,6 +84,7 @@ pub fn reset() {
     FN_DECLS.with(|f| f.borrow_mut().clear());
     FORMAT_USED.with(|u| u.set(false));
     FILE_USED.with(|u| u.set(false));
+    SCANF_USED.with(|u| u.set(false));
     ARGV_USED.with(|u| u.set(false));
     STRERROR_SECTION.with(|u| *u.borrow_mut() = None);
     IN_LINK.with(|l| *l.borrow_mut() = None);
@@ -3177,6 +3180,7 @@ impl<'c> Translation<'c> {
         libc::require_eden_files();
         libc::require_write();
         FILE_USED.with(|u| u.set(true));
+        SCANF_USED.with(|u| u.set(true));
         let mut out = WithStmts::new_val(Vec::new());
         for (index, arg) in args.iter().enumerate() {
             let v = self.convert_expr(ctx.used(), *arg, None)?;
@@ -3561,10 +3565,10 @@ pub fn runtime_source(reserve: u64) -> String {
         "{format_section}{}",
         va_heap::runtime_section(va_heap::format_heap_used())
     );
-    let file_section = if FILE_USED.with(|u| u.get()) {
-        FILE_RUNTIME
-    } else {
-        ""
+    let file_section = match (FILE_USED.with(|u| u.get()), SCANF_USED.with(|u| u.get())) {
+        (true, true) => format!("{FILE_RUNTIME}{SCANF_RUNTIME}"),
+        (true, false) => FILE_RUNTIME.to_string(),
+        _ => String::new(),
     };
     let argv_section = if ARGV_USED.with(|u| u.get()) {
         ARGV_RUNTIME
@@ -3620,6 +3624,8 @@ pub struct LinearLink {
     /// The `--varargs-model heap` printf family (`va_heap.rs`).
     pub format_heap: bool,
     pub file: bool,
+    /// `fscanf` (`SCANF_RUNTIME`, appended after the file section).
+    pub scanf: bool,
     pub argv: bool,
     /// The `strerror` section, once some unit lowered a call.
     pub strerror: Option<String>,
@@ -3668,6 +3674,7 @@ pub fn linked_state() -> LinearLink {
         format: input.format || FORMAT_USED.with(|u| u.get()),
         format_heap: input.format_heap || va_heap::format_heap_used(),
         file: input.file || FILE_USED.with(|u| u.get()),
+        scanf: input.scanf || SCANF_USED.with(|u| u.get()),
         argv: input.argv || ARGV_USED.with(|u| u.get()),
         strerror: input
             .strerror
@@ -3786,7 +3793,11 @@ pub fn shared_runtime_source(reserve: u64, link: &LinearLink) -> String {
         "{format_section}{}",
         va_heap::runtime_section(link.format_heap)
     );
-    let file_section = if link.file { FILE_RUNTIME } else { "" };
+    let file_section = match (link.file, link.scanf) {
+        (true, true) => format!("{FILE_RUNTIME}{SCANF_RUNTIME}"),
+        (true, false) => FILE_RUNTIME.to_string(),
+        _ => String::new(),
+    };
     let argv_section = if link.argv { ARGV_RUNTIME } else { "" };
     let strerror_section = link.strerror.as_deref().unwrap_or("");
     let mut tables = String::new();
@@ -4372,16 +4383,27 @@ fn strerror_runtime(catalogue: &[(i64, &str)]) -> String {
     let mut text = String::from(
         "\n// strerror over C memory: glibc's text, copied into one heap buffer.\n\
          var private c2da_lin_strerror_buf : int = 0\n\
-         var private c2da_lin_strerror_cap : int = 0\n\n\
-         def private c2da_lin_strerror_text(code : int) : string {\n",
+         var private c2da_lin_strerror_cap : int = 0\n",
     );
-    for (code, msg) in catalogue {
-        text.push_str(&format!(
-            "    if (code == {code}) {{\n        return \"{msg}\"\n    }}\n"
-        ));
-    }
+    let codes: Vec<String> = catalogue.iter().map(|(code, _)| code.to_string()).collect();
+    let texts: Vec<String> = catalogue
+        .iter()
+        .map(|(_, msg)| format!("\"{msg}\""))
+        .collect();
+    text.push_str(&format!(
+        "let private c2da_lin_strerror_codes = fixed_array({})\n\
+         let private c2da_lin_strerror_texts = fixed_array(\n    {}\n)\n\n",
+        codes.join(", "),
+        texts.join(",\n    ")
+    ));
     text.push_str(
-        "    return \"Unknown error {code}\"\n}\n\n\
+        "def private c2da_lin_strerror_text(code : int) : string {\n\
+         \x20   for (c, t in c2da_lin_strerror_codes, c2da_lin_strerror_texts) {\n\
+         \x20       if (c == code) {\n\
+         \x20           return t\n\
+         \x20       }\n\
+         \x20   }\n\
+         \x20   return \"Unknown error {code}\"\n}\n\n\
          def c2da_lin_strerror(code : int) : int {\n\
          \x20   let s = c2da_lin_strerror_text(code)\n\
          \x20   let n = length(s)\n\
@@ -4471,6 +4493,34 @@ def c2da_lin_fgetc(handle : uint64) : int {
     return int(c2da_eden_file_data[file][pos])
 }
 
+// Only stdout and stderr are writable (--libc eden): any other handle writes nothing.
+def c2da_lin_fputc(c : int; handle : uint64) : int {
+    if (handle != 1ul && handle != 2ul) {
+        return -1
+    }
+    c2da_std_write(handle, build_string() $(var w) {
+        write_char(w, c & 255)
+    })
+    return c & 255
+}
+
+def c2da_lin_fwrite(s : int; size : uint64; count : uint64; handle : uint64) : uint64 {
+    if (size == 0ul || count == 0ul || (handle != 1ul && handle != 2ul)) {
+        return 0ul
+    }
+    let total = int(size * count)
+    c2da_std_write(handle, build_string() $(var w) {
+        for (j in range(total)) {
+            write_char(w, int(c2da_mem[s + j]))
+        }
+    })
+    return count
+}
+"#;
+
+/// `fscanf` over a registered file (appended, after [`FILE_RUNTIME`], only
+/// when a call was lowered).
+const SCANF_RUNTIME: &str = r#"
 // fscanf's one byte of lookahead goes back to the file when the scan ends, so
 // the stream is left at the first byte no directive consumed (as glibc's is).
 def private c2da_lin_scan_unget(handle : uint64; c : int) {
@@ -4671,30 +4721,6 @@ def c2da_lin_fscanf(handle : uint64; f : int; ptrs : array<int>) : int {
     }
     c2da_lin_scan_unget(handle, c)
     return done
-}
-
-// Only stdout and stderr are writable (--libc eden): any other handle writes nothing.
-def c2da_lin_fputc(c : int; handle : uint64) : int {
-    if (handle != 1ul && handle != 2ul) {
-        return -1
-    }
-    c2da_std_write(handle, build_string() $(var w) {
-        write_char(w, c & 255)
-    })
-    return c & 255
-}
-
-def c2da_lin_fwrite(s : int; size : uint64; count : uint64; handle : uint64) : uint64 {
-    if (size == 0ul || count == 0ul || (handle != 1ul && handle != 2ul)) {
-        return 0ul
-    }
-    let total = int(size * count)
-    c2da_std_write(handle, build_string() $(var w) {
-        for (j in range(total)) {
-            write_char(w, int(c2da_mem[s + j]))
-        }
-    })
-    return count
 }
 "#;
 
