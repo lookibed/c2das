@@ -3180,6 +3180,11 @@ impl<'c> Translation<'c> {
         {
             return Ok(None);
         }
+        // A host import (`host_import.rs`) takes its pointers as heap
+        // offsets; the general call path checks and lowers it.
+        if self.host_import(&name).is_some() {
+            return Ok(None);
+        }
         let base = name.strip_prefix("__builtin_").unwrap_or(&name);
         // `setjmp`/`longjmp` name the `jmp_buf`, they do not read it: the
         // general call path lowers them (`libc.rs setjmp_guard`).

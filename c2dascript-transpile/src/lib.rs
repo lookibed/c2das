@@ -317,6 +317,10 @@ pub struct TranspilerConfig {
     /// (`--target eden` and its individual flags, `target.rs`).  The
     /// default is master daslang and leaves output unchanged.
     pub target: target::TargetOptions,
+    /// Experimental host imports (`--host-import`, `--host-import-prefix`):
+    /// undefined C extern functions bound to daslang module functions.  See
+    /// `translator/host_import.rs`; empty by default.
+    pub host_imports: Vec<translator::host_import::HostImport>,
 }
 
 /// AST-level inventory for target-specific C surfaces.  These counts are
@@ -394,6 +398,7 @@ impl Default for TranspilerConfig {
             enabled_warnings: HashSet::new(),
             disabled_warnings: HashSet::new(),
             target: target::TargetOptions::default(),
+            host_imports: vec![],
         }
     }
 }
