@@ -4387,8 +4387,10 @@ fn strerror_runtime(catalogue: &[(i64, &str)]) -> String {
          \x20       c2da_lin_strerror_cap = n + 1\n\
          \x20   }\n\
          \x20   let p = c2da_lin_strerror_buf\n\
-         \x20   for (j in range(n)) {\n\
-         \x20       c2da_mem[p + j] = uint8(character_at(s, j))\n\
+         \x20   peek_data(s) $(bytes) {\n\
+         \x20       for (j in range(n)) {\n\
+         \x20           c2da_mem[p + j] = bytes[j]\n\
+         \x20       }\n\
          \x20   }\n\
          \x20   c2da_mem[p + n] = uint8(0)\n\
          \x20   return p\n\
@@ -4596,7 +4598,8 @@ def c2da_lin_fscanf(handle : uint64; f : int; ptrs : array<int>) : int {
                 c2da_lin_scan_unget(handle, c)
                 return done
             }
-            var v = c2da_lin_scan_double(subject)
+            // strtod of the collected subject: daslang's correctly rounded `to_double`.
+            var v = to_double(subject)
             if (neg) {
                 v = -v
             }
@@ -4660,12 +4663,6 @@ def c2da_lin_fscanf(handle : uint64; f : int; ptrs : array<int>) : int {
     }
     c2da_lin_scan_unget(handle, c)
     return done
-}
-
-// strtod of a collected `digits[.digits][e[sign]digits]` subject, by
-// daslang's correctly rounded `to_double`.
-def private c2da_lin_scan_double(subject : string) : double {
-    return to_double(subject)
 }
 
 // Only stdout and stderr are writable (--libc eden): any other handle writes nothing.
