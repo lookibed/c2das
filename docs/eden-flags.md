@@ -657,6 +657,57 @@ Things the target cannot fix and has to document:
 - Denormals are flushed to zero in every script context (§3).
 - The array length limit of 2³¹ elements.
 
+## Host imports (experimental)
+
+The basis of an `eden_gpu` ABI, shaped like wasm imports (`docs/quake-eden-plan.md`,
+"Translator work found" item 5). A C function the program declares but defines nowhere is
+otherwise the strict error `unsupported external call`; a host import binds it to a
+hand-written daslang function instead (`translator/host_import.rs`).
+
+- `--host-import <c_name>=<module>::<function>` (repeatable) binds one C name to any function
+  of a daslang module.
+- `--host-import-prefix <prefix>=<module>` (repeatable) binds every C name starting with
+  `<prefix>` to the function of the same name in `<module>`, e.g.
+  `--host-import-prefix eden_gpu_=eden_gpu`.
+- An exact binding wins over a prefix; the longest prefix wins among prefixes. Module, function,
+  C name and prefix are identifiers.
+
+What the output does:
+
+- The call is `<module>::<function>(…)`, and a unit that calls an import `require`s
+  `<module>`. daslang resolves the `require` against the entry file's directory, so the host
+  module sits beside the generated output (or on the project's module path).
+- Every argument and the result keep the type the translator already gives them: C integers,
+  floats, `_Bool` and enumerations are the daslang scalars of the same C type; a C data pointer
+  is the `int` heap offset under `--memory-model linear` and a daslang pointer (`uint8 const?`
+  for `const unsigned char *`) under `raw`.
+- Under `--memory-model linear` the call passes the heap `c2da_mem` by reference as an **extra
+  first argument**, so the host function is
+  `def eden_gpu_upload(mem : array<uint8>; data : int; len : int)` and reads (or writes)
+  `mem[data + i]`. The host module never `require`s the translated module, nor `c2da_runtime`,
+  which owns the heap under `--module-layout source`, so no `require` cycle can form and one
+  host module serves every unit. Under `raw` there is no extra argument.
+
+Refused, by name and C location:
+
+- a bound name the C program also defines (in any unit), or one the translator already lowers
+  (the raw runtime, a `--libc std`/`eden` function, libm);
+- a variadic or unprototyped import;
+- a function-pointer parameter or result, a `va_list`, a record by value, or any other type
+  that is not a scalar or a data pointer.
+
+Not covered yet: taking an import's address (`&eden_gpu_upload` as a function value). The host
+module itself is hand-written; under `--dialect eden-0.6.4 --no-unsafe` it has to pass the
+sandbox like the output does (`scripts/eden_check.py` checks every `.das` in a directory).
+
+Cases: `h01-host-import-std` (raw, `--libc std`), `h01-host-import-eden-linear`
+(`--libc eden --memory-model linear --dialect eden-0.6.4 --no-unsafe`; the output and the host
+module pass `scripts/eden_check.py`), `m06-host-import-source-eden-linear` (two units under
+`--module-layout source`, exact `--host-import` bindings), and the refusals
+`h01-host-import-refuse-{function-pointer,defined,variadic}`. Each fixture holds the host
+module(s) and a C reference (`host_reference.c`) implementing the same functions in C; the case
+runner copies the case's `host_modules` beside the fresh output.
+
 ## Order of work
 
 1. **`--dialect eden-0.6.4` checks and `--no-unsafe` as a report only.** Translate the corpora
