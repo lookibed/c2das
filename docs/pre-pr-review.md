@@ -34,6 +34,18 @@ Start both agents in parallel (two agents at a time is the limit) with the range
 example: "review `origin/master...HEAD`; affected cases: <ids>". A critic may regenerate cases and
 run micro-benchmarks but never edits the repository.
 
+## Record and gate
+
+Record each review in `docs/reviews/<date>-<head-sha>.md`:
+- name the range;
+- a line `das-critic-perf: PASS|BLOCK …`;
+- a line `das-critic-style: PASS|BLOCK …`;
+- after any BLOCK, a `resolved:` line naming the fixing commit or the accepted reason.
+
+`python3 scripts/pre_pr_review.py [<base>] [<head>]` (default `origin/master` `HEAD`) is the gate. It
+exits 1 when the range changes generated-daslang sources and no record covers the last such commit.
+Run it before opening the PR or pushing to `master`.
+
 ## What blocks
 
 - **`BLOCK` from `das-critic-perf`:** an interpreter regression, or an introduced construct
