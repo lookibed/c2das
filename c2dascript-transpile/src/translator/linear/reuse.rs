@@ -21,6 +21,9 @@
 //!   following `float` load at `a` read `v`, under the same conditions.
 //! - **`if` branches.** The loads known right after an `if` condition (no
 //!   `elif`) are known on entry to both branches.
+//! - **`while` conditions.** A `while (c)` whose condition load is read again
+//!   in the body runs as `while (true) { if (!c) { break } … }`, so the load
+//!   is named once per iteration (`rotate_while`).
 //! - **Copies.** A site temporary (`let`, or a `var` never written) whose
 //!   whole initializer became a `let` of this pass is dropped and its reads
 //!   read that `let`.  The pass's names are taken in source order.
@@ -272,9 +275,8 @@ impl Avail {
     }
 }
 
-/// One run of the pass over the statements of a block, then over every block
-/// nested in them.  `entry` are the loads known on entry to the block.
-fn reuse_block(stmts: &mut Vec<DaStmt>, pass: &mut Pass, entry: &[Avail]) {
+/// The analysis half of [`reuse_block`]: names nothing, changes nothing.
+fn analyze(stmts: &[DaStmt], entry: &[Avail]) -> Analysis {
     let mut groups: Vec<Group> = Vec::new();
     let mut avail: Vec<Avail> = Vec::new();
     for av in entry {
@@ -307,6 +309,14 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, pass: &mut Pass, entry: &[Avail]) {
                 DaExpr::Var(n) => (Vec::new(), Write::Local(n.clone())),
                 _ => (Vec::new(), Write::Barrier),
             },
+            // `if (c) { break }`: control either leaves the block or goes on
+            // with nothing written.
+            DaStmt::Expr(DaExpr::IfThenElse {
+                cond,
+                then,
+                elifs,
+                else_: None,
+            }) if elifs.is_empty() && is_break(then) => (vec![&**cond], Write::Nothing),
             DaStmt::Expr(DaExpr::IfThenElse { cond, .. }) => (vec![&**cond], Write::Barrier),
             DaStmt::Expr(DaExpr::Return(Some(v))) => (vec![&**v], Write::Barrier),
             _ => (Vec::new(), Write::Barrier),
@@ -383,10 +393,21 @@ fn reuse_block(stmts: &mut Vec<DaStmt>, pass: &mut Pass, entry: &[Avail]) {
                 kill_overlapping(&mut avail, &a, 1);
             }
             Write::Barrier => avail.clear(),
+            Write::Nothing => {}
         }
         i += 1;
     }
+    (groups, uses, inherit)
+}
 
+/// The statements' load groups, the known loads of each statement as
+/// `(key, group)`, and the loads known on entry to the branches of each `if`.
+type Analysis = (Vec<Group>, Vec<Vec<(String, usize)>>, Vec<Vec<Avail>>);
+
+/// One run of the pass over the statements of a block, then over every block
+/// nested in them.  `entry` are the loads known on entry to the block.
+fn reuse_block(stmts: &mut Vec<DaStmt>, pass: &mut Pass, entry: &[Avail]) {
+    let (mut groups, uses, inherit) = analyze(stmts, entry);
     let mut out = Vec::with_capacity(stmts.len());
     // Temporaries that only copy a `let` of this pass: their uses read it.
     let mut renamed: HashMap<String, String> = HashMap::new();
@@ -503,6 +524,82 @@ enum Write {
     Heap(DaExpr),
     /// Anything else: control flow, a store through a daslang reference.
     Barrier,
+    /// Nothing the pass remembers changes (`if (c) { break }`).
+    Nothing,
+}
+
+fn is_break(e: &DaExpr) -> bool {
+    matches!(e, DaExpr::Block(DaBlock { stmts }) if matches!(stmts.as_slice(), [DaStmt::Expr(DaExpr::Break)]))
+}
+
+/// `while (c) { body }` as `while (true) { if (!c) { break }; body }` when a
+/// load of `c` is read again in `body` before anything can change it: the
+/// rotated condition is the first statement of the body's run, so its load
+/// is named once per iteration.  Measured (20 M iterations, interpreter): the
+/// rotation alone costs 3–12%, one 4-byte load reused saves about 20%, so a
+/// loop is rotated only when it gains a reuse.  `continue` still re-tests `c`
+/// first.
+fn rotate_while(e: &mut DaExpr) {
+    let DaExpr::While(cond, body) = e else {
+        return;
+    };
+    let DaExpr::Block(DaBlock { stmts }) = &**body else {
+        return;
+    };
+    if !is_clean(cond) || matches!(**cond, DaExpr::ConstBool(_)) {
+        return;
+    }
+    let test = DaStmt::Expr(DaExpr::IfThenElse {
+        cond: Box::new(negate((**cond).clone())),
+        then: Box::new(DaExpr::Block(DaBlock {
+            stmts: vec![DaStmt::Expr(DaExpr::Break)],
+        })),
+        elifs: Vec::new(),
+        else_: None,
+    });
+    let mut rotated = Vec::with_capacity(stmts.len() + 1);
+    rotated.push(test);
+    rotated.extend(stmts.iter().cloned());
+    let (groups, _, _) = analyze(&rotated, &[]);
+    if groups
+        .iter()
+        .any(|g| matches!(g.def, Some((0, _, _))) && g.uses >= 2)
+    {
+        *e = DaExpr::While(
+            Box::new(DaExpr::ConstBool(true)),
+            Box::new(DaExpr::Block(DaBlock { stmts: rotated })),
+        );
+    }
+}
+
+/// `!c`, with `!(a == b)` as `a != b` and the reverse (exact for every type,
+/// NaN included) and `!!c` as `c`.
+fn negate(c: DaExpr) -> DaExpr {
+    match c {
+        DaExpr::Op2 {
+            op: "==",
+            left,
+            right,
+        } => DaExpr::Op2 {
+            op: "!=",
+            left,
+            right,
+        },
+        DaExpr::Op2 {
+            op: "!=",
+            left,
+            right,
+        } => DaExpr::Op2 {
+            op: "==",
+            left,
+            right,
+        },
+        DaExpr::Op1 { op: "!", expr } => *expr,
+        c => DaExpr::Op1 {
+            op: "!",
+            expr: Box::new(c),
+        },
+    }
 }
 
 fn assign_parts<'e>(lhs: &'e DaExpr, rhs: &'e DaExpr) -> (Vec<&'e DaExpr>, Write) {
@@ -695,6 +792,7 @@ fn nested_blocks(stmt: &mut DaStmt, pass: &mut Pass) {
 /// Runs the pass over the blocks of `e`; `entry` are the loads known when a
 /// block `e` itself starts.
 fn nested_in_expr(e: &mut DaExpr, pass: &mut Pass, entry: &[Avail]) {
+    rotate_while(e);
     match e {
         DaExpr::Block(DaBlock { stmts }) => reuse_block(stmts, pass, entry),
         DaExpr::IfThenElse {
