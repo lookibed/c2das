@@ -925,6 +925,25 @@ impl<'c> Translation<'c> {
         self.linear_pointee(ty).is_some()
     }
 
+    /// The converted C argument `arg` as a runtime helper's `t` operand.  A
+    /// data pointer of any pointee and qualifiers is already the `int` heap
+    /// offset, so `strcpy(d, strerror(e))` passes the `char *` result to the
+    /// `const char *` parameter unconverted; any other value converts unless
+    /// its daslang type is visibly `t`.
+    fn runtime_operand(&self, arg: CExprId, v: WithStmts<DaExpr>, t: DaType) -> WithStmts<DaExpr> {
+        let offset = t == DaType::int()
+            && self
+                .qual_of(arg)
+                .map_or(false, |q| self.is_data_pointer(q.ctype));
+        v.map(|v| {
+            if offset || Self::infer_type(&v).as_ref() == Some(&t) {
+                v
+            } else {
+                cast(t, v)
+            }
+        })
+    }
+
     /// Clang's step for pointer arithmetic over `pointee` (`void *` steps by 1).
     fn step_size(&self, pointee: CQualTypeId) -> TranslationResult<i64> {
         if matches!(
@@ -2988,14 +3007,12 @@ impl<'c> Translation<'c> {
             } else {
                 DaType::int()
             };
-            out = out.zip(v).map(|(mut list, v)| {
-                list.push(if Self::infer_type(&v).as_ref() == Some(&t) {
-                    v
-                } else {
-                    cast(t, v)
+            out = out
+                .zip(self.runtime_operand(*arg, v, t))
+                .map(|(mut list, v)| {
+                    list.push(v);
+                    list
                 });
-                list
-            });
         }
         if roles == "DF" {
             out.val
@@ -3103,16 +3120,13 @@ impl<'c> Translation<'c> {
         let mut out = WithStmts::new_val(Vec::new());
         for (arg, t) in args.iter().zip(types.chars()) {
             let v = self.convert_expr(ctx.used(), *arg, None)?;
-            let t = match t {
-                'I' => Some(DaType::int()),
-                'U' | 'H' => Some(DaType::uint64()),
-                _ => None,
+            let v = match t {
+                'I' => self.runtime_operand(*arg, v, DaType::int()),
+                'U' | 'H' => self.runtime_operand(*arg, v, DaType::uint64()),
+                _ => v,
             };
             out = out.zip(v).map(|(mut list, v)| {
-                list.push(match t {
-                    Some(t) if Self::infer_type(&v).as_ref() != Some(&t) => cast(t, v),
-                    _ => v,
-                });
+                list.push(v);
                 list
             });
         }
@@ -3171,14 +3185,12 @@ impl<'c> Translation<'c> {
             } else {
                 DaType::int()
             };
-            out = out.zip(v).map(|(mut list, v)| {
-                list.push(if Self::infer_type(&v).as_ref() == Some(&t) {
-                    v
-                } else {
-                    cast(t, v)
+            out = out
+                .zip(self.runtime_operand(*arg, v, t))
+                .map(|(mut list, v)| {
+                    list.push(v);
+                    list
                 });
-                list
-            });
         }
         Ok(out.map(|mut list| {
             let mut ptrs = list.split_off(2);
@@ -3286,14 +3298,12 @@ impl<'c> Translation<'c> {
             let mut out = WithStmts::new_val(Vec::new());
             for arg in args {
                 let v = self.convert_expr(ctx.used(), *arg, None)?;
-                out = out.zip(v).map(|(mut list, v)| {
-                    list.push(if Self::infer_type(&v) == Some(DaType::int()) {
-                        v
-                    } else {
-                        cast(DaType::int(), v)
+                out = out
+                    .zip(self.runtime_operand(*arg, v, DaType::int()))
+                    .map(|(mut list, v)| {
+                        list.push(v);
+                        list
                     });
-                    list
-                });
             }
             return Ok(Some(out.map(|mut list| {
                 while list.len() < 6 {
@@ -3374,14 +3384,12 @@ impl<'c> Translation<'c> {
                 } else {
                     DaType::uint64()
                 };
-                out = out.zip(v).map(|(mut list, v)| {
-                    list.push(if Self::infer_type(&v).as_ref() == Some(&t) {
-                        v
-                    } else {
-                        cast(t, v)
+                out = out
+                    .zip(self.runtime_operand(*arg, v, t))
+                    .map(|(mut list, v)| {
+                        list.push(v);
+                        list
                     });
-                    list
-                });
             }
             return Ok(Some(out.map(|list| {
                 DaExpr::Call(Box::new(DaExpr::Var(runtime.into())), list)
