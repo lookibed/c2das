@@ -1024,10 +1024,18 @@ pub(crate) fn libm_function(name: &str) -> Option<LibmFunction> {
 
 /// Lowers a `<math.h>` call whose arguments are already converted.
 pub(crate) fn lower_libm(function: LibmFunction, args: Vec<DaExpr>) -> DaExpr {
-    if function.builtin == FABS {
-        require(FABS);
-    } else {
-        MATH_USED.with(|used| used.set(true));
+    MATH_USED.with(|used| used.set(true));
+    // `math::abs` clears the sign bit (`fabs`/`fabsf`, and the SIMD form
+    // masks it), `sqrt` is IEEE's correctly rounded root in either width
+    // and `fmod` is exact: the `float` builtin is C's `sqrtf`, `fabsf`,
+    // `fmodf` exactly, with no round trip through `double`.
+    let exact_builtin = match function.builtin {
+        FABS => Some("abs"),
+        "sqrt" | "fmod" => Some(function.builtin),
+        _ => None,
+    };
+    if let Some(builtin) = exact_builtin {
+        return call(builtin, args);
     }
     // The C call already converted each argument to its parameter type, so
     // only a `float` variant's arguments need widening.
@@ -1346,18 +1354,27 @@ fn build(name: &str) -> DaDecl {
         SRAND => build_srand(),
         RAND => build_rand(),
         JMP_TARGET => global(JMP_TARGET, DaType::string(), Some(text(""))),
-        JMP_LONGJMP => helper(
-            JMP_LONGJMP,
-            vec![
-                param("target", DaType::string()),
-                param("value", DaType::int()),
-            ],
-            DaType::void(),
-            vec![
-                assign(var(JMP_TARGET), var("target")),
-                DaStmt::Expr(call("panic", vec![text("c2da_std_longjmp")])),
-            ],
-        ),
+        JMP_LONGJMP => {
+            // `value` is kept so the C argument is still evaluated.
+            let mut decl = helper(
+                JMP_LONGJMP,
+                vec![
+                    param("target", DaType::string()),
+                    param("value", DaType::int()),
+                ],
+                DaType::void(),
+                vec![
+                    assign(var(JMP_TARGET), var("target")),
+                    DaStmt::Expr(call("panic", vec![text("c2da_std_longjmp")])),
+                ],
+            );
+            if let DaDecl::Function(function) = &mut decl {
+                function
+                    .annotations
+                    .push("unused_argument(value)".to_owned());
+            }
+            decl
+        }
         JMP_CATCH => helper(
             JMP_CATCH,
             vec![param("target", DaType::string())],

@@ -223,6 +223,30 @@ impl<'c> Translation<'c> {
         if matches!(target.kind, DaTypeKind::Named(_)) && !target.is_numeric() {
             return DaExpr::reinterpret(expr, target);
         }
+        // `(float)sqrt(f)` of a `float` `f` is `sqrtf(f)`: the `double` root
+        // rounded to `float` is the correctly rounded `float` root (double
+        // rounding is harmless for `sqrt`), so `math::sqrt` on the `float`
+        // computes it directly.
+        if target == DaType::float() {
+            if let DaExpr::Call(callee, args) = &expr {
+                if let (
+                    [DaExpr::Cast {
+                        kind: das_ast::CastKind::Cast,
+                        expr: arg,
+                        to,
+                    }],
+                    DaExpr::Var(name),
+                ) = (args.as_slice(), callee.as_ref())
+                {
+                    if name == "sqrt"
+                        && *to == DaType::double()
+                        && Self::infer_type(arg) == Some(DaType::float())
+                    {
+                        return DaExpr::Call(callee.clone(), vec![(**arg).clone()]);
+                    }
+                }
+            }
+        }
         // C types `!x`, `a == b` and `a && b` as `int`, but daScript holds
         // them as a `bool`, which no numeric conversion accepts: C's 0/1 is
         // spelled as the conditional instead.

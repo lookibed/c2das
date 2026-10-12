@@ -4308,7 +4308,7 @@ def c2da_lin_fread(d : int; size : uint64; count : uint64; handle : uint64) : ui
         return 0ul
     }
     let file = c2da_eden_open_file[slot]
-    let avail = int64(length(c2da_eden_file_data[file]))
+    let avail = long_length(c2da_eden_file_data[file])
     let total = int64(size * count)
     var pos = c2da_eden_open_pos[slot]
     var n = 0l
@@ -4333,7 +4333,7 @@ def c2da_lin_fgetc(handle : uint64) : int {
     }
     let file = c2da_eden_open_file[slot]
     let pos = c2da_eden_open_pos[slot]
-    if (pos >= int64(length(c2da_eden_file_data[file]))) {
+    if (pos >= long_length(c2da_eden_file_data[file])) {
         return -1
     }
     c2da_eden_open_pos[slot] = pos + 1l
@@ -4781,8 +4781,12 @@ def c2da_lin_vfmt(f : int; args : array<C2daVaArg>; start : int; var out : array
             spec += to_char(conv)
             let text = fmt(spec, args[k].f64)
             k++
-            for (j in range(length(text))) {
-                push(out, uint8(character_at(text, j)))
+            // `push_from` does not take `peek_data`'s temporary view.
+            peek_data(text) $(bytes) {
+                reserve(out, length(out) + length(bytes))
+                for (b in bytes) {
+                    push(out, b)
+                }
             }
         } elif (conv == 99) {
             let b = int(args[k].i64 & 255l)
