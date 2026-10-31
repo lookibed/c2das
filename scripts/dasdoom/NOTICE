@@ -13,6 +13,11 @@ dasDOOM is the doomgeneric Doom engine translated from C to daslang.
   all.c, doom_entry.c, dg_platform.c, doom_eden_play_all.c, dg_eden_play.c,
   dg_eden_sound.c, eden_play_include/SDL_mixer.h), their translations, and the
   hand-written EdenSpark host eden/c2das_doom_player.das are part of this GPL
-  work and are distributed under the same licence.
+  work and are distributed under the same licence. So are the SDL3 host API
+  harness/sdl/dg_host.c, its translation doom/dg_host.das, the hand-written
+  daslang host doom/doom_sdl.das and sdl/run.bat.
+- The desktop build uses dasSDL3, https://github.com/spiiin/dasSDL3, SDL3
+  bindings for daslang by spiiin (MIT License). dasSDL3 and SDL are not
+  included in this repository.
 
 The Doom shareware IWAD (doom1.wad) is not included; tools/get_wad.sh downloads it.

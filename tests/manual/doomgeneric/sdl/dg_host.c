@@ -21,6 +21,18 @@
 
 #define DG_HOST_PIXELS (DOOMGENERIC_RESX * DOOMGENERIC_RESY)
 
+/* The platform layer's frame record and virtual clock, declared here too so
+ * the file is also a translation unit of its own (dasDOOM's per-file layout,
+ * `scripts/export_dasdoom.py`, translates it beside the engine units, the way
+ * `../src/doom_entry.c` declares the same three).  In the unity build these
+ * declarations repeat `dg_platform.c`'s definitions. */
+#ifndef DG_MAX_FRAMES
+#define DG_MAX_FRAMES 4096
+#endif
+extern int dg_frame_count;
+extern int32_t dg_frame_hash[];
+void dg_advance_clock(void);
+
 static char *dg_host_argv[8];
 static uint32_t dg_host_palette[256];
 static uint32_t dg_host_pixels[DG_HOST_PIXELS];

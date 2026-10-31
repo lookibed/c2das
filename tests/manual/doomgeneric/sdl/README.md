@@ -46,6 +46,11 @@ steps in the same order:
    then `frames=`, `setup_us=`, `loop_frames=`, `loop_us=` and `fps=`. Before the loop it
    prints `video driver: ..., renderer: ...`.
 
+The daslang host also takes `--realtime`, which is not a benchmark mode: it waits after each
+frame so the loop runs at Doom's 35 tics per second, for watching the demo. The frames and
+hashes are the same. dasDOOM (`scripts/export_dasdoom.py`) ships this host beside its
+per-file translation, with `dg_host.c` translated as a unit of its own.
+
 There are three presentation modes. **window** uses SDL's default video driver
 (`windows`, renderer `direct3d11`). **dummy** sets `SDL_VIDEODRIVER=dummy`, which is
 headless and uses SDL's software renderer, so its cost is the CPU scaling to 960×600.

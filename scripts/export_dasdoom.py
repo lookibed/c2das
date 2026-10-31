@@ -6,7 +6,7 @@ usage: python3 scripts/export_dasdoom.py <out-dir>
 dasDOOM is doomgeneric (the Doom engine) translated to daslang by c2das.  The
 tree is generated; nothing in it is edited by hand except through this script
 and the c2das sources it copies.  Existing content of <out-dir> is kept except
-the generated directories `doom/` and `eden/` and the generated top-level
+the generated directories `doom/`, `eden/`, `sdl/` and `harness/` and the generated top-level
 files, which are rewritten (a `.git` directory there is left alone).
 
 - `doom/`: the `--libc std` timedemo program translated exactly like the case
@@ -16,7 +16,14 @@ files, which are rewritten (a `.git` directory there is left alone).
   `dasdoom_runtime.das` (`--runtime-module dasdoom_runtime`, also for `eden/`, so
   the runtime module does not collide with dasQUAKE's in one EdenSpark project).
   `run.sh` runs it on doom1.wad and compares the 70 frame hashes with
-  `expected_frames.txt` (the case's expected stdout).
+  `expected_frames.txt` (the case's expected stdout).  One unit is added to the
+  case's: the SDL3 harness's host API `sdl/dg_host.c` (module `dg_host.das`,
+  which no engine module requires, so the engine modules are the case's), and
+  the harness's daslang host `sdl/doom_sdl.das` is staged as
+  `doom/doom_sdl.das` with its `require` of the whole-unit module replaced by
+  the runtime and `dg_host`.
+- `sdl/run.bat`: runs that host with `daslang -jit` (or the interpreter)
+  through dasSDL3 on Windows.
 - `eden/`: the EdenSpark play build in the per-file layout: the translation
   units of `src/doom_eden_play_all.c` (the engine files `src/all.c` includes,
   then the harness files `dg_eden_sound.c` and `dg_eden_play.c`) translated
@@ -66,6 +73,17 @@ HOST_REQUIRE_TO = "require modules/dasdoom/"
 RUNTIME_MODULE = "dasdoom_runtime"
 HOST_RUNTIME_FROM = HOST_REQUIRE_FROM + "c2da_runtime\n"
 HOST_RUNTIME_TO = HOST_REQUIRE_FROM + RUNTIME_MODULE + "\n"
+# The desktop SDL3 host (tests/manual/doomgeneric/sdl/): its host API `dg_host.c`
+# joins the `doom/` translation as one more unit (module `dg_host`, which no engine
+# unit depends on), and the daslang host `doom_sdl.das` is staged beside it in
+# `doom/`: daslang resolves a `require` from the requiring file's directory and
+# has no `..`, so the host lives with the modules it requires.  `sdl/` holds the
+# launchers.
+SDL = DOOM / "sdl"
+SDL_UNIT = "sdl/dg_host.c"
+SDL_HOST = SDL / "doom_sdl.das"
+SDL_REQUIRE_FROM = "require doom_host_all\n"
+SDL_REQUIRE_TO = f"require {RUNTIME_MODULE}\nrequire dg_host\n"
 HARNESS = ["engine_config.h", "all.c", "doom_entry.c", "dg_platform.c",
            "doom_eden_play_all.c", "dg_eden.h", "dg_eden_play.c", "dg_eden_sound.c",
            "eden_play_include/SDL_mixer.h"]
@@ -191,7 +209,8 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="dasdoom-") as scratch:
         work = Path(scratch)
-        std_out, std_command = translate_source(tool, std, "doom", std["translation_units"],
+        doom_units = [*std["translation_units"], SDL_UNIT]
+        std_out, std_command = translate_source(tool, std, "doom", doom_units,
                                                 std["clang"]["flags"], policy_flags(std), work)
         units = play_units(std)
         play_flags = [*eden["clang"]["flags"], *PLAY_EXTRA_FLAGS]
@@ -207,6 +226,24 @@ def main() -> int:
     shutil.copyfile(TEMPLATES / "run.sh", out / "doom" / "run.sh")
     (out / "doom" / "run.sh").chmod(0o755)
 
+    # The SDL3 host is written against the harness's whole-unit module
+    # `doom_host_all`; here the runtime and the host API are separate modules.
+    # A context option such as the stack size belongs to the program, whose root
+    # is the host script (translate.sh prepends the case's options the same way).
+    sdl_host = SDL_HOST.read_text()
+    if sdl_host.count(SDL_REQUIRE_FROM) != 1 or not sdl_host.startswith("options gen2\n"):
+        fail(f"{SDL_HOST.relative_to(ROOT)}: expected `options gen2` first and one `{SDL_REQUIRE_FROM.strip()}`")
+    sdl_options = "".join(f"options {option}\n" for option in std.get("das_options", []))
+    sdl_host = "options gen2\n" + sdl_options + sdl_host[len("options gen2\n"):]
+    (out / "doom" / SDL_HOST.name).write_text(sdl_host.replace(SDL_REQUIRE_FROM, SDL_REQUIRE_TO))
+    sdl_dir = out / "sdl"
+    if sdl_dir.exists():
+        shutil.rmtree(sdl_dir)
+    sdl_dir.mkdir()
+    # cmd.exe misreads labels in LF-only batch files: written with CRLF.
+    bat = (TEMPLATES / "sdl" / "run.bat").read_text()
+    (sdl_dir / "run.bat").write_text(bat, newline="\r\n")
+
     host = HOST.read_text()
     if host.count(HOST_REQUIRE_FROM) == 0 or host.count(HOST_RUNTIME_FROM) != 1:
         fail(f"{HOST.relative_to(ROOT)}: expected `{HOST_REQUIRE_FROM}…` requires, "
@@ -221,6 +258,8 @@ def main() -> int:
     for name in HARNESS:
         (harness / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(DOOM / "src" / name, harness / name)
+    (harness / "sdl").mkdir()
+    shutil.copyfile(SDL / "dg_host.c", harness / "sdl" / "dg_host.c")
 
     (out / "tools").mkdir(exist_ok=True)
     shutil.copyfile(TEMPLATES / "get_wad.sh", out / "tools" / "get_wad.sh")
@@ -247,7 +286,9 @@ def main() -> int:
         "generated_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "translations": {
             "doom": {"case": STD_CASE, "source_root": std["source_root"],
-                     "translation_units": std["translation_units"],
+                     "translation_units": doom_units,
+                     "sdl_host": {"source": str(SDL_HOST.relative_to(ROOT)),
+                                  "staged_as": "doom/" + SDL_HOST.name},
                      "clang": std["clang"], "command": std_command, "files": doom_files},
             "eden": {"case": EDEN_CASE, "source_root": eden["source_root"],
                      "entry": PLAY_ENTRY, "translation_units": units,

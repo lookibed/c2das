@@ -17,6 +17,8 @@ module when files depend on each other in a cycle. So the tree mirrors the origi
 |---|---|
 | `doom/` | The timedemo program under `--libc std`, `--module-layout source`: @DOOM_MODULES@ modules (one per C file, or a cluster of mutually dependent files), @DOOM_INCS@ `.das.inc` fragments, and the runtime `dasdoom_runtime.das` (named per program, so dasDOOM and dasQUAKE fit in one EdenSpark project). The entry `doom_entry.das` plays `-timedemo demo1` and prints one hash per frame. |
 | `doom/run.sh` | Runs the program on `doom1.wad` and compares the first 70 frame hashes with `expected_frames.txt`, the output of the C build. |
+| `doom/dg_host.das`, `doom/doom_sdl.das` | The desktop SDL3 build (see below): `dg_host.das` is the translation of the host API `harness/sdl/dg_host.c` (start, tic, frame hashes, the frame as ARGB pixels), `doom_sdl.das` the hand-written daslang host that opens the window through dasSDL3. |
+| `sdl/run.bat` | Runs the SDL3 build on Windows. |
 | `eden/` | The interactive build for the EdenSpark editor, per file like `doom/`: the engine with the platform layer and sound mixer (the harness files join the cluster module `am_map_cluster.das`, which defines the `dge_*` host API), the runtime `dasdoom_runtime.das`, the hand-written host `c2das_doom_player.das`, and `main.das.example`. |
 | `harness/` | The c2das-authored C entries and platform layers that the translations include. |
 | `tools/get_wad.sh` | Downloads the shareware `doom1.wad` and checks its SHA-1. |
@@ -62,6 +64,62 @@ In the EdenSpark editor, 2026-10-09: the editor runs scripts in its interpreter 
 
 So the editor plays Doom at full speed with headroom of about 3–4×.
 
+## Desktop (SDL3, via dasSDL3)
+
+![dasDOOM in an SDL3 window, daslang -jit](docs/sdl3.png)
+
+The same translated engine as `doom/`, in a desktop window. The window, the texture upload
+and the timing go through [dasSDL3](https://github.com/spiiin/dasSDL3) by spiiin, the SDL3
+bindings for daslang. The host `doom/doom_sdl.das` is about 150 lines of daslang. It plays
+`-timedemo demo1` of the shareware IWAD: each loop iteration runs one engine tic and frame,
+converts the 8-bit frame through the palette to ARGB8888 (in the translated `dg_host.das`),
+uploads it to a 320×200 streaming texture and presents it scaled to the 960×600 window. Escape
+or closing the window stops it. Afterwards it prints one FNV-1a hash per frame, so every run is
+checked against the C build, and the timing.
+
+Doom is used here as a test bench, for the c2das translator and for dasSDL3: there is no
+keyboard play, sound or music in this build, only the recorded demo.
+
+Requirements (Windows x64; this is the platform it was run on):
+
+- daslang built with LLVM (for `-jit`), and the MSVC build tools: the JIT's link step needs
+  `vcvars64.bat`'s library paths. `run.bat` finds them through `vswhere.exe`, or set `VCVARS`.
+- dasSDL3 built as a daslang module (its `src/package` CMake entry, SDL 3.4.16), in a project
+  root whose `modules\dasSDL3\` holds `dasSDL3.shared_module` and the `dassdl3\` scripts.
+- The shareware `doom1.wad` (`tools/get_wad.sh`).
+
+```bat
+set DASLANG=<daScript>\bin\daslang.exe
+set DASSDL3_PROJ=<project root with modules\dasSDL3>
+set DOOM_WAD=<path>\doom1.wad
+sdl\run.bat                         & rem -jit, 1000 frames as fast as possible
+sdl\run.bat jit --realtime --frames 5000   & rem the demo at Doom's own 35 frames per second
+sdl\run.bat interp                  & rem the daslang interpreter
+```
+
+`DOOM_WAD` defaults to `doom1.wad` in the repository root. The engine writes `.savegame\` and
+the JIT its cache into `DASDOOM_WORK` (default `%TEMP%\dasdoom-sdl`). The first `-jit` run
+compiles the engine first, which took about half a minute; later runs reuse the cache. Linux is not
+claimed: this build has only been run on Windows.
+
+Run on 2026-11-01 from this export, on Windows 10 with an AMD Ryzen 7 7435HS laptop CPU,
+daslang 0.6.4 (daScript `69a589623`, LLVM JIT), dasSDL3 `dea320f`, SDL 3.4.16 (static), the
+`windows` video driver with the `direct3d11` renderer, vsync off. Every run printed the 70 hashes
+of `doom/expected_frames.txt`, and all 1000 frame hashes were equal to the natively compiled C
+build of the same engine (clang-cl).
+
+| `sdl\run.bat jit`, window, 959 timed frames (frames 41–999) | fps |
+|---|---:|
+| run 1 | 3552 |
+| run 2 | 3032 |
+
+This is a quick figure from two runs, not a benchmark. The C build of the same program
+(`clang-cl /O2 -march=native`) did 3319 fps in window mode in c2das's
+[Windows SDL3 harness](https://github.com/lookibed/c2das/tree/master/tests/manual/doomgeneric/sdl),
+measured there with three runs per variant and the whole engine as one module. At these
+rates the window and present cost a large part of each frame. `--realtime` played 1159 frames
+at 35.0 fps with the same hashes.
+
 ## Play it in EdenSpark
 
 1. Copy the contents of `eden/` into `<project>/modules/dasdoom/`.
@@ -90,4 +148,5 @@ Sound effects play through one stereo stream at 11 025 Hz.
 ## License
 
 GPL-2.0, as doomgeneric. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). The Doom WAD is
-not included.
+not included. dasSDL3 (MIT) is a separate project and is not included either; the SDL3 build
+only uses it.
