@@ -38,7 +38,10 @@ int32_t qg_frame_hash[QG_MAX_FRAMES];
  * floating point, so `realtime` sums without rounding. */
 const double qg_frame_seconds = 1.0 / 64.0;
 
-static unsigned char qg_palette[768];
+/* The palette last given to `QG_SetPalette` (768 bytes, RGB).  Not static:
+ * the SDL3 host API (`../sdl/qg_host.c`) reads it to colour the frame it
+ * shows. */
+unsigned char qg_palette[768];
 
 /* 32-bit FNV-1a over the frame's pixels, one 24-bit RGB word per pixel. */
 static uint32_t qg_hash_frame(const unsigned char *pixels)

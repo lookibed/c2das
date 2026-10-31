@@ -12,7 +12,12 @@ dasQUAKE is the quakegeneric Quake engine translated from C to daslang.
 - The c2das-authored harness files, the C sources in harness/ (engine_config.h,
   qg_platform.c, quake_entry.c, qg_eden.h, qg_eden_play.c), their translations,
   and the hand-written EdenSpark host eden/c2das_quake_player.das are part of
-  this GPL work and are distributed under the same licence.
+  this GPL work and are distributed under the same licence. So are the SDL3 host API
+  harness/sdl/qg_host.c, its translation quake/qg_host.das, the hand-written
+  daslang host quake/quake_sdl.das and sdl/run.bat.
+- The desktop build uses dasSDL3, https://github.com/spiiin/dasSDL3, SDL3
+  bindings for daslang by spiiin (MIT License). dasSDL3 and SDL are not
+  included in this repository.
 
 Game data
 ---------

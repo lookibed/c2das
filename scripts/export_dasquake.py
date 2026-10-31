@@ -7,7 +7,7 @@ dasQUAKE is quakegeneric (the WinQuake software-rendered engine) translated to
 daslang by c2das, shaped like dasDOOM (scripts/export_dasdoom.py).  The tree is
 generated; nothing in it is edited by hand except through this script and the
 c2das sources it copies.  Existing content of <out-dir> is kept except the
-generated directories `quake/`, `eden/` and `harness/` and the generated
+generated directories `quake/`, `eden/`, `sdl/` and `harness/` and the generated
 top-level files, which are rewritten (a `.git` directory there is left alone).
 
 - `quake/`: the `--libc std` timedemo program translated exactly like the case
@@ -16,7 +16,13 @@ top-level files, which are rewritten (a `.git` directory there is left alone).
   `--runtime-module dasquake_runtime` (also for `eden/`, so the shared runtime
   module does not collide with dasDOOM's in one EdenSpark project).  `run.sh` runs it
   on a base directory holding `id1/pak0.pak` and compares the 100 frame hashes
-  with `expected_frames.txt` (the case's expected stdout).
+  with `expected_frames.txt` (the case's expected stdout).  One unit is added to
+  the case's: the SDL3 harness's host API `sdl/qg_host.c` (module `qg_host.das`,
+  which no engine module requires, so the engine modules are the case's), and
+  the harness's daslang host `sdl/quake_sdl.das` is staged as
+  `quake/quake_sdl.das` with its `require c2da_runtime` renamed to the runtime.
+- `sdl/run.bat`: runs that host with `daslang -jit` (or the interpreter)
+  through dasSDL3 on Windows.
 - `eden/`: the EdenSpark play build: the engine units of the case
   `quakegeneric-demo1-eden-linear` plus the play harness `src/qg_eden_play.c`
   (instead of `qg_platform.c` and `quake_entry.c`), translated with
@@ -65,6 +71,15 @@ HOST_RUNTIME_FROM = HOST_REQUIRE_FROM + "c2da_runtime\n"
 HOST_RUNTIME_TO = HOST_REQUIRE_FROM + RUNTIME_MODULE + "\n"
 # The host's require of the module holding `qge_*` (the engine's cluster module).
 HOST_PLAY_MODULE = re.compile(r"^require modules/c2das/quake/(\w+_cluster)$", re.MULTILINE)
+# The desktop SDL3 host (tests/manual/quakegeneric/sdl/): its host API `qg_host.c`
+# joins the `quake/` translation as one more unit, and the daslang host
+# `quake_sdl.das` is staged beside it in `quake/`: daslang resolves a `require`
+# from the requiring file's directory and has no `..`.  `sdl/` holds the launcher.
+SDL = QUAKE / "sdl"
+SDL_UNIT = "sdl/qg_host.c"
+SDL_HOST = SDL / "quake_sdl.das"
+SDL_RUNTIME_FROM = "require c2da_runtime\n"
+SDL_RUNTIME_TO = f"require {RUNTIME_MODULE}\n"
 HARNESS = ["engine_config.h", "qg_platform.c", "quake_entry.c", "qg_eden.h", "qg_eden_play.c"]
 
 
@@ -203,7 +218,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="dasquake-") as scratch:
         work = Path(scratch)
         # both translations first: a refusal leaves <out-dir> untouched
-        std_out, std_command = translate_source(tool, std, "quake", std["translation_units"],
+        quake_units = [*std["translation_units"], SDL_UNIT]
+        std_out, std_command = translate_source(tool, std, "quake", quake_units,
                                                 std["clang"]["flags"], policy_flags(std), work)
         units = play_units(eden)
         play_flags = list(eden["clang"]["flags"])
@@ -230,12 +246,31 @@ def main() -> int:
     harness.mkdir()
     for name in HARNESS:
         shutil.copyfile(QUAKE / "src" / name, harness / name)
+    (harness / "sdl").mkdir()
+    shutil.copyfile(SDL / "qg_host.c", harness / "sdl" / "qg_host.c")
+
+    # A context option such as the stack size belongs to the program, whose
+    # root is the host script.
+    sdl_host = SDL_HOST.read_text()
+    if sdl_host.count(SDL_RUNTIME_FROM) != 1 or not sdl_host.startswith("options gen2\n"):
+        fail(f"{SDL_HOST.relative_to(ROOT)}: expected `options gen2` first and one `{SDL_RUNTIME_FROM.strip()}`")
+    sdl_options = "".join(f"options {option}\n" for option in std.get("das_options", []))
+    sdl_host = "options gen2\n" + sdl_options + sdl_host[len("options gen2\n"):]
+    (out / "quake" / SDL_HOST.name).write_text(sdl_host.replace(SDL_RUNTIME_FROM, SDL_RUNTIME_TO))
+    sdl_dir = out / "sdl"
+    if sdl_dir.exists():
+        shutil.rmtree(sdl_dir)
+    sdl_dir.mkdir()
+    # cmd.exe misreads labels in LF-only batch files: written with CRLF.
+    bat = (TEMPLATES / "sdl" / "run.bat").read_text()
+    (sdl_dir / "run.bat").write_text(bat, newline="\r\n")
 
     (out / "tools").mkdir(exist_ok=True)
     shutil.copyfile(TEMPLATES / "get_pak.sh", out / "tools" / "get_pak.sh")
     (out / "tools" / "get_pak.sh").chmod(0o755)
     shutil.copyfile(QUAKE / "upstream" / "quakegeneric" / "LICENSE", out / "LICENSE")
     shutil.copyfile(TEMPLATES / "gitignore", out / ".gitignore")
+    shutil.copyfile(TEMPLATES / "gitattributes", out / ".gitattributes")
 
     short = head[:9] + ("-dirty" if dirty else "")
     upstream = re.search(r"`([0-9a-f]{40})`", (QUAKE / "UPSTREAM.md").read_text()).group(1)
@@ -256,7 +291,9 @@ def main() -> int:
         "generated_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "translations": {
             "quake": {"case": STD_CASE, "source_root": std["source_root"],
-                      "translation_units": std["translation_units"],
+                      "translation_units": quake_units,
+                      "sdl_host": {"source": str(SDL_HOST.relative_to(ROOT)),
+                                   "staged_as": "quake/" + SDL_HOST.name},
                       "clang": std["clang"], "command": std_command, "files": quake_files},
             "eden": {"case": EDEN_CASE, "source_root": eden["source_root"],
                      "translation_units": units, "play_module": module,
