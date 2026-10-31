@@ -266,6 +266,7 @@ def main() -> int:
     (out / "tools" / "get_wad.sh").chmod(0o755)
     shutil.copyfile(DOOM / "upstream" / "doomgeneric" / "LICENSE", out / "LICENSE")
     shutil.copyfile(TEMPLATES / "gitignore", out / ".gitignore")
+    shutil.copyfile(TEMPLATES / "gitattributes", out / ".gitattributes")
 
     short = head[:9] + ("-dirty" if dirty else "")
     upstream = re.search(r"`([0-9a-f]{40})`", (DOOM / "UPSTREAM.md").read_text()).group(1)
